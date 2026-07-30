@@ -70,7 +70,12 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
         return new FieldInfosWithUsages(deduplicated);
     }
 
-    private static Map<String, String> internStringStringMap(Map<String, String> m) {
+    /**
+     * Node-wide intern of attribute maps. Package-accessible so {@link CachingFieldInfosFormat} can share the same global
+     * cache, which means shards from data streams (same mapping, different indices) on the same node share canonical
+     * attribute-Map instances across shards even when the per-Directory FieldInfo cache is in play.
+     */
+    static Map<String, String> internStringStringMap(Map<String, String> m) {
         if (m.size() > 10) {
             return m;
         }

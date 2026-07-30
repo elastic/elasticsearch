@@ -17,6 +17,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -40,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SingleValuedLongField;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -87,7 +88,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        true
+        true,
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
@@ -96,10 +99,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final FieldMapper.DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<String> nullValue;
@@ -121,6 +121,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
+            this.docValuesParameters = FieldMapper.DocValuesParameter.of(
+                DEFAULT_DOC_VALUES_PARAMS,
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -145,7 +150,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
                 }
-                if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (indexSettings.getMode().isTsdb()) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
@@ -229,6 +234,22 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                docValuesParameters.getValue().enabled(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().multiValue()
+            );
+
+            boolean readInArrayOrder = offsetsFieldName != null
+                && docValuesParameters.getValue().multiValue()
+                && indexSettings.getMode().isStrictColumnar();
+
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
                 indexType(),
@@ -238,16 +259,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 dimension.getValue(),
                 metric.getValue(),
                 indexSettings.getMode(),
-                context.isSourceSynthetic()
-            );
-            String offsetsFieldName = getOffsetsFieldName(
-                context,
-                indexSettings.sourceKeepMode(),
-                docValuesParameters.getValue().enabled(),
-                stored.getValue(),
-                this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG
+                context.isSourceSynthetic(),
+                readInArrayOrder
             );
             return new UnsignedLongFieldMapper(
                 leafName(),
@@ -269,6 +282,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final MetricType metricType;
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
+        private final boolean readInArrayOrder;
 
         public UnsignedLongFieldType(
             String name,
@@ -281,12 +295,28 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
+            this(name, indexType, isStored, nullValueFormatted, meta, isDimension, metricType, indexMode, isSyntheticSource, false);
+        }
+
+        public UnsignedLongFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            Number nullValueFormatted,
+            Map<String, String> meta,
+            boolean isDimension,
+            MetricType metricType,
+            IndexMode indexMode,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder
+        ) {
             super(name, indexType, isStored, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
             this.indexMode = indexMode;
             this.isSyntheticSource = isSyntheticSource;
+            this.readInArrayOrder = readInArrayOrder;
         }
 
         public UnsignedLongFieldType(String name) {
@@ -374,15 +404,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+            if (IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
                 return ConstantNull.INSTANCE;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new LongsBlockLoader(name());
+                return new LongsBlockLoader(name(), readInArrayOrder);
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -482,7 +513,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
@@ -594,6 +625,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             } else {
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                Numbers.checkNumericStringLength(stringValue);
                 try {
                     return Long.parseUnsignedLong(stringValue);
                 } catch (NumberFormatException e) {
@@ -625,7 +657,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return longValue;
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
+            final BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);  // throws an exception if it is an improper number
             if (bigDecimalValue.compareTo(BigDecimal.ZERO) < 0) {
                 return 0L; // for values < 0, set lowerTerm to 0
             }
@@ -659,7 +691,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return longValue;
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
+            final BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);  // throws an exception if it is an improper number
             int c = bigDecimalValue.compareTo(BigDecimal.ZERO);
             if (c < 0 || (c == 0 && include == false)) {
                 return null; // upperTerm is below minimum
@@ -749,6 +781,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
     public UnsignedLongFieldType fieldType() {
         return (UnsignedLongFieldType) super.fieldType();
     }
@@ -761,19 +803,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain unsigned_long mappers can be driven through parseCreateField by the bulk batch
-        // path. ignore_malformed and null_value are allowed. Dimensions, time-series metrics,
-        // copy_to, multi-fields, and scripts pull in behavior that the v1 batch path does not
-        // support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && dimension == false
-            && metricType == null;
     }
 
     @Override
@@ -818,12 +847,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (numericValue != null) {
             if (indexed && docValuesParameters.enabled()) {
-                context.doc()
-                    .add(
-                        docValuesParameters.multiValue()
-                            ? new LongField(fieldType().name(), numericValue, Field.Store.NO)
-                            : new SingleValuedLongField(fieldType().name(), numericValue)
-                    );
+                context.doc().add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (docValuesParameters.enabled()) {
                 dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);
             } else if (indexed) {
@@ -840,7 +864,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
         }
 
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (numericValue != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, numericValue);
             } else {
@@ -889,7 +913,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             } catch (NumberFormatException ignored) {
                 final BigInteger bigInteger;
                 try {
-                    final BigDecimal bigDecimal = new BigDecimal(stringValue);
+                    final BigDecimal bigDecimal = Numbers.newBigDecimal(stringValue);
                     bigInteger = bigDecimal.toBigIntegerExact();
                 } catch (ArithmeticException e) {
                     throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");

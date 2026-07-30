@@ -2,7 +2,7 @@ flattened root fields
 required_capability: load_flattened_field
 required_capability: optional_fields_v5
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs

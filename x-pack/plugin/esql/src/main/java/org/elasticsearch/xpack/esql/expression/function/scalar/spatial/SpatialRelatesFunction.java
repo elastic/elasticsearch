@@ -27,10 +27,13 @@ import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -56,7 +59,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         EvaluatorMapper,
         SpatialEvaluatorFactory.SpatialSourceSupplier,
         TranslationAware,
-        SurrogateExpression {
+        SurrogateExpression,
+        AnyNullIsNull {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false, false);
@@ -97,7 +101,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
     protected Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) {
         long gridId = (Long) valueOf(ctx, gridExp);
-        return getSpatialRelations().compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
+        Geometry geometry = makeGeometryFromLiteral(ctx, spatialExp);
+        if (geometry == null) {
+            return null;
+        }
+        return getSpatialRelations().compareGeometryAndGrid(geometry, gridId, gridType);
     }
 
     /** This exposes class-level static information within objects and should only be used for folding optimizations */
@@ -363,6 +371,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         try {
             // TODO: Support geo-grid query pushdown
             Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+            if (shape == null) {
+                // The constant geometry literal failed to parse; it already folded to null with a registered warning.
+                // ST_<relation>(field, NULL) is NULL for every row, so the filter matches nothing.
+                return new NotQuery(source(), new MatchAll(source()));
+            }
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {
             throw new QlIllegalArgumentException(e.getMessage(), e);

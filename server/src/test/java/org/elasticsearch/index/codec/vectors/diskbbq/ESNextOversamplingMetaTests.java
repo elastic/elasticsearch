@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -34,10 +32,11 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsRe
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
@@ -61,13 +60,10 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected VectorSimilarityFunction randomSimilarity() {
-        return RandomPicks.randomFrom(
-            random(),
-            List.of(
-                VectorSimilarityFunction.DOT_PRODUCT,
-                VectorSimilarityFunction.EUCLIDEAN,
-                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
-            )
+        return randomFrom(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
         );
     }
 
@@ -97,7 +93,7 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            assertThat(offHeap.size(), equalTo(3));
+            assertThat(offHeap, aMapWithSize(3));
             assertThat(totalByteSize, greaterThanOrEqualTo(0L));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
@@ -120,10 +116,7 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
                     if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
-                    assertTrue(
-                        "expected ESNextDiskBBQVectorsReader, got: " + knnVectorsReader.getClass(),
-                        knnVectorsReader instanceof ESNextDiskBBQVectorsReader
-                    );
+                    assertThat(knnVectorsReader, instanceOf(ESNextDiskBBQVectorsReader.class));
                     var esr = (ESNextDiskBBQVectorsReader) knnVectorsReader;
                     FieldInfo fi = leaf.getFieldInfos().fieldInfo("f");
                     assertTrue(Float.isNaN(esr.fields.get(fi.number).rescoreOversample()));

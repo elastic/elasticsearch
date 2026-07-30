@@ -39,6 +39,16 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
+    @Override
+    public void testGroupingAggregate() {
+        if (testCase.extra() == IllegalArgumentException.class) {
+            Exception e = expectThrows(IllegalArgumentException.class, super::testGroupingAggregate);
+            assertThat(e.getMessage(), org.hamcrest.Matchers.notNullValue());
+            return;
+        }
+        super.testGroupingAggregate();
+    }
+
     protected static List<List<TestCaseSupplier.TypedDataSupplier>> valuesSuppliers() {
         return List.of(
             MultiRowTestCaseSupplier.longCases(1, 1000, 0, 1000_000_000, true),
@@ -129,14 +139,7 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false) {
-                        return result.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        )
-                            .withWarning(
-                                "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
-                                    + " for counters yet. The affected time series are excluded from irate calculations."
-                                    + " Upgrade your cluster to fix this."
-                            );
+                        return result.withExtra(IllegalArgumentException.class);
                     }
                 }
                 return result;

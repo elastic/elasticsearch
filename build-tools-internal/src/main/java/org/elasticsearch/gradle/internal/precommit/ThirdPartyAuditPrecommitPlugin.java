@@ -44,9 +44,12 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
-            var elasticsearchCoreProject = project.findProject(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH);
-            if (elasticsearchCoreProject != null) {
-                project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, elasticsearchCoreProject);
+            if (project.findProject(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) != null) {
+                project.getDependencies()
+                    .add(
+                        JDK_JAR_HELL_CONFIG_NAME,
+                        project.getDependencies().project(java.util.Map.of("path", LIBS_ELASTICSEARCH_CORE_PROJECT_PATH))
+                    );
             }
         }
         TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()

@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.RemoteException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
@@ -292,6 +292,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(serialize.getCause());
     }
 
+    public void testRemoteResourceNotSupportedException() throws IOException {
+        // Both metadata lists (views + datasets) must survive the wire round-trip at the support transport version.
+        var version = org.elasticsearch.TransportVersion.fromName("indices_options_resolve_datasets");
+        var ex = serialize(
+            new org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException(
+                java.util.List.of("c1:v1", "c2:v2"),
+                java.util.List.of("c3:d1")
+            ),
+            version
+        );
+        assertThat(ex.views(), equalTo(java.util.List.of("c1:v1", "c2:v2")));
+        assertThat(ex.datasets(), equalTo(java.util.List.of("c3:d1")));
+    }
+
     public void testParsingException() throws IOException {
         ParsingException ex = serialize(new ParsingException(1, 2, "fobar", null));
         assertNull(ex.getIndex());
@@ -478,7 +492,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         SliceMissingException ex = serialize(new SliceMissingException("idx", "id"), SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION);
         assertEquals("idx", ex.getIndex().getName());
         assertEquals("id", ex.getId());
-        assertEquals("_slice is required for [idx]/[id]", ex.getMessage());
+        assertEquals("slice is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {
@@ -656,7 +670,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testNoLongerPrimaryShardException() throws IOException {
         ShardId shardId = new ShardId(new Index(randomAlphaOfLength(4), randomAlphaOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
         String msg = randomAlphaOfLength(4);
-        ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
+        NoLongerPrimaryShardException ex = serialize(new NoLongerPrimaryShardException(shardId, msg));
         assertEquals(shardId, ex.getShardId());
         assertEquals(msg, ex.getMessage());
     }
@@ -842,7 +856,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(139, null);
         ids.put(140, org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class);
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
-        ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
+        ids.put(142, NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
@@ -895,6 +909,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
         ids.put(194, org.elasticsearch.action.SliceMissingException.class);
+        ids.put(195, org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class);
+        ids.put(196, org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class);
+        ids.put(197, org.elasticsearch.indices.recovery.RecoveryCancelledException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

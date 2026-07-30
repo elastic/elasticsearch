@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +32,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * Must stay in sync with {@code NdJsonFormatReader.RECOGNIZED_KEYS}; verified
      * by {@code NdJsonFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      */
-    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size");
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size", "datetime_format");
 
     @Override
     public Set<FormatSpec> formatSpecs() {
@@ -40,5 +42,10 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of("ndjson", NdJsonFormatReader::new);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(NdJsonReaderStatus.ENTRY);
     }
 }

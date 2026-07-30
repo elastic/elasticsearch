@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `IP_PREFIX` function [esql-ip_prefix]
 
-:::{include} ../../_snippets/functions/layout/ip_prefix.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/ip_prefix.md
 :::

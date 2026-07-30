@@ -102,7 +102,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             var expectedInputs = List.of(
                 new InferenceStringGroup(
                     List.of(
-                        new InferenceString(DataType.TEXT, "some text input"),
+                        InferenceString.ofText("some text input"),
                         new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI)
                     )
                 )
@@ -136,9 +136,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
                 new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI))),
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.TEXT, "first text input"), new InferenceString(DataType.TEXT, "second text input"))
-                ),
+                new InferenceStringGroup(List.of(InferenceString.ofText("first text input"), InferenceString.ofText("second text input"))),
                 new InferenceStringGroup("third input")
             );
             assertThat(request.inputs(), is(expectedInputs));
@@ -170,9 +168,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                 new InferenceStringGroup(
                     List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, InferenceStringTests.TEST_DATA_URI))
                 ),
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.TEXT, "first text input"), new InferenceString(DataType.TEXT, "second text input"))
-                )
+                new InferenceStringGroup(List.of(InferenceString.ofText("first text input"), InferenceString.ofText("second text input")))
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));

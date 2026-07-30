@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -94,6 +96,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests various indexer failure cases.
@@ -114,7 +117,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
-        private final Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction;
+        private final Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction;
 
         // used for synchronizing with the test
         private CountDownLatch latch;
@@ -135,7 +138,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             TransformContext context,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
             int doProcessCount
         ) {
             super(
@@ -151,7 +154,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
-                    mock(ProjectResolver.class)
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 checkpointProvider,
                 initialState,
@@ -244,9 +248,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        protected void doDeleteByQuery(
+            DeleteByQueryRequest deleteByQueryRequest,
+            ActionListener<BulkByPaginatedSearchResponse> responseListener
+        ) {
             try {
-                BulkByScrollResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
+                BulkByPaginatedSearchResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
                 responseListener.onResponse(response);
             } catch (Exception e) {
                 responseListener.onFailure(e);
@@ -497,7 +504,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction = deleteByQueryRequest -> {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
@@ -578,7 +585,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction = deleteByQueryRequest -> {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
@@ -1075,7 +1082,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
-        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+        Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
         ThreadPool threadPool,
         TransformAuditor auditor,
         TransformContext context
@@ -1088,7 +1095,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
-        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+        Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
         ThreadPool threadPool,
         TransformAuditor auditor,
         TransformContext context,
@@ -1100,9 +1107,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             listener.onResponse(config);
             return null;
         }).when(transformConfigManager).getTransformConfiguration(any(), any());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            mock(ClusterService.class),
+            clusterService,
             mock(IndexNameExpressionResolver.class),
             mock(TransformExtension.class),
             transformConfigManager,

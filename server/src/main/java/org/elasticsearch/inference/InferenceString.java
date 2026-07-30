@@ -38,11 +38,16 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         "inference_api_audio_video_pdf_support"
     );
 
-    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+    // Caps regex cost regardless of total input size; real MIME types are well under this.
+    static final int MAX_DATA_URI_PREFIX_LENGTH = 256;
+
+    // Character classes stop at literal delimiters so matching is linear. RFC 2397 ";param=value" pairs get absorbed into the {subtype}
+    // class.
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
 
     public static final String TYPE_FIELD = "type";
-    static final String FORMAT_FIELD = "format";
-    static final String VALUE_FIELD = "value";
+    public static final String FORMAT_FIELD = "format";
+    public static final String VALUE_FIELD = "value";
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
@@ -52,6 +57,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
         PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+    }
+
+    /**
+     * Convenience constructor for creating {@link InferenceString} with {@link DataType#TEXT} and {@link DataFormat#TEXT}
+     */
+    public static InferenceString ofText(String textValue) {
+        return new InferenceString(DataType.TEXT, DataFormat.TEXT, textValue);
     }
 
     /**
@@ -96,7 +108,10 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     private void validateDataURIFormat() {
         if (dataFormat == DataFormat.BASE64) {
             var endOfURIPart = value.indexOf(',');
-            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+            // Fast-fail on missing or oversized URI part before the regex.
+            if (endOfURIPart < 0
+                || endOfURIPart >= MAX_DATA_URI_PREFIX_LENGTH
+                || DATA_URI_PATTERN.matcher(value).region(0, endOfURIPart + 1).matches() == false) {
                 throw new IllegalArgumentException(
                     "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
                 );
@@ -144,7 +159,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> fromStringList(List<String> strings) {
-        return strings.stream().map(aString -> new InferenceString(DataType.TEXT, aString)).toList();
+        return strings.stream().map(InferenceString::ofText).toList();
     }
 
     /**

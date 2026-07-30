@@ -75,7 +75,12 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(
+                    warnings,
+                    "field",
+                    ByteSizeValue.ofKb(between(1, 100)),
+                    BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource.NONE
+                );
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (

@@ -13,7 +13,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -35,6 +36,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -80,7 +82,9 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.PDF;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.inference.InferenceStringTests.randomDataTypeSupportingBase64;
 import static org.elasticsearch.inference.InferenceStringTests.randomDataURI;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
@@ -156,7 +160,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 serviceSettingsMap.put(MULTIMODAL_MODEL, multimodalModel);
             }
 
-            var modelListener = new PlainActionFuture<Model>();
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
@@ -195,7 +199,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var returnDocuments = randomBoolean();
             var apiKey = randomAlphanumericOfLength(8);
 
-            var modelListener = new PlainActionFuture<Model>();
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
@@ -231,7 +235,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
 
-            var modelListener = new PlainActionFuture<Model>();
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
@@ -265,7 +269,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
 
-            var modelListener = new PlainActionFuture<Model>();
+            var modelListener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID_VALUE,
@@ -357,7 +361,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             String apiKey = "secret";
             var config = getRequestConfigMap(serviceSettings, getSecretSettingsMap(apiKey));
 
-            var modelListener = new PlainActionFuture<Model>();
+            var modelListener = new TestPlainActionFuture<Model>();
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.EMBEDDING, config, modelListener);
 
             assertEmbeddingModelSettings(
@@ -901,8 +905,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "model", "secret");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -911,7 +915,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_Rerank_UnauthorisedResponse() throws IOException {
+    public void testRerankInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
@@ -924,8 +928,13 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, "query", null, null, List.of("candidate1", "candidate2"), false, new HashMap<>(), null, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.rerankInfer(
+                model,
+                new RerankRequest(fromStringList(List.of("candidate1", "candidate2")), InferenceString.ofText("query"), null, null, null),
+                null,
+                listener
+            );
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -999,9 +1008,9 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 TEXT_EMBEDDING,
                 false
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             List<String> input = List.of("abc");
-            service.infer(model, null, null, null, input, false, new HashMap<>(), inputType, null, listener);
+            service.infer(model, input, false, new HashMap<>(), inputType, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1023,7 +1032,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_Rerank_Get_Response_NoReturnDocuments_NoTopN() throws IOException {
+    public void testRerankInfer_Get_Response_NoReturnDocuments_NoTopN() throws IOException {
         String responseJson = """
             {
                 "model": "model",
@@ -1051,19 +1060,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            var request = new RerankRequest(
+                fromStringList(List.of("candidate1", "candidate2", "candidate3")),
+                InferenceString.ofText("query"),
                 null,
                 null,
-                List.of("candidate1", "candidate2", "candidate3"),
-                false,
-                new HashMap<>(),
-                null,
-                null,
-                listener
+                null
             );
+            service.rerankInfer(model, request, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             var resultAsMap = result.asMap();
@@ -1105,7 +1110,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_Rerank_Get_Response_NoReturnDocuments_TopN() throws IOException {
+    public void testRerankInfer_Get_Response_NoReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
                 "model": "model",
@@ -1133,19 +1138,16 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var request = new RerankRequest(
+                fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
+                InferenceString.ofText("query"),
                 null,
                 null,
-                List.of("candidate1", "candidate2", "candidate3", "candidate4"),
-                false,
-                new HashMap<>(),
-                null,
-                null,
-                listener
+                null
             );
+            service.rerankInfer(model, request, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             var resultAsMap = result.asMap();
@@ -1190,7 +1192,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
     }
 
-    public void testInfer_Rerank_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
+    public void testRerankInfer_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
         String responseJson = """
             {
                 "model": "model",
@@ -1227,19 +1229,16 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var request = new RerankRequest(
+                fromStringList(List.of("candidate1", "candidate2", "candidate3")),
+                InferenceString.ofText("query"),
                 null,
                 null,
-                List.of("candidate1", "candidate2", "candidate3"),
-                false,
-                new HashMap<>(),
-                null,
-                null,
-                listener
+                null
             );
+            service.rerankInfer(model, request, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             var resultAsMap = result.asMap();
@@ -1270,7 +1269,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
     }
 
-    public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {
+    public void testRerankInfer_Get_Response_ReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
                 "model": "model",
@@ -1307,19 +1306,16 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var request = new RerankRequest(
+                fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
+                InferenceString.ofText("query"),
                 null,
                 null,
-                List.of("candidate1", "candidate2", "candidate3", "candidate4"),
-                false,
-                new HashMap<>(),
-                null,
-                null,
-                listener
+                null
             );
+            service.rerankInfer(model, request, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             var resultAsMap = result.asMap();
@@ -1359,6 +1355,40 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
 
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+
+        var model = mock(JinaAIRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("The jinaai service does not support rerank with non-text inputs or queries"));
         }
     }
 
@@ -1467,7 +1497,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
             queueResponsesForChunkedInfer(expectMultipleResponses, inputsAndEmbeddings);
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             List<ChunkInferenceInput> inputs = new ArrayList<>();
             for (int i = 0; i < inputsAndEmbeddings.size(); ++i) {
                 var anInput = new ChunkInferenceInput(inputsAndEmbeddings.get(i).v1());
@@ -1481,7 +1511,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 inputs.add(anInput);
             }
 
-            service.chunkedInfer(model, null, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, hasSize(inputsAndEmbeddings.size()));
@@ -1573,8 +1603,8 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1589,7 +1619,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
                 mockModel,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("text input")), InputType.UNSPECIFIED, Map.of()),
@@ -1617,7 +1647,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("text input")), InputType.UNSPECIFIED, Map.of()),
@@ -1648,7 +1678,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
                 new InferenceStringGroup(new InferenceString(randomDataTypeSupportingBase64(), BASE64, TEST_DATA_URI))
@@ -1681,7 +1711,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);
 
@@ -1707,7 +1737,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = JinaAIEmbeddingsModelTests.createEmbeddingModel(getUrl(webServer), "model", "secret");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("text input")), InputType.UNSPECIFIED, Map.of()),
@@ -1788,7 +1818,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 true
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var inputs = List.of(
                 new InferenceStringGroup("first_input"),
                 new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))

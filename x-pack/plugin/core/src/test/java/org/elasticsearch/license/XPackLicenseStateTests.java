@@ -368,7 +368,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         String warningSoon = "warning: license expiring soon";
         licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
-        assertCriticalWarnings(warningSoon);
+        assertWarnings(warningSoon);
 
         /*
         TODO: this does not yet work because the active comes before expiry check as a chance

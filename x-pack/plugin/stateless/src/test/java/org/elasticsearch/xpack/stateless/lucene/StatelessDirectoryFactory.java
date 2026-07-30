@@ -36,6 +36,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -110,7 +111,16 @@ public final class StatelessDirectoryFactory {
      * @return a read-write directory backed by the stateless blob cache
      */
     public static Directory create(Path indexPath, Path workPath) throws IOException {
-        return StatelessDirectory.create(indexPath, workPath);
+        return create(indexPath, workPath, Settings.EMPTY);
+    }
+
+    /**
+     * Same as {@link #create(Path, Path)} but lets the caller merge additional node
+     * settings (for example {@code node.roles}) on top of the defaults. Caller-provided
+     * keys overwrite the defaults set by this factory.
+     */
+    public static Directory create(Path indexPath, Path workPath, Settings extraNodeSettings) throws IOException {
+        return StatelessDirectory.create(indexPath, workPath, extraNodeSettings);
     }
 
     /**
@@ -123,7 +133,7 @@ public final class StatelessDirectoryFactory {
      */
     private static class StatelessDirectory extends FilterDirectory {
 
-        static StatelessDirectory create(Path dataPath, Path workPath) throws IOException {
+        static StatelessDirectory create(Path dataPath, Path workPath, Settings extraNodeSettings) throws IOException {
             long regionSize = SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes();
             Long cacheSizeOverride = Long.getLong(CACHE_SIZE_BYTES_PROP);
             long cacheSizeBytes = cacheSizeOverride != null
@@ -137,6 +147,7 @@ public final class StatelessDirectoryFactory {
                 .put(SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(SHARED_CACHE_MMAP.getKey(), true)
                 .put("node.id.seed", 0L)
+                .put(extraNodeSettings)
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
             var threadPool = new ThreadPool(
@@ -145,11 +156,14 @@ public final class StatelessDirectoryFactory {
                 new DefaultBuiltInExecutorBuilders(),
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
             );
+            var clusterService = TestUtils.mockClusterService(nodeSettings);
             var cacheService = new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 nodeSettings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                clusterService,
+                TestUtils.mockIndicesService(clusterService),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -164,7 +178,8 @@ public final class StatelessDirectoryFactory {
                 cacheService,
                 cacheBlobReaderService,
                 MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                shardId
+                shardId,
+                false
             );
 
             var blobStore = new FsBlobStore(8192, dataPath, true);

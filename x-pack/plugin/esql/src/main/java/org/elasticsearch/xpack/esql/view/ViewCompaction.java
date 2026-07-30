@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -24,6 +26,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 
 /**
  * Compacts the nested plan produced by {@link ViewResolver} into the form expected by the rest
@@ -63,6 +69,15 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * {@link #postIndexResolution(LogicalPlan)}. Production code calls the two phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
+     * <p>
+     * TODO: this skips {@code ResolveTable} between the two phases, so {@link #postIndexResolution}
+     * sees {@link UnresolvedRelation}s rather than {@code EsRelation}s. This causes
+     * {@link #mergeUnresolvedRelationEntries} in {@link #compactNestedViewUnionAlls} to perform
+     * cross-level UR merging that never happens in the production pipeline (where all URs are
+     * already resolved by the time {@link #postIndexResolution} runs). Tests using this method
+     * therefore diverge slightly from production; fix in a follow-up by having test helpers
+     * replicate the full pipeline (view resolution → {@link #preIndexResolution} → ResolveTable →
+     * {@link #postIndexResolution}) instead of using this shortcut.
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
@@ -266,10 +281,17 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        // Always attempt to merge bare UnresolvedRelation siblings — the strip step earlier in this
-        // rule may have just exposed entries that were previously hidden inside a ViewUnionAll
-        // wrapping shadows + strict; without an unconditional merge here those exposed siblings
-        // would stay as separate branches even when their patterns are mergeable.
+        // Merge bare UnresolvedRelation siblings that ended up at the same level after
+        // flattening. ViewResolver.buildPlanFromBranches only merges URs within a single
+        // nesting level; after nested ViewUnionAlls are hoisted into this flat map, URs from
+        // different levels may become adjacent and mergeable.
+        //
+        // No alias resolver is available here, so alias-vs-backing-index overlap is not
+        // detected. This is safe in the production pipeline: by the time postIndexResolution
+        // runs, ResolveTable has already converted every UnresolvedRelation to an EsRelation,
+        // making the merge loop a no-op. The gap only exists in the apply() test convenience
+        // (which runs both phases without ResolveTable in between), and only for the
+        // multi-level nesting variant of the alias scenario — not a production concern.
         mergeUnresolvedRelationEntries(flat);
 
         if (flat.size() > Fork.MAX_BRANCHES) {
@@ -297,9 +319,11 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Merges bare {@link UnresolvedRelation} entries in the map into a single entry where possible.
-     * {@link UnresolvedRelation}s that share individual index names with the merged result are kept
-     * as separate entries to prevent IndexResolution from deduplicating them and losing data.
+     * Merges bare {@link UnresolvedRelation} entries in the map into a single entry where possible,
+     * using string-equality and wildcard overlap as guards. Called after nested {@link ViewUnionAll}s
+     * are flattened so that URs lifted from inner levels can be merged with sibling URs at the outer
+     * level. Alias-vs-backing-index overlap is not checked here (no alias resolver is available at
+     * this call site); see the comment at the call site for why that is safe in production.
      */
     private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat) {
         List<String> urKeys = new ArrayList<>();
@@ -327,12 +351,49 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         flat.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names. */
-    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    /**
+     * Merge the unresolved relation unless the index patterns contain matching index names, or
+     * unless alias resolution via {@code aliasResolver} reveals that patterns in {@code main} and
+     * {@code other} map to overlapping concrete indices (e.g. one pattern is an alias that points
+     * to the same index as a pattern in the other relation). Pass {@code null} to skip alias
+     * checking (the existing string-equality and wildcard checks still apply).
+     * <p>
+     * {@code aliasResolver} should map a local, non-wildcard index/alias name to the set of
+     * concrete index names it backs. For a concrete index {@code x} it should return {@code {x}};
+     * for an alias {@code a → x} it should return {@code {x}}.
+     */
+    static UnresolvedRelation mergeIfPossible(
+        UnresolvedRelation main,
+        UnresolvedRelation other,
+        @Nullable Function<String, Set<String>> aliasResolver
+    ) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
                     // A duplicate index name was found, fail this attempt to merge.
+                    return null;
+                }
+                // Prevent merging when a wildcard in one pattern matches a concrete name in the other.
+                // Merging would produce a single UnresolvedRelation that deduplicates the overlapping index
+                // during resolution, collapsing what should be two independent data copies into one.
+                if (Regex.isSimpleMatchPattern(otherPattern) == false && Regex.simpleMatch(mainPattern, otherPattern)) {
+                    return null;
+                }
+                if (Regex.isSimpleMatchPattern(otherPattern)
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.simpleMatch(otherPattern, mainPattern)) {
+                    return null;
+                }
+                // Check alias resolution: two non-wildcard, non-remote patterns may point to the same
+                // concrete index via alias. Without this check, merging "source-index" and "source-alias"
+                // (where source-alias → source-index) produces UnresolvedRelation("source-index,source-alias")
+                // which field-caps deduplicates to a single copy, silently dropping one data branch.
+                if (aliasResolver != null
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.isSimpleMatchPattern(otherPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(mainPattern) == false
+                    && RemoteClusterAware.isRemoteIndexName(otherPattern) == false
+                    && haveNonEmptyIntersection(aliasResolver.apply(mainPattern), aliasResolver.apply(otherPattern))) {
                     return null;
                 }
             }
@@ -348,6 +409,17 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
+     * Merge the unresolved relation unless the index patterns overlap by string equality or wildcard.
+     * Alias resolution is not performed; this overload is used by {@link #mergeUnresolvedRelationEntries}
+     * after nested {@link ViewUnionAll} flattening, where no alias resolver is available. In the
+     * production pipeline this is always a no-op because {@code ResolveTable} has already converted
+     * every {@link UnresolvedRelation} to an {@code EsRelation} before {@link #postIndexResolution} runs.
+     */
+    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+        return mergeIfPossible(main, other, null);
+    }
+
+    /**
      * True iff any of {@code ur}'s comma-separated patterns is an exclusion in any of the
      * forms field-caps recognises ({@code -name}, {@code cluster:-name}, {@code *:-name},
      * {@code -cluster:*}). Mirrors {@code ViewResolver.patternIsExclusion} — see that
@@ -360,8 +432,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             if (pattern.startsWith("-")) {
                 return true;
             }
-            String[] split = RemoteClusterAware.splitIndexName(pattern);
-            if (split[0] != null && split[1].startsWith("-")) {
+            var split = RemoteClusterAware.splitIndexName(pattern);
+            if (split.clusterAlias() != null && split.indexExpression().startsWith("-")) {
                 return true;
             }
         }

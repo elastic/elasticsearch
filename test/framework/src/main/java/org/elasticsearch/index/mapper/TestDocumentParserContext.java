@@ -16,6 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.List;
+
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
  * Every non final method throws {@link UnsupportedOperationException} and can be implemented as needed.
@@ -58,6 +60,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
 
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, IndexVersion version) {
         this(mappingLookup, source, null, Settings.EMPTY, version);
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, Settings settings) {
+        this(mappingLookup, source, null, settings, IndexVersion.current());
     }
 
     private TestDocumentParserContext(
@@ -124,5 +130,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
     @Override
     public BytesRef getTsid() {
         return null;
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        throw new UnsupportedOperationException();
     }
 }

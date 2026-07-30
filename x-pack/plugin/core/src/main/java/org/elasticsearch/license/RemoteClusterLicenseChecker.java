@@ -281,7 +281,7 @@ public final class RemoteClusterLicenseChecker {
         Set<String> excluded = new HashSet<>();
         indices.stream()
             .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-            .map(index -> RemoteClusterAware.splitIndexName(index)[0])
+            .map(index -> RemoteClusterAware.splitIndexName(index).clusterAlias())
             .distinct()
             .forEach(clusterExpression -> {
                 boolean isExclusion = clusterExpression.startsWith("-");

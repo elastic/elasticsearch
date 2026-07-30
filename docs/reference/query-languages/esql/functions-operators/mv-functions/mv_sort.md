@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_SORT` function [esql-mv_sort]
 
-:::{include} ../../_snippets/functions/layout/mv_sort.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_sort.md
 :::

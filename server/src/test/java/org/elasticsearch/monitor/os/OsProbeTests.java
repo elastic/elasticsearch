@@ -222,6 +222,22 @@ public class OsProbeTests extends ESTestCase {
         }
     }
 
+    public void testCgroupProbeWithColonInPath() {
+        final int cgroupsVersion = 2;
+        final String hierarchy = "user.slice/user-1000.slice/user@1000.service/app.slice/"
+            + "app-dbus\\x2d:1.2\\x2dorg.gnome.Console.slice/tmux-spawn-uuid.scope";
+
+        final OsProbe probe = new OsProbeMock(hierarchy).setAvailableCgroupsVersion(cgroupsVersion)
+            .setProcSelfCgroupLines(getProcSelfGroupLines(cgroupsVersion, hierarchy));
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+
+        assertNotNull(cgroup);
+        assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getMemoryControlGroup(), equalTo("/" + hierarchy));
+    }
+
     public void testCgroupProbeWithMissingCpuMax() {
         final int cgroupsVersion = 2;
         final var hierarchy = randomAlphaOfLength(16);

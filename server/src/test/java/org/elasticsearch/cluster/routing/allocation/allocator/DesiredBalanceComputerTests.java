@@ -49,6 +49,8 @@ import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -1951,7 +1953,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 1) {
                 verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
             }
             verifyNoMoreInteractions(clusterInfoSimulator);
@@ -1973,17 +1975,17 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             if (startedShard.currentNodeId() == startedRelocatingShard.currentNodeId()) {
                 // The shards were moved to the same node: if the index is new to that node, then there should be a call to simulate adding
                 // the index stats for the node.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 2) {
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 2) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
                 }
             } else {
                 // Check if the index is new on either node that received a new shard: if either is new, then the index stats should have
                 // been simulated, too.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedOrRelocatingShardsForIndex(startedShard.index()) == 1) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
                 }
                 if (routingNodes.node(startedRelocatingShard.currentNodeId())
-                    .numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
+                    .numberOfStartedOrRelocatingShardsForIndex(startedRelocatingShard.index()) == 1) {
                     verify(clusterInfoSimulator).simulateAddIndexToNode(
                         startedRelocatingShard.currentNodeId(),
                         startedRelocatingShard.index()
@@ -1998,6 +2000,122 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
+    }
+
+    ///
+    /// [DesiredBalanceComputer#maybeSimulateAlreadyStartedShards] adds shard and where applicable heap overheads
+    /// to nodes in our memory model to reflect shard movements that have occurred since the [ClusterInfo] was generated.
+    /// Previously we used [ShardRouting#started()] to determine which shards to simulate, which omitted RELOCATING shards.
+    /// Relocating shards are effectively started and should be treated as such for the purpose of this simulation.
+    /// This test ensures that relocating shards are included in the simulation.
+    ///
+    public void testMaybeSimulateAlreadyStartedShardsIncludesRelocating() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+
+        // 6 data nodes, 3 shards, no replicas. Pinned node assignments (node-0..node-5) keep
+        // the verifications deterministic and avoid conditional handling for node overlap.
+        //
+        // node-0: shard 0 started (in ClusterInfo)
+        // node-1: shard 1 relocating away (not in ClusterInfo)
+        // node-2: shard 1 relocation target (initializing)
+        // node-3: shard 2 original location (in ClusterInfo, shard has since moved away)
+        // node-4: shard 2 current location (relocating a second time, not in ClusterInfo for node-4)
+        // node-5: shard 2 second-relocation target (initializing)
+        final ClusterState initialState = createInitialClusterState(6, 3, 0);
+        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
+
+        // Shard 0: start on node-0 and record in ClusterInfo.
+        final ShardRouting startedShard0 = routingNodes.startShard(
+            routingNodes.initializeShard(
+                indexRoutingTable.shard(0).primaryShard(),
+                "node-0",
+                null,
+                randomLongBetween(100, 999),
+                RoutingChangesObserver.NOOP
+            ),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+
+        // Shard 2: start on node-3 and record in ClusterInfo (its original position).
+        final ShardRouting startedShard2OnNode3 = routingNodes.startShard(
+            routingNodes.initializeShard(
+                indexRoutingTable.shard(2).primaryShard(),
+                "node-3",
+                null,
+                randomLongBetween(100, 999),
+                RoutingChangesObserver.NOOP
+            ),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .dataPath(
+                Map.of(
+                    NodeAndShard.from(startedShard0),
+                    "/data/" + randomIdentifier(),
+                    NodeAndShard.from(startedShard2OnNode3),
+                    "/data/" + randomIdentifier()
+                )
+            )
+            .build();
+
+        // Shard 1: start on node-1 and immediately relocate to node-2 — ClusterInfo has no entry for it.
+        final Tuple<ShardRouting, ShardRouting> shard1RelocationTuple = routingNodes.relocateShard(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(1).primaryShard(),
+                    "node-1",
+                    null,
+                    randomLongBetween(100, 999),
+                    RoutingChangesObserver.NOOP
+                ),
+                RoutingChangesObserver.NOOP,
+                randomLongBetween(100, 999)
+            ),
+            "node-2",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP
+        );
+
+        // Shard 2: complete a first relocation (node-3 → node-4), then begin a second relocation
+        // (node-4 → node-5). ClusterInfo still shows shard 2 on node-3.
+        final Tuple<ShardRouting, ShardRouting> shard2FirstRelocationTuple = routingNodes.relocateShard(
+            startedShard2OnNode3,
+            "node-4",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP
+        );
+        final ShardRouting startedShard2OnNode4 = routingNodes.startShard(
+            shard2FirstRelocationTuple.v2(),
+            RoutingChangesObserver.NOOP,
+            randomLongBetween(100, 999)
+        );
+        final Tuple<ShardRouting, ShardRouting> shard2SecondRelocationTuple = routingNodes.relocateShard(
+            startedShard2OnNode4,
+            "node-5",
+            randomLongBetween(100, 999),
+            "test",
+            RoutingChangesObserver.NOOP
+        );
+
+        DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+
+        // Shard 1: RELOCATING from node-1 with no ClusterInfo entry → sourceNodeId is null.
+        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard1RelocationTuple.v1(), null);
+        // Shard 2: RELOCATING from node-4, but ClusterInfo has it on node-3 (stale) → sourceNodeId is node-3.
+        verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard2SecondRelocationTuple.v1(), "node-3");
+        // node-1 holds only shard1 RELOCATING — all index shards on node-1 are new since ClusterInfo.
+        verify(clusterInfoSimulator).simulateAddIndexToNode("node-1", indexRoutingTable.getIndex());
+        // node-4 holds only shard2 RELOCATING — all index shards on node-4 are new since ClusterInfo.
+        verify(clusterInfoSimulator).simulateAddIndexToNode("node-4", indexRoutingTable.getIndex());
+        // node-3 no longer hosts any shard of the index after shard2 relocated away.
+        verify(clusterInfoSimulator).simulateRemoveIndexFromNode("node-3", indexRoutingTable.getIndex());
+        verifyNoMoreInteractions(clusterInfoSimulator);
     }
 
     private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {
@@ -2105,9 +2223,84 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         });
     }
 
+    /**
+     * Checks that the DesiredBalanceComputer.compute method returns early (gives a reason of STOP_EARLY) after assignment of newly created
+     * primary shards and replica shards.
+     */
+    public void testComputationEarlyReturnForNewPrimaryAndReplicaAssignments() {
+        var desiredBalanceComputer = createDesiredBalanceComputer(
+            new BalancedShardsAllocator(),
+            // Force the DesiredBalanceComputer#compute() method to return early after any newly created shard assignment, removing the
+            // small grace period to try to finish computation.
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "0s").build()
+        );
+        var clusterState = createInitialClusterState(4, 4, 3);
+        var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
+
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(
+                new ReplicaAfterPrimaryActiveAllocationDecider(),
+                new SameShardAllocationDecider(createBuiltInClusterSettings())
+            )
+            .build();
+
+        var finalExpectedAssignments = Map.of(
+            new ShardId(index, 0),
+            new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+            new ShardId(index, 1),
+            new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+            new ShardId(index, 2),
+            new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0),
+            new ShardId(index, 3),
+            new ShardAssignment(Set.of("node-0", "node-1", "node-2", "node-3"), 4, 0, 0)
+        );
+
+        /* The first computation round should have returned early after assigning the primary shards only, leaving replicas unassigned. */
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),
+            queue(),
+            input -> true
+        );
+        assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
+        // The target nodes for primary assignments are not known, so shall only assert that the primaries were assigned.
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 0)).assigned(), equalTo(1));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 0)).unassigned(), equalTo(3));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 1)).assigned(), equalTo(1));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 1)).unassigned(), equalTo(3));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 2)).assigned(), equalTo(1));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 2)).unassigned(), equalTo(3));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 3)).assigned(), equalTo(1));
+        assertThat(desiredBalance.assignments().get(new ShardId(index, 3)).unassigned(), equalTo(3));
+
+        /* The second computation round should also have returned early after assigning the replica shards. */
+        desiredBalance = desiredBalanceComputer.compute(
+            desiredBalance,
+            new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),
+            queue(),
+            input -> true
+        );
+        assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
+        assertDesiredAssignments(desiredBalance, finalExpectedAssignments);
+
+        /* The third computation round should do nothing, since there are no more shards, but should report finished (converged). */
+        desiredBalance = desiredBalanceComputer.compute(
+            desiredBalance,
+            new DesiredBalanceInput(randomInt(), routingAllocation, List.of()),
+            queue(),
+            input -> true
+        );
+        assertThat(desiredBalance.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.CONVERGED));
+        assertDesiredAssignments(desiredBalance, finalExpectedAssignments);
+    }
+
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
+        return createDesiredBalanceComputer(allocator, Settings.EMPTY);
+    }
+
+    private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator, Settings settings) {
         return new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
+            createBuiltInClusterSettings(settings),
             TimeProviderUtils.create(() -> 0L),
             allocator,
             TEST_ONLY_EXPLAINER

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 153093
+summary: "[Inference API] Region policy for inference requests"
+type: feature

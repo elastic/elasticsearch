@@ -13,16 +13,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
 import java.io.IOException;
 import java.util.Deque;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -30,7 +30,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 /**
@@ -128,46 +128,17 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
             return Stream.empty();
         }
 
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
-            moveToFirstToken(jsonParser);
+        try {
+            return parseObjects(parserConfig, event.data(), p -> {
+                try (var sub = new XContentSubParser(p)) {
+                    positionParserAtTokenAfterField(sub, CHOICES_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, CHOICES_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            return parseList(jsonParser, parser -> {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-
-                positionParserAtTokenAfterField(parser, DELTA_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
-
-                var currentToken = parser.currentToken();
-
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
-
-                currentToken = parser.nextToken();
-
-                // continue until the end of delta
-                while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
-                    if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
-                        parser.skipChildren();
-                    }
-
-                    if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
-                        parser.nextToken();
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                        var content = parser.text();
-                        consumeUntilObjectEnd(parser); // end delta
-                        consumeUntilObjectEnd(parser); // end choices
-                        return content;
-                    }
-
-                    currentToken = parser.nextToken();
+                    return parseChoicesField(sub).stream()
+                        .filter(Objects::nonNull)
+                        .filter(Predicate.not(String::isEmpty))
+                        .map(StreamingChatCompletionResults.Result::new);
                 }
-
-                consumeUntilObjectEnd(parser); // end choices
-                return ""; // stopped
-            }).stream().filter(Objects::nonNull).filter(Predicate.not(String::isEmpty)).map(StreamingChatCompletionResults.Result::new);
+            });
         } catch (IOException e) {
             throw new ElasticsearchStatusException(
                 "Failed to parse event from inference provider: {}",
@@ -176,5 +147,40 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                 event
             );
         }
+    }
+
+    private static List<String> parseChoicesField(XContentSubParser sub) throws IOException {
+        return parseList(sub, parser -> {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+
+            positionParserAtTokenAfterField(parser, DELTA_FIELD, FAILED_TO_FIND_FIELD_TEMPLATE);
+
+            var currentToken = parser.currentToken();
+
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
+
+            currentToken = parser.nextToken();
+
+            // continue until the end of delta
+            while (currentToken != null && currentToken != XContentParser.Token.END_OBJECT) {
+                if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
+                }
+
+                if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
+                    parser.nextToken();
+                    ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                    var content = parser.text();
+                    consumeUntilObjectEnd(parser); // end delta
+                    consumeUntilObjectEnd(parser); // end choices
+                    return content;
+                }
+
+                currentToken = parser.nextToken();
+            }
+
+            consumeUntilObjectEnd(parser); // end choices
+            return ""; // stopped
+        });
     }
 }

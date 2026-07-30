@@ -25,11 +25,6 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
     }
 
     @Override
-    public boolean supportsDocValuesCardinality() {
-        return true;
-    }
-
-    @Override
     protected String getFieldTypeName() {
         return "keyword";
     }

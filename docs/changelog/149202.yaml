@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 149202
+summary: Use appropriate rerank code path for validation call
+type: bug

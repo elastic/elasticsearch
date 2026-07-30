@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 136418
+pr: 149390
+summary: Fix NPE in `bucket_sort` on unresolvable sort path
+type: bug

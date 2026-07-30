@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ABSENT_OVER_TIME` function [esql-absent_over_time]
 
-:::{include} ../../_snippets/functions/layout/absent_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/absent_over_time.md
 :::

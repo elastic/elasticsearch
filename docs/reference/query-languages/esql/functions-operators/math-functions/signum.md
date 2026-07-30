@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SIGNUM` function [esql-signum]
 
-:::{include} ../../_snippets/functions/layout/signum.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/signum.md
 :::

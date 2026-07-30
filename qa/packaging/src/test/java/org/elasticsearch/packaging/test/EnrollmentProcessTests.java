@@ -12,6 +12,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.docker.Docker;
 
@@ -33,6 +34,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearc
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
@@ -51,6 +53,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         assertThat(startFirstNode.isSuccess(), is(true));
         // Verify that the first node was auto-configured for security
         verifySecurityAutoConfigured(installation);
+        final Installation node1Installation = installation;
         // Generate a node enrollment token to be subsequently used by the second node
         Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
         assertThat(Strings.isNullOrEmpty(createTokenResult.stdout()), is(false));
@@ -85,6 +88,14 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // verify that the two nodes formed a cluster
         assertThat(makeRequest("https://localhost:9200/_cluster/health"), containsString("\"number_of_nodes\":2"));
+        // each node auto-configures its own unique encryption password
+        String node1Password = node1Installation.executables().keystoreTool.run("show cluster.state.encryption.password.autoconfigured")
+            .stdout()
+            .strip();
+        String node2Password = installation.executables().keystoreTool.run("show cluster.state.encryption.password.autoconfigured")
+            .stdout()
+            .strip();
+        assertThat("each node must have a distinct encryption password", node1Password, not(is(node2Password)));
     }
 
     public void test20DockerAutoFormCluster() throws Exception {

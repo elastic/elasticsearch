@@ -12,6 +12,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,34 +21,40 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
-import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -156,26 +164,26 @@ import java.util.function.Consumer;
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
  */
-public final class TranslateTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
-    TimeSeriesAggregate,
-    LogicalOptimizerContext> {
+public final class TranslateTimeSeriesAggregate extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
     static final int MAX_SUB_BUCKETS = 128;
 
-    public TranslateTimeSeriesAggregate() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        if (inputAggregate.resolved() == false) {
+            return inputAggregate;
+        }
+        TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
-        aggregate.forEachDown(EsRelation.class, r -> {
-            for (Attribute attr : r.output()) {
-                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
-                    tsid.set(attr);
-                }
-            }
-        });
+        // Only look at the time-series source feeding this aggregate. Do not cross into nested sub-plans
+        // (the right-hand side of a join, e.g. an IN-subquery rewritten to a SemiJoin), which carry their
+        // own time-series source and have their own _tsid - see findTimeSeriesSourceTsid.
+        findTimeSeriesSourceTsid(aggregate, tsid);
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
@@ -199,8 +207,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         if (tsAgg.hasFilter() == false) {
                             throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
                         }
-                    } else if (tsAgg.hasFilter()) {
-                        throw new IllegalStateException("unexpected inline filter in time-series aggregation");
                     }
                     if (tsAgg.requiredTimeSeriesSource()) {
                         requiredTimeSeriesSource.set(Boolean.TRUE);
@@ -221,9 +227,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
-        List<Alias> packDimensions = new ArrayList<>();
+        List<Attribute> packDimensions = new ArrayList<>();
+        List<Attribute> unpackDimensions = new ArrayList<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
-        List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
         Consumer<NamedExpression> extractTimeBucket = e -> {
@@ -245,8 +251,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tstep");
                     }
-                    Bucket bucket = tstep.timeBucketSpecRef();
-                    timeBucketRef.set(new Alias(e.source(), e.name(), tstep.surrogate(), e.id()));
+                    Bucket bucket = (Bucket) tstep.surrogate();
+                    timeBucketRef.set(new Alias(e.source(), e.name(), bucket, e.id()));
                     timeBucketSpecRef.set(bucket);
                 } else if (child instanceof DateTrunc dateTrunc && aggregate.timestamp().semanticEquals(dateTrunc.field())) {
                     if (timeBucketRef.get() != null) {
@@ -258,8 +264,20 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
         };
-        // extract time-bucket from nested expressions like evals
-        aggregate.child().forEachExpressionUp(NamedExpression.class, extractTimeBucket);
+        // extract time-bucket from nested expressions like evals, but only for expressions
+        // actually referenced as grouping keys - avoids false positives when an EVAL defines
+        // a date_trunc(@timestamp) that is later overridden by a non-grouping STATS aggregate
+        Set<NameId> groupingIds = new HashSet<>();
+        for (Expression g : aggregate.groupings()) {
+            if (g instanceof NamedExpression ne) {
+                groupingIds.add(ne.id());
+            }
+        }
+        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
+            if (groupingIds.contains(e.id())) {
+                extractTimeBucket.accept(e);
+            }
+        });
         // extract time-bucket directly from groupings
         aggregate.groupings()
             .stream()
@@ -277,18 +295,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(
-                            g,
-                            a,
-                            firstPassAggs,
-                            secondPassGroupings,
-                            internalNames,
-                            context,
-                            packDimensions,
-                            unpackDimensions,
-                            packPositions,
-                            i
-                        );
+                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket && timeBucket == null) {
@@ -307,14 +314,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }
-        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-            IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
-            if (r.output().contains(tsid.get()) == false) {
-                return r.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(r.output(), tsid.get()));
-            } else {
-                return r.withIndexMode(indexMode);
-            }
-        });
+        // Inject _tsid (and adjust the index mode) only into the time-series source of this aggregate, again
+        // without descending into nested sub-plans on the right-hand side of a join - see addTsidToTimeSeriesSource.
+        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get(), requiredTimeSeriesSource.get());
         Bucket userBucket = timeBucketSpecRef.get();
         if (userBucket == null) {
             userBucket = (Bucket) Alias.unwrap(timeBucket);
@@ -339,7 +341,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             internalBucket != null ? internalBucket : userBucket,
             userBucket,
             aggregate.timestamp(),
-            aggregate.isCollapsed()
+            aggregate.origin()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {
@@ -350,28 +352,48 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
         } else {
-            Eval packValues = new Eval(firstPhase.source(), firstPhase, packDimensions);
+            PackDims packDims = new PackDims(
+                aggregate.source(),
+                firstPhase,
+                packDimensions,
+                PackDims.newPackedAttribute(aggregate.source())
+            );
+            Alias packedGrouping = PackDims.newPackedGrouping(aggregate.source(), packDims.packed());
+            secondPassGroupings.add(packedGrouping);
             Aggregate secondPhase = new Aggregate(
-                firstPhase.source(),
-                packValues,
+                aggregate.source(),
+                packDims,
                 secondPassGroupings,
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
-            Eval unpackValues = new Eval(secondPhase.source(), secondPhase, unpackDimensions);
+            UnpackDims unpackDims = new UnpackDims(aggregate.source(), secondPhase, packedGrouping.toAttribute(), unpackDimensions);
             List<NamedExpression> projects = new ArrayList<>();
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
             }
-            int packPos = 0;
-            for (int i = 0; i < secondPassGroupings.size(); i++) {
+            int groupPos = 0;
+            int dimPos = 0;
+            for (int i = 0; i < aggregate.groupings().size(); i++) {
                 if (packPositions[i]) {
-                    projects.add(unpackDimensions.get(packPos++).toAttribute());
+                    projects.add(unpackDimensions.get(dimPos++));
                 } else {
-                    projects.add(Expressions.attribute(secondPassGroupings.get(i)));
+                    projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
             }
-            return new Project(newChild.source(), unpackValues, projects);
+            return new Project(newChild.source(), unpackDims, projects);
         }
+    }
+
+    private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
+        return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
+            if (aggFunc instanceof SurrogateExpression) {
+                Expression replacement = ((SurrogateExpression) aggFunc).surrogate();
+                if (replacement != null) {
+                    return replacement;
+                }
+            }
+            return aggFunc;
+        }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
     }
 
     private void addBucket(
@@ -389,31 +411,27 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Attribute attribute,
         List<NamedExpression> firstPassAggs,
         List<Expression> secondPassGroupings,
-        TemporaryNameGenerator internalNames,
-        LogicalOptimizerContext context,
-        List<Alias> packDimensions,
-        List<Alias> unpackDimensions,
+        AnalyzerContext context,
+        List<Attribute> packDimensions,
+        List<Attribute> unpackDimensions,
         boolean[] packPositions,
         int position
     ) {
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
         if (attribute.isDimension()) {
-            Alias pack = new Alias(
-                group.source(),
-                internalNames.next("pack_" + group.name()),
-                new PackDimension(group.source(), valuesAgg.toAttribute())
+            packDimensions.add(valuesAgg.toAttribute());
+            unpackDimensions.add(
+                new ReferenceAttribute(
+                    group.source(),
+                    null,
+                    group.name(),
+                    attribute.dataType().noText(),
+                    Nullability.TRUE,
+                    group.id(),
+                    false
+                )
             );
-            packDimensions.add(pack);
-            Alias packedGrouping = new Alias(group.source(), internalNames.next("group_" + group.name()), pack.toAttribute());
-            secondPassGroupings.add(packedGrouping);
-            Alias unpack = new Alias(
-                group.source(),
-                group.name(),
-                new UnpackDimension(group.source(), packedGrouping.toAttribute(), attribute.dataType().noText()),
-                group.id()
-            );
-            unpackDimensions.add(unpack);
             packPositions[position] = true;
         } else {
             secondPassGroupings.add(new Alias(group.source(), group.name(), valuesAgg.toAttribute(), group.id()));
@@ -430,7 +448,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         return merged;
     }
 
-    private AggregateFunction valuesAggregate(LogicalOptimizerContext context, Attribute group) {
+    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group) {
         if (group.isDimension() && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
             return new DimensionValues(group.source(), group);
         } else {
@@ -528,7 +546,16 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             );
         }
         Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
-        return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
+        return new Bucket(
+            userBucket.source(),
+            userBucket.field(),
+            gcdInterval,
+            null,
+            null,
+            userBucket.configuration(),
+            userBucket.offset(),
+            userBucket.roundingConfiguration()
+        );
     }
 
     private long getTimeBucketInMillis(final Bucket bucket) {
@@ -550,4 +577,45 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         return -1L;
     }
+
+    /**
+     * Finds the {@code _tsid} attribute of the time-series source feeding this aggregate, walking only the main input path. The right-hand
+     * side of a {@code BinaryPlan} (a lookup index, or an {@code IN}-subquery rewritten to a {@code SemiJoin}) is skipped: those subtrees
+     * are separate time-series sources with their own {@code _tsid} that this aggregate must not adopt. Crossing that boundary previously
+     * caused the outer aggregate to inject its {@code _tsid} into a nested subquery relation that already had one, producing a relation
+     * with two {@code _tsid} attributes.
+     */
+    private static void findTimeSeriesSourceTsid(LogicalPlan plan, Holder<Attribute> tsid) {
+        if (plan instanceof EsRelation relation) {
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    tsid.set(attr);
+                }
+            }
+            return;
+        }
+        if (plan instanceof BinaryPlan binary) {
+            findTimeSeriesSourceTsid(binary.left(), tsid);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            findTimeSeriesSourceTsid(child, tsid);
+        }
+    }
+
+    /**
+     * Injects {@code tsid} into the time-series source relation(s) of this aggregate and adjusts their index mode, mirroring the traversal
+     * scope of {@code findTimeSeriesSourceTsid}: it never descends into the right-hand side of a {@code BinaryPlan}, so nested subqueries
+     * keep their own {@code _tsid} untouched.
+     */
+    private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
+        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> {
+            IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
+            if (relation.output().contains(tsid) == false) {
+                return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
+            }
+            return relation.withIndexMode(indexMode);
+        });
+    }
+
 }

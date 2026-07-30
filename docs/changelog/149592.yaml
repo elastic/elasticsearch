@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149592
+summary: Per-query nullability for partition columns on external sources
+type: enhancement

@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 149716
+summary: "Extend FIRST and EARLIEST to support dense_vector, `exponential_histogram`\
+  \ and tdigest"
+type: enhancement

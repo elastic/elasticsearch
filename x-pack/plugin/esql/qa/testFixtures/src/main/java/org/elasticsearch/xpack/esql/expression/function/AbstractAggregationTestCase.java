@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,15 +81,27 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_BECOMES_NULL);
     }
 
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
-        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> randomized = randomizeBytesRefsOffset(suppliers);
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(withNullTypedInputExpectingNull(randomized, nullTypeExpectation)));
+    }
+
+    /**
+     * How an aggregation's output type reacts to a {@code NULL}-typed input column, as injected by
+     * {@code SET unmapped_fields="nullify"} for fields missing from all indices.
+     */
+    public enum NullTypeExpectation {
+        /** Output type follows the input, so a NULL-typed input yields a NULL-typed output. The common case. */
+        OUTPUT_BECOMES_NULL,
+        /** Output type is fixed by the function regardless of input type, e.g. PERCENTILE is always DOUBLE. */
+        OUTPUT_KEEPS_TYPE
     }
 
     /**
@@ -124,6 +138,63 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.canBuildEvaluator()
                     );
                 }));
+            }
+        }
+
+        return newSuppliers;
+    }
+
+    /**
+     * Adds a test case per unique signature with the input columns typed {@code NULL} — the shape a field
+     * nullified by {@code SET unmapped_fields="nullify"} has. Expected output type follows {@code nullTypeExpectation}.
+     */
+    protected static List<TestCaseSupplier> withNullTypedInputExpectingNull(
+        List<TestCaseSupplier> suppliers,
+        NullTypeExpectation nullTypeExpectation
+    ) {
+        List<TestCaseSupplier> newSuppliers = new ArrayList<>(suppliers);
+        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+
+        for (TestCaseSupplier original : suppliers) {
+            if (uniqueSignatures.add(original.types())) {
+                newSuppliers.add(
+                    TestCaseSupplier.withNullTypedFieldsAllowed(original.name() + " with NULL-typed input", original.types(), () -> {
+                        var testCase = original.get();
+
+                        if (testCase.getData().stream().noneMatch(TestCaseSupplier.TypedData::isMultiRow)) {
+                            // Fail if no multi-row data, at least until a real case is found
+                            fail("No multi-row data found in test case: " + testCase);
+                        }
+
+                        var newData = testCase.getData()
+                            .stream()
+                            .map(
+                                td -> td.isMultiRow()
+                                    ? TestCaseSupplier.TypedData.multiRow(Collections.singletonList(null), DataType.NULL, td.name())
+                                    : td
+                            )
+                            .toList();
+
+                        var expectedType = nullTypeExpectation == NullTypeExpectation.OUTPUT_BECOMES_NULL
+                            ? DataType.NULL
+                            : testCase.expectedType();
+
+                        return new TestCaseSupplier.TestCase(
+                            testCase.getSource(),
+                            testCase.getConfiguration(),
+                            newData,
+                            testCase.evaluatorToString(),
+                            expectedType,
+                            nullValue(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            testCase.canBuildEvaluator()
+                        );
+                    })
+                );
             }
         }
 
@@ -180,17 +251,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
 
-        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
-            var filter = ((AggregateFunction) expression).filter();
-
-            var surrogate = ((SurrogateExpression) expression).surrogate();
-
-            if (surrogate != null) {
-                surrogate.forEachDown(AggregateFunction.class, child -> {
-                    var surrogateFilter = child.filter();
-                    assertEquals(filter, surrogateFilter);
-                });
-            }
+        if (expression instanceof AggregateFunction agg) {
+            Expression resolved = resolveSubstitutions(agg);
+            var filter = agg.filter();
+            resolved.forEachDown(AggregateFunction.class, child -> {
+                var resolvedFilter = child.filter();
+                assertEquals(filter, resolvedFilter);
+            });
         }
     }
 
@@ -361,6 +428,20 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return;
         }
 
+        // Inject a constant-null temporality into TemporalityAware aggregations, simulating InjectTemporality.
+        // TemporalityAware aggs may be introduced during surrogate replacement (e.g. DeltaOnlyHistogramMergeOverTime).
+        Expression temporalityField = null;
+        if (testCase.injectNullTemporality()) {
+            temporalityField = AbstractFunctionTestCase.field("_temporality", DataType.KEYWORD);
+            Expression tf = temporalityField;
+            expression = expression.transformUp(AggregateFunction.class, agg -> {
+                if (agg instanceof TemporalityAware ta && ta.temporality() == null) {
+                    return ta.withTemporality(tf);
+                }
+                return agg;
+            });
+        }
+
         boolean isExecutableAgg = expression instanceof AggregateFunction
             && expression.children()
                 .stream()
@@ -400,6 +481,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 } else {
                     literalsByField.put(field, data.asLiteral());
                 }
+            }
+
+            // Provide a constant-null block for the injected temporality field if required
+            if (temporalityField != null) {
+                int rowCount = testCase.getMultiRowFields().getFirst().multiRowData().size();
+                blocksByField.put(temporalityField, driverContext().blockFactory().newConstantNullBlock(rowCount));
             }
 
             // Resolve agg children and store their results in the literal/blocks maps
@@ -598,7 +685,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private List<Integer> initialInputChannels() {
         // TODO: Randomize channels. If surrogated, channels may change
-        return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
+        int count = testCase.getMultiRowFields().size();
+        if (testCase.injectNullTemporality()) {
+            count++;
+        }
+        return IntStream.range(0, count).boxed().toList();
     }
 
     private List<Integer> intermediaryInputChannels(int intermediaryStates, int offset) {
@@ -608,6 +699,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     /**
      * Resolves substitutions of aggregations. This simulates the {@link LogicalPlanOptimizer} rules and order:
      * <ul>
+     *     <li>Time series aggregate functions resolved via {@link TimeSeriesAggregateFunction#perTimeSeriesAggregation()}</li>
      *     <li>Aggregation surrogates ({@link SubstituteSurrogateAggregations}). Executed twice, like in the optimizer.</li>
      *     <li>Expression surrogates ({@link SubstituteSurrogateExpressions})</li>
      *     <li>TransportVersionAware expressions {@link SubstituteTransportVersionAwareExpressions}</li>
@@ -617,6 +709,19 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     private Expression resolveSubstitutions(Expression expression) {
+        // first do a single surrogate replacement of TimeSeriesAggregateFunction just like TranslateTimeseriesAggregate
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, tsAgg -> {
+            if (tsAgg instanceof SurrogateExpression se) {
+                var surrogate = se.surrogate();
+                if (surrogate != null) {
+                    return surrogate;
+                }
+            }
+            return tsAgg;
+        });
+        // and now resolve the TimeSeriesAggregateFunction to it's actual, per-series aggregations
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, TimeSeriesAggregateFunction::perTimeSeriesAggregation);
+
         for (int i = 0; i < 2; i++) {
             expression = expression.transformUp(AggregateFunction.class, agg -> {
                 if (agg instanceof SurrogateExpression se) {
@@ -741,7 +846,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case CARTESIAN_SHAPE -> "CartesianShape";
             case GEO_POINT -> "GeoPoint";
             case GEO_SHAPE -> "GeoShape";
-            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE -> "BytesRef";
+            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE, FLATTENED -> "BytesRef";
             case DOUBLE, COUNTER_DOUBLE -> "Double";
             case INTEGER, COUNTER_INTEGER -> "Int";
             case IP -> "Ip";
@@ -752,6 +857,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case NULL -> "Null";
             case TDIGEST -> "TDigest";
             case DENSE_VECTOR -> "DenseVector";
+            case FLOAT -> "Float";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

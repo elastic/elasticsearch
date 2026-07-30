@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 152326
+summary: Emit Painless static-type string concat allocation pre-checks
+type: enhancement

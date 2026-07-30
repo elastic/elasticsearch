@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_GEOMETRYTYPE` function [esql-st_geometrytype]
 
-:::{include} ../../_snippets/functions/layout/st_geometrytype.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_geometrytype.md
 :::

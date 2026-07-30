@@ -39,13 +39,14 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         TimeSeriesAggregateExec::new
     );
 
+    // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
+    // handled by TimeSeriesCollapseExec rather than a flag on this node.
     private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_COLLAPSED = TransportVersion.fromName(
         "time_series_aggregate_collapsed"
     );
 
     private final Bucket timeBucket;
     private final Bucket outputTimeBucket;
-    private final boolean collapsed;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -57,7 +58,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket, false);
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket);
     }
 
     public TimeSeriesAggregateExec(
@@ -69,27 +70,11 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         List<Attribute> intermediateAttributes,
         Integer estimatedRowSize,
         Bucket timeBucket,
-        boolean collapsed
-    ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket, collapsed);
-    }
-
-    public TimeSeriesAggregateExec(
-        Source source,
-        PhysicalPlan child,
-        List<? extends Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        AggregatorMode mode,
-        List<Attribute> intermediateAttributes,
-        Integer estimatedRowSize,
-        Bucket timeBucket,
-        Bucket outputTimeBucket,
-        boolean collapsed
+        Bucket outputTimeBucket
     ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
         this.outputTimeBucket = outputTimeBucket;
-        this.collapsed = collapsed;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
@@ -101,9 +86,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             this.outputTimeBucket = this.timeBucket;
         }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
-            this.collapsed = in.readBoolean();
-        } else {
-            this.collapsed = false;
+            in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapseExec
         }
     }
 
@@ -115,7 +98,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             out.writeOptionalWriteable(outputTimeBucket);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
-            out.writeBoolean(collapsed);
+            out.writeBoolean(false);
         }
     }
 
@@ -136,8 +119,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket,
-            collapsed
+            outputTimeBucket
         );
     }
 
@@ -152,8 +134,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket,
-            collapsed
+            outputTimeBucket
         );
     }
 
@@ -168,8 +149,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket,
-            collapsed
+            outputTimeBucket
         );
     }
 
@@ -184,8 +164,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket,
-            collapsed
+            outputTimeBucket
         );
     }
 
@@ -200,8 +179,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize,
             timeBucket,
-            outputTimeBucket,
-            collapsed
+            outputTimeBucket
         );
     }
 
@@ -213,13 +191,9 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return outputTimeBucket;
     }
 
-    public boolean isCollapsed() {
-        return collapsed;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket, collapsed);
+        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket);
     }
 
     @Override
@@ -228,9 +202,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             return false;
         }
         TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
-        return Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
-            && collapsed == other.collapsed;
+        return Objects.equals(timeBucket, other.timeBucket) && Objects.equals(outputTimeBucket, other.outputTimeBucket);
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {

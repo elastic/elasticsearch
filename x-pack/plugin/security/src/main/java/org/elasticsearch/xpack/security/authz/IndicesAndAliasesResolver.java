@@ -346,7 +346,7 @@ class IndicesAndAliasesResolver {
                 // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
                 isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()), (expr) -> {
                     var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
-                        ? RemoteClusterAware.splitIndexName(expr)[1]
+                        ? RemoteClusterAware.splitIndexName(expr).indexExpression()
                         : expr;
                     final var nameAndSelector = IndexNameExpressionResolver.splitSelectorExpression(unprefixed);
                     selector[0] = nameAndSelector.v2();
@@ -554,10 +554,13 @@ class IndicesAndAliasesResolver {
     }
 
     private boolean shouldSetResolvedIndexExpressions(IndicesRequest.Replaceable replaceable, ResolvedIndexExpressions resolved) {
-        // Only store resolved expressions if cross-project mode or if views should be resolved, to avoid unnecessary memory
-        // usage. Once we've migrated from `indices()` to using resolved expressions holistically, we will always store them.
+        // Only store resolved expressions if cross-project mode or if views/datasets should be resolved, to avoid
+        // unnecessary memory usage. Once we've migrated from `indices()` to using resolved expressions
+        // holistically, we will always store them.
+        var indexAbstractionOptions = replaceable.indicesOptions().indexAbstractionOptions();
         if (crossProjectModeDecider.crossProjectEnabled() == false
-            && replaceable.indicesOptions().indexAbstractionOptions().resolveViews() == false) {
+            && indexAbstractionOptions.resolveViews() == false
+            && indexAbstractionOptions.resolveDatasets() == false) {
             return false;
         }
 
@@ -759,13 +762,12 @@ class IndicesAndAliasesResolver {
         }
 
         private ResolvedIndices determineLocalOrRemoteIndex(String indexExpression, Set<String> originAliases, Set<String> remoteAliases) {
-            String[] split = RemoteClusterAware.splitIndexName(indexExpression);
-            String clusterAlias = split[0];
-            if (clusterAlias == null || originAliases.contains(clusterAlias)) {
-                return new ResolvedIndices(List.of(split[1]), List.of());
+            var split = RemoteClusterAware.splitIndexName(indexExpression);
+            if (split.clusterAlias() == null || originAliases.contains(split.clusterAlias())) {
+                return new ResolvedIndices(List.of(split.indexExpression()), List.of());
             } else {
-                if (remoteAliases.contains(clusterAlias) == false) {
-                    throw new NoSuchRemoteClusterException(clusterAlias);
+                if (remoteAliases.contains(split.clusterAlias()) == false) {
+                    throw new NoSuchRemoteClusterException(split.clusterAlias());
                 }
                 return new ResolvedIndices(List.of(), List.of(indexExpression));
             }

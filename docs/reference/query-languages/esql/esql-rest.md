@@ -101,9 +101,14 @@ Query results only, without metadata. Useful for quick and manual data previews.
 | `csv` | `text/csv` | [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values) |
 | `tsv` | `text/tab-separated-values` | [Tab-separated values](https://en.wikipedia.org/wiki/Tab-separated_values) |
 | `txt` | `text/plain` | CLI-like representation |
+| `md` | `text/markdown` | Markdown/GitHub-flavored pipe table |
 
 ::::{tip}
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used. Use the `tsv` format instead.
+::::
+
+::::{tip}
+The `md` format always includes a header row. Requesting `header=absent` (for example, via `Accept: text/markdown; header=absent`) returns a `400` error, unlike `csv`, `tsv`, and `txt`, which support both `header=present` and `header=absent`.
 ::::
 
 ### Binary formats
@@ -302,6 +307,100 @@ POST /_query
 ```
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
+
+### Enabling query approximation [esql-approximation-param]
+
+```{applies_to}
+stack: preview 9.4, ga 9.5
+serverless: ga
+```
+
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
+If not specified, defaults to `false`.
+
+For example:
+```console
+POST /_query
+{
+  "approximation": true,
+  "query": """
+    FROM web_traffic
+    | STATS total_hits = COUNT(), avg_load_time = AVG(page_load_ms)
+  """
+}
+```
+
+For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
+
+## Column metadata [esql-rest-column-metadata]
+
+For structured [response formats](#esql-rest-format), the `columns` array describes the columns in the response.
+Each column object includes the column `name` and {{esql}} `type`.
+Depending on the query and the source mappings, a column object can also include additional metadata:
+
+| Field | Description |
+| --- | --- |
+| `name` | The column name. |
+| `type` | The resolved {{esql}} type for the column. |
+| `original_types` | The original {{es}} mapping types for a column. This is returned when the column has an unsupported type or conflicting types across the queried indices. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `suggested_cast` | A type that {{esql}} can use to resolve the values from `original_types` to a supported type. This is returned only when {{esql}} can suggest a cast for the original types. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `_meta` | Additional column metadata produced by {{esql}}. |
+
+For example, a column with conflicting mapping types can include `original_types` and `suggested_cast`:
+
+```json
+{
+  "name": "client_ip",
+  "type": "unsupported",
+  "original_types": ["ip", "keyword"],
+  "suggested_cast": "keyword"
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Columns created with `BUCKET` can include bucket interval metadata:
+
+```json
+{
+  "name": "bucket",
+  "type": "date",
+  "_meta": {
+    "bucket": {
+      "interval": 1,
+      "unit": "day"
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Numeric bucket columns include only the `interval` value:
+
+```json
+{
+  "name": "bucket",
+  "type": "double",
+  "_meta": {
+    "bucket": {
+      "interval": 100.0
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.4, ga 9.5+` {applies_to}`serverless: ga` Approximation helper columns can include approximation metadata.
+The `approximation.type` value is `confidence_interval` or `certified`, and `approximation.column` identifies the source column:
+
+```json
+{
+  "name": "_approximation_confidence_interval(count)",
+  "type": "long",
+  "_meta": {
+    "approximation": {
+      "type": "confidence_interval",
+      "column": "count"
+    }
+  }
+}
+```
 
 ## Pass parameters to a query [esql-rest-params]
 
@@ -570,6 +669,18 @@ The query will be stopped and the response will contain the results computed so 
 
 This API can be used to retrieve results even if the query has already completed, as long as it's within the `keep_alive` window.
 The `is_partial` field indicates result completeness. A value of `true` means the results are potentially incomplete.
+
+<!--
+### Stopping or cancelling queries against external sources [esql-rest-async-external-stop-cancel]
+
+When a query reads from an external source (for example, a query that begins with the `EXTERNAL` command, or any query routed to a {{esql}} data source you registered), the three ways to end the read have distinct semantics:
+
+* **Async stop** (`POST /_query/async/{id}/stop`) signals the running query to wind down without discarding what it has already produced. Rows already accepted into the response pipeline at the moment stop arrives are returned with `is_partial: true`; rows that the source is still in the middle of delivering are dropped. If async stop races with the natural completion of a fast query, the response is returned as-is with `is_partial: false`.
+* **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
+* **Task cancel or client disconnect** (cancellation via the [task management API](esql-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
+
+In other words, only async stop is a partial-result path for external queries — task cancel, client disconnect, and async delete all fall on the hard-fail side. This matches the behaviour for queries against {{es}} indices, with one nuance specific to external sources: a query that touches no {{es}} index has no per-cluster status to flip, so the `is_partial` flag is set directly on the response when async stop fires.
+-->
 
 Use the [{{esql}} async query delete API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete) to delete an async query before the `keep_alive` period ends. If the query is still running, {{es}} cancels it.
 

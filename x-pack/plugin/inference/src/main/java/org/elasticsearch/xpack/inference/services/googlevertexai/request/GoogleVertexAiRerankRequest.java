@@ -69,13 +69,9 @@ public class GoogleVertexAiRerankRequest implements OutboundRerankRequest {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
-        decorateWithAuth(httpPost);
+        model.authHeaderDecorator().accept(httpPost, model);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
-    }
-
-    public void decorateWithAuth(HttpPost httpPost) {
-        GoogleVertexAiRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings());
     }
 
     public GoogleVertexAiRerankModel model() {

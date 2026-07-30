@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.compute.data.UninitializedArrays;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,8 +76,8 @@ final class RowRanges {
         }
         merged.add(current);
 
-        long[] s = new long[merged.size()];
-        long[] e = new long[merged.size()];
+        long[] s = UninitializedArrays.newLongArray(merged.size());
+        long[] e = UninitializedArrays.newLongArray(merged.size());
         for (int i = 0; i < merged.size(); i++) {
             s[i] = merged.get(i)[0];
             e[i] = merged.get(i)[1];
@@ -103,8 +105,8 @@ final class RowRanges {
             }
         }
 
-        long[] rs = new long[result.size()];
-        long[] re = new long[result.size()];
+        long[] rs = UninitializedArrays.newLongArray(result.size());
+        long[] re = UninitializedArrays.newLongArray(result.size());
         for (int k = 0; k < result.size(); k++) {
             rs[k] = result.get(k)[0];
             re[k] = result.get(k)[1];
@@ -147,8 +149,8 @@ final class RowRanges {
             gaps.add(new long[] { prev, totalRows });
         }
 
-        long[] rs = new long[gaps.size()];
-        long[] re = new long[gaps.size()];
+        long[] rs = UninitializedArrays.newLongArray(gaps.size());
+        long[] re = UninitializedArrays.newLongArray(gaps.size());
         for (int k = 0; k < gaps.size(); k++) {
             rs[k] = gaps.get(k)[0];
             re[k] = gaps.get(k)[1];

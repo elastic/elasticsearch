@@ -20,13 +20,16 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -44,10 +47,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * This function is used internally by {@link Approximation}, and is not exposed
+ * This function is used internally by {@link ApproximationPlan}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
-public class ConfidenceInterval extends EsqlScalarFunction {
+public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ConfidenceInterval",
@@ -63,7 +66,9 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     private final Expression confidenceLevel;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", },
+        briefSummary = "Computes a confidence interval and its reliability from bootstrap estimates.",
         description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
             + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
             + "interval. If no sensible interval is found, the function returns null instead. "

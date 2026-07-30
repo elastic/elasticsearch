@@ -374,6 +374,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
+    /**
+     * Builds a {@link RoutingTable} from the given collection of {@link ShardRouting} instances.
+     */
     static RoutingTable of(Collection<ShardRouting> shardRouting) {
         Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
         for (ShardRouting shardRoutingEntry : shardRouting) {

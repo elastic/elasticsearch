@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-ec2.html
 ---
 
-# EC2 Discovery plugin [discovery-ec2]
+# EC2 discovery plugin [discovery-ec2]
 
 The EC2 discovery plugin provides a list of seed addresses to the [discovery process](docs-content://deploy-manage/distributed-architecture/discovery-cluster-formation/discovery-hosts-providers.md) by querying the [AWS API](https://github.com/aws/aws-sdk-java) for a list of EC2 instances matching certain criteria determined by the [plugin settings](/reference/elasticsearch-plugins/discovery-ec2-usage.md).
 

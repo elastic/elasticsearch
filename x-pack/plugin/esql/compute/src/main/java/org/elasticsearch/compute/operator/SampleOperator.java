@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.SplittableRandom;
@@ -114,7 +113,7 @@ public class SampleOperator implements Operator {
             sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, sampledPositions, 0, sampledIdx));
         }
     }
 

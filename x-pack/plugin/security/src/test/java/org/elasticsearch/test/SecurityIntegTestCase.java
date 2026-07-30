@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -433,11 +434,32 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
-        if (getIndexResponse.getIndices().length > 0) {
-            // this is a hack to clean up the .security index since only a superuser can delete it
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
-            client.admin().indices().delete(deleteIndexRequest).actionGet();
+        // QueryableBuiltInRolesSynchronizer dispatches asynchronously putRoles task which can auto-create
+        // .security after a delete. We must wait for any in-flight sync to drain before verifying the
+        // index is gone; otherwise a pending executor task can recreate it after our check.
+        try {
+            assertBusy(() -> {
+                GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
+                if (getIndexResponse.getIndices().length > 0) {
+                    // this is a hack to clean up the .security index since only a superuser can delete it
+                    DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+                    client.admin().indices().delete(deleteIndexRequest).actionGet();
+                }
+                if (QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED) {
+                    for (QueryableBuiltInRolesSynchronizer synchronizer : internalCluster().getInstances(
+                        QueryableBuiltInRolesSynchronizer.class
+                    )) {
+                        assertFalse(
+                            "built-in roles synchronizer still running during test cleanup",
+                            synchronizer.isSynchronizationInProgress()
+                        );
+                    }
+                }
+                GetIndexResponse postDelete = client.admin().indices().getIndex(getIndexRequest).actionGet();
+                assertThat("security index re-created after delete", postDelete.getIndices().length, is(0));
+            }, 30L, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("failed to delete security index during test cleanup", e);
         }
     }
 

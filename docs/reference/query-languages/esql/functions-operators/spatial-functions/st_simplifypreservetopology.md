@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_SIMPLIFYPRESERVETOPOLOGY` function [esql-st_simplifypreservetopology]
 
-:::{include} ../../_snippets/functions/layout/st_simplifypreservetopology.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_simplifypreservetopology.md
 :::

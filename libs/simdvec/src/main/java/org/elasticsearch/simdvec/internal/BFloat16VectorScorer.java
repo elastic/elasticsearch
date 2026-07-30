@@ -16,19 +16,20 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF32;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF32BulkSparse;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32BulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
-
 public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
@@ -39,9 +40,6 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
         if (input == null) {
@@ -95,7 +93,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> dotProductDBF16QF32(memorySegment, query, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeToUnitInterval(dotProduct);
         }
@@ -116,7 +114,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -145,7 +143,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> squareDistanceDBF16QF32(memorySegment, query, dimensions)
+                memorySegment -> DISTANCE_FUNCS.squareDistanceDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
@@ -166,7 +164,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> squareDistanceDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.squareDistanceDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -195,7 +193,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                memorySegment -> dotProductDBF16QF32(memorySegment, query, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
@@ -216,7 +214,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 vectorByteSize,
                 numNodes,
                 addrsScratch::get,
-                addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
@@ -65,9 +66,9 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        left().nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        left().nodeString(sb, format, mapper);
         sb.append(" ").append(symbol()).append(" ");
-        right().nodeString(sb, format);
+        right().nodeString(sb, format, mapper);
     }
 }

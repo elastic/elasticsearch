@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152783
+summary: Sanitize external UTF-8 at source boundary
+type: enhancement

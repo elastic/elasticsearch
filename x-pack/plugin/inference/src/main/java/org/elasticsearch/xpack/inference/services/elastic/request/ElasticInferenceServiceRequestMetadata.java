@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
+
 /**
  * Record encapsulating arbitrary metadata, which is usually propagated through HTTP headers.
- * @param productOrigin - product origin of the inference request (usually a whole system like "kibana", "logstash" etc.)
- * @param productUseCase - product use case of the inference request (more granular view on a user flow like "security ai assistant" etc.)
+ * @param context - product attribution context holding product use case and product origin
+ * @param esVersion - the Elasticsearch version of the node handling the request
  */
-public record ElasticInferenceServiceRequestMetadata(String productOrigin, String productUseCase, String esVersion) {}
+public record ElasticInferenceServiceRequestMetadata(InferenceProductContext context, String esVersion) {}

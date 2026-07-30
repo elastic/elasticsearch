@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.logging;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -17,6 +18,8 @@ import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.QueryLoggingC
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LoggingFeatureSetUsageTests extends AbstractWireSerializingTestCase<LoggingFeatureSetUsage> {
 
@@ -100,5 +103,9 @@ public class LoggingFeatureSetUsageTests extends AbstractWireSerializingTestCase
     private EsqlLoggingConfig randomEsqlLoggingConfig() {
         Map<String, String> thresholds = randomMap(0, 5, () -> Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         return new EsqlLoggingConfig(randomLoggingConfig(), thresholds);
+    }
+
+    public void testGetMinimalSupportedVersion() {
+        assertThat(createTestInstance().getMinimalSupportedVersion(), equalTo(TransportVersion.fromName("logging_xpack_usage")));
     }
 }

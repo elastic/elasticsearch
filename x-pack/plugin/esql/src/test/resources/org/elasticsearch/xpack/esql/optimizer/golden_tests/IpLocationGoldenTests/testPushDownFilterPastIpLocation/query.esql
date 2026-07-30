@@ -1,0 +1,4 @@
+FROM employees
+| WHERE emp_no > 10000
+| ip_location g = first_name
+| WHERE g.city_name == "London" AND salary > 5000

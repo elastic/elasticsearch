@@ -26,7 +26,8 @@ public class SmokeTestIngestWithAllDepsClientYamlTestSuiteIT extends ESClientYam
         .module("lang-mustache")
         .module("reindex")
         .module("data-streams")
-        .module("ingest-geoip")
+        .module("ip-location")
+        .module("ingest-ip-location")
         .module("mapper-extras")
         .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
         .build();

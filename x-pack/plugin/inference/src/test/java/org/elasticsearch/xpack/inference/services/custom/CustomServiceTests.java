@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CustomServiceTests extends InferenceServiceTestCase {
 
@@ -80,18 +79,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                listener
-            );
+            service.infer(model, List.of("test input"), false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -138,18 +126,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
                 getUrl(webServer)
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                listener
-            );
+            service.infer(model, List.of("test input"), false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(DenseEmbeddingFloatResults.class));
@@ -185,7 +162,6 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         var model = mock(CustomModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -255,8 +231,8 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             var inputTwo = randomAlphanumericOfLength(8);
             var query = randomAlphanumericOfLength(8);
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 null,
                 null,
                 null
@@ -322,18 +298,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             );
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                listener
-            );
+            service.infer(model, List.of("test input"), false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(ChatCompletionResults.class));
@@ -388,18 +353,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             );
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("test input"),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                listener
-            );
+            service.infer(model, List.of("test input"), false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             InferenceServiceResults results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(SparseEmbeddingResults.class));
@@ -500,7 +454,6 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -573,15 +526,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(new ChunkInferenceInput("a")),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                null,
-                listener
-            );
+            service.chunkedInfer(model, List.of(new ChunkInferenceInput("a")), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(1));
@@ -663,7 +608,6 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -775,7 +719,6 @@ public class CustomServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -840,7 +783,7 @@ public class CustomServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());

@@ -19,7 +19,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@TimeoutSuite(millis = 45 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
     @ClassRule

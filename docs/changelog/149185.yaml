@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149185
+summary: Introduce `ExternalOptimizerContext`
+type: enhancement

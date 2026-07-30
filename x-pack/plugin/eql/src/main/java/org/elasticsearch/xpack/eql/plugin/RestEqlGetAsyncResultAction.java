@@ -11,8 +11,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.util.List;
 
@@ -39,6 +41,14 @@ public class RestEqlGetAsyncResultAction extends BaseRestHandler {
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
-        return channel -> client.execute(EqlAsyncGetResultAction.INSTANCE, get, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            EqlAsyncGetResultAction.INSTANCE,
+            get,
+            RestActions.wrapWithSearchMetricsHeader(
+                client.threadPool().getThreadContext(),
+                EqlSearchResponse::directoryMetrics,
+                new RestToXContentListener<>(channel)
+            )
+        );
     }
 }

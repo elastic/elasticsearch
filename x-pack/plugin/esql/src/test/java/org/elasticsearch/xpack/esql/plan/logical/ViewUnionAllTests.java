@@ -91,6 +91,28 @@ public class ViewUnionAllTests extends ESTestCase {
         assertEquals(a.hashCode(), d.hashCode());
     }
 
+    /**
+     * {@code asSubqueryMap} used to read a live view over {@code namedSubqueries} and drain it as
+     * a side effect of {@code replaceChildren}, corrupting the <em>original</em> instance. That
+     * mattered because {@code EsqlSession.analyzeWithRetry} can re-run {@code Analyzer.analyze} on
+     * the same parsed plan a second time (the "second attempt, without filter" retry after a
+     * {@code VerificationException}), revisiting the same instance. Pins that {@code replaceChildren}
+     * leaves the original instance untouched and can be called repeatedly.
+     */
+    public void testReplaceChildrenDoesNotMutateOriginalInstance() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
+
+        original.replaceChildren(List.of(child1, child2));
+        assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1, "view_1", child2)));
+
+        // Re-analyzing the same instance a second time (what analyzeWithRetry does) still works.
+        LogicalPlan replaced = original.replaceChildren(List.of(child1, child2));
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        assertEquals(List.of(child1, child2), replaced.children());
+    }
+
     public void testNotEqualToPlainUnionAll() {
         LogicalPlan child = relation("index1");
 

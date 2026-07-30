@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152523
+summary: Release `to_text` conversion function
+type: enhancement

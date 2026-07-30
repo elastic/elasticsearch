@@ -1,0 +1,27 @@
+pr: 150775
+summary: Reconcile external source statistics by coverage range, not scan count
+area: ES|QL
+type: bug
+issues:
+ - 150571
+ - 150594
+ - 150595
+ - 150599
+ - 150614
+ - 150615
+ - 150616
+ - 150620
+ - 150628
+ - 150642
+ - 150643
+ - 150653
+ - 150657
+ - 150670
+ - 150678
+ - 150705
+ - 150710
+ - 150723
+ - 150744
+ - 150758
+ - 150771
+ - 150783

@@ -14,10 +14,8 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsWriter;
-import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -25,11 +23,13 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -45,7 +45,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         ES93GenericFlatVectorScorer.INSTANCE
     );
     private final FlatVectorsFormat rawVectorFormat;
-    private final Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding;
+    private final QuantizedByteVectorValues.ScalarEncoding encoding;
 
     public ES94ScalarQuantizedVectorsFormat() {
         this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false);
@@ -64,10 +64,10 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
         this.encoding = switch (bits) {
-            case 1 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
-            case 2 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.DIBIT_QUERY_NIBBLE;
-            case 4 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
-            case 7 -> Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT;
+            case 1 -> QuantizedByteVectorValues.ScalarEncoding.SINGLE_BIT_QUERY_NIBBLE;
+            case 2 -> QuantizedByteVectorValues.ScalarEncoding.DIBIT_QUERY_NIBBLE;
+            case 4 -> QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE;
+            case 7 -> QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT;
             default -> throw new IllegalArgumentException("bits must be one of: 1, 2, 4, 7; bits=" + bits);
         };
     }
@@ -104,7 +104,7 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
             super(delegate);
             this.delegate = delegate;
-            factory = VectorScorerFactory.instance().orElse(null);
+            factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         }
 
         @Override
@@ -117,26 +117,24 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             if (values instanceof QuantizedByteVectorValues quantizedValues && quantizedValues.getSlice() != null) {
                 // TODO: optimize int2, and single bit quantization
-                if (factory != null) {
-                    var encoding = quantizedValues.getScalarEncoding();
-                    if (encoding == Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT) {
-                        var scorer = factory.getInt7uOSQVectorScorerSupplier(
-                            VectorSimilarityType.of(sim),
-                            quantizedValues.getSlice(),
-                            quantizedValues
-                        );
-                        if (scorer.isPresent()) {
-                            return scorer.get();
-                        }
-                    } else if (encoding == Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE) {
-                        var scorer = factory.getInt4VectorScorerSupplier(
-                            VectorSimilarityType.of(sim),
-                            quantizedValues.getSlice(),
-                            quantizedValues
-                        );
-                        if (scorer.isPresent()) {
-                            return scorer.get();
-                        }
+                var encoding = quantizedValues.getScalarEncoding();
+                if (encoding == QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT) {
+                    var scorer = factory.getInt7uOSQVectorScorerSupplier(
+                        VectorSimilarityType.of(sim),
+                        quantizedValues.getSlice(),
+                        quantizedValues
+                    );
+                    if (scorer.isPresent()) {
+                        return scorer.get();
+                    }
+                } else if (encoding == QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE) {
+                    var scorer = factory.getInt4VectorScorerSupplier(
+                        VectorSimilarityType.of(sim),
+                        quantizedValues.getSlice(),
+                        quantizedValues
+                    );
+                    if (scorer.isPresent()) {
+                        return scorer.get();
                     }
                 }
             }
@@ -148,50 +146,48 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throws IOException {
             if (values instanceof QuantizedByteVectorValues quantizedValues && quantizedValues.getSlice() != null) {
                 // TODO: optimize int2 and single bit query-time scoring via native
-                if (factory != null) {
-                    var encoding = quantizedValues.getScalarEncoding();
-                    if (encoding == Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT
-                        || encoding == Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE) {
-                        OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(sim);
-                        float[] residualScratch = new float[query.length];
-                        int[] quantizedQuery = new int[query.length];
-                        var correctiveComponents = scalarQuantizer.scalarQuantize(
-                            query,
-                            residualScratch,
-                            quantizedQuery,
-                            encoding.getQueryBits(),
-                            quantizedValues.getCentroid()
-                        );
-                        byte[] quantizedQueryBytes = new byte[quantizedQuery.length];
-                        for (int i = 0; i < quantizedQuery.length; i++) {
-                            quantizedQueryBytes[i] = (byte) quantizedQuery[i];
-                        }
+                var encoding = quantizedValues.getScalarEncoding();
+                if (encoding == QuantizedByteVectorValues.ScalarEncoding.SEVEN_BIT
+                    || encoding == QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE) {
+                    OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(sim);
+                    float[] residualScratch = new float[query.length];
+                    int[] quantizedQuery = new int[query.length];
+                    var correctiveComponents = scalarQuantizer.scalarQuantize(
+                        query,
+                        residualScratch,
+                        quantizedQuery,
+                        encoding.getQueryBits(),
+                        quantizedValues.getCentroid()
+                    );
+                    byte[] quantizedQueryBytes = new byte[quantizedQuery.length];
+                    for (int i = 0; i < quantizedQuery.length; i++) {
+                        quantizedQueryBytes[i] = (byte) quantizedQuery[i];
+                    }
 
-                        Optional<RandomVectorScorer> scorer;
-                        if (encoding == Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE) {
-                            scorer = factory.getInt4VectorScorer(
-                                sim,
-                                quantizedValues,
-                                quantizedQueryBytes,
-                                correctiveComponents.lowerInterval(),
-                                correctiveComponents.upperInterval(),
-                                correctiveComponents.additionalCorrection(),
-                                correctiveComponents.quantizedComponentSum()
-                            );
-                        } else {
-                            scorer = factory.getInt7uOSQVectorScorer(
-                                sim,
-                                quantizedValues,
-                                quantizedQueryBytes,
-                                correctiveComponents.lowerInterval(),
-                                correctiveComponents.upperInterval(),
-                                correctiveComponents.additionalCorrection(),
-                                correctiveComponents.quantizedComponentSum()
-                            );
-                        }
-                        if (scorer.isPresent()) {
-                            return scorer.get();
-                        }
+                    Optional<RandomVectorScorer> scorer;
+                    if (encoding == QuantizedByteVectorValues.ScalarEncoding.PACKED_NIBBLE) {
+                        scorer = factory.getInt4VectorScorer(
+                            sim,
+                            quantizedValues,
+                            quantizedQueryBytes,
+                            correctiveComponents.lowerInterval(),
+                            correctiveComponents.upperInterval(),
+                            correctiveComponents.additionalCorrection(),
+                            correctiveComponents.quantizedComponentSum()
+                        );
+                    } else {
+                        scorer = factory.getInt7uOSQVectorScorer(
+                            sim,
+                            quantizedValues,
+                            quantizedQueryBytes,
+                            correctiveComponents.lowerInterval(),
+                            correctiveComponents.upperInterval(),
+                            correctiveComponents.additionalCorrection(),
+                            correctiveComponents.quantizedComponentSum()
+                        );
+                    }
+                    if (scorer.isPresent()) {
+                        return scorer.get();
                     }
                 }
             }

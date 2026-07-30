@@ -45,7 +45,12 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
 
         @Override
         public DoubleHistogram build(Meter meter) {
-            return Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+            return Objects.requireNonNull(meter)
+                .histogramBuilder(name)
+                .setDescription(description)
+                .setUnit(unit)
+                .setExplicitBucketBoundariesAdvice(HistogramBuckets.APM_DEFAULT)
+                .build();
         }
     }
 }

@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -74,31 +75,36 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
+    /**
+     * Wire-shape parity with production OpenAI: the embedding field is a
+     * base64-encoded packed little-endian {@code float32} string. The
+     * canonical pair {@code [0.0123, -0.0123]} is reused across these tests.
+     */
+    private static String embeddingResponseBase64() {
+        return Strings.format("""
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": "%s"
+                  }
+              ],
+              "model": "text-embedding-ada-002-v2",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
+    }
+
     public void testCreate_OpenAiEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.TEXT_EMBEDDING);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -118,10 +124,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -129,27 +136,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", null, TaskType.TEXT_EMBEDDING);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -169,9 +156,10 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.size(), is(3));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -179,27 +167,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             var model = createModel(getUrl(webServer), null, "secret", "model", null, TaskType.TEXT_EMBEDDING);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -219,10 +187,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -236,6 +205,8 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
+            // Field deliberately misnamed. Whether the embedding is JSON-array or base64 is
+            // immaterial to this test; we exercise the "missing required field [data]" path.
             String responseJson = """
                 {
                   "object": "list",
@@ -281,10 +252,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -561,28 +533,8 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                     }
                 """, contentTooLargeErrorMessage);
 
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.TEXT_EMBEDDING);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -603,10 +555,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
                 var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-                assertThat(requestMap.size(), is(3));
+                assertThat(requestMap.size(), is(4));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
                 assertThat(requestMap.get("model"), is("model"));
                 assertThat(requestMap.get("user"), is("overridden_user"));
+                assertThat(requestMap.get("encoding_format"), is("base64"));
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
@@ -615,10 +568,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(1).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                assertThat(requestMap.size(), is(3));
+                assertThat(requestMap.size(), is(4));
                 assertThat(requestMap.get("input"), is(List.of("ab")));
                 assertThat(requestMap.get("model"), is("model"));
                 assertThat(requestMap.get("user"), is("overridden_user"));
+                assertThat(requestMap.get("encoding_format"), is("base64"));
             }
         }
     }
@@ -642,28 +596,8 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                     }
                 """, contentTooLargeErrorMessage);
 
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.TEXT_EMBEDDING);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
@@ -684,10 +618,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
                 var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-                assertThat(requestMap.size(), is(3));
+                assertThat(requestMap.size(), is(4));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
                 assertThat(requestMap.get("model"), is("model"));
                 assertThat(requestMap.get("user"), is("overridden_user"));
+                assertThat(requestMap.get("encoding_format"), is("base64"));
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
@@ -696,10 +631,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(1).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                assertThat(requestMap.size(), is(3));
+                assertThat(requestMap.size(), is(4));
                 assertThat(requestMap.get("input"), is(List.of("ab")));
                 assertThat(requestMap.get("model"), is("model"));
                 assertThat(requestMap.get("user"), is("overridden_user"));
+                assertThat(requestMap.get("encoding_format"), is("base64"));
             }
         }
     }
@@ -708,27 +644,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            String responseJson = """
-                {
-                  "object": "list",
-                  "data": [
-                      {
-                          "object": "embedding",
-                          "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
-                      }
-                  ],
-                  "model": "text-embedding-ada-002-v2",
-                  "usage": {
-                      "prompt_tokens": 8,
-                      "total_tokens": 8
-                  }
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
 
             // truncated to 1 token = 3 characters
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", 1, TaskType.TEXT_EMBEDDING);
@@ -749,10 +665,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("sup")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 }

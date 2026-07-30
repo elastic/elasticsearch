@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -32,6 +31,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * the way down to the Mapper, which folds them to {@code long} when building the physical
  * {@code TimeSeriesCollapseExec}.
  */
-public class TimeSeriesCollapse extends UnaryPlan implements PostAnalysisVerificationAware, PostOptimizationVerificationAware {
+public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "TimeSeriesCollapse",
@@ -205,33 +205,33 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostAnalysisVerific
         return NodeInfo.create(this, TimeSeriesCollapse::new, child(), value, step, dimensions, start, end, stepBucketSize);
     }
 
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        PromqlCommand source = findSourcePromqlCommand(child());
-        if (source == null) {
-            failures.add(fail(this, "TS_COLLAPSE must follow a PROMQL command"));
-            return;
-        }
-        if (source.hasTimeRange() == false) {
+    public void verify(Failures failures) {
+        Optional<PromqlCommand> source = sourcePromqlCommand();
+        if (source.isEmpty()) {
+            // Missing Prometheus indices resolve the child to LIMIT 0 before this verifier runs.
+            if (isZeroLimit(child()) == false) {
+                failures.add(fail(this, "TS_COLLAPSE must follow a PROMQL command"));
+            }
+        } else if (source.get().hasTimeRange() == false) {
             failures.add(
                 fail(this, "TS_COLLAPSE requires concrete [{}] and [{}] parameters [{}]", PromqlCommand.START, PromqlCommand.END, "")
             );
         }
     }
 
-    /** Walks down through unary wrappers to find the source {@link PromqlCommand}, if any. */
-    private static PromqlCommand findSourcePromqlCommand(LogicalPlan plan) {
-        while (plan != null) {
-            if (plan instanceof PromqlCommand pc) {
-                return pc;
-            }
-            if (plan instanceof UnaryPlan unary) {
-                plan = unary.child();
-            } else {
-                return null;
-            }
-        }
-        return null;
+    private Optional<PromqlCommand> sourcePromqlCommand() {
+        return child().collectFirstChildren(p -> p instanceof PromqlCommand || p instanceof UnaryPlan == false)
+            .stream()
+            .filter(PromqlCommand.class::isInstance)
+            .map(PromqlCommand.class::cast)
+            .findFirst();
+    }
+
+    public static boolean isZeroLimit(LogicalPlan plan) {
+        return plan instanceof Limit limit
+            && limit.limit().foldable()
+            && limit.limit().fold(FoldContext.small()) instanceof Number n
+            && n.longValue() == 0;
     }
 
     @Override

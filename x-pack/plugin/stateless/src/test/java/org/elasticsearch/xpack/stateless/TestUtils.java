@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -33,7 +35,7 @@ import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -43,13 +45,46 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
     private TestUtils() {}
+
+    public static IndicesService mockIndicesService(ClusterService clusterService) {
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
+        when(indicesService.hasShardPredicate()).thenReturn(shardId -> false);
+        return indicesService;
+    }
+
+    public static IndicesService mockIndicesService(ClusterService clusterService, Predicate<ShardId> hasShardPredicate) {
+        final IndicesService indicesService = mockIndicesService(clusterService);
+        when(indicesService.hasShardPredicate()).thenReturn(hasShardPredicate);
+        return indicesService;
+    }
+
+    /// A [ClusterService] mock backed by real [ClusterSettings] over the given node settings, for components that watch cluster settings
+    /// updates in their constructor and would otherwise fail on a bare mock returning a `null` [ClusterSettings]. Registers the stateless
+    /// settings that such components watch, in addition to the built-in ones.
+    public static ClusterService mockClusterService(Settings settings) {
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(
+                settings,
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING
+                )
+            )
+        );
+        return clusterService;
+    }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
         public StatelessPluginWithTrialLicense(Settings settings) {
@@ -66,7 +101,7 @@ public class TestUtils {
         Settings settings,
         ThreadPool threadPool
     ) {
-        return newCacheService(nodeEnvironment, settings, threadPool, null);
+        return newCacheService(nodeEnvironment, settings, threadPool, null, mockClusterService(settings));
     }
 
     public static StatelessSharedBlobCacheService newCacheService(
@@ -75,11 +110,23 @@ public class TestUtils {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
+        return newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, mockClusterService(settings));
+    }
+
+    public static StatelessSharedBlobCacheService newCacheService(
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry,
+        ClusterService clusterService
+    ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
             meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+            clusterService,
+            mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
         statelessSharedBlobCacheService.assertInvariants();
@@ -119,7 +166,7 @@ public class TestUtils {
             cacheService,
             snapshotsCommitService,
             clusterService,
-            RecoveryMetricsCollector.NOOP
+            StatelessRecoveryMetricsCollector.NOOP
         );
     }
 

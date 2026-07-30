@@ -267,6 +267,10 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             String[] privileges = generateRandomStringArray(5, 5, false, false);
             groupPrivileges.add(privileges);
             String[] clusters = generateRandomStringArray(5, 5, false, false);
+            String clusterPrefix = "g" + i + "_";
+            for (int j = 0; j < clusters.length; j++) {
+                clusters[j] = clusterPrefix + clusters[j];
+            }
             if (fuzzyCluster) {
                 for (int j = 0; j < clusters.length; j++) {
                     if (randomBoolean()) {

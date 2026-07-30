@@ -88,4 +88,13 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
             }));
         }
     }
+
+    @Override
+    public String executorName() {
+        if (latestUploadInfo.isUploaded()) {
+            return cacheBlobReaderForUploaded.executorName();
+        } else {
+            return cacheBlobReaderForNonUploaded.executorName();
+        }
+    }
 }

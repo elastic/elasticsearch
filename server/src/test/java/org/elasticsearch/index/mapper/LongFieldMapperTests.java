@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -20,6 +24,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -103,6 +108,13 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
 
+    public void testLongIndexingRejectsOversizedString() throws Exception {
+        // A quoted numeric value long enough to be costly to parse is rejected instead of coerced.
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
+    }
+
     // This is the biggest long that double can represent exactly
     public static final long MAX_SAFE_LONG_FOR_DOUBLE = 1L << 53;
 
@@ -163,6 +175,18 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "long").endObject()))
+            .documentMapper();
+        long v1 = randomLong();
+        long v2 = randomLong();
+        long v3 = randomLong();
+        // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 
 }

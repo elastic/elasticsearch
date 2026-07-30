@@ -35,13 +35,17 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
 
     private static final SynonymMap EMPTY_SYNONYM_MAP = buildEmptySynonymMap();
+
+    static final int MAX_SYNONYM_SETS_PER_FILTER = 100;
 
     protected enum SynonymsSource {
         INLINE("synonyms") {
@@ -69,25 +73,55 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]! Loading synonyms from index is supported only for search time synonyms!"
                     );
                 }
-                String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
+                Set<String> synonymsSets = new LinkedHashSet<>();
+                Set<String> duplicates = new LinkedHashSet<>();
+                for (String s : factory.settings.getAsList(SynonymsSource.INDEX.getSettingName())) {
+                    if (synonymsSets.add(s) == false) {
+                        duplicates.add(s);
+                    }
+                }
+                if (duplicates.isEmpty() == false) {
+                    LOGGER.warn(
+                        "Duplicate synonym set names in [{}] for filter [{}]; duplicates will be ignored: {}",
+                        SynonymsSource.INDEX.getSettingName(),
+                        factory.name(),
+                        duplicates
+                    );
+                }
+                if (synonymsSets.isEmpty()) {
+                    return new ReaderWithOrigin(new StringReader(""), "empty synonyms_set " + synonymsSets, synonymsSets);
+                }
+
+                // Reject multi-set configs on partially-upgraded clusters at index creation time only.
+                // Do NOT check during METADATA_VERIFICATION (recovery) or RELOAD_ANALYZERS — throwing
+                // there would prevent shards from loading.
+                if (synonymsSets.size() > 1 && context == IndexCreationContext.CREATE_INDEX) {
+                    factory.synonymsManagementAPIService.checkClusterSupportsMultipleSynonymSets();
+                }
+                if (synonymsSets.size() > MAX_SYNONYM_SETS_PER_FILTER) {
+                    throw new IllegalArgumentException(
+                        "At most "
+                            + MAX_SYNONYM_SETS_PER_FILTER
+                            + " synonym sets may be specified in ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "]"
+                    );
+                }
                 // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
-                ReaderWithOrigin reader;
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {
-                    reader = new ReaderWithOrigin(
+                    return new ReaderWithOrigin(
                         new StringReader(""),
-                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
-                    );
-                } else {
-                    reader = new ReaderWithOrigin(
-                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService, factory.lenient),
-                        "[" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                        "fake empty " + synonymsSets + " synonyms_set in .synonyms index",
+                        synonymsSets
                     );
                 }
 
-                return reader;
+                return new ReaderWithOrigin(
+                    Analysis.getReaderFromIndex(synonymsSets, factory.synonymsManagementAPIService, factory.lenient),
+                    synonymsSets + " synonyms_sets in .synonyms index",
+                    synonymsSets
+                );
             }
         },
         LOCAL_FILE("synonyms_path") {
@@ -194,7 +228,20 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        final String name = name();
+        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resources(), ts -> new SynonymFilter(ts, synonyms, false));
+    }
+
+    /**
+     * Static so the returned factory does not hold a reference to the outer instance,
+     * allowing the outer factory's raw synonym rule strings to be GC'd after {@link SynonymMap} construction.
+     */
+    protected static TokenFilterFactory buildChainedFactory(
+        String name,
+        SynonymMap synonyms,
+        AnalysisMode analysisMode,
+        Set<String> resourceNames,
+        Function<TokenStream, TokenStream> createFilter
+    ) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -203,14 +250,24 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
+                return synonyms.fst == null ? tokenStream : createFilter.apply(tokenStream);
             }
 
             @Override
             public TokenFilterFactory getSynonymFilter() {
-                // In order to allow chained synonym filters, we return IDENTITY here to
-                // ensure that synonyms don't get applied to the synonym map itself,
-                // which doesn't support stacked input tokens
+                // When building a synonym filter, we must prevent previous synonym filters in the chain
+                // from being active, as this would cause recursive synonym expansion during the building phase.
+                //
+                // Without this fix, when chaining multiple synonym filters (e.g., synonym_A → synonym_B → synonym_C),
+                // building synonym_C would use an analyzer containing active synonym_A and synonym_B filters.
+                // This causes:
+                // 1. Recursive synonym expansion when parsing synonym rules (e.g., synonyms are expanded via previous filters)
+                // 2. Each SynonymMap inflates since it applies all previous synonym rules again
+                // 3. Triggering O(n²) operations in SynonymGraphFilter.bufferOutputTokens()
+                // 4. Massive memory allocation during analyzer reload → OutOfMemoryError
+                //
+                // This matches the behavior of SynonymTokenFilterFactory and prevents OOM with chained
+                // synonym filters (critical for users with many chained synonym sets).
                 return IDENTITY_FILTER;
             }
 
@@ -220,8 +277,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
 
             @Override
-            public String getResourceName() {
-                return rulesReader.resource();
+            public Set<String> getResourceNames() {
+                return resourceNames;
             }
         };
     }
@@ -260,9 +317,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, String resource) {
+    record ReaderWithOrigin(Reader reader, String origin, Set<String> resources) {
         ReaderWithOrigin(Reader reader, String origin) {
-            this(reader, origin, null);
+            this(reader, origin, Set.of());
         }
     }
 

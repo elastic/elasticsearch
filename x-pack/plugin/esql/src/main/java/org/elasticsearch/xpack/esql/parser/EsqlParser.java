@@ -180,6 +180,24 @@ public class EsqlParser {
         return invokeParser(query, params, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
+    private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
+
+    private ParserPipeline createParserPipeline(String query, QueryParams params) {
+        EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        lexer.setEsqlConfig(config);
+        TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
+        CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
+        EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
+        parser.addParseListener(new PostProcessor());
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        parser.setEsqlConfig(config);
+        return new ParserPipeline(tokenStream, parser);
+    }
+
     private <T> T invokeParser(
         String query,
         QueryParams params,
@@ -192,27 +210,38 @@ public class EsqlParser {
             throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
         try {
-            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+            ParserPipeline pipeline = createParserPipeline(query, params);
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
+            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // recursive-descent parser.
+            try {
+                pipeline.tokenStream().fill();
+                int depth = 0;
+                int prefixChain = 0;
+                for (Token token : pipeline.tokenStream().getTokens()) {
+                    switch (token.getType()) {
+                        case EsqlBaseLexer.LP -> depth++;
+                        case EsqlBaseLexer.RP -> depth--;
+                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                        default -> prefixChain = 0;
+                    }
+                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                        throw new ParsingException(
+                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                        );
+                    }
+                }
+            } catch (ParsingException pe) {
+                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
+                    throw pe;
+                }
+                // Lexer error during fill() — rebuild the entire pipeline from scratch so the
+                // parser runs lazily and reports the same error as without this depth check.
+                pipeline = createParserPipeline(query, params);
+            }
 
-            lexer.setEsqlConfig(config);
-
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
-            CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
-            EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor());
-
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
-
-            parser.setEsqlConfig(config);
-
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(pipeline.parser());
 
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());

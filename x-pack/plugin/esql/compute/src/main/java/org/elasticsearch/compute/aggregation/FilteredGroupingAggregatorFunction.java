@@ -106,6 +106,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return next.prepareProcessIntermediateInputPage(seenGroupIds, page);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
@@ -134,6 +139,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
         GroupingAggregatorEvaluationContext ctx
     ) {
         return next.prepareEvaluateFinal(selected, ctx);
+    }
+
+    @Override
+    public IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        return next.selectTopN(selected, limit, asc);
     }
 
     @Override

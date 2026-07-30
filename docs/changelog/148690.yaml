@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148690
+summary: Add TS_COLLAPSE command
+type: enhancement

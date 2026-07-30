@@ -12,16 +12,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias> {
     public static Alias randomAlias() {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
         // TODO better randomChild
-        Expression child = ReferenceAttributeTests.randomReferenceAttribute(false);
+        Expression child = randomReferenceAttribute(false);
         boolean synthetic = randomBoolean();
         return new Alias(source, name, child, new NameId(), synthetic);
     }
@@ -39,7 +40,7 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         boolean synthetic = instance.synthetic();
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> child = randomValueOtherThan(child, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
+            case 1 -> child = randomValueOtherThan(child, () -> randomReferenceAttribute(false));
             case 2 -> synthetic = false == synthetic;
         }
         return new Alias(source, name, child, instance.id(), synthetic);

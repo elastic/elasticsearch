@@ -309,12 +309,8 @@ $$$http-cors-allow-credentials$$$
 
 ### HTTP client configuration [_http_client_configuration]
 
-Many HTTP clients and proxies are configured for browser-like response latency and impose a fairly short timeout by default, reporting a failure if {{es}} takes longer than this timeout to complete the processing of a request. {{es}} will always eventually respond to every request, but some requests may require many minutes of processing time to complete. Consider carefully whether your client’s default response timeout is appropriate for your needs. In many cases it is better to wait longer for a response instead of failing, and this means you should disable any response timeouts:
-
-* If you react to a timeout by retrying the request, the retry will often end up being placed at the back of the same queue which held the original request. It will therefore take longer to complete the processing of the request if you time out and retry instead of waiting more patiently. Retrying also imposes additional load on {{es}}.
-* If a request is not idempotent and cannot be retried then failing the request is your last resort. Waiting more patiently for a response will usually allow the overall operation to succeed.
-
-If you disable the response timeout in your client, make sure to configure TCP keepalives instead. TCP keepalives are the recommended way to prevent a client from waiting indefinitely in the event of a network outage.
+::::{include} _snippets/http-client-configuration.md
+::::
 
 
 

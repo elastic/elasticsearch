@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TANH` function [esql-tanh]
 
-:::{include} ../../_snippets/functions/layout/tanh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/tanh.md
 :::

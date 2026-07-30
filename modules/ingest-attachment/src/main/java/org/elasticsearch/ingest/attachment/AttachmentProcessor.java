@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.SetOnce;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
@@ -19,10 +20,15 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -47,6 +53,28 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     public static final String TYPE = "attachment";
 
+    /**
+     * When set to a value, caps the raw in-memory size of the attachment source {@code field} for every {@code attachment} processor
+     * on the node, regardless of {@code max_field_bytes}. If both are set, the effective limit is the stricter of the two. Absolute values
+     * apply directly; ratio or percentage values are resolved against the JVM's maximum heap size for the node. Note that attachment
+     * sizes are limited to an upper bound of an integer size. -1 means no node-level limit.
+     */
+    public static final Setting<RelativeByteSizeValue> MAX_FIELD_SIZE_SETTING = new Setting<>(
+        "ingest.attachment.max_field_size",
+        "-1",
+        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "ingest.attachment.max_field_size"),
+        Setting.Property.NodeScope
+    );
+    /**
+     * Optional custom message suffix used when {@link #MAX_FIELD_SIZE_SETTING} rejects an attachment.
+     * If set, replaces the default detailed message suffix (which includes the configured limit and setting value).
+     */
+    public static final Setting<String> MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING = Setting.simpleString(
+        "ingest.attachment.max_field_size_message_suffix",
+        "",
+        Setting.Property.NodeScope
+    );
+
     private final String field;
     private final String targetField;
     private final Set<Property> properties;
@@ -55,6 +83,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
+    // Per-processor cap on raw attachment field size in bytes, or -1 for no per-processor cap (node cap still applies when set).
+    private final int maxFieldBytesFromProcessor;
+    // Node-level cap from {@link #MAX_FIELD_SIZE_SETTING}, or -1 if not applicable.
+    private final RelativeByteSizeValue maxFieldSizeFromNode;
+    private final long maxFieldSizeFromNodeBytes;
+    private final String maxFieldSizeExceededMessage;
+    private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
 
     AttachmentProcessor(
         String tag,
@@ -66,7 +101,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
         boolean ignoreMissing,
         String indexedCharsField,
         String resourceName,
-        boolean removeBinary
+        boolean removeBinary,
+        int maxFieldBytesFromProcessor,
+        RelativeByteSizeValue maxFieldSizeFromNode,
+        String maxFieldSizeExceededMessage,
+        SetOnce<AttachmentIngestMetrics> attachmentMetrics
     ) {
         super(tag, description);
         this.field = field;
@@ -77,6 +116,55 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.indexedCharsField = indexedCharsField;
         this.resourceName = resourceName;
         this.removeBinary = removeBinary;
+        this.maxFieldBytesFromProcessor = maxFieldBytesFromProcessor;
+        this.maxFieldSizeFromNode = maxFieldSizeFromNode;
+        this.maxFieldSizeFromNodeBytes = resolveMaxFieldSizeFromNode(maxFieldSizeFromNode);
+        this.maxFieldSizeExceededMessage = maxFieldSizeExceededMessage;
+        this.attachmentMetrics = attachmentMetrics;
+    }
+
+    /**
+     * Resolves {@link #MAX_FIELD_SIZE_SETTING} to an absolute byte cap, or -1 if not applicable.
+     */
+    private static long resolveMaxFieldSizeFromNode(RelativeByteSizeValue maxFieldSizeFromNode) {
+        if (maxFieldSizeFromNode.isAbsolute()) {
+            return maxFieldSizeFromNode.getAbsolute().getBytes();
+        }
+        long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        if (heapMaxBytes <= 0) {
+            return -1L;
+        }
+        return maxFieldSizeFromNode.calculateValue(ByteSizeValue.ofBytes(heapMaxBytes), null).getBytes();
+    }
+
+    private void checkMaxAttachmentFieldSize(final int fieldSizeBytes) {
+        if (maxFieldSizeFromNodeBytes >= 0 && fieldSizeBytes > maxFieldSizeFromNodeBytes) {
+            if (Strings.hasLength(maxFieldSizeExceededMessage)) {
+                throw new ElasticsearchParseException(
+                    "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size {}",
+                    field,
+                    fieldSizeBytes,
+                    maxFieldSizeExceededMessage
+                );
+            }
+            throw new ElasticsearchParseException(
+                "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed input size of [{}] bytes "
+                    + "due to setting [{}={}]",
+                field,
+                fieldSizeBytes,
+                maxFieldSizeFromNodeBytes,
+                MAX_FIELD_SIZE_SETTING.getKey(),
+                maxFieldSizeFromNode.getStringRep()
+            );
+        }
+        if (maxFieldBytesFromProcessor >= 0 && fieldSizeBytes > maxFieldBytesFromProcessor) {
+            throw new ElasticsearchParseException(
+                "field [{}] has an attachment field size of [{}] bytes exceeding the maximum allowed processor size of [{}] bytes",
+                field,
+                fieldSizeBytes,
+                maxFieldBytesFromProcessor
+            );
+        }
     }
 
     boolean isIgnoreMissing() {
@@ -88,20 +176,36 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return removeBinary;
     }
 
+    // For tests only
+    int getMaxFieldBytesFromProcessor() {
+        return maxFieldBytesFromProcessor;
+    }
+
+    // For tests only
+    RelativeByteSizeValue getMaxFieldSizeFromNode() {
+        return maxFieldSizeFromNode;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
-        byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
         String resourceNameInput = null;
         if (resourceName != null) {
             resourceNameInput = ingestDocument.getFieldValue(resourceName, String.class, true);
         }
-        if (input == null && ignoreMissing) {
+        if (fieldValue == null && ignoreMissing) {
             return ingestDocument;
-        } else if (input == null) {
+        } else if (fieldValue == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
+        final int rawBytes = ingestDocument.getFieldValueRawBytesLength(field, fieldValue);
+        if (attachmentMetrics.get() != null) {
+            attachmentMetrics.get().recordRawBytesReceived(rawBytes);
+        }
+        checkMaxAttachmentFieldSize(rawBytes);
+        byte[] input = ingestDocument.getFieldValueAsBytes(field, fieldValue);
 
         Integer indexedCharsValue = this.indexedChars;
 
@@ -188,6 +292,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         if (removeBinary) {
             ingestDocument.removeField(field);
         }
+        if (attachmentMetrics.get() != null) {
+            attachmentMetrics.get().recordRawBytesProcessed(rawBytes);
+        }
         return ingestDocument;
     }
 
@@ -228,6 +335,16 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
+        private final RelativeByteSizeValue maxFieldSizeFromNode;
+        private final String maxFieldSizeExceededMessage;
+        private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
+
+        public Factory(Settings nodeSettings, SetOnce<AttachmentIngestMetrics> attachmentMetrics) {
+            this.maxFieldSizeFromNode = MAX_FIELD_SIZE_SETTING.get(nodeSettings);
+            this.maxFieldSizeExceededMessage = MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING.get(nodeSettings);
+            this.attachmentMetrics = attachmentMetrics;
+        }
+
         @Override
         public AttachmentProcessor create(
             Map<String, Processor.Factory> registry,
@@ -255,6 +372,16 @@ public final class AttachmentProcessor extends AbstractProcessor {
                         + "'true' or 'false' to ensure no behavior change."
                 );
                 removeBinary = false;
+            }
+
+            int maxFieldBytesFromProcessor = readIntProperty(TYPE, processorTag, config, "max_field_bytes", -1);
+            if (maxFieldBytesFromProcessor < -1L) {
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "max_field_bytes",
+                    "illegal value [" + maxFieldBytesFromProcessor + "]. must be -1 or higher."
+                );
             }
 
             final Set<Property> properties;
@@ -286,7 +413,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 ignoreMissing,
                 indexedCharsField,
                 resourceName,
-                removeBinary
+                removeBinary,
+                maxFieldBytesFromProcessor,
+                maxFieldSizeFromNode,
+                maxFieldSizeExceededMessage,
+                attachmentMetrics
             );
         }
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -21,7 +20,7 @@ public class RerankParametersTests extends ESTestCase {
 
     public void testTaskTypeParameters() {
         var queryAndDocsInputs = new QueryAndDocsInputs(
-            new InferenceString(DataType.TEXT, "query_value"),
+            InferenceString.ofText("query_value"),
             InferenceString.fromStringList(List.of("doc1", "doc2")),
             true,
             5,
@@ -34,7 +33,7 @@ public class RerankParametersTests extends ESTestCase {
 
     public void testTaskTypeParameters_WithoutOptionalFields() {
         var queryAndDocsInputs = new QueryAndDocsInputs(
-            new InferenceString(DataType.TEXT, "query_value"),
+            InferenceString.ofText("query_value"),
             InferenceString.fromStringList(List.of("doc1", "doc2"))
         );
         var parameters = RerankParameters.of(queryAndDocsInputs);

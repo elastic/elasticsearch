@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchHits;
@@ -124,6 +125,34 @@ public abstract class SearchContext implements Releasable {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     public abstract void preProcess();
+
+    /**
+     * Returns the {@link DirectoryMetrics} accumulated by forked search worker threads while executing this context's
+     * query. The caller is responsible for folding these into the overall directory metrics. Returns
+     * {@link DirectoryMetrics#EMPTY} when no worker threads were used (e.g. single-slice execution) or directory metrics
+     * are disabled.
+     */
+    public DirectoryMetrics getWorkerThreadsMetrics() {
+        return DirectoryMetrics.EMPTY;
+    }
+
+    /**
+     * Supplier that, when invoked, captures the calling thread's directory-metric baseline and returns a delta supplier
+     * for the reads performed on that thread. Returns {@link DirectoryMetrics.Capture#NOOP} when directory metrics are
+     * disabled.
+     */
+    public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
+        return DirectoryMetrics.Capture.NOOP;
+    }
+
+    /**
+     * Returns the {@link DirectoryMetrics} accumulated while assembling this context's fetch results.
+     */
+    public DirectoryMetrics getFetchThreadsMetrics() {
+        return DirectoryMetrics.EMPTY;
+    }
+
+    public void addFetchThreadsMetrics(DirectoryMetrics metrics) {}
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */

@@ -812,6 +812,16 @@ setup:
           path: /_inference
           capabilities: [default_elser_2]
 
+  # Deploy the default ELSER 2 endpoint up front with a generous timeout so the
+  # model download + deployment completes in a controlled step rather than racing
+  # against the index-time inference timeout (see #152440).
+  - do:
+      inference.inference:
+        inference_id: .elser-2-elasticsearch
+        timeout: "120s"
+        body:
+          input: "inference test"
+
   - do:
       indices.create:
         index: test-elser-2-default-index
@@ -1442,6 +1452,29 @@ setup:
         index: test-index
         id: doc_1
         _source_includes: _inference_fields
+
+  - match: { _id: doc_1 }
+  - exists: _source._inference_fields
+
+---
+"Get _inference_fields via _source_exclude_vectors":
+  - requires:
+      cluster_features: "inference_fields.get_via_source_exclude_vectors"
+      reason: Bug fix for inference fields get via source exclude vectors
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "value1"
+        refresh: true
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+        _source_exclude_vectors: false
 
   - match: { _id: doc_1 }
   - exists: _source._inference_fields

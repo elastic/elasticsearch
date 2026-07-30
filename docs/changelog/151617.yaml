@@ -1,0 +1,16 @@
+area: Monitoring
+deprecation:
+  area: Cluster and node setting
+  details: |-
+    Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated since 7.16 and will
+    finally be removed in 10.0. All corresponding settings are deprecated for removal.
+  impact: |-
+    **[AutoOps](https://www.elastic.co/docs/deploy-manage/monitor/autoops)** is our recommended replacement.
+    Alternatively you may consider Stack monitoring with [Elastic Agent](https://www.elastic.co/docs/deploy-manage/monitor/stack-monitoring/collecting-monitoring-data-with-elastic-agent)
+    or [Metricbeat](https://www.elastic.co/docs/deploy-manage/monitor/stack-monitoring/collecting-monitoring-data-with-metricbeat).
+    To help you decide, refer to the [AutoOps and Stack Monitoring comparison](https://www.elastic.co/docs/deploy-manage/monitor/autoops-vs-stack-monitoring).
+  title: Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated and will be removed in 10.0.
+issues: []
+pr: 151617
+summary: Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated and will be removed in 10.0.
+type: deprecation

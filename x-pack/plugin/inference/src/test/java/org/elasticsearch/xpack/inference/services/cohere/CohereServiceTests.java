@@ -13,9 +13,8 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -25,29 +24,36 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -70,6 +76,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
@@ -104,9 +112,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -115,7 +122,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, CohereEmbeddingType.FLOAT),
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, CohereEmbeddingType.FLOAT),
                     getTaskSettingsMap(InputType.INGEST, Truncation.START),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -131,9 +138,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -144,7 +150,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, CohereEmbeddingType.FLOAT),
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, CohereEmbeddingType.FLOAT),
                     getTaskSettingsMap(InputType.INGEST, Truncation.START),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
@@ -161,9 +167,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -174,7 +179,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, CohereEmbeddingType.FLOAT),
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, CohereEmbeddingType.FLOAT),
                     getTaskSettingsMap(InputType.INGEST, Truncation.START),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -191,9 +196,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), equalTo(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -202,7 +206,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, CohereEmbeddingType.FLOAT),
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, CohereEmbeddingType.FLOAT),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -222,7 +226,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null),
+                    CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                     getTaskSettingsMapEmpty(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -234,13 +238,13 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
         return ActionListener.wrap(model -> fail("Model parsing should have failed"), e -> {
             assertThat(e, instanceOf(exceptionClass));
-            assertThat(e.getMessage(), is(expectedMessage));
+            assertThat(e.getMessage(), CoreMatchers.containsString(expectedMessage));
         });
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createInferenceService()) {
-            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null);
             serviceSettings.put(ServiceFields.MODEL_ID, "foo");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap(API_KEY_VALUE));
@@ -256,14 +260,14 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createInferenceService()) {
-            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null);
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null);
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap(null, null), getSecretSettingsMap(API_KEY_VALUE));
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -275,15 +279,12 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 taskSettingsMap,
                 getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
-            );
+            var failureListener = getModelListenerForException(XContentParseException.class, "[task_settings] unknown field [extra_key]");
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.TEXT_EMBEDDING, config, failureListener);
 
         }
@@ -294,13 +295,13 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
-            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null);
             serviceSettings.put(ServiceFields.MODEL_ID, "foo");
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "Configuration contains settings [{extra_key=value}] unknown to the [cohere] service"
+                XContentParseException.class,
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -312,12 +313,11 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
                 assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
-            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
+            var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null);
             serviceSettings.put(ServiceFields.MODEL_ID, "foo");
             service.parseRequestConfig(
                 INFERENCE_ENTITY_ID,
@@ -332,7 +332,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesACohereEmbeddingsModel() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, null),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -350,8 +350,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -360,7 +359,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesACohereEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, null),
                 createRandomChunkingSettingsMap(),
                 getSecretSettingsMap(API_KEY_VALUE)
@@ -379,8 +378,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
@@ -390,7 +388,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesACohereEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, null),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -408,8 +406,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
@@ -419,7 +416,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                 getTaskSettingsMapEmpty(),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -445,7 +442,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                 getTaskSettingsMap(InputType.INGEST, null),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -463,7 +460,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -472,7 +468,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, DenseVectorFieldMapper.ElementType.BYTE),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, DenseVectorFieldMapper.ElementType.BYTE),
                 getTaskSettingsMap(InputType.SEARCH, Truncation.NONE),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -491,9 +487,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.BYTE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.BYTE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.NONE)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -505,7 +500,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                 getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -523,7 +518,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -532,7 +526,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, null),
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -551,8 +545,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -560,7 +553,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createInferenceService()) {
-            var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null);
+            var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(API_KEY_VALUE));
@@ -578,7 +571,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -590,7 +582,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 taskSettingsMap,
                 getSecretSettingsMap(API_KEY_VALUE)
             );
@@ -608,8 +600,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -618,7 +609,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModel() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, Truncation.NONE)
             );
 
@@ -629,8 +620,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, Truncation.NONE)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -639,7 +629,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, Truncation.NONE),
                 createRandomChunkingSettingsMap()
             );
@@ -651,8 +641,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, Truncation.NONE)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -662,7 +651,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 getTaskSettingsMap(null, Truncation.NONE)
             );
 
@@ -673,8 +662,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, Truncation.NONE)));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -684,7 +672,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                 getTaskSettingsMapEmpty()
             );
 
@@ -709,7 +697,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_CreatesACohereEmbeddingsModelWithoutUrl() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, MODEL_VALUE, CohereEmbeddingType.FLOAT),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, CohereEmbeddingType.FLOAT),
                 getTaskSettingsMap(null, null)
             );
 
@@ -720,9 +708,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -731,7 +718,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null),
                 getTaskSettingsMapEmpty()
             );
             persistedConfig.config().put("extra_key", "value");
@@ -743,7 +730,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -751,7 +737,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createInferenceService()) {
-            var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, null, null);
+            var serviceSettingsMap = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMap(InputType.SEARCH, null));
@@ -763,7 +749,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -775,7 +760,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(URL_VALUE, MODEL_VALUE, null),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(MODEL_VALUE, null),
                 taskSettingsMap
             );
 
@@ -786,8 +771,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(CohereEmbeddingsModel.class));
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is(URL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().commonSettings().modelId(), is(MODEL_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -834,8 +818,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 MODEL_VALUE,
                 null
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -864,42 +848,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testInfer_ReturnsValidationException_WhenSendingRerankRequest_WithoutQueryField() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var secret = API_KEY_VALUE;
-            var modelName = MODEL_VALUE;
-
-            var model = new CohereRerankModel(
-                INFERENCE_ENTITY_ID,
-                new CohereRerankServiceSettings("abc", modelName, null, CohereServiceSettings.CohereApiVersion.V2),
-                new CohereRerankTaskSettings(null, null, null),
-                new DefaultSecretSettings(new SecureString(secret.toCharArray()))
-            );
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                // null query string will trigger validation error
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                null,
-                listener
-            );
-
-            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
-
-            assertThat(exception.getMessage(), containsString("Rerank task type requires a non-null query field"));
-        }
-    }
-
-    public void testInfer_SendsRerankRequest() throws IOException {
+    public void testRerankInfer_SendsRerankRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
@@ -907,6 +856,14 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 {
                     "index": "d0760819-5a73-4d58-b163-3956d3648b62",
                     "results": [
+                        {
+                          "index": 2,
+                          "relevance_score": 0.98005307
+                        },
+                        {
+                          "index": 3,
+                          "relevance_score": 0.27904198
+                        }
                     ],
                     "meta": {
                         "api_version": {
@@ -920,31 +877,103 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var secret = API_KEY_VALUE;
-            var modelName = MODEL_VALUE;
-
             var model = new CohereRerankModel(
                 INFERENCE_ENTITY_ID,
-                new CohereRerankServiceSettings(getUrl(webServer), modelName, null, CohereServiceSettings.CohereApiVersion.V2),
+                new CohereRerankServiceSettings(
+                    new CohereCommonServiceSettings(
+                        ServiceUtils.createUri(getUrl(webServer)),
+                        MODEL_VALUE,
+                        null,
+                        CohereCommonServiceSettings.CohereApiVersion.V2
+                    )
+                ),
                 new CohereRerankTaskSettings(null, null, null),
-                new DefaultSecretSettings(new SecureString(secret.toCharArray()))
+                new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
             );
 
-            var queryString = "a query";
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, queryString, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            var inputs = randomList(1, 5, () -> randomAlphanumericOfLength(8));
+            var queryString = randomAlphanumericOfLength(8);
+            var topN = randomIntBetween(1, 128);
+            var returnDocuments = randomBoolean();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.rerankInfer(
+                model,
+                new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryString), topN, returnDocuments, null),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), Matchers.is(buildExpectationRerank(List.of())));
+            assertThat(
+                result.asMap(),
+                Matchers.is(
+                    buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 2, "relevance_score", 0.98005307f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 3, "relevance_score", 0.27904198f))
+                        )
+                    )
+                )
+            );
+
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", secret)));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("query", queryString, "documents", List.of("abc"), MODEL_VALUE, modelName)));
+            assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "query",
+                        queryString,
+                        "documents",
+                        inputs,
+                        "model",
+                        MODEL_VALUE,
+                        "top_n",
+                        topN,
+                        "return_documents",
+                        returnDocuments
+                    )
+                )
+            );
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+
+        var model = mock(CohereRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("The cohere service does not support rerank with non-text inputs or queries"));
         }
     }
 
@@ -969,8 +998,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 "coheremodel",
                 null
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1020,8 +1049,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 MODEL_VALUE,
                 null
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1093,12 +1122,9 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 MODEL_VALUE,
                 null
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
-                null,
-                null,
-                null,
                 List.of("abc"),
                 false,
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
@@ -1174,10 +1200,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 1024,
                 MODEL_VALUE,
                 null,
-                CohereServiceSettings.CohereApiVersion.V1
+                CohereCommonServiceSettings.CohereApiVersion.V1
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1232,10 +1258,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 1024,
                 MODEL_VALUE,
                 null,
-                CohereServiceSettings.CohereApiVersion.V2
+                CohereCommonServiceSettings.CohereApiVersion.V2
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             listener.actionGet(TIMEOUT);
 
@@ -1294,8 +1320,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1340,11 +1366,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
@@ -1447,11 +1472,10 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 MODEL_VALUE,
                 CohereEmbeddingType.BYTE
             );
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
@@ -1534,8 +1558,8 @@ public class CohereServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
@@ -1716,13 +1740,39 @@ public class CohereServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testParseRequestConfig_WithApiVersion_Throws() throws IOException {
+        try (var service = createInferenceService()) {
+
+            var serviceSettings = new HashMap<String, Object>();
+            serviceSettings.put(ServiceFields.MODEL_ID, MODEL_VALUE);
+            serviceSettings.put(CohereCommonServiceSettings.API_VERSION, "v2");
+
+            TestPlainActionFuture<Model> modelListener = new TestPlainActionFuture<>();
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    serviceSettings,
+                    getTaskSettingsMap(InputType.INGEST, Truncation.START),
+                    getSecretSettingsMap(API_KEY_VALUE)
+                ),
+                modelListener
+            );
+
+            var exception = expectThrows(XContentParseException.class, () -> modelListener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), containsString("[service_settings] unknown field [api_version]"));
+        }
+    }
+
     private Model createTestModel(TaskType taskType) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> CohereEmbeddingsModelTests.createModel(URL_VALUE, API_KEY_VALUE, 1024, MODEL_VALUE, null);
             case COMPLETION -> CohereCompletionModelTests.createModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
             case RERANK -> new CohereRerankModel(
                 INFERENCE_ENTITY_ID,
-                new CohereRerankServiceSettings(URL_VALUE, MODEL_VALUE, null, CohereServiceSettings.CohereApiVersion.V2),
+                new CohereRerankServiceSettings(
+                    new CohereCommonServiceSettings(MODEL_VALUE, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+                ),
                 new CohereRerankTaskSettings(null, null, null),
                 new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
             );

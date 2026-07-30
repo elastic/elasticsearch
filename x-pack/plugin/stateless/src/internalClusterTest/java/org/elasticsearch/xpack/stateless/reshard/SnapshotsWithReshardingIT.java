@@ -360,17 +360,21 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     }
 
     // Tests that when we adjust index metadata we properly handle index metadata deduplication.
+    // Also verifies post-reshard snapshot captures document deletes from cleanup by restoring and searching
     public void testNextSnapshotHasCorrectMetadata() {
         var indexNode = startMasterAndIndexNode();
-        ensureStableCluster(1);
+        startSearchNode();
+        ensureStableCluster(2);
 
         createRepository("test-repo", "fs");
 
         final int shards = between(1, 10);
         var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, shards, 0);
+        // Need at least one search replica so the restored index is searchable.
+        createIndex(indexName, shards, 1);
         ensureGreen();
-        indexDocs(indexName, randomIntBetween(10, 100));
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
 
         if (randomBoolean()) {
             // Create a pre-split snapshot to ensure we won't reuse the metadata later.
@@ -465,6 +469,15 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         assertEquals(shards * 2, restoredMetadata.getNumberOfShards());
         // Sanity check - it should be null anyway since the split is complete.
         assertNull(restoredMetadata.getReshardingMetadata());
+
+        assertResponse(
+            prepareSearch(restoredIndexName).setQuery(QueryBuilders.matchAllQuery())
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(false),
+            searchResponse -> {
+                assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
+            }
+        );
     }
 
     @Override
@@ -517,39 +530,9 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                     return snapshotCommitSupplier.acquireIndexCommitForSnapshot(engine);
                 };
 
-                EngineConfig customEngineConfig = new EngineConfig(
-                    engineConfig.getShardId(),
-                    engineConfig.getThreadPool(),
-                    engineConfig.getThreadPoolMergeExecutorService(),
-                    engineConfig.getIndexSettings(),
-                    engineConfig.getWarmer(),
-                    engineConfig.getStore(),
-                    engineConfig.getMergePolicy(),
-                    engineConfig.getAnalyzer(),
-                    engineConfig.getSimilarity(),
-                    engineConfig.getCodecProvider(),
-                    engineConfig.getEventListener(),
-                    engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(),
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getFlushMergesAfter(),
-                    engineConfig.getExternalRefreshListener(),
-                    engineConfig.getInternalRefreshListener(),
-                    engineConfig.getIndexSort(),
-                    engineConfig.getCircuitBreakerService(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    engineConfig.retentionLeasesSupplier(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    customSnapshotCommitSupplier,
-                    engineConfig.getLeafSorter(),
-                    engineConfig.getRelativeTimeInNanosSupplier(),
-                    engineConfig.getIndexCommitListener(),
-                    engineConfig.isPromotableToPrimary(),
-                    engineConfig.getMapperService(),
-                    engineConfig.getEngineResetLock(),
-                    engineConfig.getMergeMetrics(),
-                    engineConfig.getIndexDeletionPolicyWrapper()
-                );
+                EngineConfig customEngineConfig = EngineConfig.builder(engineConfig)
+                    .snapshotCommitSupplier(customSnapshotCommitSupplier)
+                    .build();
 
                 return factory.newReadWriteEngine(customEngineConfig);
             });

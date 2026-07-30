@@ -29,7 +29,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,11 +66,6 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
     // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -183,7 +177,8 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         assertThat(((Number) cancelBody.get("running_time_in_nanos")).longValue(), greaterThanOrEqualTo(expectedMinimumCancelTimeMillis));
         assertThat(cancelBody.get("original_task_id"), is(nullValue()));
         assertThat(cancelBody.get("original_start_time_in_millis"), is(nullValue()));
-        assertThat(ObjectPath.eval("status.canceled", cancelBody), equalTo("by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat(ObjectPath.eval("status.canceled", cancelBody), notNullValue());
 
         // ---- List after cancel ----
         assertBusy(() -> assertThat(getRunningReindexes(), hasSize(0)));
@@ -197,7 +192,8 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         assertThat(afterCancelMap.get("start_time_in_millis"), equalTo(originalStartTimeMillis));
         assertThat(afterCancelMap.get("original_task_id"), is(nullValue()));
         assertThat(afterCancelMap.get("original_start_time_in_millis"), is(nullValue()));
-        assertThat(ObjectPath.eval("status.canceled", afterCancelMap), equalTo("by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat(ObjectPath.eval("status.canceled", afterCancelMap), notNullValue());
         // depending on how quickly we cancel, we might either get an error (shard failure) or response, so not asserting
     }
 

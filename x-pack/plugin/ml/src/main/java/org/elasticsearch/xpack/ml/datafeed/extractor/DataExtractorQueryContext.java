@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
@@ -24,6 +25,8 @@ public class DataExtractorQueryContext {
     public final Map<String, String> headers;
     public final IndicesOptions indicesOptions;
     public final Map<String, Object> runtimeMappings;
+    @Nullable
+    public final String projectRouting;
 
     public DataExtractorQueryContext(
         List<String> indices,
@@ -33,7 +36,8 @@ public class DataExtractorQueryContext {
         long end,
         Map<String, String> headers,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.indices = indices.toArray(new String[0]);
         this.query = Objects.requireNonNull(query);
@@ -43,5 +47,6 @@ public class DataExtractorQueryContext {
         this.headers = headers;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
+        this.projectRouting = projectRouting;
     }
 }

@@ -56,10 +56,11 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 cs,
                 resolver,
                 true,
-                ".ml-anomalies-shared-000001",
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                MlMetaIndex.indexName(),
-                MlConfigIndex.indexName()
+                concat(
+                    new String[] { ".ml-anomalies-shared-000001" },
+                    AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                    new String[] { MlMetaIndex.indexName(), MlConfigIndex.indexName() }
+                )
             ).size()
         );
 
@@ -69,10 +70,11 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             resolver.concreteIndexNames(
                 cs,
                 IndicesOptions.lenientExpandOpen(),
-                ".ml-anomalies-shared-000001",
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                MlMetaIndex.indexName(),
-                MlConfigIndex.indexName()
+                concat(
+                    new String[] { ".ml-anomalies-shared-000001" },
+                    AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                    new String[] { MlMetaIndex.indexName(), MlConfigIndex.indexName() }
+                )
             )
         );
         if (randomBoolean()) {
@@ -100,10 +102,11 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             csBuilder.build(),
             resolver,
             true,
-            ".ml-anomalies-shared-000001",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            MlMetaIndex.indexName(),
-            MlConfigIndex.indexName()
+            concat(
+                new String[] { ".ml-anomalies-shared-000001" },
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                new String[] { MlMetaIndex.indexName(), MlConfigIndex.indexName() }
+            )
         );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
@@ -144,6 +147,14 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
             );
         }
+    }
+
+    private static String[] concat(String[] first, String[] second, String[] third) {
+        String[] indices = new String[first.length + second.length + third.length];
+        System.arraycopy(first, 0, indices, 0, first.length);
+        System.arraycopy(second, 0, indices, first.length, second.length);
+        System.arraycopy(third, 0, indices, first.length + second.length, third.length);
+        return indices;
     }
 
 }

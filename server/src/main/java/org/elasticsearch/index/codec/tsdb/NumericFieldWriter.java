@@ -19,8 +19,7 @@ import java.io.IOException;
  *
  * <p>{@link #writeFieldEntry} owns the entire field lifecycle: it iterates the doc values source,
  * accumulates statistics, and emits both the per-field metadata and the encoded value blocks.
- * {@link #encoder()} exposes the per-block {@link Encoder} so callers can drive block encoding
- * directly when needed.
+ * Per-block encoding is an implementation detail handled inside {@code writeFieldEntry}.
  */
 public interface NumericFieldWriter {
 
@@ -41,13 +40,6 @@ public interface NumericFieldWriter {
         AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         SortedFieldObserver sortedFieldObserver
     ) throws IOException;
-
-    /**
-     * Returns the per-block encoder used to encode the field's value blocks.
-     *
-     * @return the block encoder
-     */
-    Encoder encoder();
 
     /**
      * Encodes one block of numeric values.

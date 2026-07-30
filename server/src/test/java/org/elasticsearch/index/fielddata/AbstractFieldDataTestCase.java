@@ -185,10 +185,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         return readerContexts;
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanupFieldData() throws Exception {
         if (topLevelReader != null) {
             topLevelReader.close();
         }

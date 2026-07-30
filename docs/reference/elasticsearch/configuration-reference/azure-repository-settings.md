@@ -135,3 +135,17 @@ PUT _snapshot/my_backup
 
 `max_concurrent_batch_deletes`
 :   (integer) Sets the maximum number of concurrent batch delete requests that will be submitted for any individual bulk delete with `BlobBatch`. Note that the effective number of concurrent deletes is further limited by the Azure client connection and event loop thread limits. Defaults to 10, minimum is 1, maximum is 100.
+
+`data_access_tier` {applies_to}`stack: ga 9.5`
+:   Sets the azure access tier for data blobs in the repository. These blobs hold the files that make up each snapshotted shard and make up most of the repository volume, but are only read when restoring a shard or accessing its contents (for example, searchable snapshots read this data).
+
+    Accepted values are `hot`, `cool` and `cold`.
+
+    Defaults to `hot` if not specified.
+
+`metadata_access_tier` {applies_to}`stack: ga 9.5`
+:   Sets the Azure access tier for metadata blobs in the repository. These are generally smaller in size than data blobs but might be read more frequently for operations such as listing repository contents, taking snapshots, or otherwise manipulating the repository.
+
+    Accepted values are `hot`, `cool` and `cold`.
+
+    Defaults to `hot` if not specified.

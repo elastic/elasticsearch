@@ -1,0 +1,5 @@
+pr: 148410
+summary: Surface external source operator's emitted rows as `documents_found`
+area: ES|QL
+type: enhancement
+issues: []

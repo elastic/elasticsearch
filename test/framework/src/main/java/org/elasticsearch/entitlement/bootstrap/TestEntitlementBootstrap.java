@@ -23,6 +23,8 @@ import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.logging.LogManager;
@@ -136,7 +138,7 @@ public class TestEntitlementBootstrap {
         }
 
         return new TestPolicyManager(
-            HardcodedEntitlements.serverPolicy(null, null),
+            HardcodedEntitlements.serverPolicy(null, parseTestServerPolicy()),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
@@ -170,6 +172,22 @@ public class TestEntitlementBootstrap {
             }
         }
         return policies;
+    }
+
+    /**
+     * Discovers optional per-lib test entitlement policies on the classpath and merges them
+     * into a single patch to be applied on top of the hardcoded server entitlements.
+     */
+    private static Policy parseTestServerPolicy() throws IOException {
+        var resources = EntitlementInitialization.class.getClassLoader().getResources("META-INF/test-server-entitlement-policy.yaml");
+        List<Scope> mergedScopes = new ArrayList<>();
+        while (resources.hasMoreElements()) {
+            try (var inputStream = getStream(resources.nextElement())) {
+                var policy = new PolicyParser(inputStream, "test-server-patch", false).parsePolicy();
+                mergedScopes = PolicyUtils.mergeScopes(mergedScopes, policy.scopes());
+            }
+        }
+        return mergedScopes.isEmpty() ? null : new Policy("test-server-patch", mergedScopes);
     }
 
     private static List<PluginDescriptor> parsePluginsDescriptors(List<String> pluginNames) {

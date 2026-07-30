@@ -15,8 +15,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -38,9 +38,12 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
+import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -62,13 +65,25 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class InternalRealmsTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void stopThreadPool() {
+        terminate(threadPool);
+    }
+
     @SuppressWarnings("unchecked")
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(
-            mock(ThreadPool.class),
+            threadPool,
             Settings.EMPTY,
-            mock(ResourceWatcherService.class),
+            SamlTestCase.mockResourceWatcherService(),
             mock(SSLService.class),
             mock(NativeUsersStore.class),
             mock(NativeRoleMappingStore.class),
@@ -94,9 +109,9 @@ public class InternalRealmsTests extends ESTestCase {
     public void testRealmsRegisterForRefreshAtRoleMapper() throws Exception {
         UserRoleMapper userRoleMapper = mock(UserRoleMapper.class);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(
-            mock(ThreadPool.class),
+            threadPool,
             Settings.EMPTY,
-            mock(ResourceWatcherService.class),
+            SamlTestCase.mockResourceWatcherService(),
             mock(SSLService.class),
             mock(NativeUsersStore.class),
             userRoleMapper,

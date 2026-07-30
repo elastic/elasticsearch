@@ -36,6 +36,8 @@ public interface InternalCloudApiKeyService {
         ActionListener<CloudGrantApiKeyResult> listener
     );
 
+    void revokeCloudAuthentication(PersistedCloudCredential persistedCredential, ActionListener<Void> listener);
+
     /**
      * Default used when no real implementation is loaded.
      */
@@ -47,6 +49,11 @@ public interface InternalCloudApiKeyService {
             ActionListener<CloudGrantApiKeyResult> listener
         ) {
             listener.onFailure(new UnsupportedOperationException("cloud API key granting is not available outside serverless"));
+        }
+
+        @Override
+        public void revokeCloudAuthentication(PersistedCloudCredential persistedCredential, ActionListener<Void> listener) {
+            listener.onFailure(new UnsupportedOperationException("cloud API key management is not available outside serverless"));
         }
     }
 }

@@ -57,6 +57,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -306,7 +308,8 @@ public class MockTransportService extends TransportService {
             linkedProjectConfigService,
             telemetryProvider,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            List.of()
         );
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
@@ -568,7 +571,11 @@ public class MockTransportService extends TransportService {
 
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
-                request.writeTo(bStream);
+                if (request instanceof BytesTransportMessage bytesRequest) {
+                    BytesTransportMessageTestUtils.writeThinWithBytes(bStream, bytesRequest);
+                } else {
+                    request.writeTo(bStream);
+                }
                 RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
@@ -820,9 +827,9 @@ public class MockTransportService extends TransportService {
 
     @Override
     @SuppressWarnings("rawtypes")
-    public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
-        super.onResponseReceived(requestId, holder);
-        messageListener.onResponseReceived(requestId, holder);
+    public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
+        super.onResponseReceived(requestId, holder, networkMessageSize);
+        messageListener.onResponseReceived(requestId, holder, networkMessageSize);
     }
 
     @Override
@@ -885,9 +892,9 @@ public class MockTransportService extends TransportService {
 
         @Override
         @SuppressWarnings("rawtypes")
-        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+        public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
+                listener.onResponseReceived(requestId, holder, networkMessageSize);
             }
         }
     }

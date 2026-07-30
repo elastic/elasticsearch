@@ -113,6 +113,13 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
         InputStream openInput(long limit) throws IOException;
 
+        /**
+         * Maybe release the reference acquired for the index commit. We may want to release the reference
+         * if the shard relocates and the commit is now retaiend by a different node so that snapshot running
+         * on the old node no longer needs to maintain it.
+         */
+        default void maybeReleaseCommitRef() {}
+
         void verify() throws IOException;
     }
 

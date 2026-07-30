@@ -191,7 +191,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(harness.unassignedShardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(
+        var initializingPrimary1 = mutableRoutingNodes.initializeShard(
             harness.unassignedShardRouting1Primary,
             harness.mutableRoutingNode1.nodeId(),
             null,
@@ -202,13 +202,15 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(
+        var initializingPrimary2 = mutableRoutingNodes.initializeShard(
             harness.unassignedShardRouting2Primary,
             harness.mutableRoutingNode1.nodeId(),
             null,
             0,
             RoutingChangesObserver.NOOP
         );
+        mutableRoutingNodes.startShard(initializingPrimary1, RoutingChangesObserver.NOOP, 0);
+        mutableRoutingNodes.startShard(initializingPrimary2, RoutingChangesObserver.NOOP, 0);
 
         // Replica path is unthrottled during simulation AND `unthrottle_replica_assignment_in_simulation` is set to true.
         assertThat(
@@ -233,8 +235,5 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             0,
             RoutingChangesObserver.NOOP
         );
-
-        // Note: INITIALIZING was chosen above, not STARTED, because the BalancedShardsAllocator only initializes. We want that path to be
-        // unthrottled in simulation.
     }
 }

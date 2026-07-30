@@ -106,9 +106,9 @@ public final class AnthropicToolUtils {
      *         blocks and {@code file} objects become {@code document} blocks, since Anthropic rejects the OpenAI shapes.</li>
      * </ul>
      *
-     * <p>Messages with non-empty plain-string content are passed through with their unified serialization, which Anthropic already
-     * accepts. A user or assistant message whose content is empty or absent (and that carries no tool calls) is normalized to a
-     * single empty {@code text} block, mirroring the EIS gateway, since Anthropic requires {@code content} on every message.
+     * <p>Every message is emitted with array-shaped {@code content}, mirroring the EIS gateway: plain-string content becomes a
+     * single {@code text} block, and a user or assistant message whose content is empty or absent (and that carries no tool calls)
+     * is normalized to a single empty {@code text} block, since Anthropic requires {@code content} on every message.
      * Both the direct Anthropic service and the Google Model Garden Anthropic provider share this logic so they emit identical
      * Anthropic-shaped messages.
      */
@@ -133,8 +133,8 @@ public final class AnthropicToolUtils {
 
     /**
      * Writes a message that carries no tool calls: a user message, or an assistant message without {@code tool_calls}. Non-empty
-     * plain-string content is passed through with the unified serialization; content objects are translated into Anthropic blocks;
-     * empty or absent content is normalized to a single empty text block since Anthropic rejects messages without content.
+     * plain-string content is wrapped in a single text block; content objects are translated into Anthropic blocks; empty or
+     * absent content is normalized to a single empty text block since Anthropic rejects messages without content.
      */
     private static void writePlainMessage(XContentBuilder builder, String role, Message message) throws IOException {
         if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {

@@ -44,11 +44,11 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, null, null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_NonStreamingRequest() throws IOException {
@@ -56,11 +56,11 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(false, null, null, null, null, null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stream": false,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_RequestOverridesTaskSettings() throws IOException {
@@ -79,13 +79,13 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             Strings.format("""
                 {
                     "model": "%s",
-                    "messages": [{"content": "%s", "role": "%s"}],
+                    "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                     "temperature": %s,
                     "top_p": %s,
                     "stream": true,
                     "max_tokens": %d
                 }
-                """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, requestTemperature, requestTopP, requestMaxTokens)
+                """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, requestTemperature, requestTopP, requestMaxTokens)
         );
     }
 
@@ -94,14 +94,14 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, null, null, taskSettings(maxTokens, 0.7, 0.9, 50), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "temperature": 0.7,
                 "top_p": 0.9,
                 "top_k": 50,
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolDefinitionsEmitsAnthropicShape() throws IOException {
@@ -110,7 +110,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(tool), null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tools": [
                     {
                         "name": "get_price",
@@ -121,7 +121,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolStrictFieldIgnored() throws IOException {
@@ -134,7 +134,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(tool), null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tools": [
                     {
                         "name": "get_price",
@@ -145,7 +145,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceObjectEmitsAnthropicShape() throws IOException {
@@ -154,12 +154,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "tool", "name": "get_price"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringNoneTranslatesToAnthropicNone() throws IOException {
@@ -168,12 +168,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "none"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringAutoTranslatesToAnthropicAuto() throws IOException {
@@ -182,12 +182,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "auto"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringRequiredTranslatesToAnthropicAny() throws IOException {
@@ -196,12 +196,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "any"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithSystemMessageExtractedToTopLevelField() throws IOException {
@@ -214,7 +214,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             {
                 "model": "%s",
                 "system": [{"type": "text", "text": "You are a pirate."}],
-                "messages": [{"content": "Hello!", "role": "user"}],
+                "messages": [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
@@ -235,7 +235,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
                     {"type": "text", "text": "You are a pirate."},
                     {"type": "text", "text": "Always respond in verse."}
                 ],
-                "messages": [{"content": "Hello!", "role": "user"}],
+                "messages": [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
@@ -264,12 +264,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stop_sequences": ["END", "STOP"],
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens))));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens))));
     }
 
     public void testToXContent_MultiTurnToolConversationEmitsAnthropicBlocks() throws IOException {
@@ -296,7 +296,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             {
                 "model": "%s",
                 "messages": [
-                    {"content": "What is the weather in San Francisco?", "role": "user"},
+                    {"role": "user", "content": [{"type": "text", "text": "What is the weather in San Francisco?"}]},
                     {
                         "role": "assistant",
                         "content": [

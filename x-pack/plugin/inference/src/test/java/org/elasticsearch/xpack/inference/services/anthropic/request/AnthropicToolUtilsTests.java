@@ -565,15 +565,20 @@ public class AnthropicToolUtilsTests extends ESTestCase {
             """);
     }
 
-    public void testWriteMessages_assistantWithoutToolCallsPassesThrough() throws IOException {
-        // An assistant message with no tool calls keeps its unified serialization, which Anthropic already accepts.
+    public void testWriteMessages_wrapsAssistantStringContentInTextBlock() throws IOException {
+        // An assistant message with no tool calls also gets the array-shaped content, mirroring the EIS gateway.
         var message = new Message(new ContentString("The weather is sunny."), "assistant", null, null);
         assertMessagesJson(List.of(message), """
             {
                 "messages": [
                     {
-                        "content": "The weather is sunny.",
-                        "role": "assistant"
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "The weather is sunny."
+                            }
+                        ]
                     }
                 ]
             }
@@ -660,18 +665,44 @@ public class AnthropicToolUtilsTests extends ESTestCase {
             """);
     }
 
-    public void testWriteMessages_passesPlainMessagesThrough() throws IOException {
+    public void testWriteMessages_wrapsUserStringContentInTextBlock() throws IOException {
+        // Plain-string content is wrapped in a single text block so every message carries array-shaped content.
         var message = new Message(new ContentString("Hello!"), "user", null, null);
         assertMessagesJson(List.of(message), """
             {
                 "messages": [
                     {
-                        "content": "Hello!",
-                        "role": "user"
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Hello!"
+                            }
+                        ]
                     }
                 ]
             }
             """);
+    }
+
+    public void testExtractText_returnsStringContent() {
+        assertThat(AnthropicToolUtils.extractText(new ContentString("Hello!")), is("Hello!"));
+    }
+
+    public void testExtractText_concatenatesTextObjectsAndIgnoresOthers() {
+        var image = new ContentObject.ContentObjectImage(
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl("https://example.com/image.png", null)
+        );
+        var content = new ContentObjects(
+            List.of(new ContentObject.ContentObjectText("Hello"), image, new ContentObject.ContentObjectText(" world"))
+        );
+        assertThat(AnthropicToolUtils.extractText(content), is("Hello world"));
+    }
+
+    public void testExtractText_emptyOrAbsentContentYieldsEmptyString() {
+        assertThat(AnthropicToolUtils.extractText(null), is(""));
+        assertThat(AnthropicToolUtils.extractText(new ContentString("")), is(""));
+        assertThat(AnthropicToolUtils.extractText(new ContentObjects(List.of())), is(""));
     }
 
     public void testWriteMessages_multiTurnToolConversationHasNoUnifiedToolFields() throws IOException {

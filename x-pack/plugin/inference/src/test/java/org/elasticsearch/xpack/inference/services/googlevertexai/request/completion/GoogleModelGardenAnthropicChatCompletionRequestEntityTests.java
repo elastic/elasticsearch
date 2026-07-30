@@ -136,7 +136,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
             {
                 "anthropic_version": "%s",
                 "messages": [
-                    {"content": "What is the weather in San Francisco?", "role": "user"},
+                    {"role": "user", "content": [{"type": "text", "text": "What is the weather in San Francisco?"}]},
                     {
                         "role": "assistant",
                         "content": [
@@ -180,8 +180,13 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
                         "anthropic_version": "%s",
                         "messages": [
                             {
-                                "content": "%s",
-                                "role": "user"
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "%s"
+                                    }
+                                ]
                             }
                         ],
                         %s

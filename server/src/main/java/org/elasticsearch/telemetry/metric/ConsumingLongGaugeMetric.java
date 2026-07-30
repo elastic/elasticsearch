@@ -11,7 +11,6 @@ package org.elasticsearch.telemetry.metric;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,10 +49,11 @@ public record ConsumingLongGaugeMetric(AtomicReference<LongWithAttributes> value
 
     /**
      * Set the gauge value and attributes. Both are reported together on the next poll and then cleared.
-     * Use an empty map when there are no attributes.
+     * Use an empty map when there are no attributes. The attributes map is copied at set-time so later
+     * mutation of the caller's map does not affect the measurement.
      */
     public void set(long l, Map<String, Object> attributes) {
-        value.set(new LongWithAttributes(l, Objects.requireNonNull(attributes, "attributes")));
+        value.set(new LongWithAttributes(l, Map.copyOf(attributes)));
     }
 
     // visible for tests

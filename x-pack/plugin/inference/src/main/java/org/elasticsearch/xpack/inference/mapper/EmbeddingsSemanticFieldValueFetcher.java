@@ -16,8 +16,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,6 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Function;
 
@@ -66,30 +70,57 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
     @Override
     protected List<Object> doFetchValues(Source source, int doc, DocIdSetIterator it) throws IOException {
         List<Object> embeddings = new ArrayList<>();
-        iterateChildDocs(doc, it, () -> embeddings.add(rawEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())));
+        iterateChildDocs(doc, it, () -> embeddings.add(parsedEmbeddings(embeddingsFieldLoader::write, source.sourceContentType())));
         return embeddings;
     }
 
-    protected static BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
+    protected Object parsedEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType) throws IOException {
+        // fetchValues short-circuits on null model settings, so they are set by the time we get here
+        MinimalServiceSettings modelSettings = fieldType.getModelSettings();
+        return readEmbeddings(writer, xContentType, parser -> switch (modelSettings.taskType()) {
+            // Byte vectors can be represented exactly as float vectors
+            case TEXT_EMBEDDING, EMBEDDING -> VectorData.parseXContent(parser).asFloatVector();
+            case SPARSE_EMBEDDING -> parser.map(LinkedHashMap::new, XContentParser::floatValue);
+            default -> throw new IllegalStateException(
+                "Field ["
+                    + fieldType.name()
+                    + "] is configured to use an inference endpoint with an unsupported task type ["
+                    + modelSettings.taskType()
+                    + "]"
+            );
+        });
+    }
+
+    protected BytesReference rawEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType)
         throws IOException {
-        try (var result = XContentFactory.contentBuilder(xContentType)) {
-            try (var builder = XContentFactory.contentBuilder(xContentType)) {
-                builder.startObject();
-                writer.accept(builder);
-                builder.endObject();
-                try (
-                    XContentParser parser = XContentHelper.createParserNotCompressed(
-                        XContentParserConfiguration.EMPTY,
-                        BytesReference.bytes(builder),
-                        xContentType
-                    )
-                ) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                    parser.nextToken();
-                    result.copyCurrentStructure(parser);
-                }
+        return readEmbeddings(writer, xContentType, parser -> {
+            try (var result = XContentFactory.contentBuilder(xContentType)) {
+                result.copyCurrentStructure(parser);
                 return BytesReference.bytes(result);
+            }
+        });
+    }
+
+    protected static <T> T readEmbeddings(
+        CheckedConsumer<XContentBuilder, IOException> writer,
+        XContentType xContentType,
+        CheckedFunction<XContentParser, T, IOException> reader
+    ) throws IOException {
+        try (var builder = XContentFactory.contentBuilder(xContentType)) {
+            builder.startObject();
+            writer.accept(builder);
+            builder.endObject();
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    BytesReference.bytes(builder),
+                    xContentType
+                )
+            ) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                parser.nextToken();
+                return reader.apply(parser);
             }
         }
     }

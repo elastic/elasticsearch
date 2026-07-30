@@ -207,4 +207,118 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             batch("ignore_above value", 1L, doc("d1", 1L, "{\"f\":\"" + "x".repeat(8192) + "\"}"))
         );
     }
+
+    // --- multi_value=false (single-valued binary doc values) ---
+
+    public void testSingleValueMultiValueFalse() throws IOException {
+        // One string value, one absent doc, and an empty string.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "single value multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"\"}")
+            )
+        );
+    }
+
+    public void testAbsentAndNullMultiValueFalse() throws IOException {
+        // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "absent and null multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"alpha\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":null}")
+            )
+        );
+    }
+
+    public void testNullValueSubstitutionMultiValueFalse() throws IOException {
+        // Explicit JSON null is substituted with null_value.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "null_value substitution multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"a\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexDocValuesOnlyMultiValueFalse() throws IOException {
+        // index:false — only the binary DV column is emitted, no terms column.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }), columnarSettings(), batch("no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
+    }
+
+    public void testIndexedAndDocValuesMultiValueFalse() throws IOException {
+        // Default index:true — both a terms column and a binary DV column are emitted.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "indexed and dv multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"indexed\"}"),
+                doc("d2", 2L, "{\"f\":\"also_indexed\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testScalarCoercionsMultiValueFalse() throws IOException {
+        // Numeric and boolean scalars are stringified by utf8Cursor, matching the row path.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "scalar coercions multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":42}"),
+                doc("d2", 2L, "{\"f\":3.14}"),
+                doc("d3", 3L, "{\"f\":true}")
+            )
+        );
+    }
+
+    public void testIgnoreAboveMultiValueFalse() throws IOException {
+        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
+        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("ignore_above multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"toolongvalue\"}"), doc("d2", 2L, "{\"f\":\"short\"}"))
+        );
+    }
 }

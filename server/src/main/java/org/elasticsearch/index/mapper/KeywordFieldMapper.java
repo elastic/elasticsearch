@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
@@ -1489,31 +1490,32 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on
-        // the context, which BatchDocumentParserContext records. Dimensions, non-default
-        // normalizers, copy_to, multi-fields, and scripts all pull in behavior that the v1 batch
-        // path does not support.
-        return hasScript() == false
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return indexSettings.getMode().isStrictColumnar()
+            && supportsColumnarDocValues()
+            && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && normalizerName == null
             && fieldType().isDimension() == false;
     }
 
-    @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support is limited to strict-columnar index modes (COLUMNAR, LOGSDB_COLUMNAR)
-        // where high-cardinality keywords use the document-order inline-null binary doc-values
-        // encoding (ArrayOrderInlineNull).
-        return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesArrayOrderBinaryDocValues()
-            && hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && normalizerName == null
-            && fieldType().isDimension() == false;
+    /**
+     * Returns true when this keyword field's doc-values encoding is supported on the columnar batch
+     * path. Accepts both the array-order (multi_value=true, offsetsFieldName set) and single-valued
+     * binary (multi_value=false) encoding. Other combinations fall back to the row path.
+     */
+    private boolean supportsColumnarDocValues() {
+        if (fieldType().usesBinaryDocValues() == false) {
+            return false;
+        }
+
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            return true;
+        }
+
+        // Only support single valued when not ArrayOrderBinaryDocValues
+        return docValuesParameters().multiValue() == false;
     }
 
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
@@ -1531,8 +1533,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        final int docCount = ctx.docCount();
-
         // Build a scan cursor that converts all ESCF column kinds to BytesRef strings: longs/doubles
         // via canonical toString, booleans as "true"/"false", strings as-is, arrays element-by-element.
         // BINARY and KEY_VALUE columns are unsupported and throw when the cursor is iterated.
@@ -1541,15 +1541,28 @@ public final class KeywordFieldMapper extends FieldMapper {
         // source characters (which the row path preserves via parser.getText()). Tests must use canonical
         // numeric literals.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source);
-
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
         final boolean emitDvs = fieldType().hasDocValues();
-
-        // Nothing to emit.
         if (emitTerms == false && emitDvs == false && emitFallback == false) {
             return;
         }
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            mapColumnBatchArrayOrder(ctx, cursor, emitTerms, emitDvs, emitFallback);
+        } else {
+            mapColumnBatchSingleValue(ctx, cursor, emitTerms, emitDvs, emitFallback);
+        }
+    }
+
+    private void mapColumnBatchArrayOrder(
+        BatchMappingContext ctx,
+        ObjectTupleCursor<BytesRef> cursor,
+        boolean emitTerms,
+        boolean emitDvs,
+        boolean emitFallback
+    ) {
+        final int docCount = ctx.docCount();
+
         // TODO: make the batch return these column builders to wire up recycling
         final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
         final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
@@ -1685,6 +1698,100 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Defaults.COUNTS_FIELD_TYPE,
                     LongColumn.NumericKind.LONG
                 )
+            );
+        }
+    }
+
+    /**
+     * Columnar batch path for single-valued ({@code multi_value=false}) keyword fields. Emits one
+     * plain {@link BinaryDocValuesField} per present doc — no {@code ArrayOrderInlineNull} blob, no
+     * {@code .counts} sidecar — mirroring {@code DocValuesFieldFactory.addBinaryField}'s
+     * {@code isSingleValued()} branch in the row path.
+     */
+    private void mapColumnBatchSingleValue(
+        BatchMappingContext ctx,
+        ObjectTupleCursor<BytesRef> cursor,
+        boolean emitTerms,
+        boolean emitDvs,
+        boolean emitFallback
+    ) {
+        final int docCount = ctx.docCount();
+        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final BytesRef nullValueBytes = fieldType().nullValue != null ? new BytesRef(fieldType().nullValue) : null;
+
+        int currentDoc = -1;
+        boolean valueSeenThisDoc = false;
+        boolean ignoredThisDoc = false;
+        while (true) {
+            final int nextDoc = cursor.nextDoc();
+            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            if (nextDoc != currentDoc) {
+                currentDoc = nextDoc;
+                valueSeenThisDoc = false;
+                ignoredThisDoc = false;
+            }
+            BytesRef binaryValue = cursor.value();
+            if (binaryValue == null) {
+                if (nullValueBytes != null) {
+                    binaryValue = nullValueBytes;  // substitute, fall through to normal processing
+                } else {
+                    continue;  // null without null_value -> absent (row-path parity)
+                }
+            }
+            if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                if (ignoredThisDoc == false) {
+                    ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                    if (fallback != null) {
+                        fallback.setString(currentDoc, binaryValue);
+                    }
+                    ignoredThisDoc = true;
+                } else if (fallback != null) {
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: more than one ignore_above-exceeded value in single-value field ["
+                            + fullPath()
+                            + "] for doc ["
+                            + currentDoc
+                            + "]"
+                    );
+                }
+                continue;
+            }
+            if (binaryValue.length > MAX_TERM_LENGTH) {
+                throw largeTermException(binaryValue);
+            }
+            if (valueSeenThisDoc) {
+                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                // which raises the correct per-doc error (on_failure=FAIL).
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                );
+            }
+            valueSeenThisDoc = true;
+            if (terms != null) {
+                terms.setString(currentDoc, binaryValue);
+            }
+            if (binaryDvs != null) {
+                binaryDvs.setString(currentDoc, binaryValue);
+            }
+        }
+
+        // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
+        // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
+        if (terms != null && terms.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
+        }
+        if (binaryDvs != null && binaryDvs.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), BinaryDocValuesField.TYPE));
+        }
+        // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),
+        // mirroring the row-path's addBinaryFieldLegacyEncodingAware isSingleValued() branch.
+        if (fallback != null && fallback.isEmpty() == false) {
+            ctx.addColumn(
+                LuceneBinaryColumn.of(fallback.finish(docCount), fieldType().syntheticSourceFallbackFieldName(), BinaryDocValuesField.TYPE)
             );
         }
     }

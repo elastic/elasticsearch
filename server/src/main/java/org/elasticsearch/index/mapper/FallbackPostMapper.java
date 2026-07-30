@@ -16,14 +16,14 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * Central routing for field values that cannot be indexed normally.
+ * Central fallback routing for field values that cannot be indexed normally.
  * Redirects to {@link Destination#IGNORED_SOURCE} ({@code _ignored_source}),
  * {@link Destination#IGNORE_MALFORMED} ({@code ._ignore_malformed}), or
  * {@link Destination#ON_FAILURE} ({@code ._on_failure}) based on a {@link Reason}.
  */
-public final class FallbackStorageRouter {
+public final class FallbackPostMapper {
 
-    private FallbackStorageRouter() {}
+    private FallbackPostMapper() {}
 
     /** The storage destination for a field value that cannot be indexed normally. */
     public enum Destination {

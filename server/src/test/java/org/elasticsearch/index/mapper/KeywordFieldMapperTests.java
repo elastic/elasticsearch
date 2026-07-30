@@ -720,7 +720,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     /**
      * normalizer → FALLBACK synthetic source mode. When ignore_above also fires (Malformed result),
-     * FallbackStorageRouter must commit the pre-capture so synthetic source can reconstruct the original value.
+     * FallbackPostMapper must commit the pre-capture so synthetic source can reconstruct the original value.
      */
     public void testNormalizerSyntheticSourceIgnoreAboveCommitsPrecapture() throws IOException {
         MapperService mapperService = createSytheticSourceMapperService(

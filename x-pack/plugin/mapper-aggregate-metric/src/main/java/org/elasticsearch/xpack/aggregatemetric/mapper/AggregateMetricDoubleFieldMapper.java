@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FallbackStorageRouter;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -869,10 +869,10 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    FallbackStorageRouter.write(
+                    FallbackPostMapper.write(
                         context,
                         fullPath(),
-                        FallbackStorageRouter.Reason.MALFORMED,
+                        FallbackPostMapper.Reason.MALFORMED,
                         malformedDataForSyntheticSource
                     );
                 }

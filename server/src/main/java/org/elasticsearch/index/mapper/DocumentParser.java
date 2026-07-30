@@ -150,10 +150,10 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled — store as SINGLE_MAPPING_NAME at root level
-                FallbackStorageRouter.writeOrSkip(
+                FallbackPostMapper.writeOrSkip(
                     context,
                     MapperService.SINGLE_MAPPING_NAME,
-                    FallbackStorageRouter.Reason.OBJECT_DISABLED,
+                    FallbackPostMapper.Reason.OBJECT_DISABLED,
                     () -> skipChildren(context)
                 );
             } else if (emptyDoc == false) {
@@ -311,9 +311,9 @@ public final class DocumentParser {
         if (context.parent().isEnabled() == false) {
             // entire object is disabled — store context.parent() itself, not a child field
             final DocumentParserContext disabledCtx = context;
-            FallbackStorageRouter.writeParentOrSkip(
+            FallbackPostMapper.writeParentOrSkip(
                 disabledCtx,
-                FallbackStorageRouter.Reason.OBJECT_DISABLED,
+                FallbackPostMapper.Reason.OBJECT_DISABLED,
                 () -> skipChildren(disabledCtx)
             );
             return;
@@ -330,7 +330,7 @@ public final class DocumentParser {
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
         if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())) {
-            context = FallbackStorageRouter.preCaptureParent(context);
+            context = FallbackPostMapper.preCaptureParent(context);
             token = context.parser().currentToken();
             parser = context.parser();
         }
@@ -476,9 +476,9 @@ public final class DocumentParser {
                 parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
-                DocumentParserContext parseCtx = FallbackStorageRouter.preCaptureIfNeeded(context, fieldMapper);
+                DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(context, fieldMapper);
                 ParseResult result = fieldMapper.parse(parseCtx);
-                FallbackStorageRouter.postParse(context, result, fieldMapper);
+                FallbackPostMapper.postParse(context, result, fieldMapper);
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
@@ -566,10 +566,10 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, currentFieldName);
             // not dynamic, read everything up to end object
             final DocumentParserContext dynamicDisabledCtx = context;
-            FallbackStorageRouter.writeOrSkip(
+            FallbackPostMapper.writeOrSkip(
                 dynamicDisabledCtx,
                 dynamicDisabledCtx.path().pathAsText(currentFieldName),
-                FallbackStorageRouter.Reason.DYNAMIC_DISABLED,
+                FallbackPostMapper.Reason.DYNAMIC_DISABLED,
                 () -> skipChildren(dynamicDisabledCtx)
             );
         } else {
@@ -578,7 +578,7 @@ public final class DocumentParser {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectBuilder = null;
-                context = FallbackStorageRouter.preCapture(context, context.path().pathAsText(currentFieldName));
+                context = FallbackPostMapper.preCapture(context, context.path().pathAsText(currentFieldName));
             } else {
                 // When subobjects are disabled, only check for a matching dynamic template for this object field.
                 // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
@@ -660,10 +660,10 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            FallbackStorageRouter.writeOrSkip(
+            FallbackPostMapper.writeOrSkip(
                 context,
                 context.path().pathAsText(currentFieldName),
-                FallbackStorageRouter.Reason.DYNAMIC_DISABLED,
+                FallbackPostMapper.Reason.DYNAMIC_DISABLED,
                 () -> skipChildren(context)
             );
             return;
@@ -673,10 +673,10 @@ public final class DocumentParser {
             if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
                 && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
                 try {
-                    FallbackStorageRouter.write(
+                    FallbackPostMapper.write(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED
+                        FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED
                     );
                 } catch (IOException e) {
                     throw new IllegalArgumentException("failed to parse field [" + currentFieldName + " ]", e);
@@ -688,10 +688,10 @@ public final class DocumentParser {
             if (context.indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()
                 && currentFieldName.length() > context.indexSettings().getMappingFieldNameLengthLimit()) {
                 try {
-                    FallbackStorageRouter.write(
+                    FallbackPostMapper.write(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG
+                        FallbackPostMapper.Reason.FIELD_NAME_TOO_LONG
                     );
                 } catch (IOException e) {
                     throw new IllegalArgumentException("failed to parse field [" + currentFieldName + "]", e);
@@ -730,17 +730,17 @@ public final class DocumentParser {
         String arrayFieldName
     ) throws IOException {
         String fullPath = context.path().pathAsText(arrayFieldName);
-        var fc = FallbackStorageRouter.FieldContext.forArrayElements(context, mapper, fullPath);
-        var preCapReason = FallbackStorageRouter.resolvePrecaptureReason(fc);
+        var fc = FallbackPostMapper.FieldContext.forArrayElements(context, mapper, fullPath);
+        var preCapReason = FallbackPostMapper.resolvePrecaptureReason(fc);
         if (preCapReason.isPresent()) {
-            context = FallbackStorageRouter.preCapture(context, fullPath);
+            context = FallbackPostMapper.preCapture(context, fullPath);
         } else if (fc.canAddIgnoredField()
             && fc.storesArraysNatively() == false
             && mapper instanceof ObjectMapper objectMapper
             && objectMapper.isEnabled() == false) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
                 // get tracked through ignored source.
-                FallbackStorageRouter.write(context, fullPath, FallbackStorageRouter.Reason.OBJECT_DISABLED);
+                FallbackPostMapper.write(context, fullPath, FallbackPostMapper.Reason.OBJECT_DISABLED);
                 return;
             }
 
@@ -878,15 +878,15 @@ public final class DocumentParser {
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            FallbackStorageRouter.write(
+            FallbackPostMapper.write(
                 context,
                 context.path().pathAsText(currentFieldName),
-                FallbackStorageRouter.Reason.DYNAMIC_DISABLED
+                FallbackPostMapper.Reason.DYNAMIC_DISABLED
             );
             return;
         }
         if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
-            FallbackStorageRouter.write(context, context.path().pathAsText(currentFieldName), FallbackStorageRouter.Reason.DYNAMIC_RUNTIME);
+            FallbackPostMapper.write(context, context.path().pathAsText(currentFieldName), FallbackPostMapper.Reason.DYNAMIC_RUNTIME);
         }
         if (dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
             failIfMatchesRoutingPath(context, currentFieldName);
@@ -988,7 +988,7 @@ public final class DocumentParser {
                 boolean isRuntimeField = fieldType instanceof AbstractScriptFieldType;
                 if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME || isRuntimeField) {
                     try {
-                        FallbackStorageRouter.write(context, path, FallbackStorageRouter.Reason.DYNAMIC_RUNTIME);
+                        FallbackPostMapper.write(context, path, FallbackPostMapper.Reason.DYNAMIC_RUNTIME);
                     } catch (IOException e) {
                         throw new IllegalArgumentException(
                             "failed to parse run-time field under [" + context.path().pathAsText("") + " ]",

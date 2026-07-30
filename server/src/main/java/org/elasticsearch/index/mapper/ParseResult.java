@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  * The outcome of parsing a single field value.
- * {@link FallbackStorageRouter} switches exhaustively on this to route to exactly one fallback destination.
+ * {@link FallbackPostMapper} switches exhaustively on this to route to exactly one fallback destination.
  */
 public sealed interface ParseResult permits ParseResult.Indexed, ParseResult.Ignored, ParseResult.MultiValueViolation {
 

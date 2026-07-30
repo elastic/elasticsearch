@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FallbackStorageRouter;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -152,8 +152,8 @@ class FlattenedFieldParser {
             FieldMapper mappedSubField = mappedSubFields.get(key);
             if (mappedSubField != null) {
                 DocumentParserContext dpc = context.documentParserContext();
-                DocumentParserContext parseCtx = FallbackStorageRouter.preCaptureIfNeeded(dpc, mappedSubField);
-                FallbackStorageRouter.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
+                DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(dpc, mappedSubField);
+                FallbackPostMapper.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
             } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
             } else if (usesArrayOrderBinaryDocValues) {
@@ -186,8 +186,8 @@ class FlattenedFieldParser {
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
             DocumentParserContext dpc = context.documentParserContext();
-            DocumentParserContext parseCtx = FallbackStorageRouter.preCaptureIfNeeded(dpc, mappedSubField);
-            FallbackStorageRouter.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
+            DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(dpc, mappedSubField);
+            FallbackPostMapper.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
             return;
         }
 

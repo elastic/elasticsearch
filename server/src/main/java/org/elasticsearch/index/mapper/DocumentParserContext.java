@@ -575,7 +575,7 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Tentative pre-capture variant used by {@link FallbackStorageRouter}.
+     * Tentative pre-capture variant used by {@link FallbackPostMapper}.
      * Clones the parser sub-context (capturing XContent) and registers the result in the pending list.
      * The caller must follow with {@link #commitPendingPreCapture} or {@link #discardPendingPreCapture}.
      */
@@ -858,7 +858,7 @@ public abstract class DocumentParserContext {
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     try {
-                        FallbackStorageRouter.write(this, fullPath, FallbackStorageRouter.Reason.FIELD_LIMIT_EXCEEDED);
+                        FallbackPostMapper.write(this, fullPath, FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED);
                     } catch (IOException e) {
                         throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
                     }
@@ -873,7 +873,7 @@ public abstract class DocumentParserContext {
             if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
                 if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
                     try {
-                        FallbackStorageRouter.write(this, fullPath, FallbackStorageRouter.Reason.FIELD_NAME_TOO_LONG);
+                        FallbackPostMapper.write(this, fullPath, FallbackPostMapper.Reason.FIELD_NAME_TOO_LONG);
                     } catch (IOException e) {
                         throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
                     }

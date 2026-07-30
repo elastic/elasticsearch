@@ -239,6 +239,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionDisruptionIT
   method: testLocalRequestAlwaysSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/155425
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/42_knn_search_flat/Cosine similarity with indexed vector}
+  issue: https://github.com/elastic/elasticsearch/issues/155450
 
 # Examples:
 #

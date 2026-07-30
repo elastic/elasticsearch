@@ -14,8 +14,30 @@ You can query data stored in compatible external data sources, using the same sy
 
 ## Requirements
 
-- This feature is experimental and must be enabled before you can use it.
+- This is an experimental feature and is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+
+## Enable the feature
+
+{{esql}} Data Federation is not enabled by default. To use it, enable the feature in {{es}} and enable the UI in {{kib}}.
+
+**{{es}}**
+
+Add the following to your {{es}} configuration:
+
+```yaml
+esql.federation.enabled: true
+```
+
+**{{kib}}**
+
+Add the following to your {{kib}} configuration:
+
+```yaml
+xpack.dataFederation.enabled: true
+```
+
+To learn more, refer to [Elastic Stack settings](https://www.elastic.co/docs/deploy-manage/stack-settings).
 
 ## Why use federated data
 

@@ -78,6 +78,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
+    private final boolean hasTimestampField;
     private final boolean timestampBackfillEnabled;
 
     public SearchDirectory(
@@ -91,7 +92,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
+        this.hasTimestampField = hasTimestampField;
         this.timestampBackfillEnabled = hasTimestampField && cacheService.isCacheBoostPreferenceEnabled();
+    }
+
+    /**
+     * Whether this shard is time-based, i.e. its index has a {@code @timestamp} field.
+     */
+    public boolean hasTimestampField() {
+        return hasTimestampField;
     }
 
     /**
@@ -100,6 +109,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     public boolean timestampBackfillEnabled() {
         return timestampBackfillEnabled;
+    }
+
+    @Override
+    public long fallbackRegionTimestampMillis() {
+        return hasTimestampField ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     /**
@@ -536,10 +550,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobContainerFunction
         ) {
             @Override
-            protected long unknownRegionTimestampMillis() {
+            protected long fallbackRegionTimestampMillis() {
                 return SearchDirectory.this.timestampBackfillEnabled()
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
-                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                    : SearchDirectory.this.fallbackRegionTimestampMillis();
             }
 
             @Override

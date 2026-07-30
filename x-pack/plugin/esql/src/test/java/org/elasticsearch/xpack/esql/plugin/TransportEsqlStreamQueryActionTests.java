@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
 import java.util.Map;
@@ -193,5 +197,29 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     public void testClassifyNullColumnsEmptyOutput() {
         boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(List.of(), Set.of("anything"));
         assertEquals(0, mask.length);
+    }
+
+    public void testMarkPartialFromCompletionInfoFlipsExecutionInfo() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        assertFalse("executionInfo must start as non-partial", executionInfo.isPartial());
+
+        DriverCompletionInfo partialCompletion = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), true);
+        Result partialResult = new Result(List.of(), List.of(), Map.of(), EsqlTestUtils.TEST_CFG, partialCompletion, executionInfo);
+        TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(partialResult);
+        assertTrue("is_partial must be true when completionInfo.partial() is true", executionInfo.isPartial());
+    }
+
+    public void testMarkPartialFromCompletionInfoLeavesNonPartialUnchanged() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        Result nonPartialResult = new Result(
+            List.of(),
+            List.of(),
+            Map.of(),
+            EsqlTestUtils.TEST_CFG,
+            DriverCompletionInfo.EMPTY,
+            executionInfo
+        );
+        TransportEsqlStreamQueryAction.markPartialFromCompletionInfo(nonPartialResult);
+        assertFalse("is_partial must remain false when completionInfo.partial() is false", executionInfo.isPartial());
     }
 }

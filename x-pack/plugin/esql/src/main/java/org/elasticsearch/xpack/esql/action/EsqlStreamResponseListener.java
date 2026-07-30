@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -43,69 +44,113 @@ import java.util.concurrent.atomic.AtomicReference;
  *   - Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}
  *   - On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}
  */
-public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQueryAction.Response> {
+public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(EsqlStreamResponseListener.class);
     private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
     private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
-    private final AtomicBoolean isLastPart = new AtomicBoolean(false);
+    private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
+    private volatile boolean streamStarted = false;
     private final StreamingSubscriber subscriber = new StreamingSubscriber();
 
-    private final AtomicReference<ActionListener<ChunkedRestResponseBodyPart>> nextBodyPartListener = new AtomicReference<>();
+    private final Object continuationMonitor = new Object();
+    private ActionListener<ChunkedRestResponseBodyPart> nextBodyPartListener;
+    private ChunkedRestResponseBodyPart pendingTerminalPart;
 
     private volatile PageStreamPublisher publisher;
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
+    private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
 
     public EsqlStreamResponseListener(RestChannel channel) {
         this.channel = channel;
     }
 
-    @Override
-    public void onResponse(EsqlStreamQueryAction.Response response) {
-        try {
-            initializeStream(response);
-        } catch (Exception e) {
-            onFailure(e);
-        }
+    public ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener() {
+        return ActionListener.wrap(this::initializeStream, this::onFailure);
     }
 
-    private void initializeStream(EsqlStreamQueryAction.Response response) throws IOException {
-        this.publisher = response.publisher();
-        this.columns = response.columns();
-        this.nullColumns = response.nullColumns();
-        NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(response.columns(), response.nullColumns());
+    @Override
+    public void onResponse(ActionResponse.Empty empty) {
+        // Compute has finished; the footer was already delivered through publisher.completeWithFooter.
+    }
+
+    private void initializeStream(EsqlStreamQueryAction.StreamStart streamStart) throws IOException {
+        this.publisher = streamStart.publisher();
+        this.columns = streamStart.columns();
+        this.nullColumns = streamStart.nullColumns();
+        NdjsonColumnsBodyPart columnsBodyPart = new NdjsonColumnsBodyPart(streamStart.columns(), streamStart.nullColumns());
+        streamStart.publisher().subscribe(subscriber);
         channel.sendResponse(RestResponse.chunked(RestStatus.OK, columnsBodyPart, this::release));
-        response.publisher().subscribe(subscriber);
+        streamStarted = true;
     }
 
     private void release() {
-        if (subscriber.subscription != null) {
-            subscriber.subscription.cancel();
+        Flow.Subscription subscription = subscriber.subscription;
+        try {
+            if (subscription != null) {
+                subscription.cancel();
+            }
+        } finally {
+            Page page = inFlightPage.getAndSet(null);
+            if (page != null) {
+                page.releaseBlocks();
+            }
         }
     }
 
     @Override
     public void onFailure(Exception e) {
+        if (streamStarted) {
+            logger.debug("transport failure after stream started; error already delivered via publisher", e);
+            return;
+        }
         try {
-            isLastPart.set(true);
+            if (terminalEmitted.compareAndSet(false, true) == false) {
+                logger.debug("failure response already sent; discarding duplicate onFailure", e);
+                return;
+            }
             RestStatus status = ExceptionsHelper.status(e);
             channel.sendResponse(RestResponse.chunked(status, new NdjsonErrorBodyPart(e, status), this::release));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
+        } finally {
+            PageStreamPublisher p = publisher;
+            if (p != null) {
+                p.failStream(e);
+            }
         }
     }
 
     private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {
-        nextBodyPartListener.set(listener);
-        subscriber.subscription.request(1);
+        ChunkedRestResponseBodyPart terminal;
+        synchronized (continuationMonitor) {
+            terminal = pendingTerminalPart;
+            if (terminal != null) {
+                pendingTerminalPart = null;
+            } else {
+                nextBodyPartListener = listener;
+            }
+        }
+        if (terminal != null) {
+            listener.onResponse(terminal);
+        } else {
+            // IMPORTANT: subscription.request(1) must be called *after* releasing continuationMonitor.
+            // PageStreamPublisher.deliverPages() calls subscriber.onNext() outside its own monitor, and
+            // onNext() acquires continuationMonitor. If request(1) were called while holding
+            // continuationMonitor the lock order would be continuationMonitor → publisher-monitor in this
+            // direction but publisher-monitor → continuationMonitor in deliverPages(), creating a deadlock.
+            Flow.Subscription subscription = subscriber.subscription;
+            assert subscription != null : "requestNextChunk before onSubscribe; initializeStream must subscribe before sendResponse";
+            subscription.request(1);
+        }
     }
 
     private class StreamingSubscriber implements Flow.Subscriber<Page> {
-        private Flow.Subscription subscription;
+        private volatile Flow.Subscription subscription;
 
         @Override
         public void onSubscribe(Flow.Subscription subscription) {
@@ -114,39 +159,59 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
 
         @Override
         public void onNext(Page page) {
-            ActionListener<ChunkedRestResponseBodyPart> next = takeNextBodyPartListener();
+            ActionListener<ChunkedRestResponseBodyPart> next;
+            synchronized (continuationMonitor) {
+                next = nextBodyPartListener;
+                nextBodyPartListener = null;
+            }
             if (next == null) {
                 page.releaseBlocks();
                 return;
             }
+            Page previous = inFlightPage.getAndSet(page);
+            assert previous == null : "a page is already in flight; demand must be one page at a time";
             next.onResponse(new NdjsonPageBodyPart(page, columns, nullColumns));
         }
 
         @Override
         public void onError(Throwable throwable) {
-            if (isLastPart.compareAndSet(false, true)) {
+            if (terminalEmitted.compareAndSet(false, true)) {
                 Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
                 RestStatus status = ExceptionsHelper.status(e);
-                ActionListener<ChunkedRestResponseBodyPart> next = takeNextBodyPartListener();
+                ChunkedRestResponseBodyPart errorPart = new NdjsonErrorBodyPart(e, status);
+                ActionListener<ChunkedRestResponseBodyPart> next;
+                synchronized (continuationMonitor) {
+                    next = nextBodyPartListener;
+                    if (next != null) {
+                        nextBodyPartListener = null;
+                    } else {
+                        pendingTerminalPart = errorPart;
+                    }
+                }
                 if (next != null) {
-                    next.onResponse(new NdjsonErrorBodyPart(e, status));
+                    next.onResponse(errorPart);
                 }
             }
         }
 
         @Override
         public void onComplete() {
-            if (isLastPart.compareAndSet(false, true)) {
-                PageStreamPublisher.StreamFooter footer = publisher.getFooter();
-                ActionListener<ChunkedRestResponseBodyPart> next = takeNextBodyPartListener();
+            if (terminalEmitted.compareAndSet(false, true)) {
+                PageStreamPublisher.StreamFooter footer = publisher.footer();
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ActionListener<ChunkedRestResponseBodyPart> next;
+                synchronized (continuationMonitor) {
+                    next = nextBodyPartListener;
+                    if (next != null) {
+                        nextBodyPartListener = null;
+                    } else {
+                        pendingTerminalPart = footerPart;
+                    }
+                }
                 if (next != null) {
-                    next.onResponse(new NdjsonFooterBodyPart(footer));
+                    next.onResponse(footerPart);
                 }
             }
-        }
-
-        private ActionListener<ChunkedRestResponseBodyPart> takeNextBodyPartListener() {
-            return nextBodyPartListener.getAndSet(null);
         }
     }
 
@@ -238,7 +303,7 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
 
         @Override
         public boolean isLastPart() {
-            return isLastPart.get();
+            return false;
         }
 
         @Override
@@ -248,6 +313,9 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
 
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            if (inFlightPage.compareAndSet(page, null) == false) {
+                throw new IllegalStateException("in-flight page was already released; the response is torn down");
+            }
             final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
             try {
                 final int rowCount = page.getPositionCount();
@@ -255,7 +323,9 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
                 final BytesRef scratch = new BytesRef();
                 final PositionToXContent[] converters = new PositionToXContent[colCount];
                 for (int c = 0; c < colCount; c++) {
-                    converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
+                    if (nullColumns == null || nullColumns[c] == false) {
+                        converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), ZoneOffset.UTC, scratch);
+                    }
                 }
                 writeJson(out, builder -> {
                     builder.startObject();
@@ -263,7 +333,7 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
                     for (int row = 0; row < rowCount; row++) {
                         builder.startArray();
                         for (int col = 0; col < colCount; col++) {
-                            if (nullColumns == null || nullColumns[col] == false) {
+                            if (converters[col] != null) {
                                 converters[col].positionToXContent(builder, channel.request(), row);
                             }
                         }
@@ -377,7 +447,8 @@ public class EsqlStreamResponseListener implements ActionListener<EsqlStreamQuer
                 writeJson(out, builder -> {
                     builder.startObject();
                     builder.startObject("error");
-                    String type = error.getClass().getSimpleName();
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    String type = ElasticsearchException.getExceptionName(cause);
                     String reason = error instanceof ElasticsearchException ese
                         ? ese.getDetailedMessage()
                         : (error.getMessage() != null ? error.getMessage() : type);

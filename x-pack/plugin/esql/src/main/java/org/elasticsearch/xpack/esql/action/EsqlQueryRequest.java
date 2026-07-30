@@ -67,7 +67,6 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
     private Integer pageSize = null;
-    // TODO: Move this to a query param
     private boolean dropNullColumns = false;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();

@@ -31,12 +31,14 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlStreamQueryIT extends ESRestTestCase {
@@ -158,6 +160,41 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testDropNullColumnsNoIndexFields() throws IOException {
+        List<Map<String, Object>> statsLines = stream("""
+            {"query": "FROM stream-test | STATS c = COUNT(*)", "page_size": 10}
+            """, "drop_null_columns=true");
+
+        Map<String, Object> statsHeader = statsLines.get(0);
+        assertThat("drop_null_columns=true must always emit all_columns", statsHeader, hasKey("all_columns"));
+        assertThat("drop_null_columns=true must always emit columns", statsHeader, hasKey("columns"));
+
+        List<Map<String, Object>> statsAllColumns = (List<Map<String, Object>>) statsHeader.get("all_columns");
+        List<Map<String, Object>> statsTrimmedColumns = (List<Map<String, Object>>) statsHeader.get("columns");
+
+        assertThat("all_columns should list the one aggregation column", statsAllColumns, hasSize(1));
+        assertThat("no column should be trimmed when none are null", statsTrimmedColumns, hasSize(1));
+        assertThat(statsAllColumns.get(0).get("name"), equalTo("c"));
+        assertThat(statsTrimmedColumns.get(0).get("name"), equalTo("c"));
+
+        List<Map<String, Object>> rowLines = stream("""
+            {"query": "ROW x = 1", "page_size": 10}
+            """, "drop_null_columns=true");
+
+        Map<String, Object> rowHeader = rowLines.get(0);
+        assertThat("drop_null_columns=true must always emit all_columns (ROW query)", rowHeader, hasKey("all_columns"));
+        assertThat("drop_null_columns=true must always emit columns (ROW query)", rowHeader, hasKey("columns"));
+
+        List<Map<String, Object>> rowAllColumns = (List<Map<String, Object>>) rowHeader.get("all_columns");
+        List<Map<String, Object>> rowTrimmedColumns = (List<Map<String, Object>>) rowHeader.get("columns");
+
+        assertThat("all_columns should list the one literal column", rowAllColumns, hasSize(1));
+        assertThat("no column should be trimmed for a non-null literal", rowTrimmedColumns, hasSize(1));
+        assertThat(rowAllColumns.get(0).get("name"), equalTo("x"));
+        assertThat(rowTrimmedColumns.get(0).get("name"), equalTo("x"));
+    }
+
     public void testErrorFraming() throws IOException {
         ResponseException re = expectThrows(ResponseException.class, () -> rawStream("""
             {"query": "FROM stream-test | EVAL x = unknown_function(value)", "page_size": 1}
@@ -175,7 +212,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> error = (Map<String, Object>) errorLine.get("error");
         assertThat(error, hasKey("type"));
-        assertThat(error.get("type"), notNullValue());
+        assertThat(error.get("type"), equalTo("verification_exception"));
         assertThat(error, hasKey("reason"));
         assertThat(error.get("reason"), notNullValue());
         assertThat(
@@ -201,6 +238,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("page_size"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testWarningsInFooter() throws IOException {
         List<Map<String, Object>> lines = stream("""
             {"query": "FROM stream-test | EVAL n = to_int(description) | SORT value | KEEP value, n | LIMIT 100", "page_size": 10}
@@ -209,9 +247,18 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         Map<String, Object> footer = lines.get(lines.size() - 1);
         assertThat("footer should be present", footer, hasKey("took"));
         assertThat("footer must contain warnings from failed conversions", footer, hasKey("warnings"));
-        @SuppressWarnings("unchecked")
         List<String> warnings = (List<String>) footer.get("warnings");
         assertFalse("warnings list must not be empty", warnings.isEmpty());
+        assertThat(
+            "no warning entry should start with the RFC 7234 warn-code prefix",
+            warnings,
+            everyItem(not(startsWith("299 Elasticsearch-")))
+        );
+        assertThat("no warning entry should be wrapped in quotes", warnings, everyItem(not(startsWith("\""))));
+        assertTrue(
+            "at least one warning must be the to_int conversion message with a Line position prefix",
+            warnings.stream().anyMatch(w -> w.startsWith("Line 1:") && w.contains("evaluation of [to_int(description)] failed"))
+        );
     }
 
     private List<Map<String, Object>> stream(String bodyJson, String... queryParams) throws IOException {

@@ -27,6 +27,8 @@ import java.util.function.Function;
  */
 public class StreamingPageOperator extends SinkOperator {
 
+    public static final TransportVersion ESQL_STREAMING = TransportVersion.fromName("esql_streaming");
+
     private static final String NAME = "StreamingPageOperator";
 
     private final PageStreamPublisher stream;
@@ -34,8 +36,6 @@ public class StreamingPageOperator extends SinkOperator {
     private boolean finishCalled;
     private int pagesEmitted;
     private long rowsEmitted;
-
-    public static final TransportVersion ESQL_STREAMING = TransportVersion.fromName("esql_streaming");
 
     public StreamingPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
         this.stream = stream;
@@ -47,7 +47,13 @@ public class StreamingPageOperator extends SinkOperator {
         Page aligned = alignment.apply(page);
         pagesEmitted++;
         rowsEmitted += aligned.getPositionCount();
-        stream.addPage(aligned);
+        if (stream.addPage(aligned) == false) {
+            // The publisher has been cancelled (e.g. the HTTP client disconnected) or terminated.
+            // Treat this like a closed exchange sink: throw DriverEarlyTerminationException so the
+            // driver tears the operator chain down cleanly, exactly as it does for "Exchange sink
+            // is closed" (Driver.java). The page was already released inside addPage.
+            throw new DriverEarlyTerminationException("Streaming subscriber cancelled");
+        }
     }
 
     @Override

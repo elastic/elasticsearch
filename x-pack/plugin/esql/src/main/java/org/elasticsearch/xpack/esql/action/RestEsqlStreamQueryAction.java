@@ -53,19 +53,19 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = RequestXContent.parseStream(parser);
         }
-        if (esqlRequest.pageSize() == null || esqlRequest.pageSize() < 1) {
-            throw new IllegalArgumentException(
-                "[" + RequestXContent.PAGE_SIZE_FIELD.getPreferredName() + "] must be greater than or equal to 1"
-            );
-        }
         esqlRequest.dropNullColumns(request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false));
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
         return channel -> {
-            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(EsqlStreamQueryAction.INSTANCE, esqlRequest, new EsqlStreamResponseListener(channel));
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
+            EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(esqlRequest, restListener.streamStartListener());
+            new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+                EsqlStreamQueryAction.INSTANCE,
+                streamRequest,
+                restListener
+            );
         };
     }
 }

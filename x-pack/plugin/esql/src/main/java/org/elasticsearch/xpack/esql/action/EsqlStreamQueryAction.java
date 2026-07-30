@@ -9,18 +9,23 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * Action type for the streaming ES|QL query endpoint ({@code POST /_query/stream}).
- * Unlike {@link EsqlQueryAction}, this action responds before compute finishes, delivering
- * a {@link PageStreamPublisher} that the REST layer subscribes to for incremental NDJSON output.
+ * Unlike {@link EsqlQueryAction}, the response type is {@link ActionResponse.Empty}: the action
+ * completes only when compute finishes, so the transport task stays registered and cancellable for
+ * the full duration of the query.
+ *
+ * <p>The schema and publisher are delivered out-of-band through
+ * {@link EsqlStreamQueryRequest#streamStartListener()}, which the REST layer sets before dispatching.
+ * This keeps {@link org.elasticsearch.rest.action.RestCancellableNodeClient} working unmodified:
+ * its close-set entry for the task survives until {@link ActionResponse.Empty} is returned, so a
+ * client disconnect issues a task cancellation and {@code isCancelled()} flips correctly.
  */
-public class EsqlStreamQueryAction extends ActionType<EsqlStreamQueryAction.Response> {
+public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
 
     public static final EsqlStreamQueryAction INSTANCE = new EsqlStreamQueryAction();
     public static final String NAME = "indices:data/read/esql/stream";
@@ -29,33 +34,11 @@ public class EsqlStreamQueryAction extends ActionType<EsqlStreamQueryAction.Resp
         super(NAME);
     }
 
-    public static class Response extends ActionResponse {
-
-        private final List<ColumnInfoImpl> columns;
-        private final PageStreamPublisher publisher;
-        private final boolean[] nullColumns;
-
-        public Response(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns) {
-            this.columns = columns;
-            this.publisher = publisher;
-            this.nullColumns = nullColumns;
-        }
-
-        public List<ColumnInfoImpl> columns() {
-            return columns;
-        }
-
-        public PageStreamPublisher publisher() {
-            return publisher;
-        }
-
-        public boolean[] nullColumns() {
-            return nullColumns;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("not serialized");
-        }
-    }
+    /**
+     * The out-of-band payload delivered to the REST layer once analysis is complete and compute
+     * is about to start. Carries the same three values that the old {@code Response} carried, but
+     * is signalled through {@link EsqlStreamQueryRequest#streamStartListener()} rather than through
+     * the transport action's response path.
+     */
+    public record StreamStart(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns) {}
 }

@@ -1056,6 +1056,32 @@ public class HeapAttackIT extends HeapAttackTestCase {
         HISTOGRAM
     }
 
+    public void testStreamingApiAvoidsCircuitBreak() throws IOException {
+        int docs = 64;
+        initGiantTextField(docs, false, 1);
+        try {
+            setRequestBreakerLimit("5%");
+
+            assertCircuitBreaks(attempt -> fetchBigText());
+
+            var s = streamQuery("FROM bigtext | KEEP f", 1);
+            assertFalse("streaming must not surface an error", s.sawError());
+            assertThat(s.columns(), hasSize(1));
+            assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));
+            assertThat(s.rowCount(), equalTo((long) docs));
+            assertMap(s.footer(), matchesMap().extraOk().entry("is_partial", false));
+            assertFalse("footer must not contain an error key", s.footer().containsKey("error"));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> fetchBigText() throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | KEEP f\"}");
+        return responseAsMap(query(query.toString(), "columns"));
+    }
+
     private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {
         logger.info("loading many documents with tdigests");
 

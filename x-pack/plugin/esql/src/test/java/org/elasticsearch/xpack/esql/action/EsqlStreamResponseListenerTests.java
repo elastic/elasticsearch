@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -27,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -173,7 +177,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(restResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(channel.errors().get(), equalTo(1));
 
-        assertErrorLine(restResponse.chunkedContent(), 500, "RuntimeException", "exception");
+        assertErrorLine(restResponse.chunkedContent(), 500, "runtime_exception", "exception");
         assertTrue("error part should be the last part", restResponse.chunkedContent().isLastPart());
     }
 
@@ -185,7 +189,22 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         RestResponse restResponse = channel.capturedResponse();
         assertThat(restResponse.status(), equalTo(RestStatus.FORBIDDEN));
 
-        assertErrorLine(restResponse.chunkedContent(), 403, "ElasticsearchStatusException", null);
+        assertErrorLine(restResponse.chunkedContent(), 403, "status_exception", null);
+    }
+
+    public void testErrorTypeIsCanonicalExceptionNameAfterUnwrapping() throws IOException {
+        ElasticsearchStatusException cause = new ElasticsearchStatusException("not allowed", RestStatus.FORBIDDEN);
+        RemoteTransportException wrapper = new RemoteTransportException("node/action", cause);
+
+        FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        listener.onFailure(wrapper);
+
+        RestResponse restResponse = channel.capturedResponse();
+        assertThat(restResponse.status(), equalTo(RestStatus.FORBIDDEN));
+
+        String expectedType = ElasticsearchException.getExceptionName(ExceptionsHelper.unwrapCause(wrapper));
+        assertErrorLine(restResponse.chunkedContent(), 403, expectedType, null);
     }
 
     public void testFailStreamMidStream() throws IOException {
@@ -200,17 +219,152 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
             () -> s.publisher().failStream(new RuntimeException("compute failed"))
         );
 
-        assertErrorLine(errorPart, 500, "RuntimeException", "compute failed");
+        assertErrorLine(errorPart, 500, "runtime_exception", "compute failed");
         assertTrue("error part should be the last part", errorPart.isLastPart());
     }
 
-    private record Subscribed(PageStreamPublisher publisher, FakeRestChannel channel, RestResponse response) {}
+    public void testFailStreamNoContinuationOutstanding() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.publisher().addPage(buildSimplePage(1, "first")));
+        assertFalse("page part must not be the last part before the error arrives", pagePart.isLastPart());
+        s.publisher().failStream(new RuntimeException("compute failed mid-write"));
+        assertFalse("page part must still not be the last part after failStream", pagePart.isLastPart());
+        encodeBodyPart(pagePart);
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> {});
+        assertErrorLine(errorPart, 500, "runtime_exception", "compute failed mid-write");
+        assertTrue("error part should be the last part", errorPart.isLastPart());
+    }
+
+    public void testDoubleTerminalEmitsOnce() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.publisher().addPage(buildSimplePage(1, "first")));
+        encodeBodyPart(pagePart);
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> s.publisher().failStream(new RuntimeException("first failure")));
+        assertErrorLine(errorPart, 500, "runtime_exception", "first failure");
+        assertTrue("error part should be the last part", errorPart.isLastPart());
+        s.listener().onFailure(new RuntimeException("second failure"));
+        assertThat(s.channel().capturedResponse().status(), equalTo(RestStatus.OK));
+    }
+
+    public void testInFlightPageIsReleasedWhenChannelDies() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.publisher().addPage(buildSimplePage(1, "first")));
+        assertNotNull(pagePart);
+        s.response().close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testInFlightPageNotDoubleReleasedAfterEncode() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart columnsPart = s.response().chunkedContent();
+        encodeBodyPart(columnsPart);
+
+        ChunkedRestResponseBodyPart pagePart = nextPart(columnsPart, () -> s.publisher().addPage(buildSimplePage(2, "bob")));
+        assertNotNull(pagePart);
+        encodeBodyPart(pagePart);
+        s.response().close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testSubscribeBeforeSendResponseClosesEventLoopRace() throws IOException {
+        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null));
+        assertThat(channel.okResponses, equalTo(1));
+        assertThat(channel.errorResponses, equalTo(0));
+        assertTrue("publisher should be unblocked after early demand", publisher.waitForWriting().listener().isDone());
+        assertNull("no part should be delivered before a page is added", channel.earlyPart.get());
+
+        Page page = buildSimplePage(7, "carol");
+        publisher.addPage(page);
+        ChunkedRestResponseBodyPart pagePart = channel.earlyPart.get();
+        assertNotNull("adding a page must satisfy the parked continuation", pagePart);
+        encodeBodyPart(pagePart);
+    }
+
+    public void testFailedInitMustNotLeaveTheProducerBlocked() {
+        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        ThrowingOkChannel channel = new ThrowingOkChannel();
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(simpleColumns(), publisher, null));
+        assertTrue(
+            "publisher gate must be open after a failed init so the driver is not stuck",
+            publisher.waitForWriting().listener().isDone()
+        );
+        assertNotNull("publisher must be terminalized after a failed init", publisher.failure());
+        assertThat("exactly one error response must be sent", channel.errorResponses, equalTo(1));
+        assertThat("the 200 OK write must be attempted exactly once", channel.okAttempts, equalTo(1));
+
+        listener.onFailure(new RuntimeException("compute failed after bad init"));
+        assertThat(channel.errorResponses, equalTo(1));
+    }
+
+    private static class ThrowingOkChannel extends AbstractRestChannel {
+        int okAttempts;
+        int errorResponses;
+
+        ThrowingOkChannel() {
+            super(new FakeRestRequest(), true);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            if (response.status() == RestStatus.OK) {
+                okAttempts++;
+                throw new RuntimeException("simulated channel failure on 200 OK write");
+            } else {
+                errorResponses++;
+            }
+        }
+    }
+
+    private static class EarlyGetNextPartChannel extends AbstractRestChannel {
+        final AtomicReference<ChunkedRestResponseBodyPart> earlyPart = new AtomicReference<>();
+        int okResponses;
+        int errorResponses;
+
+        EarlyGetNextPartChannel() {
+            super(new FakeRestRequest(), true);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            if (response.status() == RestStatus.OK) {
+                okResponses++;
+            } else {
+                errorResponses++;
+            }
+            if (response.isChunked() && response.status() == RestStatus.OK) {
+                response.chunkedContent().getNextPart(ActionListener.wrap(earlyPart::set, e -> fail("unexpected failure: " + e)));
+            }
+        }
+    }
+
+    private record Subscribed(
+        PageStreamPublisher publisher,
+        FakeRestChannel channel,
+        RestResponse response,
+        EsqlStreamResponseListener listener
+    ) {}
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
-        new EsqlStreamResponseListener(channel).onResponse(new EsqlStreamQueryAction.Response(columns, publisher, nullColumns));
-        return new Subscribed(publisher, channel, channel.capturedResponse());
+        EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel);
+        listener.streamStartListener().onResponse(new EsqlStreamQueryAction.StreamStart(columns, publisher, nullColumns));
+        return new Subscribed(publisher, channel, channel.capturedResponse(), listener);
     }
 
     private static ChunkedRestResponseBodyPart nextPart(ChunkedRestResponseBodyPart current, Runnable trigger) {

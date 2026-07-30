@@ -49,6 +49,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
@@ -290,7 +291,8 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
         AGGREGATE_METRIC_DOUBLE,
         HISTOGRAM,
         EXPONENTIAL_HISTOGRAM,
-        TDIGEST
+        TDIGEST,
+        BINARY
     );
 
     /**
@@ -562,6 +564,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
             case VERSION -> "1.2.19";
             case GEO_POINT, CARTESIAN_POINT -> "POINT (1.0 2.0)";
             case GEO_SHAPE, CARTESIAN_SHAPE -> "POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))";
+            case BINARY -> "AQID"; // base64 for the bytes [1, 2, 3]; only used to populate the field (validation is skipped)
             default -> throw new IllegalArgumentException("Unsupported type: " + type);
         };
     }

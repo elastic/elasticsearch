@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Base64;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -271,6 +272,17 @@ public abstract class PositionToXContent {
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
                 throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+            case BINARY -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    // Copy the exact slice: scratch reuses a shared backing array across positions.
+                    byte[] copy = new byte[val.length];
+                    System.arraycopy(val.bytes, val.offset, copy, 0, val.length);
+                    return builder.value(Base64.getEncoder().encodeToString(copy));
+                }
+            };
         };
     }
 }

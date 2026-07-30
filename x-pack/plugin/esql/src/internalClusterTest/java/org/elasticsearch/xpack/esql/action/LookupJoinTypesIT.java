@@ -51,6 +51,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -258,6 +259,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DATE_RANGE // need special handling for loads at the moment
                         || type == DOUBLE_RANGE // block loading is not supported yet
                         || type == FLATTENED // need special handling for loads at the moment
+                        || type == BINARY // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM
                         || type == GEOHASH

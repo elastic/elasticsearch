@@ -40,6 +40,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
@@ -93,6 +94,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
         FLATTENED,
+        BINARY,
         OBJECT,
         SOURCE,
         DATE_PERIOD,

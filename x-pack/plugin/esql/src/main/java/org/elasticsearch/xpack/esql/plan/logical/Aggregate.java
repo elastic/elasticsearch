@@ -44,6 +44,7 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BINARY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -267,7 +268,8 @@ public class Aggregate extends UnaryPlan
             || e.dataType() == EXPONENTIAL_HISTOGRAM
             || e.dataType() == PARTIAL_AGG
             || e.dataType() == TDIGEST
-            || e.dataType() == TIME_DURATION) {
+            || e.dataType() == TIME_DURATION
+            || e.dataType() == BINARY) {
             failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
         }
     }

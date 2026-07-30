@@ -425,6 +425,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // FIXME: use GeoArrow
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
 
+            // binary: raw bytes (JSON base64-encodes; Arrow keeps them verbatim)
+            case BINARY -> new BlockArrowFormatter.AsVarBinary(type);
+
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 

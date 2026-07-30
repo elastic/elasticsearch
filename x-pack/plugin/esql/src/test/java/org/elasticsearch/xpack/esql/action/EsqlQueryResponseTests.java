@@ -326,6 +326,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         throw new UncheckedIOException(e);
                     }
                 }
+                case BINARY -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    new BytesRef(randomByteArrayOfLength(randomIntBetween(1, 32)))
+                );
                 case DENSE_VECTOR -> {
                     BlockLoader.FloatBuilder floatBuilder = (BlockLoader.FloatBuilder) builder;
                     int dims = randomIntBetween(32, 64) * 2; // min 64 dims, always even
@@ -1685,6 +1688,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             throw new UncheckedIOException(e);
                         }
                     }
+                    case BINARY -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                        new BytesRef(java.util.Base64.getDecoder().decode(value.toString()))
+                    );
                     case GEO_POINT, GEO_SHAPE -> {
                         BytesRef wkb = stringToGeo(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Rando
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBinary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -243,6 +244,7 @@ public class ExpressionWritables {
         entries.add(Tanh.ENTRY);
         entries.add(ToAggregateMetricDouble.ENTRY);
         entries.add(ToBase64.ENTRY);
+        entries.add(ToBinary.ENTRY);
         entries.add(ToBoolean.ENTRY);
         entries.add(ToCartesianPoint.ENTRY);
         entries.add(ToCounter.ENTRY);

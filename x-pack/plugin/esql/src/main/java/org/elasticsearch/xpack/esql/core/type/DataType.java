@@ -501,7 +501,10 @@ public enum DataType implements Writeable {
             .estimatedSize(1024)
             .docValues()
             .supportedSince(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE, DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE_RELEASE)
-    );
+    ),
+
+    /** Opaque byte blobs ({@code binary} field type); surfaced as {@link BytesRef}, base64-encoded in JSON responses. */
+    BINARY(builder().esType("binary").estimatedSize(64).docValues().underConstruction(DataTypesTransportVersions.ESQL_BINARY_DATATYPE));
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
         .filter(t -> t.supportedVersion().underConstruction())
@@ -878,7 +881,8 @@ public enum DataType implements Writeable {
             || t == FLATTENED
             || t == HISTOGRAM
             || t == TIME_DURATION
-            || t == TSID_DATA_TYPE);
+            || t == TSID_DATA_TYPE
+            || t == BINARY);
     }
 
     public String nameUpper() {
@@ -1300,5 +1304,10 @@ public enum DataType implements Writeable {
          * Tech preview transport version for double_range field type support
          */
         public static final TransportVersion ESQL_DOUBLE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_double_range_tech_preview");
+
+        /**
+         * Development version for binary field type support.
+         */
+        public static final TransportVersion ESQL_BINARY_DATATYPE = TransportVersion.fromName("esql_binary_datatype");
     }
 }

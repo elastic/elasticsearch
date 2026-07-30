@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDVLeafFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -147,6 +148,20 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Binary fields do not support searching");
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BytesRefsFromCustomBinaryBlockLoader(name());
+            }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
+            // _field_names is not populated for binary fields without doc_values or stored, so the
+            // _source fallback must scan every document (lookupMatchingAll) and let the fetcher skip misses.
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+            return new BlockSourceReader.Base64BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
     }
 

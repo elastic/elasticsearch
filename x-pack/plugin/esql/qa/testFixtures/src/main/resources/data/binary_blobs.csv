@@ -1,0 +1,6 @@
+id:integer,name:keyword,blob:binary
+1,alpha,AQID
+2,beta,BAUG
+3,gamma,Bwg=
+4,delta,CQ==
+5,epsilon,

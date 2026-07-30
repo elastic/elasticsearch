@@ -581,6 +581,9 @@ public class EsqlCapabilities {
          */
         FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS,
 
+        /** Snapshot-only support for the {@code binary} data type while it is under construction. */
+        BINARY_TYPE(Build.current().isSnapshot()),
+
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */

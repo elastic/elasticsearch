@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBinary;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -670,7 +671,9 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION } };
+                Magnitude.DEFINITION,
+                // binary functions
+                ToBinary.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -1,0 +1,158 @@
+defaultKeepsBinary
+required_capability: binary_type
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM binary_blobs
+| KEEP id, blob
+| SORT id
+;
+
+id:integer | blob:binary
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;
+
+defaultPartialMappingNullFillsUnmappedIndex
+required_capability: binary_type
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM binary_blobs, binary_blobs_unmapped METADATA _index
+| KEEP _index, id, blob
+| SORT _index, id
+;
+
+_index:keyword        | id:integer | blob:binary
+binary_blobs          | 1          | AQID
+binary_blobs          | 2          | BAUG
+binary_blobs          | 3          | Bwg=
+binary_blobs          | 4          | CQ==
+binary_blobs          | 5          | null
+binary_blobs_unmapped | 1          | null
+binary_blobs_unmapped | 2          | null
+binary_blobs_unmapped | 3          | null
+binary_blobs_unmapped | 4          | null
+binary_blobs_unmapped | 5          | null
+;
+
+nullifyBinaryWithUnmappedSibling
+required_capability: binary_type
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM binary_blobs
+| KEEP id, blob, missing
+| SORT id
+;
+
+id:integer | blob:binary | missing:null
+1          | AQID        | null
+2          | BAUG        | null
+3          | Bwg=        | null
+4          | CQ==        | null
+5          | null        | null
+;
+
+nullifyKeepStarThenUnmapped
+required_capability: binary_type
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM binary_blobs
+| KEEP *, foo
+| SORT id
+;
+
+blob:binary | id:integer | name:keyword | foo:null
+AQID        | 1          | alpha        | null
+BAUG        | 2          | beta         | null
+Bwg=        | 3          | gamma        | null
+CQ==        | 4          | delta        | null
+null        | 5          | epsilon      | null
+;
+
+nullifyPartialMapping
+required_capability: binary_type
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM binary_blobs, binary_blobs_unmapped METADATA _index
+| WHERE blob IS NOT NULL
+| KEEP _index, id
+| SORT id
+;
+
+_index:keyword | id:integer
+binary_blobs   | 1
+binary_blobs   | 2
+binary_blobs   | 3
+binary_blobs   | 4
+;
+
+loadPartialMappingNotAutoCast
+required_capability: binary_type
+required_capability: optional_fields_v5
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM binary_blobs, binary_blobs_unmapped METADATA _index
+| KEEP _index, id, blob
+| SORT _index, id
+;
+warning:Field [blob] of type [binary] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword        | id:integer | blob:binary
+binary_blobs          | 1          | AQID
+binary_blobs          | 2          | BAUG
+binary_blobs          | 3          | Bwg=
+binary_blobs          | 4          | CQ==
+binary_blobs          | 5          | null
+binary_blobs_unmapped | 1          | null
+binary_blobs_unmapped | 2          | null
+binary_blobs_unmapped | 3          | null
+binary_blobs_unmapped | 4          | null
+binary_blobs_unmapped | 5          | null
+;
+
+loadFullyUnmappedAsKeyword
+required_capability: binary_type
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM binary_blobs_unmapped
+| KEEP id, blob
+| SORT id
+;
+
+id:integer | blob:keyword
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;
+
+loadFullyUnmappedCastToBinary
+required_capability: binary_type
+required_capability: optional_fields_v5
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM binary_blobs_unmapped
+| EVAL b = TO_BINARY(blob)
+| KEEP id, b
+| SORT id
+;
+
+id:integer | b:binary
+1          | AQID
+2          | BAUG
+3          | Bwg=
+4          | CQ==
+5          | null
+;

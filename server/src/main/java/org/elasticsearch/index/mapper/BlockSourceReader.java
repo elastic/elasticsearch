@@ -27,6 +27,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
@@ -241,6 +242,28 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /** Decodes base64 {@code _source} strings into raw {@link BytesRef}s (binary field, no doc_values/stored). */
+    public static class Base64BytesRefsBlockLoader extends SourceBlockLoader {
+        public Base64BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
+            super(fetcher, lookup);
+        }
+
+        @Override
+        public final Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        protected RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context, DocIdSetIterator iter) {
+            return new Base64BytesRefs(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected String name() {
+            return "Base64Bytes";
+        }
+    }
+
     private static class BytesRefs extends BlockSourceReader {
         private final BytesRef scratch = new BytesRef();
 
@@ -277,6 +300,37 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Geometries";
+        }
+    }
+
+    private static class Base64BytesRefs extends BlockSourceReader {
+        private final BytesRef scratch = new BytesRef();
+
+        Base64BytesRefs(CircuitBreaker breaker, ValueFetcher fetcher, DocIdSetIterator iter) {
+            super(breaker, fetcher, iter);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            // JSON _source yields base64 strings; binary (SMILE/CBOR) _source yields raw byte[]/BytesRef.
+            byte[] decoded;
+            if (v instanceof byte[] bytes) {
+                decoded = bytes;
+            } else if (v instanceof BytesRef br) {
+                decoded = new byte[br.length];
+                System.arraycopy(br.bytes, br.offset, decoded, 0, br.length);
+            } else {
+                decoded = Base64.getDecoder().decode(Objects.toString(v));
+            }
+            scratch.bytes = decoded;
+            scratch.offset = 0;
+            scratch.length = decoded.length;
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(scratch);
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Base64Bytes";
         }
     }
 

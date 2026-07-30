@@ -332,6 +332,11 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("binary_blobs").withRequiredCapabilities(EsqlCapabilities.Cap.BINARY_TYPE),
+        new TestDataset("binary_blobs").withIndex("binary_blobs_unmapped")
+            .withDynamic("false")
+            .withTypeMapping(removeFields("blob"))
+            .withRequiredCapabilities(EsqlCapabilities.Cap.BINARY_TYPE),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",

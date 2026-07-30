@@ -11369,7 +11369,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testDedupSurrogateExcludesUnsupportedAttribute() {
         assumeTrue("Requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         var analyzer = analyzerWithEnrichPolicies().addIndex("test_with_unsupported", "mapping-multi-field-with-nested.json");
-        var plan = optimize(analyzer.query("FROM test_with_unsupported | DEDUP"));
+        // The mapping's binary fields are a supported-but-non-groupable type, so DEDUP (which groups by all columns)
+        // would reject them via checkUnsupportedGroupingType; drop them so the test can focus on UnsupportedAttribute exclusion.
+        var plan = optimize(analyzer.query("FROM test_with_unsupported | DROP binary, binary_stored | DEDUP"));
 
         plan.forEachDown(p -> assertThat(p, not(instanceOf(Dedup.class))));
 

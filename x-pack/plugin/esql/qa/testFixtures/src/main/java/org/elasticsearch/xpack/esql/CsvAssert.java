@@ -609,7 +609,7 @@ public final class CsvAssert {
                 x -> EsqlDataTypeConverter.doubleRangeToString((DoubleRangeBlockBuilder.DoubleRange) x)
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED, BINARY -> expectedValue;
         };
     }
 
@@ -636,6 +636,13 @@ public final class CsvAssert {
                     yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
                 }
                 yield convertActualFlattenedValue(actualValue);
+            }
+            case BINARY -> {
+                // REST responses carry binary as base64 strings; decode to match the csv-spec BytesRef.
+                if (actualValue instanceof String s) {
+                    yield new BytesRef(java.util.Base64.getDecoder().decode(s));
+                }
+                yield actualValue;
             }
             default -> actualValue;
         };

@@ -70,7 +70,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.FLATTENED, EqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.TDIGEST, EqualsTDigestEvaluator.Factory::new),
         Map.entry(DataType.EXPONENTIAL_HISTOGRAM, EqualsExponentialHistogramEvaluator.Factory::new),
-        Map.entry(DataType.HISTOGRAM, EqualsBytesRefEvaluator.Factory::new)
+        Map.entry(DataType.HISTOGRAM, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.BINARY, EqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -87,6 +88,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             name = "lhs",
             type = {
                 "aggregate_metric_double",
+                "binary",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
@@ -116,6 +118,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             name = "rhs",
             type = {
                 "aggregate_metric_double",
+                "binary",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",

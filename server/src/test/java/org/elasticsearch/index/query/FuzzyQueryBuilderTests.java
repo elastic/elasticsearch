@@ -519,6 +519,20 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         );
     }
 
+    public void testFuzzyCostEstimateScalesWithTopTermsRewriteSize() {
+        Term term = new Term(TEXT_FIELD_NAME, "value");
+        FuzzyQuery few = new FuzzyQuery(term, 1, 0, 10, true);
+        FuzzyQuery many = new FuzzyQuery(term, 1, 0, 200, true);
+
+        long fewBytes = FuzzyQueries.estimateBytes(few);
+        long manyBytes = FuzzyQueries.estimateBytes(many);
+
+        assertTrue(
+            "a larger top-terms expansion cap must yield a larger cost estimate (" + fewBytes + " vs " + manyBytes + ")",
+            manyBytes > fewBytes
+        );
+    }
+
     public void testFieldTypeFuzzyQueryDoesNotChargeBreakerDirectly() throws IOException {
         assertFieldTypeFuzzyDoesNotChargeDirectly(null);
     }

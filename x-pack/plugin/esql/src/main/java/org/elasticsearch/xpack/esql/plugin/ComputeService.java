@@ -972,6 +972,22 @@ public class ComputeService {
                 break;
             }
         }
+        if (configuration.pragmas().remoteFetchTopN()
+            && hasConcreteIndices
+            && clusterToConcreteIndices.size() == 1
+            && clusterToConcreteIndices.containsKey(LOCAL_CLUSTER)
+            && clusterService.state().getMinTransportVersion().supports(DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION)
+            && dataNodePlan instanceof ExchangeSinkExec exchangeSink) {
+            var remoteFetchPlan = RemoteFetchReductionPlanner.planCoordinatorTopN(
+                stats -> new LocalPhysicalOptimizerContext(plannerSettings.get(), flags, configuration, foldContext, stats),
+                exchangeSink,
+                coordinatorPlan
+            );
+            if (remoteFetchPlan.isPresent()) {
+                coordinatorPlan = remoteFetchPlan.get().coordinatorPlan();
+                dataNodePlan = remoteFetchPlan.get().dataNodePlan();
+            }
+        }
         if (dataNodePlan == null) {
             if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
@@ -1047,7 +1063,16 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = remoteFetchService != null
+            && RemoteFetchReductionPlanner.needsRetainedSearchContexts(dataNodePlan)
+                ? remoteFetchService.newRetainedSessionReleaser()
+                : null;
+        listener = ActionListener.runBefore(listener, () -> {
+            if (remoteFetchRetainedSessionReleaser != null) {
+                remoteFetchRetainedSessionReleaser.close();
+            }
+            exchangeService.removeExchangeSourceHandler(sessionId);
+        });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             failIfAllShardsFailed(execInfo, collectedPages);
@@ -1116,6 +1141,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1401,6 +1427,7 @@ public class ComputeService {
                 projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
+                remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()
@@ -1616,10 +1643,38 @@ public class ComputeService {
         boolean reduceNodeLateMaterialization,
         PlanTimeProfile planTimeProfile
     ) {
+        return reductionPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            originalPlan,
+            runNodeLevelReduction,
+            reduceNodeLateMaterialization,
+            false,
+            null,
+            null,
+            planTimeProfile
+        );
+    }
+
+    static ReductionPlan reductionPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec originalPlan,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        boolean remoteFetchTopN,
+        String localNodeId,
+        String retainedSessionId,
+        PlanTimeProfile planTimeProfile
+    ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        if (remoteFetchTopN == false && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -1630,6 +1685,22 @@ public class ComputeService {
 
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+            case PlannerUtils.TopNReduction topN when remoteFetchTopN && localNodeId != null && retainedSessionId != null ->
+                RemoteFetchReductionPlanner.planReduceDriverTopN(
+                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                    originalPlan,
+                    localNodeId,
+                    retainedSessionId
+                )
+                    .orElseGet(
+                        () -> reduceNodeLateMaterialization
+                            ? LateMaterializationPlanner.planReduceDriverTopN(
+                                stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                                originalPlan
+                            ).orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction)
+                            : runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan())
+                            : passThroughReduction
+                    );
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other

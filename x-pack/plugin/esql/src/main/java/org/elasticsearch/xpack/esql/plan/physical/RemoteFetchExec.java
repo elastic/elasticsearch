@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 
 import java.io.IOException;
@@ -32,9 +36,10 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
  * </ul>
  * <p>
- * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a {@link RemoteFetchSource}
- * logical plan. This follows the same architectural pattern as lookup planning: logical plans are serialized and
- * shipped, while physical planning remains local to the target node.
+ * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a constrained
+ * {@link RemoteFetchSource}/{@link Eval}/{@link Filter}/{@link Project} logical plan. This follows the same
+ * architectural pattern as lookup planning: logical plans are serialized and shipped, while physical planning remains
+ * local to the target node.
  */
 public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -79,10 +84,23 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     private static FragmentExec requireFetchPlan(PhysicalPlan plan) {
-        if (plan instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof RemoteFetchSource) {
-            return fragmentExec;
+        if ((plan instanceof FragmentExec) == false) {
+            throw new IllegalArgumentException("remote fetch plan must be a FragmentExec");
         }
-        throw new IllegalArgumentException("remote fetch plan must be a FragmentExec containing RemoteFetchSource");
+        FragmentExec fragmentExec = (FragmentExec) plan;
+        LogicalPlan fragment = fragmentExec.fragment();
+        if (fragment.anyMatch(RemoteFetchSource.class::isInstance) == false) {
+            throw new IllegalArgumentException("remote fetch plan must contain RemoteFetchSource");
+        }
+        fragment.forEachDown(node -> {
+            if (node instanceof RemoteFetchSource == false
+                && node instanceof Eval == false
+                && node instanceof Filter == false
+                && node instanceof Project == false) {
+                throw new IllegalArgumentException("unsupported remote fetch pushdown plan [" + node.nodeName() + "]");
+            }
+        });
+        return fragmentExec;
     }
 
     @Override

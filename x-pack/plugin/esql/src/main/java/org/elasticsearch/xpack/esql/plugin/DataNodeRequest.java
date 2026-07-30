@@ -52,6 +52,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
         "esql_remote_fetch_retained_contexts"
     );
+    public static final TransportVersion ESQL_REMOTE_FETCH_TOPN_REDUCTION = TransportVersion.fromName("esql_remote_fetch_topn_reduction");
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );

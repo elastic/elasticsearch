@@ -128,6 +128,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser,
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
@@ -203,6 +204,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .equals(connection.getNode().getId());
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
+                            boolean retainSearchContexts = RemoteFetchReductionPlanner.needsRetainedSearchContexts(dataNodePlan);
+                            if (retainSearchContexts
+                                && connection.getTransportVersion().supports(DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+                                l.onFailure(
+                                    new IllegalStateException(
+                                        "remote fetch TopN requires transport version ["
+                                            + DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                                            + "] but node ["
+                                            + connection.getNode().getName()
+                                            + "] has ["
+                                            + connection.getTransportVersion()
+                                            + "]"
+                                    )
+                                );
+                                return;
+                            }
+                            if (retainSearchContexts && remoteFetchRetainedSessionReleaser != null) {
+                                remoteFetchRetainedSessionReleaser.track(connection.getNode(), nodeReduceSessionId(childSessionId));
+                            }
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -217,9 +237,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                // TODO: gate on EsqlCapabilities.Cap.REMOTE_FETCH plus request/connection transport versions
-                                // when coordinator planning starts requesting retained contexts.
-                                false
+                                retainSearchContexts
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             transportService.sendChildRequest(
@@ -813,6 +831,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         ReductionPlan reductionPlan;
+        final String sessionId = request.sessionId();
+        final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings().get(),
@@ -822,14 +842,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 plan,
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization(),
+                request.retainSearchContexts() && request.pragmas().remoteFetchTopN(),
+                clusterService.localNode().getId(),
+                nodeReduceSessionId,
                 planTimeProfile
             );
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
         }
-        final String sessionId = request.sessionId();
-        final String nodeReduceSessionId = sessionId + "[n]";
         request = new DataNodeRequest(
             nodeReduceSessionId, // internal session
             request.configuration(),
@@ -904,6 +925,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             planTimeProfile,
             responseListener
         );
+    }
+
+    private static String nodeReduceSessionId(String sessionId) {
+        return sessionId + "[n]";
     }
 
     /**

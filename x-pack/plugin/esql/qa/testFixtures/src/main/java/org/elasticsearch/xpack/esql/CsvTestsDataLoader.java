@@ -1164,7 +1164,7 @@ public class CsvTestsDataLoader {
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
-                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
+                            + (document.slice() != null ? ", \"" + SliceIndexing.PARAM_NAME + "\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1223,7 +1223,7 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
-                if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
+                if (columns[i] != null && SliceIndexing.FIELD_NAME.equals(columns[i].name)) {
                     slice = entries[i];
                     continue;
                 }

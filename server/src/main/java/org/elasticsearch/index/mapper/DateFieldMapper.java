@@ -257,6 +257,17 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
+    }
+
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
@@ -312,11 +323,7 @@ public final class DateFieldMapper extends FieldMapper {
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.docValuesParameters = DocValuesParameter.of(
-                DocValuesParameter.defaultValues(
-                    indexSettings,
-                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                    DocValuesParameter.Values.Cardinality.LOW
-                ),
+                defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );

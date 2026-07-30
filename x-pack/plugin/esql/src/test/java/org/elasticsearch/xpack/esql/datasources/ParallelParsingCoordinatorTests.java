@@ -229,10 +229,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Regression guard: {@link ParallelParsingCoordinator#computeSegments} opens a range stream for each nominal
      * split probe and reads only enough bytes to find the next record boundary. Whether it then aborts the stream
-     * or drains the rest of the window first depends on how much of the file the windows cover, which is
-     * {@link RecordBoundaryProbe#DRAIN_MIN_STRIDE_RATIO}. This fixture's nominal segment size is well inside that
-     * ratio, so every probe must call {@link StorageObject#abortStream}: draining here would transfer a large
-     * fraction of the file to place a handful of boundaries.
+     * or drains the rest of the window first depends on how much of the window is left to transfer, which
+     * {@link RecordBoundaryProbe#MAX_DRAIN_BYTES} bounds. This fixture's rows are short, so a probe leaves nearly
+     * all of a full-width window behind it and every probe must call {@link StorageObject#abortStream}: draining
+     * here would transfer a large fraction of the file to place a handful of boundaries.
      */
     public void testComputeSegmentsDoesNotDrainStream() throws IOException {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
@@ -258,10 +258,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             csvReader.minimumSegmentSize()
         );
 
+        long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
-            "this fixture's stride must sit inside the drain ratio, or it is no longer testing the abort path",
-            RecordBoundaryProbe.PROBE_WINDOW_BYTES * RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO,
-            Matchers.greaterThan(Math.max(fileLength / 4, csvReader.minimumSegmentSize()))
+            "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
+            RecordBoundaryProbe.probeWindow(stride, fileLength, stride),
+            Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
         assertTrue("each segment probe must abort the underlying stream", tracking.abortCalls.get() >= segments.size() - 1);

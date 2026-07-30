@@ -88,7 +88,6 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
@@ -1697,19 +1696,18 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * When the stride dwarfs the probe window, a probe opens a bounded window (at most
-     * {@link RecordBoundaryProbe#PROBE_WINDOW_BYTES}), finds the next record boundary within it, then drains the
-     * window's remaining bytes and closes so the HTTP connection returns to the pool for the next probe to reuse.
-     * It must not abort (an aborted partial body drops the connection, forcing a fresh handshake per probe), and
-     * it must not open a range to end-of-file (which would drain far more than the window).
+     * A probe with little enough of its window left to transfer drains the rest of it and closes, so the HTTP
+     * connection returns to the pool for the next probe to reuse. It must not abort (an aborted partial body drops
+     * the connection, forcing a fresh handshake per probe), and it must not open a range to end-of-file (which
+     * would drain far more than the window).
      */
     public void testSerialStridedProbesDrainBoundedProbeWindows() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // At exactly the drain ratio the windows cover 1/16 of the file, which is cheap enough to be worth the
-        // pooled connection.
-        long stride = RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO * RecordBoundaryProbe.PROBE_WINDOW_BYTES;
-        byte[] payload = stridesOfRows(stride, 3);
+        // A stride at the drain threshold caps every window there too, so no probe has more than
+        // MAX_DRAIN_BYTES left to transfer and all of them drain.
+        long stride = RecordBoundaryProbe.MAX_DRAIN_BYTES;
+        byte[] payload = stridesOfRows(stride, 32);
         long fileLength = payload.length;
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
@@ -1723,28 +1721,26 @@ public class FileSplitProviderTests extends ESTestCase {
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
         assertEquals("strided probes pool the connection by draining, never abort", 0, tracking.abortCalls.get());
         assertTrue("probe streams must be closed", tracking.closed.get());
-        // Each successful probe drains its full window, so at least (boundaries) * window bytes are read: proof
-        // the window is drained (an abort-without-drain would read only the few bytes up to the first newline).
-        long window = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
-        long probes = starts.size() - 1;
-        assertThat(tracking.bytesConsumed.get(), greaterThanOrEqualTo(probes * window));
-        // But far below the whole file: the probe reads a bounded window, never a range to end-of-file.
-        assertThat(
-            "boundary probes must read bounded windows; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
-            tracking.bytesConsumed.get(),
-            lessThan(fileLength / 2)
+        // Each probe transfers exactly its own window, which is the stride here: all of it, because it drained
+        // (an abort would have transferred only the few bytes up to the first newline), and no more than it,
+        // because the range is bounded rather than opened to end-of-file.
+        int probes = RecordBoundaryProbe.stridedPositions(fileLength, stride, csvReader.minimumSegmentSize()).size();
+        assertEquals(
+            "each probe must drain its own bounded window and no more, of a " + fileLength + " byte file",
+            probes * stride,
+            tracking.bytesConsumed.get()
         );
     }
 
     /**
-     * As the stride approaches the probe window the windows tile the file, and draining them would download the
-     * whole thing at planning time. Below the drain ratio a probe therefore aborts instead: it pays a connection
-     * per probe and transfers only the bytes it scanned.
+     * A probe that finds its boundary in the first row of a full-width window has nearly all of that window left,
+     * and above {@link RecordBoundaryProbe#MAX_DRAIN_BYTES} left the next probe's handshake is the cheaper of the
+     * two. Such a probe therefore aborts: it pays a connection per probe and transfers only the bytes it scanned.
      */
-    public void testStridedProbesAbortRatherThanDrainWhenWindowsWouldTileTheFile() throws IOException {
+    public void testStridedProbesAbortRatherThanDrainWhenTooMuchOfTheWindowIsLeft() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // One window per stride: draining here would transfer the entire file.
+        // A stride at the window ceiling leaves every window at its full width, twice the drain threshold.
         long stride = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
         byte[] payload = stridesOfRows(stride, 8);
         long fileLength = payload.length;
@@ -1756,8 +1752,8 @@ public class FileSplitProviderTests extends ESTestCase {
         List<Long> starts = serialStridedStarts(csvReader, object, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
 
         int probes = RecordBoundaryProbe.stridedPositions(fileLength, stride, csvReader.minimumSegmentSize()).size();
-        assertThat("the sub-ratio stride must still split the file", starts.size(), greaterThan(1));
-        assertEquals("every probe below the drain ratio aborts", probes, tracking.abortCalls.get());
+        assertThat("the fixture must still split the file", starts.size(), greaterThan(1));
+        assertEquals("every probe with more than the drain threshold left aborts", probes, tracking.abortCalls.get());
         // Each row falls on a stride boundary, so a probe finds its terminator within the first row and reads
         // essentially nothing. Draining would instead have transferred all of the file.
         assertThat(
@@ -1765,6 +1761,44 @@ public class FileSplitProviderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             lessThan(fileLength / 8)
         );
+    }
+
+    /**
+     * The release rule turns on how much of the window is left to transfer, and on nothing else. Two probes open
+     * the same full-width window at the same offset of the same file, and differ only in how far the record there
+     * runs: the one that scans down to {@link RecordBoundaryProbe#MAX_DRAIN_BYTES} left drains, the one that finds
+     * its boundary immediately aborts.
+     */
+    public void testTheReleaseRuleTurnsOnTheBytesLeftToTransfer() throws IOException {
+        long window = RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+
+        DrainSimulatingStorageObject.Tracking drainedIt = probeWindowWhoseRecordRunsFor(window - RecordBoundaryProbe.MAX_DRAIN_BYTES);
+        assertEquals("a probe with only the threshold left drains its window", 0, drainedIt.abortCalls.get());
+        assertEquals("which transfers all of it", window, drainedIt.bytesConsumed.get());
+
+        DrainSimulatingStorageObject.Tracking abortedIt = probeWindowWhoseRecordRunsFor(64);
+        assertEquals("a probe with more than the threshold left aborts instead", 1, abortedIt.abortCalls.get());
+        assertThat("transferring only what it scanned", abortedIt.bytesConsumed.get(), lessThan(window));
+    }
+
+    /**
+     * Probes one full-width window whose record at the probe offset ends {@code recordBytes} in, and reports what
+     * the storage object saw. The offset, the stride and so the window are the same for every call, so the bytes
+     * the probe is left to transfer are the only thing that varies.
+     */
+    private static DrainSimulatingStorageObject.Tracking probeWindowWhoseRecordRunsFor(long recordBytes) throws IOException {
+        int window = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES);
+        byte[] payload = new byte[3 * window];
+        Arrays.fill(payload, (byte) 'x');
+        // A newline just before the probe offset, so the offset itself starts a record, and the one that ends it.
+        payload[window - 1] = '\n';
+        payload[Math.toIntExact(window + recordBytes) - 1] = '\n';
+        payload[payload.length - 1] = '\n';
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
+        RecordBoundaryProbe.probeAt(stridedSplitter(), object, window, payload.length, 1, window, () -> false);
+        return tracking;
     }
 
     // strided macro-split discovery: fixed probe offsets, independent probes
@@ -1960,8 +1994,8 @@ public class FileSplitProviderTests extends ESTestCase {
      * nothing.
      */
     public void testAProbeCancelledMidScanAbortsInsteadOfDraining() {
-        // Wide enough a stride that an uncancelled probe here would drain; see DRAIN_MIN_STRIDE_RATIO.
-        long stride = RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO * RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        // A stride at the drain threshold caps the window there, so an uncancelled probe here would drain.
+        long stride = RecordBoundaryProbe.MAX_DRAIN_BYTES;
         byte[] payload = stridesOfRows(stride, 3);
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
@@ -1976,7 +2010,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         assertEquals("a cancelled probe aborts its stream", 1, tracking.abortCalls.get());
-        assertThat("and does not drain its window first", tracking.bytesConsumed.get(), lessThan(RecordBoundaryProbe.PROBE_WINDOW_BYTES));
+        assertThat("and does not drain its window first", tracking.bytesConsumed.get(), lessThan(RecordBoundaryProbe.MAX_DRAIN_BYTES));
     }
 
     /** A probe checks for cancellation before opening its stream, so a cancelled query issues no further reads. */

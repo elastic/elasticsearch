@@ -89,18 +89,18 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
     /**
      * Regression guard for {@link RecordBoundaryProbe#probeAt} through the same decorator chain used for
-     * uncompressed text files on object storage. At a stride far wider than the probe window a boundary probe
+     * uncompressed text files on object storage. With little enough of its window left to transfer a boundary probe
      * deliberately does <em>not</em> abort: it opens a bounded window, then drains and closes it so the connection
      * returns to the pool for the next probe (aborting would drop the connection and cost a handshake per probe).
-     * What the chain must preserve is the window's bound, so the total read stays a small fraction of the file
-     * rather than a range opened to end-of-file. A decorator that ignored the requested length would trip the
-     * upper bound here.
+     * What the chain must preserve is the window's bound, so each probe transfers its own window and not a range
+     * opened to end-of-file. A decorator that ignored the requested length would trip the assertion here.
      */
     public void testMacroSplitDiscoveryDrainsBoundedWindowsThroughDecoratorChain() throws IOException {
-        // Wide enough a stride that draining each window is worth the pooled connection; see DRAIN_MIN_STRIDE_RATIO.
-        long stride = RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO * RecordBoundaryProbe.PROBE_WINDOW_BYTES;
+        // A stride at the drain threshold caps every window there too, so no probe has more than
+        // MAX_DRAIN_BYTES left to transfer and all of them drain.
+        long stride = RecordBoundaryProbe.MAX_DRAIN_BYTES;
         String row = "0123456789,0123456789,012345678\n";
-        byte[] payload = row.repeat(Math.toIntExact(3 * stride / row.length())).getBytes(StandardCharsets.UTF_8);
+        byte[] payload = row.repeat(Math.toIntExact(32 * stride / row.length())).getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
@@ -127,27 +127,22 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
         assertEquals("a boundary probe pools its connection by draining, never aborts", 0, tracking.abortCalls.get());
         assertTrue("probe streams must be closed through the chain", tracking.closed.get());
-        assertThat(
-            "each probe drains its full window through the chain",
-            tracking.bytesConsumed.get(),
-            Matchers.greaterThanOrEqualTo((starts.size() - 1) * RecordBoundaryProbe.PROBE_WINDOW_BYTES)
-        );
-        assertThat(
-            "macro-split probes must read bounded windows, not ranges to end-of-file; consumed "
-                + tracking.bytesConsumed.get()
-                + " of "
-                + fileLength
-                + " bytes",
-            tracking.bytesConsumed.get(),
-            Matchers.lessThan(fileLength / 2)
+        // The whole window, because each probe drained it, and no more than it, because the chain preserved the
+        // requested length rather than opening a range to end-of-file.
+        int probes = RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment).size();
+        assertEquals(
+            "each probe must drain its own bounded window through the chain, of a " + fileLength + " byte file",
+            probes * stride,
+            tracking.bytesConsumed.get()
         );
     }
 
     /**
      * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing probes
      * record boundaries through the same decorator chain used for uncompressed object-store reads. This fixture's
-     * nominal segment size is well inside {@link RecordBoundaryProbe#DRAIN_MIN_STRIDE_RATIO}, so every probe
-     * aborts rather than draining, and the abort must reach the raw object through the chain.
+     * rows are short, so a probe leaves nearly all of its window untransferred, which is more than
+     * {@link RecordBoundaryProbe#MAX_DRAIN_BYTES}: every probe aborts rather than draining, and the abort must
+     * reach the raw object through the chain.
      */
     public void testComputeSegmentsAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -170,10 +165,11 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
 
+        long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
-            "this fixture's stride must sit inside the drain ratio, or it is no longer testing the abort path",
-            RecordBoundaryProbe.PROBE_WINDOW_BYTES * RecordBoundaryProbe.DRAIN_MIN_STRIDE_RATIO,
-            Matchers.greaterThan(Math.max(fileLength / 4, csvReader.minimumSegmentSize()))
+            "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
+            RecordBoundaryProbe.probeWindow(stride, fileLength, stride),
+            Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
         assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= segments.size() - 1);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -53,22 +54,24 @@ final class RecordBoundaryProbe {
      * asking for splits smaller than this gets them, with correspondingly smaller probes. Capping at the stride
      * is also what keeps one probe's window from reaching into the next probe's offset, so the boundaries a set
      * of offsets produces stay in the same order as the offsets themselves.
+     * <p>
+     * A window this wide sits above {@link #MAX_DRAIN_BYTES}, so a probe that finds its boundary early in a full
+     * window releases the stream by aborting it. Draining is for the probes that leave less behind: one whose
+     * window the stride or end-of-file cut to the threshold or below, and one that scanned most of a full window.
      */
     static final long PROBE_WINDOW_BYTES = 256 * 1024;
 
     /**
-     * How many times the stride must exceed the probe window before a probe drains its window rather than
-     * aborting it.
+     * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is
+     * cheaper than draining this one.
      * <p>
-     * Draining costs the whole window but returns the connection to the pool for the next probe, which on
-     * providers like S3 saves that probe a fresh connection setup; aborting costs the connection but transfers
-     * only what was scanned. Which is cheaper depends on how much of the file the windows cover, which is
-     * {@code window / stride}: at the default 64 MB stride a 256 KB window is 0.4% of the file and pooling is
-     * clearly worth it, while at a stride near the window the windows tile the file and draining would download
-     * all of it. This ratio is where the trade is called, so a drain never transfers more than {@code 1/16} of
-     * the bytes the walk strides over.
+     * Draining transfers the rest of the window but returns the connection to the pool, so the next probe skips a
+     * fresh TCP and TLS handshake; aborting transfers nothing further but discards the connection. What decides
+     * between them is how many bytes the link moves while a handshake completes, and the bandwidth to compare
+     * against is not the whole link: it is the link divided by the probes in flight. We chose the numbers below
+     * based on empirical testing.
      */
-    static final int DRAIN_MIN_STRIDE_RATIO = 16;
+    static final long MAX_DRAIN_BYTES = 128 * 1024;
 
     /**
      * The outcome of probing one offset: either the record boundary to cut at, or {@link #NONE} when the offset
@@ -97,9 +100,10 @@ final class RecordBoundaryProbe {
     /**
      * Finds the first record boundary at or after {@code pos} by reading a bounded window there.
      * <p>
-     * The stream is released either by draining the rest of the window and closing it, or by aborting it; see
-     * {@link #DRAIN_MIN_STRIDE_RATIO} for which and why. A probe that fails or is cancelled always aborts, so
-     * the connection and its storage permit are released at once rather than after a drain nothing will use.
+     * The stream is released either by draining the rest of the window and closing it, or by aborting it,
+     * according to how much of the window the splitter left unread; see {@link #MAX_DRAIN_BYTES}. A probe that
+     * fails or is cancelled always aborts, so the connection and its storage permit are released at once rather
+     * than after a drain nothing will use.
      * <p>
      * The {@link StorageRetryCancellation} scope that lets a read parked in retry/throttle backoff abort on
      * cancel belongs to the caller, not to this method. That scope is thread-local, so a caller that dispatches
@@ -108,8 +112,7 @@ final class RecordBoundaryProbe {
      * with this method's own, which for a caller whose probes are not separately cancellable would leave the
      * read unable to observe a cancel at all.
      *
-     * @param strideBytes the distance between the offsets the caller is probing, which bounds the window and
-     *                    decides whether draining it is worth the bytes
+     * @param strideBytes the distance between the offsets the caller is probing, which bounds the window
      */
     static Outcome probeAt(
         RecordSplitter splitter,
@@ -126,14 +129,14 @@ final class RecordBoundaryProbe {
         long window = probeWindow(pos, fileLength, strideBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
-        try (ProbeStream probe = new ProbeStream(storageObject, stream)) {
-            skipped = splitter.findNextRecordBoundary(stream);
+        try (ProbeStream probe = new ProbeStream(storageObject, stream, window)) {
+            skipped = splitter.findNextRecordBoundary(probe.forSplitter());
             // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
             // connection to, so there is nothing to buy by draining the rest of the window.
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             }
-            if (window * DRAIN_MIN_STRIDE_RATIO <= strideBytes) {
+            if (probe.remaining() <= MAX_DRAIN_BYTES) {
                 probe.drain();
             }
         }
@@ -163,11 +166,34 @@ final class RecordBoundaryProbe {
     private static final class ProbeStream implements Closeable {
         private final StorageObject storageObject;
         private final InputStream stream;
+        private final CountingInputStream counting;
+        private final long window;
         private boolean drained;
 
-        ProbeStream(StorageObject storageObject, InputStream stream) {
+        ProbeStream(StorageObject storageObject, InputStream stream, long window) {
             this.storageObject = storageObject;
             this.stream = stream;
+            this.counting = new CountingInputStream(stream);
+            this.window = window;
+        }
+
+        /**
+         * The stream to hand the splitter. Reads through it are counted, which is what lets {@link #remaining()}
+         * report the size of a drain rather than guess at it.
+         */
+        InputStream forSplitter() {
+            return counting;
+        }
+
+        /**
+         * How much of the window is still unread, which is exactly what {@link #drain()} would transfer.
+         * <p>
+         * Counting the reads is what makes this right in the two cases arithmetic on the splitter's return value
+         * gets wrong: a splitter that buffered past the boundary it reported has consumed more than it returned,
+         * and one that reported no boundary at all returns a sentinel rather than a byte count.
+         */
+        long remaining() {
+            return window - counting.getBytesRead();
         }
 
         /** Consumes the rest of the window so that closing the stream returns its connection to the pool. */

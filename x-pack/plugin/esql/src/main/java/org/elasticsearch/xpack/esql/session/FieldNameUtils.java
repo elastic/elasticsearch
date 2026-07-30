@@ -134,6 +134,9 @@ public class FieldNameUtils {
         var dropWildcardRefs = AttributeSet.builder();
         // fields required to request for lookup joins to work
         var joinRefs = AttributeSet.builder();
+        // references collected inside subquery (right) branches of subquery joins; they resolve against the subquery's own sources, so
+        // aliases defined by the outer pipeline must not remove them
+        var allSubqueryRefs = AttributeSet.builder();
         // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
@@ -246,18 +249,12 @@ public class FieldNameUtils {
                     joinRefs.addAll(keepRefs);
                 }
             } else if (p instanceof AbstractSubqueryJoin sj) {
-                // Collect the join-key references now, before descending into either child.
-                joinRefs.addAll(sj.references());
-                // The subquery (right side) is an independent query: its traversal must neither inherit the main
-                // pipeline's traversal state nor corrupt it. Save every piece of mutable context, reset for a clean
-                // subquery traversal, then restore so the main pipeline side (left) sees the correct pre-join context.
-                //
-                // referencesBuilder is NOT shared across the boundary. Instead, the subquery traversal gets its own
-                // fresh builder so that alias-removal logic inside the subquery (e.g. "rename event_duration AS
-                // @timestamp") cannot strip references that the outer query collected (e.g. @timestamp from
-                // CHANGE_POINT). After traversal the subquery's collected fields are merged into the main builder.
-                //
-                // joinRefs, wildcardJoinIndices, and projectAll still intentionally accumulate across the boundary.
+                // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
+                // the regular builder where outer aliases can shadow it.
+                referencesBuilder.get().addAll(sj.leftReferences());
+                // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
+                // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
+                // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
                 AttributeSet savedRefs = referencesBuilder.get().build();
                 AttributeSet savedKeepRefs = keepRefs.build();
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
@@ -276,8 +273,9 @@ public class FieldNameUtils {
 
                 sj.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
 
-                // Merge the subquery's collected references into the main-query builder, then restore all state.
+                // Merge the subquery's collected references into the main-query builder and restore all state.
                 AttributeSet subqueryRefs = referencesBuilder.get().build();
+                allSubqueryRefs.addAll(subqueryRefs);
                 referencesBuilder.set(AttributeSet.builder());
                 referencesBuilder.get().addAll(savedRefs);
                 referencesBuilder.get().addAll(subqueryRefs);
@@ -291,10 +289,8 @@ public class FieldNameUtils {
                 lastSeenFork.set(savedLastSeenFork);
                 reduceColumnsAfterFork.set(savedReduceColumnsAfterFork);
 
-                // Explicitly traverse the left child (main pipeline source) with the restored main-query context,
-                // then break early so the outer forEachDownMayReturnEarly does not also auto-descend into children.
-                // Without breakEarly the outer traversal would visit sj.right() a second time with the main query's
-                // state, which previously caused double-traversal corruption.
+                // Traverse the left child explicitly and break early, so the outer traversal does not descend into the children again and
+                // re-visit sj.right() with main-query state.
                 sj.left().forEachDownMayReturnEarly(forEachDownProcessor.get());
                 breakEarly.set(true);
                 return;
@@ -361,7 +357,10 @@ public class FieldNameUtils {
                         return;
                     }
                     referencesBuilder.get()
-                        .removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
+                        .removeIf(
+                            attr -> allSubqueryRefs.contains(attr) == false
+                                && matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                        );
                 });
             }
         });

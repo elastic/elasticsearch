@@ -3397,6 +3397,14 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testInSubqueryFieldShadowedByMainQueryStatsAlias() {
+        assertFieldNames("""
+            FROM employees
+            | STATS hire_date = MAX(salary), x = MIN(salary)
+            | WHERE x IN (FROM languages | KEEP language_id, hire_date | STATS c = COUNT(hire_date) | KEEP c)
+            """, Set.of("_index", "salary", "salary.*", "language_id", "language_id.*", "hire_date", "hire_date.*"));
+    }
+
     public void testSubqueryRenameDoesNotRemoveOuterQueryRef() {
         // Regression: the subquery renames 'salary' to 'first_name'. With a shared referencesBuilder the
         // alias-removal step would also strip 'first_name' from the outer query's field set, causing

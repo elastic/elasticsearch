@@ -168,7 +168,8 @@ using the index, and can appear anywhere in the query.
 When searching expressions:
 
 * [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-  (match query options) are not supported.
+  (match query options) are supported on `text` expressions, except for `analyzer`; on other
+  expression types they are not supported. {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 * `MATCH` on an expression does not contribute to the relevance score when
   using `METADATA _score`.
 

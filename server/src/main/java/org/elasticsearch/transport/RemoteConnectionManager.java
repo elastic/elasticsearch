@@ -274,8 +274,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     public static Optional<ProjectId> resolveLinkedProjectId(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
         if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
-            final ProjectId linkedProjectId = remoteConnection.getLinkedProjectId();
-            return ProjectId.DEFAULT.equals(linkedProjectId) ? Optional.empty() : Optional.of(linkedProjectId);
+            return remoteConnection.getLinkedProjectId();
         }
         return Optional.empty();
     }
@@ -388,7 +387,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
-        private final ProjectId linkedProjectId;
+        private final Optional<ProjectId> linkedProjectId;
         @Nullable
         private final SecureString clusterCredentials;
 
@@ -403,7 +402,10 @@ public class RemoteConnectionManager implements ConnectionManager {
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.connection = Objects.requireNonNull(connection);
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
-            this.linkedProjectId = Objects.requireNonNull(linkedProjectId);
+            Objects.requireNonNull(linkedProjectId);
+            // Store the linked project ID as an Optional that never surfaces ProjectId.DEFAULT (see resolveLinkedProjectId), so the
+            // Optional is computed once per connection rather than on every resolveLinkedProjectId call.
+            this.linkedProjectId = ProjectId.DEFAULT.equals(linkedProjectId) ? Optional.empty() : Optional.of(linkedProjectId);
             this.clusterCredentials = clusterCredentials;
         }
 
@@ -411,7 +413,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             return clusterAlias;
         }
 
-        public ProjectId getLinkedProjectId() {
+        public Optional<ProjectId> getLinkedProjectId() {
             return linkedProjectId;
         }
 

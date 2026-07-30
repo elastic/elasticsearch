@@ -197,3 +197,77 @@ EQL eql_test "process where true" WITH {"event_category_field": "category"}
 n:long | present:long
 2      | 0
 ;
+
+// -----------------------------------------------------------------------------------------------------
+// EQL as a first-class source command in composition contexts: subquery, WHERE IN (subquery), FORK
+// upstream, and a view whose body is an EQL command. All snapshot-only. Mixed/multi-cluster specs skip
+// on the eql_in_subquery / views capabilities.
+// -----------------------------------------------------------------------------------------------------
+
+subquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// A lone EQL subquery collapses to the EQL relation; downstream ES|QL composes over its typed columns.
+FROM (EQL eql_test "process where true" WITH {"event_category_field": "category"} | KEEP name, pid)
+| SORT name
+;
+
+name:keyword   | pid:long
+cmd.exe        | 100
+powershell.exe | 200
+;
+
+subquerySourceMixesEqlAndFromSiblings
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// One subquery branch is an EQL source, the sibling is a FROM source; the union merges typed rows.
+FROM (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP name, pid),
+     (FROM eql_test | WHERE category == "process" AND pid == 200 | KEEP name, pid)
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
+whereInSubquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: where_in_subquery_without_view
+required_capability: eql_in_subquery
+
+// The same subquery grammar rule feeds WHERE x IN (...); the EQL branch supplies the pid set {100}.
+FROM eql_test
+| WHERE pid IN (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP pid)
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+forkUpstreamIsEqlCommand
+required_capability: eql_command
+required_capability: fork_v9
+
+// EQL as the upstream source of FORK: the EQL leaf is replicated into each branch; the merge is typed.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| FORK ( WHERE pid == 100 ) ( WHERE pid == 200 )
+| KEEP name, pid, _fork
+| SORT pid
+;
+
+name:keyword   | pid:long | _fork:keyword
+cmd.exe        | 100      | fork1
+powershell.exe | 200      | fork2
+;
+
+// A view whose stored body is an EQL command — FROM <view> and FROM (FROM <view>) — is proven end to end by
+// EqlCompositionIT (internalClusterTest). It is intentionally NOT a csv-spec case here: the single-node QA
+// csv-spec cluster does not provision views (the PUT /_query/view endpoint is unavailable there, so no view
+// loads), which would fail such a case rather than skip it.

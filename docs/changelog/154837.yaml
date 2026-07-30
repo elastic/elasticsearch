@@ -1,5 +1,5 @@
 area: Analysis
 issues: []
 pr: 154837
-summary: Trip request breaker on suggesters
+summary: Trip request breaker on term and phrase suggesters based on backing array estimates
 type: bug

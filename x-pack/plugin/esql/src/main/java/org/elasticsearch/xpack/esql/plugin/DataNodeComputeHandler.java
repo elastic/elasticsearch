@@ -207,6 +207,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .isEnabled();
                             if (retainSearchContexts
                                 && connection.getTransportVersion().supports(DataNodeRequest.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+                                /*
+                                 * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
+                                 * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
+                                 * the coordinator's cluster-state view. We cannot degrade here because the data-node and coordinator plans
+                                 * have already been rewritten to exchange remote-fetch handles.
+                                 */
                                 l.onFailure(
                                     new IllegalStateException(
                                         "remote fetch TopN requires transport version ["

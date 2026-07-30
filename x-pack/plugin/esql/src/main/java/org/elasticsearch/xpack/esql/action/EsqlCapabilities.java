@@ -2128,7 +2128,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V2(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V3(Build.current().isSnapshot()),
 
         /**
          * Network direction function.

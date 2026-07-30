@@ -1192,16 +1192,26 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         CountDownLatch chunk2ToProcess = new CountDownLatch(1);
         final AtomicBoolean awaitingChunk1TransportSendComplete = new AtomicBoolean(false);
         final AtomicLong chunk1PressureAtOnResponseSent = new AtomicLong(-1);
+        // Serializes second-shard VBCC chunk requests so each fully finishes before the next begins
+        // (needed when a larger BCC produces multiple valid chunk2 requests).
+        final AtomicInteger chunk2InProgress = new AtomicInteger(0);
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
-                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
-                    && awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
-                    // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.
-                    // Pressure must still be counted at onResponseSent.
-                    chunk1PressureAtOnResponseSent.set(vbccChunksPressure.getCurrentChunksBytes());
-                    chunk1TransportSendComplete.countDown();
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    if (awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
+                        // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.
+                        // Pressure must still be counted at onResponseSent.
+                        chunk1PressureAtOnResponseSent.set(vbccChunksPressure.getCurrentChunksBytes());
+                        chunk1TransportSendComplete.countDown();
+                    } else {
+                        try {
+                            assertBusy(() -> assertThat(chunk2InProgress.compareAndExchange(1, 0), equalTo(1)));
+                        } catch (Exception e) {
+                            throw new AssertionError("failed to release chunk2InProgress", e);
+                        }
+                    }
                 }
             }
         });
@@ -1231,6 +1241,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                         }
                     }, task);
                 } else if (r.getShardId().equals(index2shardId)) {
+                    assertBusy(() -> assertThat(chunk2InProgress.compareAndExchange(0, 1), equalTo(0)));
                     chunk2Attempts.countDown();
                     if (chunk2Attempts.getCount() == 0) {
                         // halt the third attempt of the second refresh
@@ -1239,6 +1250,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     handler.messageReceived(request, new TransportChannel() {
                         @Override
                         public void sendResponse(Exception exception) {
+                            assertThat(chunk2Attempts.getCount(), greaterThan(0L));
                             final var rejectedException = ExceptionsHelper.unwrap(exception, EsRejectedExecutionException.class);
                             assertNotNull(rejectedException);
                             assertThat(
@@ -1249,6 +1261,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                                 )
                             );
                             channel.sendResponse(exception);
+                            try {
+                                assertBusy(() -> assertThat(chunk2InProgress.compareAndExchange(1, 0), equalTo(1)));
+                            } catch (Exception e) {
+                                throw new AssertionError("failed to release chunk2InProgress", e);
+                            }
                         }
 
                         @Override
@@ -1312,7 +1329,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         }
 
         measurements = metricsPlugin.getLongCounterMeasurement(CHUNK_REQUESTS_REJECTED_METRIC);
-        assertThat(measurements.size(), greaterThanOrEqualTo(2));
+        assertThat(measurements.size(), equalTo(2));
         assertRejectionMeasurement(measurements.get(0));
         assertRejectionMeasurement(measurements.get(1));
     }

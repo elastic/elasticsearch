@@ -40,4 +40,50 @@ public class HighlightGoldenTests extends GoldenTestCase {
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
+
+    /**
+     * TopN moves below HIGHLIGHT and is pushed into the source.
+     */
+    public void testTopNIsPushedBelowHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT emp_no DESC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /**
+     * HIGHLIGHT moves past the Eval and TopN created for a sort expression. The TopN remains local because Lucene cannot sort
+     * on the expression.
+     */
+    public void testHighlightIsHoistedPastEvalAndTopN() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT LENGTH(last_name) DESC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /**
+     * TopN stays above HIGHLIGHT when it sorts on a generated highlight column.
+     */
+    public void testTopNOnGeneratedSnippetIsNotPushedBelowHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT highlight_first_name ASC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
 }

@@ -44,7 +44,7 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
         when(statusLine.getStatusCode()).thenReturn(413);
         RetryException retryException = expectThrows(
             ContentTooLargeException.class,
-            () -> responseHandler.checkForFailureStatusCode(mockRequest, httpResult)
+            () -> responseHandler.handleFailureStatusCode(mockRequest, httpResult)
         );
         assertThat(retryException.shouldRetry(), is(true));
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
@@ -56,7 +56,7 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
         // 400 content too large
         var retryException = expectThrows(
             ContentTooLargeException.class,
-            () -> responseHandler.checkForFailureStatusCode(mockRequest, createContentTooLargeResult400())
+            () -> responseHandler.handleFailureStatusCode(mockRequest, createContentTooLargeResult400())
         );
         assertThat(retryException.shouldRetry(), is(true));
         assertThat(retryException.getCause().getMessage(), containsString("Received a content too large status code"));
@@ -72,7 +72,7 @@ public class NvidiaEmbeddingsResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         // 400 generic bad request should not be marked as a content too large
         when(statusLine.getStatusCode()).thenReturn(400);
-        var retryException = expectThrows(RetryException.class, () -> responseHandler.checkForFailureStatusCode(mockRequest, httpResult));
+        var retryException = expectThrows(RetryException.class, () -> responseHandler.handleFailureStatusCode(mockRequest, httpResult));
         assertThat(retryException.shouldRetry(), is(false));
         assertThat(
             retryException.getCause().getMessage(),

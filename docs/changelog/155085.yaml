@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154804
+pr: 155085
+summary: Improve inferring non-null aggregation constraints
+type: bug

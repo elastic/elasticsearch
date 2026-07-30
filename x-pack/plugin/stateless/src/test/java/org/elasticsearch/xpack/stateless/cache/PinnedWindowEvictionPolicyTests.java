@@ -341,6 +341,9 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 StatelessCacheEvictionPolicyType.PINNED_WINDOW
             )
             .put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION)
+            // Disable eviction degradation: this test checks pure pinned-window policy behaviour and should not be subject
+            // to the degradation mechanism evicting unknown-timestamp (pinned) regions when the policy rejects too many.
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.getKey(), TimeValue.ZERO)
             .put("path.home", createTempDir())
             .build();
     }

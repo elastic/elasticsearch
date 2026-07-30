@@ -1005,4 +1005,27 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(metadata.ramBytesUsed(), equalTo(computed));
         assertThat(memoField.getLong(metadata), equalTo(computed));
     }
+
+    public void testRamBytesUsedIncludesRoutingPaths() {
+        Settings base = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutPaths = IndexMetadata.builder("test").settings(base).build();
+        Settings withPathSettings = Settings.builder().put(base).putList("index.routing_path", "dim1", "dim2", "dim3").build();
+        IndexMetadata withPaths = IndexMetadata.builder("test").settings(withPathSettings).build();
+
+        assertThat(withPaths.ramBytesUsed(), greaterThan(withoutPaths.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesAliasBoxedFields() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutBoxed = IndexMetadata.builder("test")
+            .settings(settings)
+            .putAlias(AliasMetadata.builder("alias").build())
+            .build();
+        IndexMetadata withBoxed = IndexMetadata.builder("test")
+            .settings(settings)
+            .putAlias(AliasMetadata.builder("alias").writeIndex(true).isHidden(true).build())
+            .build();
+
+        assertThat(withBoxed.ramBytesUsed(), greaterThan(withoutBoxed.ramBytesUsed()));
+    }
 }

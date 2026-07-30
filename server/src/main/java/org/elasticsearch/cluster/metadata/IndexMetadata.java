@@ -170,12 +170,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Returns an estimated heap footprint for this index metadata instance, including settings, mapping, and other
-     * fields whose size grows with index configuration.
-     * <p>
-     * This is a per-index estimate. Each instance includes the full cost of its {@link #mapping()}, even when multiple
-     * indices share one {@link MappingMetadata} instance (deduplicated in {@link ProjectMetadata}). Callers summing
-     * across indices must subtract duplicate mapping costs, keeping one count per shared instance.
+     * Returns an estimated heap footprint for this index metadata instance. Counts all reference fields using
+     * {@link RamUsageEstimator} and {@link Accountable} implementations where available. Shared instances may be
+     * counted multiple times when summed across indices.
      */
     @Override
     public long ramBytesUsed() {
@@ -184,22 +181,101 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return value;
         }
         long size = BASE_RAM_BYTES_USED;
+        size += sizeOfIndex(index);
         size += settings.ramBytesUsed();
         if (mapping != null) {
             size += mapping.ramBytesUsed();
         }
         size += RamUsageEstimator.sizeOf(primaryTerms);
-        // sizeOfMap (not sizeOfObject) enters at depth 0, so it fully walks these two-level structures
-        // (Map<Integer,Set<String>> and Map<String,DiffableStringMap>) within RamUsageEstimator.MAX_DEPTH.
-        // If either field ever nests 3+ levels deep, nested contents would be under-counted here.
         size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
         size += RamUsageEstimator.sizeOfObject(aliases);
         size += RamUsageEstimator.sizeOfMap(customData);
         size += RamUsageEstimator.sizeOfObject(inferenceFields);
         size += RamUsageEstimator.sizeOfObject(rolloverInfos);
+        size += sizeOfTransportVersion(transportVersion);
+        size += RamUsageEstimator.shallowSizeOf(state);
+        size += RamUsageEstimator.sizeOfCollection(routingPaths);
+        size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
+        size += RamUsageEstimator.shallowSizeOf(requireFilters);
+        size += RamUsageEstimator.shallowSizeOf(includeFilters);
+        size += RamUsageEstimator.shallowSizeOf(excludeFilters);
+        size += RamUsageEstimator.shallowSizeOf(initialRecoveryFilters);
+        size += sizeOfIndexVersion(indexCreatedVersion);
+        size += sizeOfIndexVersion(mappingsUpdatedVersion);
+        size += sizeOfIndexVersion(indexCompatibilityVersion);
+        size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
+        size += RamUsageEstimator.shallowSizeOf(timestampRange);
+        size += RamUsageEstimator.shallowSizeOf(eventIngestedRange);
+        size += RamUsageEstimator.sizeOfCollection(tierPreference);
+        size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
+        size += sizeOfLifecycleExecutionState(lifecycleExecutionState);
+        size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
+        size += RamUsageEstimator.shallowSizeOf(indexMode);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
+        size += sizeOfIndexMetadataStats(stats);
+        size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
+        size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
+        size += RamUsageEstimator.shallowSizeOf(reshardingMetadata);
         value = size;
         ramBytesUsed = value;
         return value;
+    }
+
+    private static long sizeOfIndex(Index index) {
+        return RamUsageEstimator.shallowSizeOf(index)
+            + RamUsageEstimator.sizeOf(index.getName())
+            + RamUsageEstimator.sizeOf(index.getUUID());
+    }
+
+    private static long sizeOfTransportVersion(@Nullable TransportVersion version) {
+        if (version == null) {
+            return 0L;
+        }
+        long size = RamUsageEstimator.shallowSizeOf(version);
+        size += RamUsageEstimator.sizeOf(version.name());
+        size += sizeOfTransportVersion(version.nextPatchVersion());
+        return size;
+    }
+
+    private static long sizeOfIndexVersion(IndexVersion indexVersion) {
+        return RamUsageEstimator.shallowSizeOf(indexVersion) + RamUsageEstimator.shallowSizeOf(indexVersion.luceneVersion());
+    }
+
+    private static long sizeOfLifecycleExecutionState(@Nullable LifecycleExecutionState state) {
+        if (state == null) {
+            return 0L;
+        }
+        long size = RamUsageEstimator.shallowSizeOf(state);
+        size += RamUsageEstimator.sizeOf(state.phase());
+        size += RamUsageEstimator.sizeOf(state.action());
+        size += RamUsageEstimator.sizeOf(state.step());
+        size += RamUsageEstimator.sizeOf(state.failedStep());
+        size += RamUsageEstimator.shallowSizeOf(state.isAutoRetryableError());
+        size += RamUsageEstimator.shallowSizeOf(state.failedStepRetryCount());
+        size += RamUsageEstimator.sizeOf(state.stepInfo());
+        size += RamUsageEstimator.sizeOf(state.previousStepInfo());
+        size += RamUsageEstimator.sizeOf(state.phaseDefinition());
+        size += RamUsageEstimator.shallowSizeOf(state.lifecycleDate());
+        size += RamUsageEstimator.shallowSizeOf(state.phaseTime());
+        size += RamUsageEstimator.shallowSizeOf(state.actionTime());
+        size += RamUsageEstimator.shallowSizeOf(state.stepTime());
+        size += RamUsageEstimator.sizeOf(state.snapshotRepository());
+        size += RamUsageEstimator.sizeOf(state.snapshotName());
+        size += RamUsageEstimator.sizeOf(state.shrinkIndexName());
+        size += RamUsageEstimator.sizeOf(state.snapshotIndexName());
+        size += RamUsageEstimator.sizeOf(state.downsampleIndexName());
+        size += RamUsageEstimator.sizeOf(state.forceMergeCloneIndexName());
+        return size;
+    }
+
+    private static long sizeOfIndexMetadataStats(@Nullable IndexMetadataStats stats) {
+        if (stats == null) {
+            return 0L;
+        }
+        return RamUsageEstimator.shallowSizeOf(stats)
+            + RamUsageEstimator.shallowSizeOf(stats.writeLoad())
+            + RamUsageEstimator.shallowSizeOf(stats.averageShardSize());
     }
 
     public enum State implements Writeable {

@@ -89,9 +89,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         size += RamUsageEstimator.sizeOf(inferenceId);
         size += RamUsageEstimator.sizeOf(searchInferenceId);
         size += RamUsageEstimator.sizeOf(sourceFields);
-        if (chunkingSettings != null) {
-            size += RamUsageEstimator.sizeOfObject(chunkingSettings);
-        }
+        size += RamUsageEstimator.sizeOfMap(chunkingSettings);
         return size;
     }
 

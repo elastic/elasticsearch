@@ -233,7 +233,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     ? new AutomatonQueryWithDescription(term, dfa, term.text())
                     : new AutomatonQuery(term, dfa, false, method);
             }
-            context.addCircuitBreakerMemory(0L, reservation, "wildcard-compiled:" + name());
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "wildcard-compiled:" + name());
+            context.markQueryMemoryPreCharged(query);
         } else {
             if (caseInsensitive) {
                 query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
@@ -274,10 +275,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
                 : new AutomatonQuery(term, dfa, false, method);
-            // Construction succeeded; refund the pre-flight reservation. The retained
-            // ramBytesUsed() of the produced query is charged once per phase by the
-            // visitor walk in AbstractQueryBuilder#toQuery.
-            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + name());
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp-compiled:" + name());
+            context.markQueryMemoryPreCharged(query);
         } else {
             query = method == null
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)

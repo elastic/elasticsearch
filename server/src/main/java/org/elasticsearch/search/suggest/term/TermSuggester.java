@@ -16,7 +16,6 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -72,16 +71,6 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         } finally {
             searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
         }
-    }
-
-    /**
-     * Estimates the heap used by a Lucene {@code SuggestWordQueue} of the given size, which pre-allocates
-     * an {@code Object[size + 1]} backing array.
-     */
-    private static long priorityQueueRamBytesUsed(int size) {
-        return RamUsageEstimator.alignObjectSize(
-            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
     }
 
     private static List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {

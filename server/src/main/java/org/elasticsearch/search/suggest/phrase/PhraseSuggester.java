@@ -18,7 +18,6 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -190,16 +189,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                 searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             }
         }
-    }
-
-    /**
-     * Estimates the heap used by a Lucene {@link org.apache.lucene.util.PriorityQueue} (or {@code SuggestWordQueue})
-     * of the given size, which pre-allocates an {@code Object[size + 1]} backing array.
-     */
-    private static long priorityQueueRamBytesUsed(int size) {
-        return RamUsageEstimator.alignObjectSize(
-            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
     }
 
     private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {

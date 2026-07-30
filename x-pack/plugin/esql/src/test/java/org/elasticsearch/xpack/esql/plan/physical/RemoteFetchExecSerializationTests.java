@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 
 import java.io.IOException;
@@ -33,6 +34,18 @@ public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSeria
     @Override
     protected RemoteFetchExec createTestInstance() {
         return randomRemoteFetchExec(0);
+    }
+
+    public void testAllowsPushdownFetchPlan() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        RemoteFetchSource fetchSource = new RemoteFetchSource(randomSource(), attributesToFetch);
+        FragmentExec fetchPlan = new FragmentExec(new Project(randomSource(), fetchSource, attributesToFetch));
+
+        RemoteFetchExec exec = new RemoteFetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan);
+
+        assertSame(fetchPlan, exec.fetchPlan());
     }
 
     @Override

@@ -275,11 +275,15 @@ public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsN
         // Collect estimates into an array.
         double[] estimates = new double[estimatesCount];
         boolean allNaNs = true;
+        double minEstimate = Double.MAX_VALUE;
+        double maxEstimate = Double.MIN_VALUE;
         int offset = estimatesBlock.getFirstValueIndex(position);
         for (int i = 0; i < estimatesCount; i++) {
             estimates[i] = estimatesBlock.getDouble(offset + i);
             if (Double.isNaN(estimates[i]) == false) {
                 allNaNs = false;
+                minEstimate = Math.min(minEstimate, estimates[i]);
+                maxEstimate = Math.max(maxEstimate, estimates[i]);
             }
         }
 
@@ -341,6 +345,16 @@ public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsN
         // Pick the NaN strategy that gives the mean closest to the best estimate.
         boolean ignoreNaNs = Math.abs(meanIgnoreNan - bestEstimate) < Math.abs(meanZeroNan - bestEstimate);
         double mm = ignoreNaNs ? meanIgnoreNan : meanZeroNan;
+
+        if (ignoreNaNs == false) {
+            minEstimate = Math.min(minEstimate, 0.0);
+            maxEstimate = Math.max(maxEstimate, 0.0);
+        }
+        // Estimate are totally inconsistent with bestEstimate.
+        if (bestEstimate < minEstimate || bestEstimate > maxEstimate) {
+            resultBuilder.appendNull();
+            return;
+        }
 
         // To compute the reliability of each trial's estimate, we use the skewness and kurtosis
         // of the bucket estimates. Under the null hypothesis these should be zero. If these are
@@ -439,7 +453,6 @@ public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsN
             resultBuilder.appendDouble((double) reliableCount / trialCount);
             resultBuilder.endPositionEntry();
         } else {
-
             resultBuilder.appendNull();
         }
     }

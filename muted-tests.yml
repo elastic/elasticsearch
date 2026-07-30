@@ -556,9 +556,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/155173
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testExplainApi
-  issue: https://github.com/elastic/elasticsearch/issues/155193
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/155213

@@ -77,10 +77,15 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                     return aggregate;
                 }
 
+                // All attributes returned by `InferIsNotNull.resolveExpressionAsRootAttributes`
+                // must be non-null, otherwise the aggregation function returns null.
+                // This is needed for surrogates like: AVG(x) = SUM(TO_DOUBLE(x)) / COUNT(x).
                 predicates.add(Predicates.combineAnd(attributes.stream().map(a -> new IsNotNull(aggregate.source(), a)).toList()));
             }
         }
 
+        // If all predicates are false, a document contributes to no aggregation at all.
+        // Hence, we can add a filter by an "or" of all predicates.
         return aggregate.replaceChild(new Filter(aggregate.source(), aggregate.child(), Predicates.combineOr(predicates)));
     }
 }

@@ -238,6 +238,110 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testUnmappedLoadReturnsSourceValues() {
+        setupUnmappedIndex();
+        // note lives only in _source (the index is dynamic:false); LOAD must fetch it via the fields API's
+        // include_unmapped — the E2E proof that the flag survives EqlSearchRequest → SourceGenerator → fetch phase.
+        String query =
+            "SET unmapped_fields = \"load\"; EQL eql_unmapped \"process where true\" | KEEP process.name, note | SORT process.name";
+        try (EsqlQueryResponse resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("process.name", "note"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            assertEquals("alpha", Objects.toString(rows.get(0).get(1)));  // cmd.exe
+            assertEquals("beta", Objects.toString(rows.get(1).get(1)));   // powershell.exe
+        }
+    }
+
+    public void testUnmappedLoadSequenceReturnsSourceValues() {
+        setupUnmappedIndex();
+        // Sequence reconstruction uses a different EQL fetch path (BasicQueryClient) than event queries; prove
+        // include_unmapped is honored there too.
+        String query = "SET unmapped_fields = \"load\"; EQL eql_unmapped "
+            + "\"sequence by process.pid [process where true] [network where true]\" | KEEP _sequence_stage, note";
+        try (EsqlQueryResponse resp = run(query)) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            assertEquals("alpha", Objects.toString(rows.get(0).get(1)));  // process event p1
+            assertEquals("gamma", Objects.toString(rows.get(1).get(1)));  // network event n1
+        }
+    }
+
+    public void testUnmappedNullifyReturnsNulls() {
+        setupUnmappedIndex();
+        String query = "SET unmapped_fields = \"nullify\"; EQL eql_unmapped \"process where true\" | KEEP process.name, note";
+        try (EsqlQueryResponse resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("process.name", "note"));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(2));
+            rows.forEach(row -> assertNull("nullify must not leak the _source value", row.get(1)));
+        }
+    }
+
+    public void testUnmappedDefaultFailsUnknownColumnE2E() {
+        setupUnmappedIndex();
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("EQL eql_unmapped \"process where true\" | KEEP note").close()
+        );
+        assertThat(e.getMessage(), containsString("Unknown column [note]"));
+    }
+
+    private void setupUnmappedIndex() {
+        // dynamic:false so `note` stays in _source without being added to the mapping — a genuinely unmapped field.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("eql_unmapped")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("""
+                    {"dynamic":false,"properties":{
+                      "@timestamp":{"type":"date"},
+                      "event.category":{"type":"keyword"},
+                      "process.name":{"type":"keyword"},
+                      "process.pid":{"type":"long"}
+                    }}""")
+        );
+        client().prepareBulk()
+            .add(
+                new IndexRequest("eql_unmapped").id("p1")
+                    .source(
+                        "@timestamp",
+                        "2026-07-22T10:00:00Z",
+                        "event.category",
+                        "process",
+                        "process.name",
+                        "cmd.exe",
+                        "process.pid",
+                        100,
+                        "note",
+                        "alpha"
+                    )
+            )
+            .add(
+                new IndexRequest("eql_unmapped").id("n1")
+                    .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "network", "process.pid", 100, "note", "gamma")
+            )
+            .add(
+                new IndexRequest("eql_unmapped").id("p2")
+                    .source(
+                        "@timestamp",
+                        "2026-07-22T10:00:02Z",
+                        "event.category",
+                        "process",
+                        "process.name",
+                        "powershell.exe",
+                        "process.pid",
+                        200,
+                        "note",
+                        "beta"
+                    )
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+    }
+
     private record CapturedQuery(List<List<Object>> rows, List<String> warnings) {}
 
     /**

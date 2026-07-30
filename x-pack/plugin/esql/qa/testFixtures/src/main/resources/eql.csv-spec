@@ -169,3 +169,31 @@ EQL eql_test "sequence by pid [process where true] [network where true]" METADAT
 events:long | sequences:long | _index:keyword
 4           | 2              | eql_test
 ;
+
+nullifyUnmappedColumnDownstream
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name, unmapped_host
+| SORT name
+;
+
+name:keyword   | unmapped_host:null
+cmd.exe        | null
+powershell.exe | null
+;
+
+nullifyUnmappedStatsCountsZero
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), present = COUNT(unmapped_host)
+;
+
+n:long | present:long
+2      | 0
+;

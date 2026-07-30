@@ -96,8 +96,8 @@ public final class EqlPageConverter {
         try {
             for (int c = 0; c < width; c++) {
                 Attribute attr = schema.get(c);
-                // Unsupported columns (and the NULL-typed NO_FIELDS placeholder) have no fields-API value; render
-                // them as constant-null columns, like FROM.
+                // NULL-typed columns have no fields-API value — the NO_FIELDS placeholder and NULLIFY-mode unmapped
+                // columns — as do unsupported columns; render them all as constant-null columns, like FROM.
                 wrappers[c] = attr instanceof UnsupportedAttribute || attr.dataType() == DataType.NULL
                     ? null
                     : BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(attr.dataType()), positions);

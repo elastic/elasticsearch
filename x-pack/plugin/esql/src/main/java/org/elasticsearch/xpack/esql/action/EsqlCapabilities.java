@@ -2728,6 +2728,15 @@ public class EsqlCapabilities {
         EQL_COMMAND_METADATA(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command honours {@code SET unmapped_fields} (NULLIFY / LOAD) for fields referenced by
+         * downstream ES|QL but absent from the mapping, the same as {@code FROM}. It also loads partially-mapped
+         * keyword fields from {@code _source} on multi-index patterns (field-caps produces a
+         * {@code PotentiallyUnmappedKeywordEsField} regardless of the setting), matching {@code FROM}. Snapshot-only,
+         * gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

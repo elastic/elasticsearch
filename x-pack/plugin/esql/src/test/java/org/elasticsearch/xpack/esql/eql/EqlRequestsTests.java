@@ -12,9 +12,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.List;
@@ -78,6 +81,28 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(fields.get(0).format, nullValue());
         assertThat(fields.get(1).field, equalTo("@timestamp"));
         assertThat(fields.get(1).format, equalTo("epoch_millis"));
+    }
+
+    public void testNullifiedColumnCarriesNoFetchField() {
+        // A nullified unmapped column (NULL-typed) produces no value; it must not add a fetch entry.
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), fieldAttribute("foo", DataType.NULL));
+        EqlSearchRequest request = build("process where true", "logs", schema, Map.of());
+        assertThat(request.fetchFields(), hasSize(1));
+        assertThat(request.fetchFields().get(0).field, equalTo("process.name"));
+    }
+
+    public void testLoadColumnFetchesWithIncludeUnmapped() {
+        // A LOAD-mode unmapped column is backed by PotentiallyUnmappedKeywordEsField and must fetch include_unmapped.
+        FieldAttribute loaded = new FieldAttribute(EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), loaded);
+        EqlSearchRequest request = build("process where true", "logs", schema, Map.of());
+
+        List<FieldAndFormat> fields = request.fetchFields();
+        assertThat(fields, hasSize(2));
+        FieldAndFormat foo = fields.stream().filter(f -> f.field.equals("foo")).findFirst().orElseThrow();
+        assertThat("LOAD column must fetch include_unmapped", foo.includeUnmapped, equalTo(Boolean.TRUE));
+        FieldAndFormat name = fields.stream().filter(f -> f.field.equals("process.name")).findFirst().orElseThrow();
+        assertThat("mapped column must not set include_unmapped", name.includeUnmapped, nullValue());
     }
 
     public void testMetadataAttributesCarryNoFetchFields() {

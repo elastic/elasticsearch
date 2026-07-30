@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -90,6 +91,24 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return esr.withAdditionalAttributes(fields);
     }
 
+    /**
+     * The {@link EqlRelation} counterpart of {@link #withAdditionalAttributesUnlessLookup}: appends the unmapped-field
+     * columns to the EQL source's output. Same {@code NO_FIELDS}-marker replacement as {@code EsRelation}, and an empty
+     * add returns the same instance so the analyzer batch reaches a fixed point.
+     */
+    private static EqlRelation withAdditionalAttributes(EqlRelation eqlr, List<? extends Attribute> fields) {
+        if (fields.isEmpty()) {
+            return eqlr;
+        }
+        if (eqlr.output().equals(Analyzer.NO_FIELDS)) {
+            return eqlr.withAttributes(new ArrayList<>(fields));
+        }
+        List<Attribute> combined = new ArrayList<>(eqlr.output().size() + fields.size());
+        combined.addAll(eqlr.output());
+        combined.addAll(fields);
+        return eqlr.withAttributes(combined);
+    }
+
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
         return switch (context.unmappedResolution()) {
@@ -137,6 +156,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
+        // The EQL source has a real value channel too: add the null-typed columns to its output, like EsRelation.
+        transformed = transformed.transformUp(
+            EqlRelation.class,
+            eqlr -> withAdditionalAttributes(eqlr, fieldsToNullify(unresolved, Expressions.names(eqlr.output())))
+        );
         return nullifyNonEsRelationSources(transformed, unresolved);
     }
 
@@ -146,8 +170,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        // EqlRelation was already handled above (fields added to its output), so it must be excluded here — otherwise
+        // the Eval-atop fallback would reach assertSourceType, whose default arm throws on the EQL source.
         var transformed = plan.transformUp(
-            n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
+            n -> n instanceof UnaryPlan unary
+                && unary.child() instanceof LeafPlan leaf
+                && leaf instanceof EsRelation == false
+                && leaf instanceof EqlRelation == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
         return transformed.transformUp(
@@ -195,7 +224,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return plan.transformUp(EsRelation.class, esr -> {
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
-        });
+        }).transformUp(EqlRelation.class, eqlr -> withAdditionalAttributes(eqlr, fieldsToLoad(toLoad, Expressions.names(eqlr.output()))));
     }
 
     /**
@@ -306,7 +335,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
-            if (child instanceof LeafPlan source && source instanceof EsRelation == false) {
+            if (child instanceof LeafPlan source && source instanceof EsRelation == false && source instanceof EqlRelation == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;

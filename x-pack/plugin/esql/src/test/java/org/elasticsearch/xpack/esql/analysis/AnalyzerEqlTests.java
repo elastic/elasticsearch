@@ -11,9 +11,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
@@ -36,6 +38,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -237,8 +240,131 @@ public class AnalyzerEqlTests extends ESTestCase {
         assertThat(types(output), contains(DataType.NULL));
     }
 
+    public void testNullifyDoesNotCrashOnEqlSource() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // Regression: nullify over an EQL source used to hit assertSourceType's default throw (a 500-class error).
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"process where true\" | WHERE foo == \"x\"", UnmappedResolution.NULLIFY)
+        );
+
+        // The downstream-referenced unmapped field is appended last as a NULL-typed column.
+        Attribute foo = output.get(output.size() - 1);
+        assertThat(foo.name(), equalTo("foo"));
+        assertThat(foo.dataType(), equalTo(DataType.NULL));
+    }
+
+    public void testLoadAddsKeywordColumnForDownstreamReference() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"process where true\" | WHERE foo == \"x\"", UnmappedResolution.LOAD)
+        );
+
+        Attribute foo = output.get(output.size() - 1);
+        assertThat(foo.name(), equalTo("foo"));
+        assertThat(foo.dataType(), equalTo(KEYWORD));
+        assertThat(foo, instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) foo).field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+    }
+
+    public void testDefaultFailsUnknownColumnDownstream() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .unmappedResolution(UnmappedResolution.DEFAULT)
+            .error("EQL eql_test \"process where true\" | WHERE foo == \"x\"", containsString("Unknown column [foo]"));
+    }
+
+    public void testSequenceModeUnmappedColumnAppendedLast() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"sequence [process where true] [network where true]\" | WHERE foo == \"x\"", UnmappedResolution.LOAD)
+        );
+
+        // Order stays synthetics, mapped fields, then the unmapped column last.
+        assertThat(
+            names(output),
+            contains("_sequence", "_sequence_stage", "join_keys", "@timestamp", "category", "ingested", "name", "pid", "foo")
+        );
+    }
+
+    public void testMetadataThenUnmappedColumnOrder() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"process where true\" METADATA _index | WHERE foo == \"x\"", UnmappedResolution.NULLIFY)
+        );
+
+        // Metadata columns precede the appended unmapped column.
+        assertThat(names(output.subList(output.size() - 2, output.size())), contains("_index", "foo"));
+    }
+
+    public void testEmptyMappingMarkerReplacedOnLoad() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // The NO_FIELDS placeholder must be replaced by the loaded column, not left alongside it.
+        IndexResolution resolution = indexWith("eql_empty", Map.of());
+        LogicalPlan analyzed = analyzer().addIndex("eql_empty", resolution)
+            .unmappedResolution(UnmappedResolution.LOAD)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery("EQL eql_empty \"process where true\" | WHERE foo == \"x\""));
+        List<Attribute> output = eqlLeafOutput(analyzed);
+
+        assertThat(names(output), contains("foo"));
+        assertThat(((FieldAttribute) output.get(0)).field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+    }
+
+    public void testNullifyUnmappedJoinKeyDoesNotCrashOnEqlSource() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // LOOKUP JOIN puts the EqlRelation as a Join's (n-ary) direct leaf child — the OTHER path that reaches
+        // assertSourceType. The unmapped join key must land on the EqlRelation, not throw.
+        LogicalPlan analyzed = analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .addLanguagesLookup()
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery("EQL eql_test \"process where true\" | LOOKUP JOIN languages_lookup ON language_code"));
+
+        assertThat(names(eqlLeafOutput(analyzed)), hasItem("language_code"));
+    }
+
+    public void testEmptyMappingMarkerReplacedOnNullify() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // The NULLIFY branch of the NO_FIELDS replacement (sibling of testEmptyMappingMarkerReplacedOnLoad).
+        IndexResolution resolution = indexWith("eql_empty", Map.of());
+        LogicalPlan analyzed = analyzer().addIndex("eql_empty", resolution)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery("EQL eql_empty \"process where true\" | WHERE foo == \"x\""));
+        List<Attribute> output = eqlLeafOutput(analyzed);
+
+        assertThat(names(output), contains("foo"));
+        assertThat(output.get(0).dataType(), equalTo(DataType.NULL));
+    }
+
+    public void testMappedFieldNotTreatedAsUnmapped() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // A downstream reference to a MAPPED field must not add a column.
+        List<Attribute> output = eqlLeafOutput(
+            analyze("EQL eql_test \"process where true\" | WHERE name == \"x\"", UnmappedResolution.LOAD)
+        );
+
+        assertThat(names(output), contains("@timestamp", "category", "ingested", "name", "pid"));
+    }
+
     private static LogicalPlan analyze(String query) {
         return analyzer().addIndex(INDEX, "mapping-eql_test.json").buildAnalyzer().analyze(TEST_PARSER.parseQuery(query));
+    }
+
+    private static LogicalPlan analyze(String query, UnmappedResolution unmappedResolution) {
+        return analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .unmappedResolution(unmappedResolution)
+            .buildAnalyzer()
+            .analyze(TEST_PARSER.parseQuery(query));
     }
 
     private static IndexResolution indexWith(String name, Map<String, EsField> mapping) {

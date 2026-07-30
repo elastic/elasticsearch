@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Builds an {@link EqlSearchRequest} from the {@code EQL <indexPattern> "<query>"} command's index pattern,
@@ -27,8 +29,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
  * unit-testable without a client.
  *
  * <p>The schema drives the fields the EQL engine fetches per event: one {@link FieldAndFormat} per mapped,
- * convertible {@link FieldAttribute} (synthetics and unsupported columns carry no wire field), with the
- * {@code epoch_millis} format on date columns so the converter reads a stable epoch value.
+ * convertible {@link FieldAttribute} (synthetics, metadata and unsupported columns carry no wire field), with the
+ * {@code epoch_millis} format on date columns so the converter reads a stable epoch value. Unmapped columns added
+ * under {@code SET unmapped_fields} follow their kind: nullified ({@code NULL}) columns carry no fetch, LOAD columns
+ * fetch from {@code _source} with {@code include_unmapped}.
  *
  * <p>The request {@code size} follows an explicit precedence: a {@code WITH {"size"}} option wins; otherwise the
  * row {@code LIMIT} folded into the plan ({@code pushedLimit}); otherwise the ES|QL result-truncation cap
@@ -88,14 +92,28 @@ public final class EqlRequests {
      * One fetch entry per mapped field column. Synthetics ({@code ReferenceAttribute}), metadata columns
      * ({@code MetadataAttribute} — their values come from the response envelope, not the fields API) and unsupported
      * columns are skipped: only real {@code FieldAttribute}s (excluding the {@code UnsupportedAttribute} subtype) fetch.
+     * Unmapped columns added under {@code SET unmapped_fields}: a {@code NULL}-typed (nullified) column carries no fetch
+     * entry, while a {@code LOAD}-mode column ({@code PotentiallyUnmappedKeywordEsField}) fetches from {@code _source}
+     * with {@code include_unmapped}.
      */
     private static List<FieldAndFormat> fetchFields(List<Attribute> schema) {
         List<FieldAndFormat> fields = new ArrayList<>();
         for (Attribute attribute : schema) {
             // UnsupportedAttribute extends FieldAttribute, so exclude it explicitly — it has no extractable wire value.
             if (attribute instanceof FieldAttribute fa && attribute instanceof UnsupportedAttribute == false) {
+                // A nullified unmapped column (SET unmapped_fields=nullify) is NULL-typed and produces no value —
+                // the converter constant-nulls it, so it carries no fetch entry.
+                if (fa.dataType() == NULL) {
+                    continue;
+                }
                 String format = fa.dataType() == DATETIME ? "epoch_millis" : null;
-                fields.add(new FieldAndFormat(fa.fieldName().string(), format));
+                // A LOAD-mode unmapped column is backed by PotentiallyUnmappedKeywordEsField; fetch it from _source
+                // with include_unmapped=true, the same way FROM loads it.
+                if (fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                    fields.add(new FieldAndFormat(fa.fieldName().string(), format, true));
+                } else {
+                    fields.add(new FieldAndFormat(fa.fieldName().string(), format));
+                }
             }
         }
         return fields;

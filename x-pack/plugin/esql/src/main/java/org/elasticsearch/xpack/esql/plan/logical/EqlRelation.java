@@ -35,6 +35,11 @@ import java.util.Objects;
  * <p>A declared {@code METADATA} clause appends provenance columns last (after the mapped fields): only
  * {@code _index}, {@code _id} and {@code _source}, populated from the EQL response envelope.
  *
+ * <p>Under {@code SET unmapped_fields}, {@code ResolveUnmapped} appends columns for fields referenced by
+ * downstream ES|QL but absent from the mapping: {@code NULLIFY} adds a {@code NULL}-typed column (constant nulls);
+ * {@code LOAD} adds a keyword column fetched from {@code _source} via the fields API. Field references inside the
+ * EQL query string itself are the EQL engine's concern (its {@code ?field} optional syntax), not this mechanism.
+ *
  * <p>A mapped field literally named {@code _sequence}/{@code _sequence_stage}/{@code join_keys} (or a metadata
  * name) would collide by name with a synthetic or metadata column (the converter dispatches by attribute
  * class, so values stay correct).
@@ -93,6 +98,14 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
     /** Returns a copy with the row {@code LIMIT} folded into the request size (see {@link #pushedLimit}). */
     public EqlRelation withPushedLimit(int pushedLimit) {
         return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit);
+    }
+
+    /**
+     * Returns a copy with a replaced output schema — used by {@code ResolveUnmapped} to append unmapped-field columns
+     * (nullified or {@code _source}-loaded) under {@code SET unmapped_fields}. Mirrors {@code EsRelation.withAttributes}.
+     */
+    public EqlRelation withAttributes(List<Attribute> newOutput) {
+        return new EqlRelation(source(), indexPattern, query, options, mode, newOutput, pushedLimit);
     }
 
     @Override

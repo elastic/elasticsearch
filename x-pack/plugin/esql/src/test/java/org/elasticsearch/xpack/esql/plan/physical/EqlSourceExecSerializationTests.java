@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
 import java.io.IOException;
@@ -32,11 +35,24 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
         return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit);
     }
 
-    /** A schema attribute: usually a reference attribute (mapped field / synthetic), sometimes a metadata attribute. */
+    /**
+     * A schema attribute — the mix the EQL source can carry: a reference attribute (mapped field / synthetic), a
+     * metadata attribute, or an unmapped-field column (LOAD keyword PUNK / NULLIFY MissingEsField).
+     */
     private static Attribute randomEqlAttribute() {
-        return randomBoolean()
-            ? randomReferenceAttribute(true)
-            : MetadataAttribute.create(randomSource(), randomFrom("_index", "_id", "_source")).toAttribute();
+        return switch (between(0, 3)) {
+            case 0 -> randomReferenceAttribute(true);
+            case 1 -> MetadataAttribute.create(randomSource(), randomFrom("_index", "_id", "_source")).toAttribute();
+            case 2 -> {
+                String name = randomAlphaOfLength(6);
+                yield new FieldAttribute(randomSource(), name, new PotentiallyUnmappedKeywordEsField(name));
+            }
+            case 3 -> {
+                String name = randomAlphaOfLength(6);
+                yield new FieldAttribute(randomSource(), name, new MissingEsField(name));
+            }
+            default -> throw new IllegalStateException();
+        };
     }
 
     private static Map<String, Object> randomOptions() {

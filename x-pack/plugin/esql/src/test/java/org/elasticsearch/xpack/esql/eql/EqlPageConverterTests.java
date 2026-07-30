@@ -26,9 +26,12 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -354,6 +357,39 @@ public class EqlPageConverterTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("unexpected EQL metadata column"));
         } finally {
             response.decRef();
+        }
+    }
+
+    public void testNullifiedColumnIsConstantNullEvenIfEventHasValue() {
+        // A nullified unmapped column is a NULL-typed FieldAttribute; it must render as all-null and never read data,
+        // even if the event happens to carry a value under that name.
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD), fieldAttribute("foo", DataType.NULL));
+        Event e0 = event(Map.of("process.name", List.of("cmd.exe"), "foo", List.of("leaked")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertBytesRefColumn(page, 0, "cmd.exe");
+            assertTrue("nullified column must be all null", page.getBlock(1).areAllValuesNull());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testLoadedUnmappedColumnReadsFieldsApiValue() {
+        // A LOAD-mode column is a keyword FieldAttribute backed by PotentiallyUnmappedKeywordEsField; the converter
+        // reads it from the fields API exactly like any mapped keyword (class dispatch, no special case).
+        FieldAttribute loaded = new FieldAttribute(EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
+        List<Attribute> schema = List.of(loaded);
+        Event present = event(Map.of("foo", List.of("srv-1")));
+        Event absent = event(Map.of("process.name", List.of("x"))); // no foo in _source
+
+        Page page = convert(eventResponse(List.of(present, absent)), EqlRelation.Mode.EVENT, schema);
+        try {
+            BytesRefBlock foo = page.getBlock(0);
+            assertEquals(new BytesRef("srv-1"), foo.getBytesRef(foo.getFirstValueIndex(0), new BytesRef()));
+            assertTrue("absent-from-_source row must be null", foo.isNull(1));
+        } finally {
+            page.releaseBlocks();
         }
     }
 

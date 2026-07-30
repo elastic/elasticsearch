@@ -3587,6 +3587,16 @@ public class EsqlCapabilities {
          */
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
+        /**
+         * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
+         * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
+         * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride}. Without this, the rewrite
+         * emits {@code Project[[alias, grouping]]} with duplicate names and post-optimization verification fails.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/153507">#153507</a>.
+         */
+        FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

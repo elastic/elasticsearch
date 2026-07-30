@@ -49,7 +49,6 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.mockito.Mockito;
 
 import java.io.IOException;

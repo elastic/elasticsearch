@@ -99,9 +99,15 @@ public abstract class BlockTransformBenchmark {
     static {
         PIPELINE_FACTORIES = new LinkedHashMap<>();
         PIPELINE_FACTORIES.put("delta", bs -> new NumericPipeline(new BlockTransform[] { DeltaTransform.INSTANCE }, RawTerminal.INSTANCE));
-        PIPELINE_FACTORIES.put("offset", bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put(
+            "offset",
+            bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE)
+        );
         PIPELINE_FACTORIES.put("gcd", bs -> new NumericPipeline(new BlockTransform[] { GcdTransform.INSTANCE }, RawTerminal.INSTANCE));
-        PIPELINE_FACTORIES.put("splitDelta", bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put(
+            "splitDelta",
+            bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE)
+        );
         PIPELINE_FACTORIES.put("alp", bs -> new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(bs) }, RawTerminal.INSTANCE));
         PIPELINE_FACTORIES.put("for", bs -> new NumericPipeline(new BlockTransform[] {}, new ForTerminal(bs)));
     }
@@ -110,19 +116,21 @@ public abstract class BlockTransformBenchmark {
     @Param({ "delta", "offset", "gcd", "splitDelta", "alp", "for" })
     protected String stage;
 
-    @Param({
-        "MONOTONIC_TIMESTAMPS",
-        "COUNTER_STEADY",
-        "GAUGE",
-        "LOW_CARDINALITY",
-        "SMALL_INTS",
-        "TSDB_SPLIT",
-        "SENSOR_DOUBLES",
-        "RANDOM_FULL",
-        "CONSTANT",
-        "DECREASING",
-        "GCD_FRIENDLY",
-        "NEAR_CONSTANT_OUTLIERS" })
+    @Param(
+        {
+            "MONOTONIC_TIMESTAMPS",
+            "COUNTER_STEADY",
+            "GAUGE",
+            "LOW_CARDINALITY",
+            "SMALL_INTS",
+            "TSDB_SPLIT",
+            "SENSOR_DOUBLES",
+            "RANDOM_FULL",
+            "CONSTANT",
+            "DECREASING",
+            "GCD_FRIENDLY",
+            "NEAR_CONSTANT_OUTLIERS" }
+    )
     protected String pattern;
 
     @Param({ "512", "8192" })

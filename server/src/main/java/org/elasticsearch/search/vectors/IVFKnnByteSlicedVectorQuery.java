@@ -19,16 +19,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-/** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
-public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
+/** A {@link IVFKnnByteSlicedVectorQuery} that uses the IVF search strategy with a sliced index. */
+public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
 
     private final String sliceField;
     private final BytesRef[] sliceIds;
 
     /**
-     * Creates a new {@link IVFKnnFloatSlicedVectorQuery} with the given parameters.
+     * Creates a new {@link IVFKnnByteSlicedVectorQuery} with the given parameters.
      * @param field the field to search
-     * @param query the query vector
+     * @param query the byte query vector
      * @param k the number of nearest neighbors to return
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
@@ -36,9 +36,9 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param sliceField the field used for slicing the index
      * @param sliceIds the slices to be searched. If the array is empty, all slices are searched
      */
-    public IVFKnnFloatSlicedVectorQuery(
+    public IVFKnnByteSlicedVectorQuery(
         String field,
-        float[] query,
+        byte[] query,
         int k,
         int numCands,
         Query filter,
@@ -60,7 +60,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         float visitRatio,
         boolean usePrecondition
     ) throws IOException {
-        final float[] leafQuery = segmentQuery(ctx, usePrecondition);
+        final byte[] leafQuery = segmentQuery(ctx, usePrecondition);
         return IVFSlicedSearchHelper.getLeafResults(
             ctx,
             filterWeight,
@@ -115,7 +115,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (super.equals(o) == false) return false;
-        IVFKnnFloatSlicedVectorQuery that = (IVFKnnFloatSlicedVectorQuery) o;
+        IVFKnnByteSlicedVectorQuery that = (IVFKnnByteSlicedVectorQuery) o;
         return Objects.equals(sliceField, that.sliceField) && Arrays.equals(sliceIds, that.sliceIds);
     }
 

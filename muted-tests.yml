@@ -44,18 +44,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145886
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145887
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145888
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145889
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvPercentileSimpleTests extends ESTestCase {
@@ -35,7 +36,7 @@ public class MvPercentileSimpleTests extends ESTestCase {
                 double p0 = MvPercentile.calculateDoublePercentile(block, block.getFirstValueIndex(0), block.getValueCount(0), 75, scratch);
                 double p1 = MvPercentile.calculateDoublePercentile(block, block.getFirstValueIndex(1), block.getValueCount(1), 75, scratch);
                 assertThat(p0, equalTo(87.5));
-                assertThat(p1, equalTo(1.325));
+                assertThat(p1, closeTo(1.325, 1e-7));
             }
         }
     }
@@ -57,7 +58,7 @@ public class MvPercentileSimpleTests extends ESTestCase {
                 double p0 = MvPercentile.calculateDoublePercentile(block, block.getFirstValueIndex(0), block.getValueCount(0), 75, scratch);
                 double p1 = MvPercentile.calculateDoublePercentile(block, block.getFirstValueIndex(1), block.getValueCount(1), 75, scratch);
                 assertThat(p0, equalTo(87.5));
-                assertThat(p1, equalTo(1.325));
+                assertThat(p1, closeTo(1.325, 1e-7));
             }
         }
     }

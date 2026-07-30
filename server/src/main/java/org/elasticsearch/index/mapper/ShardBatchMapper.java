@@ -101,18 +101,7 @@ public final class ShardBatchMapper {
                 logger.debug("batch indexing disabled: non-field mapper at [{}]", fullPath);
                 return null;
             }
-            final FieldMapper fieldMapper = (FieldMapper) resolved;
-
-            if (fieldMapper.supportsBatchIndexing() == false) {
-                logger.debug(
-                    "batch indexing disabled: mapper at [{}] of type [{}] does not support batch indexing",
-                    fullPath,
-                    fieldMapper.typeName()
-                );
-                return null;
-            }
-
-            columnMappers[leaf] = fieldMapper;
+            columnMappers[leaf] = (FieldMapper) resolved;
         }
 
         return new BatchMapperResolution(columnMappers);

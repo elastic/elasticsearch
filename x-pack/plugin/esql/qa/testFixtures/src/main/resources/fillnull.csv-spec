@@ -728,6 +728,7 @@ required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_sample_data
+| EVAL message = CASE(message == "Connected to 10.1.0.1!", null, message)
 | FILLNULL "missing" ON message
 | KEEP @timestamp, message
 | SORT @timestamp DESC
@@ -735,7 +736,7 @@ FROM partial_mapping_sample_data
 ;
 
 @timestamp:date          | message:keyword
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+2024-10-23T13:55:01.543Z | missing
 2024-10-23T13:53:55.832Z | Connection error?
 ;
 
@@ -745,6 +746,7 @@ required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
+| EVAL unmapped_message = CASE(message == "Connected to 10.1.0.1!", null, unmapped_message)
 | KEEP @timestamp, message, unmapped_message
 | FILLNULL "missing" ON unmapped_message
 | SORT @timestamp DESC
@@ -752,7 +754,7 @@ FROM partial_mapping_sample_data
 ;
 
 @timestamp:date          | message:keyword        | unmapped_message:keyword
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | missing
 2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
 ;
 
@@ -937,6 +939,34 @@ c:long
 200
 ;
 
+fillNullDottedFieldNameAfterForkAndStatsByRx
+required_capability: fillnull
+required_capability: fork_v9
+
+FROM datenanos-k8s
+| FORK (WHERE true) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| EVAL `network.eth0.rx` = CASE(network.eth0.rx > 100, null, network.eth0.rx)
+| FILLNULL 0 ON network.eth0.rx
+| STATS c = COUNT(*) BY net = network.eth0.rx
+| SORT net ASC
+| LIMIT 10
+;
+
+c:long | net:integer
+185    | 0
+1      | 6
+1      | 23
+1      | 26
+1      | 42
+1      | 63
+2      | 66
+1      | 69
+1      | 70
+1      | 77
+;
+
 fillNullFromAppsFillsNullVersionWithString
 required_capability: fillnull
 
@@ -979,6 +1009,30 @@ c:long
 100
 ;
 
+fillNullFromEmployeesTargetedUnfillableDateWarnsByBirthDate
+required_capability: fillnull
+
+FROM employees
+| FILLNULL DEFAULT ON birth_date
+| STATS c = COUNT(*) BY birth_date
+| SORT birth_date ASC NULLS FIRST
+| LIMIT 10
+;
+warning:Line 2:3: [FILLNULL] field [birth_date] of type [datetime] has no default fill value and was left unchanged; provide an explicit value
+
+c:long | birth_date:date
+10     | null
+1      | 1952-02-27T00:00:00.000Z
+1      | 1952-04-19T00:00:00.000Z
+1      | 1952-05-15T00:00:00.000Z
+1      | 1952-06-13T00:00:00.000Z
+1      | 1952-07-08T00:00:00.000Z
+1      | 1952-08-06T00:00:00.000Z
+1      | 1952-11-13T00:00:00.000Z
+1      | 1952-12-24T00:00:00.000Z
+1      | 1953-01-07T00:00:00.000Z
+;
+
 fillNullFromEmployeesAllFieldsUnfillableDatesWarnOnce
 required_capability: fillnull
 
@@ -991,6 +1045,31 @@ warning:Line 3:3: [FILLNULL] the following fields have no default fill value for
 
 c:long
 100
+;
+
+fillNullFromEmployeesAllFieldsUnfillableDatesWarnOnceByBirthDate
+required_capability: fillnull
+
+FROM employees
+| KEEP emp_no, birth_date, hire_date
+| FILLNULL DEFAULT ON *
+| STATS c = COUNT(*) BY birth_date
+| SORT birth_date ASC NULLS FIRST
+| LIMIT 10
+;
+warning:Line 3:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [birth_date, hire_date]; provide an explicit value
+
+c:long | birth_date:date
+10     | null
+1      | 1952-02-27T00:00:00.000Z
+1      | 1952-04-19T00:00:00.000Z
+1      | 1952-05-15T00:00:00.000Z
+1      | 1952-06-13T00:00:00.000Z
+1      | 1952-07-08T00:00:00.000Z
+1      | 1952-08-06T00:00:00.000Z
+1      | 1952-11-13T00:00:00.000Z
+1      | 1952-12-24T00:00:00.000Z
+1      | 1953-01-07T00:00:00.000Z
 ;
 
 fillNullFromVoyagerFillsNullBooleanWithString
@@ -1219,4 +1298,47 @@ ROW aa = null, ab = null, c = 1
 
 c:integer | aa:integer | ab:integer
 1         | 0          | 0
+;
+
+fillNullWildcardTargetThenRenameThenKeepWildcard
+required_capability: fillnull
+
+// FILLNULL fills the `*_name` columns (first_name, last_name); after RENAME first_name AS name, KEEP *_name keeps only
+// last_name - the renamed `name` no longer matches the wildcard. SORT/LIMIT just make the output deterministic and short.
+FROM employees
+| FILLNULL "x" ON *_name
+| RENAME first_name AS name
+| KEEP *_name
+| SORT last_name
+| LIMIT 5
+;
+
+last_name:keyword
+Awdeh
+Azuma
+Baek
+Bamford
+Bernatsky
+;
+
+fillNullWildcardTargetThenRenameCastThenKeepWildcard
+required_capability: fillnull
+
+// Like the previous test, but the renamed `name` is re-EVAL'd (moving it to the end) and KEEP *name* now matches both
+// `last_name` and `name`. Uses ::keyword because ES|QL has no ToText converter yet (::text throws at parse time).
+FROM employees
+| FILLNULL "x" ON *_name
+| RENAME first_name AS name
+| EVAL name = name::keyword
+| KEEP *name*
+| SORT last_name
+| LIMIT 5
+;
+
+last_name:keyword | name:keyword
+Awdeh             | Satosi
+Azuma             | Mona
+Baek              | Premal
+Bamford           | Parto
+Bernatsky         | Mokhtar
 ;

@@ -576,19 +576,11 @@ public final class AstKeywordFieldRewriter {
         }
 
         /**
-         * Processes a {@code FILLNULL <value> ON <field>[, <field>]*}. The target-field slot accepts only a
-         * bare attribute or wildcard pattern, so wrapping an in-scope target in {@code field_extract(...)}
-         * (the default {@code node.expressions()} handling would do exactly that) produces an
-         * unparseable {@code FILLNULL ... ON field_extract(field, "v")}. Moreover a {@code flattened}
-         * field reaches the command as a single wrapper object, so filling it would neither match
-         * nulls per the spec nor emit the {@code keyword} the expected results declare. Mirroring
-         * {@link #processMvExpand}, each in-scope target &mdash; whether an explicit name or a column matched
-         * by a wildcard pattern ({@code latency_*}) &mdash; is hoisted into an
-         * {@code EVAL <field> = field_extract(<field>, "v")} inserted before the command, rebinding it to
-         * {@code keyword} so {@code FILLNULL} operates on, and emits, {@code keyword}, and then leaves scope.
-         * The all-fields form ({@code FILLNULL <value> ON *}) targets no specific field here, so it is left
-         * untouched and any converted column it passes through is recovered by the end-of-pipeline tail
-         * recovery instead.
+         * The {@code FILLNULL <value> ON <field>...} target slot accepts only a bare attribute or wildcard,
+         * so the default {@code field_extract(...)} wrapping would produce an unparseable target. Mirroring
+         * {@link #processMvExpand}, each in-scope target (explicit name or wildcard match) is instead hoisted
+         * into an {@code EVAL <field> = field_extract(<field>, "v")} before the command and dropped from scope.
+         * The all-fields form ({@code ON *}) targets nothing specific and is left to end-of-pipeline recovery.
          */
         private Set<String> processFillNull(FillNull fillNull, Set<String> scope) {
             Set<String> hoist = new HashSet<>();

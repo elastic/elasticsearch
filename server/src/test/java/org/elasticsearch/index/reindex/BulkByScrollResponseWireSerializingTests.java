@@ -169,12 +169,12 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
      * details that are not stable for direct equality checks.
      * <p>
      * Equality is defined in terms of wire-relevant state only: top-level fields,
-     * aggregated task status (via
-     * {@link BulkByScrollTaskStatusWireSerializingTests.StatusWrapper#statusEquals}),
-     * and the stable attributes of bulk and search failures. Care must be taken for
-     * exceptions, since two messages with the same cause and message would be different
-     * instances after serialization / deserialization, and fail the default equality check.
-     * For this reason, we define custom equality below.
+     * aggregated task status counters (via
+     * {@link BulkByScrollTaskStatusTests#assertTaskStatusEquals}), and the stable
+     * attributes of bulk and search failures. Care must be taken for exceptions, since
+     * two messages with the same cause and message would be different instances after
+     * serialization / deserialization, and fail the default equality check. For this
+     * reason, we define custom equality below.
      */
     static class BulkByScrollResponseWrapper implements Writeable {
         private final BulkByScrollResponse response;
@@ -240,7 +240,11 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
     private static boolean responsesEqual(BulkByScrollResponse a, BulkByScrollResponse b) {
         if (a.getTook().equals(b.getTook()) == false) return false;
 
-        if (BulkByScrollTaskStatusWireSerializingTests.StatusWrapper.statusEquals(a.getStatus(), b.getStatus()) == false) {
+        try {
+            BulkByScrollTaskStatusTests.assertTaskStatusEquals(a.getStatus(), b.getStatus());
+            // Equal → skip to next check
+        } catch (AssertionError e) {
+            // Assertion error → not equal
             return false;
         }
 

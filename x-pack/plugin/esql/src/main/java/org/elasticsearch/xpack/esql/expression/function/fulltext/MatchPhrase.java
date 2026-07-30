@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -71,7 +72,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -110,10 +111,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             values row by row, which may be slower on large datasets.
             On a `keyword` expression the whole query string must equal a value exactly, matching
             the term query semantics of `match_phrase` on an indexed keyword field.
-            When searching expressions, <<esql-function-named-params,function named parameters>>
-            (match_phrase query options) are not supported.
             Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
             when using `METADATA _score`.
+
+            When searching `text` expressions, <<esql-function-named-params,function named parameters>>
+            (match_phrase query options) are supported, except for `analyzer`: expression values are
+            always analyzed with the `standard` analyzer. On `keyword` expressions options are not supported.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -266,7 +269,19 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        return matchPhraseQuery(getNameFromFieldAttribute(fieldAttribute));
+    }
+
+    /**
+     * The same query as {@link #translate}, but targeting {@code fieldName} instead of the mapped index field, so it
+     * matches text lexically wherever it runs. HIGHLIGHT uses this to run the query against a per-row MemoryIndex keyed
+     * by the ON column names, where the index mapping (e.g. {@code semantic_text} inference) must not participate.
+     */
+    public QueryBuilder asLexicalQueryBuilder(String fieldName) {
+        return matchPhraseQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchPhraseQuery matchPhraseQuery(String fieldName) {
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
@@ -303,13 +318,53 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         if (isRuntimeSearch() == false) {
             return;
         }
-        if (options() != null) {
+        if (options() != null && field().dataType() == TEXT) {
+            verifyRuntimeOptions(function, field, failures);
+        } else if (options() != null) {
             failures.add(
                 Failure.fail(
                     field,
-                    "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [" + field.sourceText() + "]"
+                    "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field ["
+                        + field.sourceText()
+                        + "]"
                 )
             );
+        }
+    }
+
+    /**
+     * Validates the options for a runtime-search {@code match_phrase} on a {@code text} field. Checks that the
+     * {@code analyzer} option is absent (not supported for runtime fields) and that the options produce a valid
+     * {@code MatchPhraseQueryBuilder}.
+     */
+    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+        Map<String, Object> opts = matchPhraseQueryOptions();
+        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
+        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
+        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            failures.add(
+                Failure.fail(
+                    function,
+                    "The analyzer option is not supported for [MATCH_PHRASE] function call on non-index-mapped field [{}]",
+                    field.sourceText()
+                )
+            );
+            return;
+        }
+        if (query() instanceof Literal) {
+            // Validate that the options produce a valid MatchPhraseQueryBuilder at plan-verification time rather than at execution time.
+            try {
+                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts).toQueryBuilder();
+            } catch (IllegalArgumentException e) {
+                failures.add(
+                    Failure.fail(
+                        function,
+                        "[MATCH_PHRASE] function failed to build query for non-index-mapped field [{}]: {}",
+                        field.sourceText(),
+                        e.getMessage()
+                    )
+                );
+            }
         }
     }
 
@@ -320,8 +375,13 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toEvaluator(toEvaluator);
         }
 
-        if (field.dataType() == TEXT) {
+        if (field.dataType() == TEXT && options() == null) {
             return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+        }
+        // When options are used, we build a Lucene query
+        if (field.dataType() == TEXT) {
+            var matchPhraseQuery = new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchPhraseQueryOptions());
+            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchPhraseQuery);
         }
         // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
         // falling through to exact matching would silently give it the wrong semantics. NULL fields never get

@@ -589,21 +589,19 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMatchPhraseRuntimeEvalWithOptionsThrowsError() {
+    public void testMatchPhraseRuntimeNonTextTypeWithOptionsThrowsError() {
         var query = """
-            FROM test
-            | EVAL new_content = to_text(concat(content, " extra"))
-            | WHERE match_phrase(new_content, "brown fox", {"slop": 5})
-            | KEEP new_content
+            ROW content = "a brown fox"
+            | WHERE match_phrase(content, "brown fox", {"slop": 1})
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [new_content]")
+            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [content]")
         );
     }
 
-    public void testMatchPhraseRuntimeRowWithOptionsThrowsError() {
+    public void testMatchPhraseRuntimeWithAnalyzerOptionThrowsError() {
         var query = """
             ROW content = to_text("a brown fox")
             | WHERE match_phrase(content, "brown fox", {"analyzer": "standard"})
@@ -611,7 +609,23 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [content]")
+            containsString("The analyzer option is not supported for [MATCH_PHRASE] function call on non-index-mapped field [content]")
+        );
+    }
+
+    public void testMatchPhraseRuntimeWithInvalidOptionsThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " extra"))
+            | WHERE match_phrase(new_content, "brown fox", {"slop": -1})
+            | KEEP new_content
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "[MATCH_PHRASE] function failed to build query for non-index-mapped field [new_content]: No negative slop allowed."
+            )
         );
     }
 

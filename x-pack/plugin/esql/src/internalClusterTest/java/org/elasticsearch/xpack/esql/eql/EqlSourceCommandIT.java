@@ -20,6 +20,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -191,7 +192,7 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < count; i++) {
             docs.add(
                 prepareIndex(index).setId(Integer.toString(i))
-                    .setSource("@timestamp", "2024-01-01T00:00:" + String.format("%02d", i) + "Z", "value", i)
+                    .setSource("@timestamp", "2024-01-01T00:00:" + String.format(Locale.ROOT, "%02d", i) + "Z", "value", i)
             );
         }
         indexRandom(true, docs);

@@ -50,7 +50,7 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      * @param prefixByteLength  UTF-8 byte length of the common non-fuzzy prefix; clamped to
      *                          {@code termByteLength}. Must be {@code >= 0}.
      * @param maxExpansions     maximum number of index terms this clause rewrites to; the
-     *                          downstream expansion/highlighter cost is bounded by it. Must be
+     *                          downstream rewrite/expansion cost is bounded by it. Must be
      *                          {@code > 0}.
      */
     public FuzzyQueryCostEstimator(int termByteLength, int distinctUtf8Bytes, int maxEdits, int prefixByteLength, int maxExpansions) {

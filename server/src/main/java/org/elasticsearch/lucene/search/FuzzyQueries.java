@@ -11,6 +11,7 @@ package org.elasticsearch.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
@@ -75,12 +76,20 @@ public final class FuzzyQueries {
         return queryRamBytes(query) + cost;
     }
 
-    /** Effective expansion cap: the {@link TopTermsRewrite} size, or {@link FuzzyQuery#defaultMaxExpansions} otherwise. */
+    /**
+     * Effective expansion count for the breaker charge: a {@link TopTermsRewrite}'s configured size,
+     * {@link IndexSearcher#getMaxClauseCount()} for the boolean-producing rewrites that can expand up to it,
+     * or {@link FuzzyQuery#defaultMaxExpansions} otherwise.
+     */
     private static int effectiveMaxExpansions(FuzzyQuery query) {
-        if (query.getRewriteMethod() instanceof TopTermsRewrite<?> topTerms) {
+        MultiTermQuery.RewriteMethod rewrite = query.getRewriteMethod();
+        if (rewrite instanceof TopTermsRewrite<?> topTerms) {
             return topTerms.getSize();
+        } else if (rewrite == MultiTermQuery.SCORING_BOOLEAN_REWRITE || rewrite == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+            return IndexSearcher.getMaxClauseCount();
+        } else {
+            return FuzzyQuery.defaultMaxExpansions;
         }
-        return FuzzyQuery.defaultMaxExpansions;
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

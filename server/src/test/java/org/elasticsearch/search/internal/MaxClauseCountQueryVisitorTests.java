@@ -85,6 +85,27 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         );
     }
 
+    public void testBooleanOfFuzzyClausesSumsPerClauseEstimates() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int clauses = randomIntBetween(2, 20);
+
+        BooleanQuery.Builder bool = new BooleanQuery.Builder();
+        long expected = 0L;
+        for (int i = 0; i < clauses; i++) {
+            FuzzyQuery fq = new FuzzyQuery(new Term("field", "value" + i), 2, 1, 50, true);
+            bool.add(fq, BooleanClause.Occur.SHOULD);
+            expected += FuzzyQueries.estimateBytes(fq);
+        }
+        bool.build().visit(visitor);
+
+        assertEquals(
+            "each fuzzy clause must be visited and summed by FuzzyQueries.estimateBytes, not floored once",
+            expected,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(clauses, visitor.getNumClauses());
+    }
+
     public void testFuzzyQueryVisitDoesNotInvokeAutomatonSupplier() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         AtomicInteger supplierInvocations = new AtomicInteger();

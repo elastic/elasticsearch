@@ -9,8 +9,24 @@
 
 package org.elasticsearch.benchmark.search.fuzzy;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.lucene.search.cost.FuzzyQueryCostEstimator;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -24,11 +40,15 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
+import java.util.LinkedHashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Fork(1)
@@ -39,6 +59,18 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @SuppressWarnings("unused") // invoked by JMH
 public class FuzzyQueryCostEstimatorBenchmark {
+
+    static {
+        LogConfigurator.setNodeName("benchmark");
+    }
+
+    static final String FIELD = "f";
+
+    /** ASCII letters/digits used to synthesise within-edit-distance neighbours of the query term. */
+    private static final String REPLACEMENT_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+    /** Upper bound on the seeded vocabulary size; comfortably above the largest {@code maxExpansions}. */
+    private static final int MAX_VOCABULARY = 1024;
 
     public enum Alphabet {
         SINGLE_CHAR {
@@ -90,23 +122,38 @@ public class FuzzyQueryCostEstimatorBenchmark {
     @Param({ "SINGLE_CHAR", "ASCII_LETTERS", "UNICODE_BMP" })
     public Alphabet alphabet;
 
+    @Param({ "10", "50", "200" })
+    public int maxExpansions;
+
     private String term;
     private int termByteLength;
     private int distinctUtf8Bytes;
+
+    private Directory directory;
+    private DirectoryReader reader;
+    private IndexSearcher searcher;
+    private FuzzyQuery fuzzyQuery;
+
     private long precomputedEstimate;
+    private long precomputedAutomaton;
+    private long precomputedRewrite;
     private long precomputedMeasured;
+    private int precomputedExpandedTerms;
     private double precomputedRatio;
 
     @AuxCounters(AuxCounters.Type.EVENTS)
     @State(Scope.Thread)
     public static class Metrics {
         public double estimatedBytes;
+        public double automatonBytes;
+        public double rewriteBytes;
         public double measuredBytes;
+        public double expandedTerms;
         public double estimateOverMeasuredRatio;
     }
 
     @Setup(Level.Trial)
-    public void setupTrial() {
+    public void setupTrial() throws IOException {
         if (prefixLength > termLength) {
             term = null;
             return;
@@ -116,9 +163,41 @@ public class FuzzyQueryCostEstimatorBenchmark {
         byte[] utf8 = term.getBytes(StandardCharsets.UTF_8);
         termByteLength = utf8.length;
         distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
-        precomputedEstimate = new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength).estimate();
-        precomputedMeasured = sumRamBytes(term, maxEdits, prefixLength, transpositions);
+
+        directory = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+            for (String neighbour : buildVocabulary(term, prefixLength)) {
+                Document doc = new Document();
+                doc.add(new StringField(FIELD, neighbour, Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+        }
+        reader = DirectoryReader.open(directory);
+        searcher = new IndexSearcher(reader);
+
+        fuzzyQuery = new FuzzyQuery(new Term(FIELD, term), maxEdits, prefixLength, maxExpansions, transpositions);
+
+        precomputedEstimate = new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength, maxExpansions)
+            .estimate();
+        precomputedAutomaton = sumRamBytes(term, maxEdits, prefixLength, transpositions);
+        Set<Term> expanded = collectExpandedTerms(searcher, fuzzyQuery);
+        precomputedExpandedTerms = expanded.size();
+        precomputedRewrite = measureRewriteRam(searcher, fuzzyQuery, expanded);
+        precomputedMeasured = precomputedAutomaton + precomputedRewrite;
         precomputedRatio = precomputedMeasured == 0 ? 0.0 : (double) precomputedEstimate / (double) precomputedMeasured;
+    }
+
+    @TearDown(Level.Trial)
+    public void tearDownTrial() throws IOException {
+        if (reader != null) {
+            reader.close();
+            reader = null;
+        }
+        if (directory != null) {
+            directory.close();
+            directory = null;
+        }
     }
 
     @Benchmark
@@ -127,11 +206,11 @@ public class FuzzyQueryCostEstimatorBenchmark {
             return 0L;
         }
         publish(metrics);
-        return new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength).estimate();
+        return new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength, maxExpansions).estimate();
     }
 
     @Benchmark
-    public long measureBuild(Metrics metrics) {
+    public long measureAutomaton(Metrics metrics) {
         if (term == null) {
             return 0L;
         }
@@ -139,9 +218,21 @@ public class FuzzyQueryCostEstimatorBenchmark {
         return sumRamBytes(term, maxEdits, prefixLength, transpositions);
     }
 
+    @Benchmark
+    public long measureRewrite(Metrics metrics) throws IOException {
+        if (term == null) {
+            return 0L;
+        }
+        publish(metrics);
+        return measureRewriteRam(searcher, fuzzyQuery, collectExpandedTerms(searcher, fuzzyQuery));
+    }
+
     private void publish(Metrics metrics) {
         metrics.estimatedBytes = precomputedEstimate;
+        metrics.automatonBytes = precomputedAutomaton;
+        metrics.rewriteBytes = precomputedRewrite;
         metrics.measuredBytes = precomputedMeasured;
+        metrics.expandedTerms = precomputedExpandedTerms;
         metrics.estimateOverMeasuredRatio = precomputedRatio;
     }
 
@@ -152,6 +243,65 @@ public class FuzzyQueryCostEstimatorBenchmark {
             sum += ca.ramBytesUsed();
         }
         return sum;
+    }
+
+    private static Set<Term> collectExpandedTerms(IndexSearcher searcher, FuzzyQuery query) throws IOException {
+        Query rewritten = searcher.rewrite(query);
+        Set<Term> terms = new LinkedHashSet<>();
+        rewritten.visit(new QueryVisitor() {
+            @Override
+            public void consumeTerms(Query q, Term... ts) {
+                for (Term t : ts) {
+                    terms.add(t);
+                }
+            }
+
+            @Override
+            public boolean acceptField(String field) {
+                return true;
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                return this;
+            }
+        });
+        return terms;
+    }
+
+    private static long measureRewriteRam(IndexSearcher searcher, FuzzyQuery query, Set<Term> expanded) throws IOException {
+        long total = RamUsageEstimator.sizeOf(searcher.rewrite(query));
+        for (Term term : expanded) {
+            total += RamUsageEstimator.sizeOfObject(TermStates.build(searcher, term, true));
+        }
+        return total;
+    }
+
+    private static Set<String> buildVocabulary(String term, int prefixLength) {
+        Set<String> vocabulary = new LinkedHashSet<>();
+        int length = term.length();
+        // Substitutions in the fuzzy suffix.
+        for (int pos = prefixLength; pos < length && vocabulary.size() < MAX_VOCABULARY; pos++) {
+            for (int i = 0; i < REPLACEMENT_ALPHABET.length() && vocabulary.size() < MAX_VOCABULARY; i++) {
+                char c = REPLACEMENT_ALPHABET.charAt(i);
+                if (c != term.charAt(pos)) {
+                    vocabulary.add(term.substring(0, pos) + c + term.substring(pos + 1));
+                }
+            }
+        }
+        // Insertions in the fuzzy suffix (produces length+1 neighbours).
+        for (int pos = prefixLength; pos <= length && vocabulary.size() < MAX_VOCABULARY; pos++) {
+            for (int i = 0; i < REPLACEMENT_ALPHABET.length() && vocabulary.size() < MAX_VOCABULARY; i++) {
+                char c = REPLACEMENT_ALPHABET.charAt(i);
+                vocabulary.add(term.substring(0, pos) + c + term.substring(pos));
+            }
+        }
+        // Deletions in the fuzzy suffix (produces length-1 neighbours).
+        for (int pos = prefixLength; pos < length && vocabulary.size() < MAX_VOCABULARY; pos++) {
+            vocabulary.add(term.substring(0, pos) + term.substring(pos + 1));
+        }
+        vocabulary.remove(term);
+        return vocabulary;
     }
 
     private static int countDistinctUtf8Bytes(byte[] utf8) {

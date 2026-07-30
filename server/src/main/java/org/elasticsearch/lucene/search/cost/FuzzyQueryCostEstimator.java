@@ -32,10 +32,14 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
     /** Multiplier applied when the alphabet is wider than {@link #WIDE_ALPHABET_THRESHOLD}. */
     public static final long WIDE_ALPHABET_FACTOR = 2L;
 
+    /** Per-expanded-term add-on, charged once per {@code maxExpansions} to cover each expansion's retained RAM. */
+    public static final long EXPANSION_BYTES_PER_TERM = 1024;
+
     private final int termByteLength;
     private final int distinctUtf8Bytes;
     private final int maxEdits;
     private final int prefixByteLength;
+    private final int maxExpansions;
 
     /**
      * @param termByteLength    UTF-8 byte length of the term. Must be {@code >= 0}.
@@ -45,8 +49,11 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      * @param maxEdits          {@code [0, MAXIMUM_SUPPORTED_DISTANCE]}.
      * @param prefixByteLength  UTF-8 byte length of the common non-fuzzy prefix; clamped to
      *                          {@code termByteLength}. Must be {@code >= 0}.
+     * @param maxExpansions     maximum number of index terms this clause rewrites to; the
+     *                          downstream expansion/highlighter cost is bounded by it. Must be
+     *                          {@code > 0}.
      */
-    public FuzzyQueryCostEstimator(int termByteLength, int distinctUtf8Bytes, int maxEdits, int prefixByteLength) {
+    public FuzzyQueryCostEstimator(int termByteLength, int distinctUtf8Bytes, int maxEdits, int prefixByteLength, int maxExpansions) {
         if (termByteLength < 0) {
             throw new IllegalArgumentException("termByteLength must be >= 0, got: " + termByteLength);
         }
@@ -61,10 +68,14 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
         if (prefixByteLength < 0) {
             throw new IllegalArgumentException("prefixByteLength must be >= 0, got: " + prefixByteLength);
         }
+        if (maxExpansions <= 0) {
+            throw new IllegalArgumentException("maxExpansions must be > 0, got: " + maxExpansions);
+        }
         this.termByteLength = termByteLength;
         this.distinctUtf8Bytes = distinctUtf8Bytes;
         this.maxEdits = maxEdits;
         this.prefixByteLength = prefixByteLength;
+        this.maxExpansions = maxExpansions;
     }
 
     /**
@@ -78,7 +89,8 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      *              + BYTES_PER_BYTE
      *                · effectiveBytes
      *                · (2 · maxEdits + 1)
-     *                · alphabetFactor,                                    otherwise
+     *                · alphabetFactor
+     *              + EXPANSION_BYTES_PER_TERM · maxExpansions,            otherwise
      *
      *     effectiveBytes = max(0, termByteLength - prefixByteLength)
      *     alphabetFactor = (distinctUtf8Bytes &gt; WIDE_ALPHABET_THRESHOLD) ? WIDE_ALPHABET_FACTOR : 1
@@ -88,6 +100,10 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      * state-count growth, so {@code effectiveBytes · (2·maxEdits+1)} is a state-count proxy that
      * upper-bounds both compiled-automaton retained RAM and the per-document automaton-walk work
      * paid at run time.
+     *
+     * <p>The {@code EXPANSION_BYTES_PER_TERM · maxExpansions} term covers the cost of expanding the
+     * clause to up to {@code maxExpansions} index terms. Added regardless of term length, it gives
+     * short "cheap" fuzzy clauses a per-clause floor that scales with the expansion fan-out.
      */
     @Override
     public long estimate() {
@@ -98,6 +114,7 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
         long alphabetFactor = distinctUtf8Bytes > WIDE_ALPHABET_THRESHOLD ? WIDE_ALPHABET_FACTOR : 1L;
         long stateProxy = effectiveBytes * (2L * maxEdits + 1L);
         long dynamic = Math.multiplyExact(Math.multiplyExact(BYTES_PER_BYTE, stateProxy), alphabetFactor);
-        return Math.addExact(BASE_BYTES, dynamic);
+        long expansion = Math.multiplyExact(EXPANSION_BYTES_PER_TERM, (long) maxExpansions);
+        return Math.addExact(Math.addExact(BASE_BYTES, dynamic), expansion);
     }
 }

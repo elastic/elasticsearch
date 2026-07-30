@@ -337,6 +337,19 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         });
     }
 
+    public void testDeepBoolTowerOfCheapFuzzyClausesTripsBreaker() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            QueryBuilder tower = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "abc").fuzziness(Fuzziness.ONE).prefixLength(3);
+            for (int i = 0; i < 150; i++) {
+                BoolQueryBuilder level = new BoolQueryBuilder();
+                level.must(tower);
+                level.should(new FuzzyQueryBuilder(TEXT_FIELD_NAME, "abc").fuzziness(Fuzziness.ONE).prefixLength(3));
+                tower = level;
+            }
+            return tower;
+        });
+    }
+
     public void testSingleFuzzyClauseTripsCircuitBreakerAtConstruction() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService("2kb");
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);

@@ -40,6 +40,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -162,8 +163,10 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                         clusterService.submitUnbatchedStateUpdateTask("test update", new ClusterStateUpdateTask() {
                             @Override
                             public ClusterState execute(ClusterState currentState) {
-                                // return a new instance, value-equal to the current one, to trigger a publication
-                                return ClusterState.builder(currentState).build();
+                                // perform a no-op update of the Metadata, forcing a new version and triggering a publication
+                                return ClusterState.builder(currentState)
+                                    .metadata(Metadata.builder(currentState.metadata()).build())
+                                    .build();
                             }
 
                             @Override
@@ -177,6 +180,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
                             @Override
                             public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                assertThat(newState.metadata().version(), greaterThan(initialState.metadata().version()));
                                 (isOriginalMaster ? oldMasterUpdatesCompletedLatch : newMasterUpdatesCompletedLatch).countDown();
                                 submitLoopingUpdateTask();
                             }

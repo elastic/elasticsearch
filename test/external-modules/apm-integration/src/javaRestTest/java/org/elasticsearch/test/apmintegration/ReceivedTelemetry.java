@@ -114,12 +114,14 @@ public sealed interface ReceivedTelemetry {
         String severityText,
         String body,
         Map<String, Object> attributes,
-        Optional<String> traceId
+        Optional<String> traceId,
+        String scopeName
     ) implements ReceivedTelemetry {
         public ReceivedLog {
             requireNonNull(attributes);
             attributes = Map.copyOf(attributes);
             requireNonNull(traceId);
+            requireNonNull(scopeName);
         }
     }
 }

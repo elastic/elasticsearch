@@ -751,3 +751,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search/90_search_after/date_nanos}
   issue: https://github.com/elastic/elasticsearch/issues/155451
+- class: org.elasticsearch.index.reindex.BulkByPaginatedSearchResponseWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/155457

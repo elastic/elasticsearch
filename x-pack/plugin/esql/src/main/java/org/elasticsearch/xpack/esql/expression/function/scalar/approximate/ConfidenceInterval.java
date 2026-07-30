@@ -350,8 +350,11 @@ public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsN
             minEstimate = Math.min(minEstimate, 0.0);
             maxEstimate = Math.max(maxEstimate, 0.0);
         }
-        // Estimate are totally inconsistent with bestEstimate.
-        if (bestEstimate < minEstimate || bestEstimate > maxEstimate) {
+        // Estimates are totally inconsistent with bestEstimate. This can happen for metrics that
+        // are monotonic with sample size, such as MIN, MAX, COUNT_DISTINCT.
+        // Allow a little bit of numerical imprecision in the consistency check, which can happen
+        // due to round-off errors when aggregating zero-variance stats (e.g. AVG(x) BY x).
+        if (bestEstimate < minEstimate - 1e-12 * Math.abs(minEstimate) || bestEstimate > maxEstimate + 1e-12 * Math.abs(maxEstimate)) {
             resultBuilder.appendNull();
             return;
         }

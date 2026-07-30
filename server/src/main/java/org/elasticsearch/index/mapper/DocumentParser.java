@@ -311,11 +311,7 @@ public final class DocumentParser {
         if (context.parent().isEnabled() == false) {
             // entire object is disabled — store context.parent() itself, not a child field
             final DocumentParserContext disabledCtx = context;
-            FallbackPostMapper.writeParentOrSkip(
-                disabledCtx,
-                FallbackPostMapper.Reason.OBJECT_DISABLED,
-                () -> skipChildren(disabledCtx)
-            );
+            FallbackPostMapper.writeParentOrSkip(disabledCtx, FallbackPostMapper.Reason.OBJECT_DISABLED, () -> skipChildren(disabledCtx));
             return;
         }
         XContentParser.Token token = parser.currentToken();
@@ -878,11 +874,7 @@ public final class DocumentParser {
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            FallbackPostMapper.write(
-                context,
-                context.path().pathAsText(currentFieldName),
-                FallbackPostMapper.Reason.DYNAMIC_DISABLED
-            );
+            FallbackPostMapper.write(context, context.path().pathAsText(currentFieldName), FallbackPostMapper.Reason.DYNAMIC_DISABLED);
             return;
         }
         if (dynamic == ObjectMapper.Dynamic.RUNTIME) {

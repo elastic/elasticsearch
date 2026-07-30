@@ -19,10 +19,7 @@ import static org.hamcrest.Matchers.is;
 public class FallbackPostMapperTests extends ESTestCase {
 
     public void testMalformedRoutesToIgnoreMalformed() {
-        assertThat(
-            FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED),
-            is(FallbackPostMapper.Destination.IGNORE_MALFORMED)
-        );
+        assertThat(FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED), is(FallbackPostMapper.Destination.IGNORE_MALFORMED));
     }
 
     public void testMultiValueViolationRoutesToOnFailure() {
@@ -101,10 +98,7 @@ public class FallbackPostMapperTests extends ESTestCase {
     /** source_keep: arrays, inside an array, mapper does not parse arrays natively → SOURCE_KEEP_ARRAYS_IN_ARRAY. */
     public void testSourceKeepArraysInArrayScopeReturnsArraysReason() {
         var fc = ctx().sourceKeepMode(Mapper.SourceKeepMode.ARRAYS).inArrayScope(true).parsesArrayValue(false).build();
-        assertEquals(
-            Optional.of(FallbackPostMapper.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY),
-            FallbackPostMapper.resolvePrecaptureReason(fc)
-        );
+        assertEquals(Optional.of(FallbackPostMapper.Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY), FallbackPostMapper.resolvePrecaptureReason(fc));
     }
 
     /** source_keep: arrays + parsesArrayValue=true → no pre-capture (mapper handles arrays natively). */

@@ -80,7 +80,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION = 1;
+    private static final int FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION = 2;
 
     @Override
     public Collection<?> createComponents(PluginServices services) {

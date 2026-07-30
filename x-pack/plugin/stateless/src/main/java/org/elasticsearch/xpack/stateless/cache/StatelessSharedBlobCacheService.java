@@ -144,9 +144,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /// Setting gating demotion of a closed shard's cache regions (see [SharedBlobCacheService#demoteAllAsync]). Any shard leaving this
-    /// node closes its store, but only a relocated shard is demoted: its regions move to the front of the frequency-0 queue rather than
-    /// being evicted, so they are the first eviction candidates while remaining usable if the shard relocates back. Index deletion and
-    /// node shutdown are handled separately. A flip takes effect on the next store close; a demotion already submitted still runs.
+    /// node closes its store, and will have its regions move to the front of the frequency-0 queue rather than
+    /// being evicted, so they are the first eviction candidates while remaining usable if the shard relocates and relocates back.
+    /// Index deletion and node shutdown are handled separately.
+    /// A flip takes effect on the next store close; a demotion already submitted still runs.
     public static final Setting<Boolean> STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.demote_closed_shard_regions.enabled",
         false,

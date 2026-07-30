@@ -820,7 +820,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * Release builds may omit test cases for types that are only available in snapshot builds. Functions whose return type depends
              * on such an argument can therefore declare more return types than the test cases exercise in a release build.
              */
-            assertTrue("declared return types " + returnTypes + " do not include tested types " + returnFromSignature, returnTypes.containsAll(returnFromSignature));
+            assertTrue(
+                "declared return types " + returnTypes + " do not include tested types " + returnFromSignature,
+                returnTypes.containsAll(returnFromSignature)
+            );
         } else {
             assertEquals(returnFromSignature, returnTypes);
         }

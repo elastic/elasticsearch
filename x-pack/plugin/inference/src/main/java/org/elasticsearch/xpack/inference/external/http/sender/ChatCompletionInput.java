@@ -46,8 +46,9 @@ public class ChatCompletionInput extends InferenceInputs {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.shallowSizeOf(input) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + input.stream()
-            .mapToLong(RamUsageEstimator::sizeOf)
-            .sum();
+        return SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.shallowSizeOf(input) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+                + (long) input.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + input.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
     }
 }

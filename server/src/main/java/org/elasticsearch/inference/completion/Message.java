@@ -154,7 +154,9 @@ public record Message(
         if (list == null) {
             return 0L;
         }
-        return RamUsageEstimator.shallowSizeOf(list) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size()
-            * RamUsageEstimator.NUM_BYTES_OBJECT_REF + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        return RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.shallowSizeOf(list) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size()
+                * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + list.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

@@ -63,9 +63,10 @@ public class EmbeddingsInput extends InferenceInputs {
     }
 
     private static long estimateSizeInBytes(List<InferenceStringGroup> input) {
-        return RamUsageEstimator.shallowSizeOf(input) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + input.stream()
-            .mapToLong(InferenceStringGroup::ramBytesUsed)
-            .sum();
+        return RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.shallowSizeOf(input) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+                + (long) input.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        ) + input.stream().mapToLong(InferenceStringGroup::ramBytesUsed).sum();
     }
 
     /**

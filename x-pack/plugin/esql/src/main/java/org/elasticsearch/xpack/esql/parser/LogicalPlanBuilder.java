@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1056,6 +1057,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (config.containsKey("indices")) {
             throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
         }
+        EqlRequests.validateOptions(source, config);
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
         // ones the EQL delegate can populate and appends them to the output. Same duplicate-declaration guard as FROM.
         Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();

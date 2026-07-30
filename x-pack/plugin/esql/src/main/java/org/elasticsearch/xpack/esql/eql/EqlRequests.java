@@ -13,13 +13,18 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.ObjIntConsumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -40,12 +45,72 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * ({@code defaultSize}). Only the last case can silently truncate, so the caller warns on it (see
  * {@link #usesTruncationCapSize}).
  *
- * <p>Supported {@code WITH} options (all optional): {@code size}, {@code fetch_size}, {@code timestamp_field},
- * {@code tiebreaker_field}, {@code event_category_field}, {@code result_position} ({@code head}/{@code tail}).
+ * <p>The supported {@code WITH} options are the single source of truth in {@link #OPTIONS}: {@link #validateOptions}
+ * rejects anything else (or a wrong-typed value) at parse time, and {@link #applyOptions} applies exactly these.
  */
 public final class EqlRequests {
 
     private EqlRequests() {}
+
+    /**
+     * A supported {@code WITH} option: the value type it requires, a human name for that type used in error
+     * messages, and how the value applies to the request. {@link #OPTIONS} is the single source of truth for the
+     * command's option surface, so validation and application never drift and adding an option is one entry.
+     */
+    private record Option(Class<?> type, String typeName, BiConsumer<EqlSearchRequest, Object> apply) {}
+
+    private static final Map<String, Option> OPTIONS = options();
+
+    private static Map<String, Option> options() {
+        Map<String, Option> options = new LinkedHashMap<>();
+        intOption(options, "size", EqlSearchRequest::size);
+        intOption(options, "fetch_size", EqlSearchRequest::fetchSize);
+        intOption(options, "max_samples_per_key", EqlSearchRequest::maxSamplesPerKey);
+        stringOption(options, "timestamp_field", EqlSearchRequest::timestampField);
+        stringOption(options, "tiebreaker_field", EqlSearchRequest::tiebreakerField);
+        stringOption(options, "event_category_field", EqlSearchRequest::eventCategoryField);
+        stringOption(options, "result_position", EqlSearchRequest::resultPosition);
+        // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be
+        // returned. Defaulted false in build() (fail-safe) and opted into here.
+        options.put(
+            "allow_partial_sequence_results",
+            new Option(Boolean.class, "boolean", (request, value) -> request.allowPartialSequenceResults((Boolean) value))
+        );
+        return options;
+    }
+
+    // Numeric options arrive as folded Number literals; the request takes an int.
+    private static void intOption(Map<String, Option> options, String name, ObjIntConsumer<EqlSearchRequest> apply) {
+        options.put(name, new Option(Number.class, "numeric", (request, value) -> apply.accept(request, ((Number) value).intValue())));
+    }
+
+    private static void stringOption(Map<String, Option> options, String name, BiConsumer<EqlSearchRequest, String> apply) {
+        options.put(name, new Option(String.class, "string", (request, value) -> apply.accept(request, (String) value)));
+    }
+
+    /**
+     * Rejects any {@code WITH} option the command does not support, or one supplied with the wrong value type.
+     * Runs at parse time — alongside the {@code indices} rejection in the parser — so a typo (silently querying a
+     * default field) or a mistyped value (silently ignored) fails fast and loud instead of returning wrong results
+     * as complete.
+     */
+    public static void validateOptions(Source source, Map<String, Object> options) {
+        for (Map.Entry<String, Object> entry : options.entrySet()) {
+            Option option = OPTIONS.get(entry.getKey());
+            if (option == null) {
+                throw new ParsingException(
+                    source,
+                    "unknown EQL command option [" + entry.getKey() + "], expected one of " + OPTIONS.keySet()
+                );
+            }
+            if (option.type().isInstance(entry.getValue()) == false) {
+                throw new ParsingException(
+                    source,
+                    "EQL command option [" + entry.getKey() + "] requires a " + option.typeName() + " value"
+                );
+            }
+        }
+    }
 
     public static EqlSearchRequest build(
         String query,
@@ -69,14 +134,16 @@ public final class EqlRequests {
         // so a shard failure would otherwise return a clean, incomplete table. A security detection command must
         // not present partial results as complete. Pin both to false until ESQL surfaces partial-results warnings.
         request.allowPartialSearchResults(false);
+        // Fail-safe default: a sequence that lost a stage on a failed shard is a corrupt match, not a shorter one.
+        // A WITH {"allow_partial_sequence_results": true} option opts into resilience-over-completeness.
         request.allowPartialSequenceResults(false);
         List<FieldAndFormat> fetchFields = fetchFields(schema);
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
-        // Effective size default; applyOptional overwrites it with a WITH {"size"} value if present.
+        // Effective size default; a WITH {"size"} option overrides it in applyOptions.
         request.size(pushedLimit != null ? pushedLimit : defaultSize);
-        applyOptional(request, options);
+        applyOptions(request, options);
         return request;
     }
 
@@ -85,12 +152,7 @@ public final class EqlRequests {
      * {@code LIMIT}) — the only case where a full response may be silently incomplete, so the caller warns on it.
      */
     public static boolean usesTruncationCapSize(Map<String, Object> options, Integer pushedLimit) {
-        return hasExplicitSize(options) == false && pushedLimit == null;
-    }
-
-    /** Whether {@code WITH {"size": N}} was supplied — the single source of truth for the size-override check. */
-    private static boolean hasExplicitSize(Map<String, Object> options) {
-        return options.get("size") instanceof Number;
+        return options.get("size") instanceof Number == false && pushedLimit == null;
     }
 
     /**
@@ -124,24 +186,13 @@ public final class EqlRequests {
         return fields;
     }
 
-    private static void applyOptional(EqlSearchRequest request, Map<String, Object> options) {
-        if (hasExplicitSize(options)) {
-            request.size(((Number) options.get("size")).intValue());
-        }
-        if (options.get("fetch_size") instanceof Number fetchSize) {
-            request.fetchSize(fetchSize.intValue());
-        }
-        if (options.get("timestamp_field") instanceof String timestampField) {
-            request.timestampField(timestampField);
-        }
-        if (options.get("tiebreaker_field") instanceof String tiebreakerField) {
-            request.tiebreakerField(tiebreakerField);
-        }
-        if (options.get("event_category_field") instanceof String eventCategoryField) {
-            request.eventCategoryField(eventCategoryField);
-        }
-        if (options.get("result_position") instanceof String resultPosition) {
-            request.resultPosition(resultPosition);
+    /** Applies each supported option present in {@code options}; unknown keys were already rejected by parse-time validation. */
+    private static void applyOptions(EqlSearchRequest request, Map<String, Object> options) {
+        for (Map.Entry<String, Option> supported : OPTIONS.entrySet()) {
+            Object value = options.get(supported.getKey());
+            if (value != null) {
+                supported.getValue().apply().accept(request, value);
+            }
         }
     }
 }

@@ -251,12 +251,8 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
-    /**
-     * Caps the requested number of fragments by the text length so Lucene's {@code FragmentQueue} does not eagerly
-     * allocate more slots than the text could ever produce (a fragment needs at least one character).
-     */
     static int cappedNumberOfFragments(int requestedNumberOfFragments, int textLength) {
-        return Math.min(requestedNumberOfFragments, Math.max(1, textLength));
+        return Math.clamp(textLength, 1, requestedNumberOfFragments);
     }
 
     private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {

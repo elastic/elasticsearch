@@ -63,6 +63,15 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | WHERE mapped_on_data_node == "Disconnection error"
+            """;
+        runTestsLoadOnly(query, STAGES);
+    }
+
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -81,6 +90,16 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 5
             """;
         runUnmappedTests(query);
+    }
+
+    public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | SORT mapped_on_data_node
+            | LIMIT 5
+            """;
+        runTestsLoadOnly(query, STAGES);
     }
 
     public void testFilterConjunctionPushableAndNonPushable() {

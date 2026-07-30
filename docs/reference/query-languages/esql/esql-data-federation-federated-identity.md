@@ -170,55 +170,55 @@ aws iam attach-role-policy \
 ::::::{step} Connect the data source and create a dataset
 Back in Elastic:
 
-1. **Connect the data source.** In the **Connect data source** flyout from the first step, select **Federated Identity** and enter the **role ARN** you created.
+**Step 1.** In the **Connect data source** flyout from the first step, select **Federated Identity** and enter the **role ARN** you created.
 
-   ::::{tab-set}
-   :group: surface
+::::{tab-set}
+:group: surface
 
-   :::{tab-item} UI
-   :sync: ui
-   Enter the role ARN in the flyout. For the full field reference, refer to [connect external data sources](esql-data-federation-sources.md).
-   :::
+:::{tab-item} UI
+:sync: ui
+Enter the role ARN in the flyout. For the full field reference, refer to [connect external data sources](esql-data-federation-sources.md).
+:::
 
-   :::{tab-item} Console
-   :sync: console
-   ```console
-   PUT /_query/data_source/prod_s3_federated
-   {
-     "type": "s3",
-     "settings": {
-       "region": "eu-north-1",
-       "auth": "federated_identity",
-       "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role", <1>
-       "jwt_audience": "sts.amazonaws.com" <2>
-     }
-   }
-   ```
-   1. The ARN of the role you created in AWS.
-   2. If you use a custom audience, set `jwt_audience` to match the `aud` condition in the role's trust policy.
-   :::
+:::{tab-item} Console
+:sync: console
+```console
+PUT /_query/data_source/prod_s3_federated
+{
+  "type": "s3",
+  "settings": {
+    "region": "eu-north-1",
+    "auth": "federated_identity",
+    "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role", <1>
+    "jwt_audience": "sts.amazonaws.com" <2>
+  }
+}
+```
+1. The ARN of the role you created in AWS.
+2. If you use a custom audience, set `jwt_audience` to match the `aud` condition in the role's trust policy.
+:::
 
-   :::{tab-item} curl
-   :sync: curl
-   ```bash
-   curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
-     -H "Authorization: ApiKey ${API_KEY}" \
-     -H "Content-Type: application/json" \
-     -d '{
-     "type": "s3",
-     "settings": {
-       "region": "eu-north-1",
-       "auth": "federated_identity",
-       "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role",
-       "jwt_audience": "sts.amazonaws.com"
-     }
-   }'
-   ```
-   :::
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "type": "s3",
+  "settings": {
+    "region": "eu-north-1",
+    "auth": "federated_identity",
+    "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role",
+    "jwt_audience": "sts.amazonaws.com"
+  }
+}'
+```
+:::
 
-   ::::
+::::
 
-2. **Create a dataset.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
+**Step 2.** **Create a dataset.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
 You can now query the remote data with {{esql}}.
 ::::::

@@ -110,7 +110,7 @@ The index-level setting `index.mapping.doc_values.multi_value` controls the defa
 ## Requiring a field to have a value [doc-values-nullability]
 
 ```{applies_to}
-stack: preview
+stack: preview 9.5
 serverless: preview
 ```
 

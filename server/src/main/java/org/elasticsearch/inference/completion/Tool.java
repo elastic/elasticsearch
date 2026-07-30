@@ -126,7 +126,8 @@ public record Tool(String type, FunctionField function) implements Accountable, 
             var nameRamBytesUsed = RamUsageEstimator.sizeOf(name());
             var parametersRamBytesUsed = parameters() == null
                 ? 0L
-                : RamUsageEstimator.sizeOfMap(parameters()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+                : RamUsageEstimator.sizeOfMap(parameters()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+                    + (long) parameters().size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
             var strictRamBytesUsed = RamUsageEstimator.shallowSizeOf(strict());
 
             return SHALLOW_SIZE + descriptionRamBytesUsed + nameRamBytesUsed + parametersRamBytesUsed + strictRamBytesUsed;

@@ -99,26 +99,36 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         }
 
         if (extension.getPruneIndividualTests().get() == false && testsToExclude.isEmpty() == false) {
+            int rerunTestCount = testsToExclude.size();
+            testsToExclude = List.of();
+            if (suitesToExclude.isEmpty()) {
+                test.getLogger()
+                    .lifecycle(
+                        "Smart retry: rerunning {} successful tests in {} (project opted out of individual test pruning)",
+                        rerunTestCount,
+                        test.getPath()
+                    );
+                return;
+            }
             test.getLogger()
                 .lifecycle(
-                    "Smart retry: rerunning {} successful tests in {} (project opted out of individual test pruning)",
+                    "Smart retry: excluding {} successful suites from {} and rerunning {} successful tests "
+                        + "(project opted out of individual test pruning)",
+                    suitesToExclude.size(),
+                    test.getPath(),
+                    rerunTestCount
+                );
+        } else {
+            test.getLogger()
+                .lifecycle(
+                    "Smart retry: excluding {} successful suites and {} successful tests from {} (rerunning failures)",
+                    suitesToExclude.size(),
                     testsToExclude.size(),
                     test.getPath()
                 );
-            testsToExclude = List.of();
-            if (suitesToExclude.isEmpty()) {
-                return;
-            }
         }
 
         Set<String> methodExcludePatterns = buildMethodExcludePatterns(testsToExclude, test.getLogger());
-        test.getLogger()
-            .lifecycle(
-                "Smart retry: excluding {} successful suites and {} successful tests from {} (rerunning failures)",
-                suitesToExclude.size(),
-                testsToExclude.size(),
-                test.getPath()
-            );
         test.filter(filter -> {
             for (String className : suitesToExclude) {
                 filter.excludeTestsMatching(className + ".*");

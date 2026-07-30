@@ -208,7 +208,12 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("excluding 1 successful suites and 0 successful tests")
+        // A single message covers both halves of the outcome, instead of one line per concern
+        result.output.contains(
+            "excluding 1 successful suites from :subproject1:test and rerunning 1 successful tests " +
+                "(project opted out of individual test pruning)"
+        )
+        result.output.contains("rerunning 1 successful tests in :subproject1:test") == false
         testNotExecuted(result.output, "SubProject1TestClazz1 > someTest1")
         testExecuted(result.output, "someTest1 > someTest1 {phase=0}")
     }

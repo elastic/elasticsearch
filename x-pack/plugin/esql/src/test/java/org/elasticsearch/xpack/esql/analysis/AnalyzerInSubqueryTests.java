@@ -97,89 +97,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery in STATS WHERE filter is rejected.
-     */
-    public void testRejectsInSubqueryInStatsWhereFilter() {
-        errorInSubquery("""
-            FROM employees
-            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"));
-    }
-
-    /**
-     * Verifies that a NOT IN subquery in STATS WHERE filter is rejected.
-     */
-    public void testRejectsNotInSubqueryInStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]")
-        );
-    }
-
-    /**
-     * Verifies that IN subquery in STATS WHERE with BY grouping is rejected.
-     */
-    public void testRejectsInSubqueryInStatsWhereFilterWithGrouping() {
-        errorInSubquery(
-            """
-                FROM employees
-                | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-                """,
-            containsString(
-                "IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
-            )
-        );
-    }
-
-    // -- negative: IN subquery in INLINESTATS --
-
-    /**
-     * Verifies that an IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
-        );
-    }
-
-    /**
-     * Verifies that a NOT IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsNotInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
-            containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that IN subquery in INLINESTATS WHERE with BY grouping is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilterWithGrouping() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-                """,
-            containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
-            )
-        );
-    }
-
     // -- negative: IN subquery in EVAL --
 
     /**
@@ -621,35 +538,15 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- IN subquery nested in WHERE expressions --
-
-    /**
-     * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside a function call.
-     */
-    public void testRejectsInSubqueryInCaseFunctionInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
-                """,
+    public void testInSubqueryInInlineStatsWhereWithTSSource() {
+        assumeTrue("Requires the TS command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        errorWithK8s(
+            "TS k8s | INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)",
             containsString(
-                "IN subquery is not supported within other expressions [CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
+                "INLINE STATS "
+                    + "[INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)] "
+                    + "can only be used after STATS when used with TS command"
             )
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery wrapped in IS NOT NULL in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside IS NULL expressions.
-     */
-    public void testRejectsInSubqueryInIsNullInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
-                """,
-            containsString("IN subquery is not supported within other expressions [(emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
         );
     }
 

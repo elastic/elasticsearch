@@ -130,7 +130,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
             randomNodeCacheSizeAndCommitmentsMap(),
-            randomShardCacheRequirements()
+            randomShardCacheRequirements(),
+            randomHostedShardsPartitionSizes()
         );
     }
 
@@ -288,6 +289,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
         }
         return builder;
+    }
+
+    private static Map<String, Long> randomHostedShardsPartitionSizes() {
+        int numEntries = randomIntBetween(0, 16);
+        Map<String, Long> result = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            result.put(randomAlphaOfLength(10), randomNonNegativeLong());
+        }
+        return result;
     }
 
     public void testChunking() {

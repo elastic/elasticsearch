@@ -80,6 +80,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 new NoOpClient(threadPool),
                 EstimatedHeapUsageCollector.EMPTY,
                 cacheSizesAndCommitmentCollector,
+                PartitionSizeCollector.EMPTY,
                 NodeUsageStatsForThreadPoolsCollector.EMPTY
             );
             // AsyncRefresh asserts that each refresh notifies at least one registered cluster info listener.

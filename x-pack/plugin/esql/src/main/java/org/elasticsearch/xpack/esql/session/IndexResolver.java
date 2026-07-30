@@ -267,8 +267,8 @@ public class IndexResolver {
                         response.caps().getIndexResponses(),
                         response.caps().getFailures(),
                         responseMinimumVersion,
-                        request.includeUnmapped(),
-                        request.includeIndices(),
+                        request.fieldCapsRequest().includeUnmapped(),
+                        request.fieldCapsRequest().includeIndices(),
                         () -> {}
                     )
                 );

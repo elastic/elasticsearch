@@ -9,21 +9,32 @@
 
 package org.elasticsearch.index.codec.columnar.storage;
 
-import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.EmptyDocValuesProducer;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
@@ -39,16 +50,19 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 
 /**
  * Pins the storage footprint of {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} across
  * eight synthetic workloads and logs a three-codec comparison against
  * {@link org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat} and Lucene90. Each test
- * method asserts an exact ColumNAR byte count; the output is deterministic because the workload
- * uses a fixed seed, the directory is in-memory ({@link org.apache.lucene.store.ByteBuffersDirectory}),
- * and documents are force-merged to a single segment before measurement.
+ * method asserts an exact ColumNAR byte count; the output is deterministic because the workload uses
+ * a fixed seed and encoding is done directly via {@link org.apache.lucene.codecs.DocValuesConsumer},
+ * which writes only codec data files to an in-memory directory with no Lucene segment infrastructure.
  *
  * <p>Both ColumNAR and ES95 run at block size 128 (ColumNAR's current fixed block size) so the
  * comparison is purely algorithmic.
@@ -58,45 +72,44 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(ColumnarNumericFootprintTests.class);
     private static final String FIELD = "value";
     private static final int DOC_COUNT = 50_000;
-    private static final FieldType COLUMNAR_FIELD_TYPE = columnarFieldType();
 
     public void testFootprintMonotonicTimestamps() throws IOException {
-        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, bs) -> NumericPipeline.monotonicLongPipeline(bs), 71884);
+        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, bs) -> NumericPipeline.monotonicLongPipeline(bs), 66318);
     }
 
     public void testFootprintTsdbSplit() throws IOException {
-        runFootprintTest("TSDB_SPLIT", (f, bs) -> NumericPipeline.monotonicLongPipeline(bs), 10326);
+        runFootprintTest("TSDB_SPLIT", (f, bs) -> NumericPipeline.monotonicLongPipeline(bs), 4759);
     }
 
     public void testFootprintCounterSteady() throws IOException {
-        runFootprintTest("COUNTER_STEADY", (f, bs) -> NumericPipeline.defaultPipeline(bs), 9510);
+        runFootprintTest("COUNTER_STEADY", (f, bs) -> NumericPipeline.defaultPipeline(bs), 3942);
     }
 
     public void testFootprintGauge() throws IOException {
-        runFootprintTest("GAUGE", (f, bs) -> NumericPipeline.defaultPipeline(bs), 58590);
+        runFootprintTest("GAUGE", (f, bs) -> NumericPipeline.defaultPipeline(bs), 53023);
     }
 
     public void testFootprintSensorDoubles() throws IOException {
-        runFootprintTest("SENSOR_DOUBLES", (f, bs) -> NumericPipeline.doubleGaugePipeline(bs), 63394);
+        runFootprintTest("SENSOR_DOUBLES", (f, bs) -> NumericPipeline.doubleGaugePipeline(bs), 57829);
     }
 
     public void testFootprintDoubleGauge() throws IOException {
-        runFootprintTest("DOUBLE_GAUGE", (f, bs) -> NumericPipeline.doubleGaugePipeline(bs), 129617);
+        runFootprintTest("DOUBLE_GAUGE", (f, bs) -> NumericPipeline.doubleGaugePipeline(bs), 124052);
     }
 
     public void testFootprintDoubleCounter() throws IOException {
-        runFootprintTest("DOUBLE_COUNTER", (f, bs) -> NumericPipeline.doubleCounterPipeline(bs), 265877);
+        runFootprintTest("DOUBLE_COUNTER", (f, bs) -> NumericPipeline.doubleCounterPipeline(bs), 260313);
     }
 
     public void testFootprintRandomFull() throws IOException {
-        runFootprintTest("RANDOM_FULL", (f, bs) -> NumericPipeline.defaultPipeline(bs), 407362);
+        runFootprintTest("RANDOM_FULL", (f, bs) -> NumericPipeline.defaultPipeline(bs), 401795);
     }
 
     private void runFootprintTest(String workload, NumericPipelineSelector columnarPipeline, long expectedBytes) throws IOException {
         final long[] values = generate(workload, DOC_COUNT);
-        final long lucene = measureBytes(new Lucene90DocValuesFormat(), values, false);
-        final long es95 = measureBytes(es95Format(workload), values, false);
-        final long columnar = measureBytes(new ColumNARDocValuesFormat(columnarPipeline), values, true);
+        final long lucene = measureConsumer(new Lucene90DocValuesFormat(), values, false);
+        final long es95 = measureConsumer(es95Format(workload), values, false);
+        final long columnar = measureConsumer(new ColumNARDocValuesFormat(columnarPipeline), values, true);
         logger.info(
             "workload={} docs={} lucene={} es95={} columnar={} columnar/es95={}x columnar/lucene={}x",
             workload,
@@ -130,33 +143,47 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
         });
     }
 
-    private long measureBytes(DocValuesFormat dvFormat, long[] values, boolean columnar) throws IOException {
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
-            @Override
-            public DocValuesFormat getDocValuesFormatForField(String field) {
-                return dvFormat;
-            }
-        };
-        try (Directory dir = new ByteBuffersDirectory()) {
-            final IndexWriterConfig config = new IndexWriterConfig().setCodec(codec);
-            final BytesRefBuilder builder = new BytesRefBuilder();
-            try (IndexWriter writer = new IndexWriter(dir, config)) {
-                for (long value : values) {
-                    final Document doc = new Document();
-                    if (columnar) {
-                        doc.add(
-                            new Field(
-                                FIELD,
-                                BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { value }, 1, builder)),
-                                COLUMNAR_FIELD_TYPE
-                            )
-                        );
-                    } else {
-                        doc.add(new SortedNumericDocValuesField(FIELD, value));
-                    }
-                    writer.addDocument(doc);
+    private long measureConsumer(DocValuesFormat format, long[] values, boolean columnar) throws IOException {
+        try (ByteBuffersDirectory dir = new ByteBuffersDirectory()) {
+            final FieldInfo fieldInfo = columnar ? columnarFieldInfo() : numericFieldInfo();
+            final SegmentInfo segInfo = new SegmentInfo(
+                dir,
+                Version.LATEST,
+                Version.LATEST,
+                "_0",
+                values.length,
+                false,
+                false,
+                new Elasticsearch93Lucene104Codec(),
+                Collections.emptyMap(),
+                StringHelper.randomId(),
+                new HashMap<>(),
+                null
+            );
+            final SegmentWriteState state = new SegmentWriteState(
+                InfoStream.getDefault(),
+                dir,
+                segInfo,
+                new FieldInfos(new FieldInfo[] { fieldInfo }),
+                null,
+                IOContext.DEFAULT
+            );
+            try (DocValuesConsumer consumer = format.fieldsConsumer(state)) {
+                if (columnar) {
+                    consumer.addBinaryField(fieldInfo, new EmptyDocValuesProducer() {
+                        @Override
+                        public BinaryDocValues getBinary(FieldInfo field) {
+                            return binaryDocValues(values);
+                        }
+                    });
+                } else {
+                    consumer.addSortedNumericField(fieldInfo, new EmptyDocValuesProducer() {
+                        @Override
+                        public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                            return DocValues.singleton(numericDocValues(values));
+                        }
+                    });
                 }
-                writer.forceMerge(1);
             }
             long total = 0;
             for (String file : dir.listAll()) {
@@ -164,6 +191,127 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
             }
             return total;
         }
+    }
+
+    private static BinaryDocValues binaryDocValues(long[] values) {
+        final BytesRefBuilder builder = new BytesRefBuilder();
+        return new BinaryDocValues() {
+            int doc = -1;
+
+            @Override
+            public BytesRef binaryValue() {
+                return BytesRef.deepCopyOf(NumericBinaryPayload.encode(new long[] { values[doc] }, 1, builder));
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                doc = target;
+                return doc < values.length;
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                return ++doc < values.length ? doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                return (doc = target) < values.length ? target : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return values.length;
+            }
+        };
+    }
+
+    private static NumericDocValues numericDocValues(long[] values) {
+        return new NumericDocValues() {
+            int doc = -1;
+
+            @Override
+            public long longValue() {
+                return values[doc];
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                doc = target;
+                return doc < values.length;
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                return ++doc < values.length ? doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                return (doc = target) < values.length ? target : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return values.length;
+            }
+        };
+    }
+
+    private static FieldInfo columnarFieldInfo() {
+        return new FieldInfo(
+            FIELD,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.BINARY,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name()),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+    }
+
+    private static FieldInfo numericFieldInfo() {
+        return new FieldInfo(
+            FIELD,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.SORTED_NUMERIC,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
     }
 
     private static long[] generate(String workload, int count) {
@@ -194,13 +342,5 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
             };
         }
         return values;
-    }
-
-    private static FieldType columnarFieldType() {
-        final FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
-        type.freeze();
-        return type;
     }
 }

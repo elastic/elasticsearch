@@ -17,10 +17,13 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -50,8 +54,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *       {@link Or}) is replaced with a synthetic boolean attribute and a {@link MarkJoin}
  *       is stacked below the rewritten {@link Filter}; the mark attribute carries the
  *       three-valued {@code IN} result up into normal boolean evaluation.</li>
- *   <li>An {@code InSubquery} wrapped in any other expression (a function argument, an
- *       {@code IS NOT NULL}, an arithmetic operator, etc.) is left in place; the post-resolution
+ *   <li>An {@code InSubquery} inside a {@link IsNull}/{@link IsNotNull} operand, or inside any
+ *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
+ *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
+ *       identical to the {@link Or} case above.</li>
+ *   <li>An {@code InSubquery} wrapped in any other expression (a comparison operator, an
+ *       arithmetic operator, a lambda, etc.) is left in place; the post-resolution
  *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
  * </ul>
  * <p>
@@ -234,12 +242,20 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Walks the boolean expression replacing every {@link InSubquery} reachable through
-     * {@link And}/{@link Or}/{@link Not} (i.e. boolean position) with a fresh synthetic mark
-     * attribute, recording a {@link MarkJoinSpec} per replacement. {@link InSubquery}
-     * occurrences that sit under a non-boolean wrapper (function argument, comparison, etc.) are
-     * left in place for {@link #verify} to reject. Any expression with no eligible
-     * {@link InSubquery} below it is returned unchanged.
+     * Walks the boolean expression replacing every {@link InSubquery} reachable through boolean-composing nodes with a fresh synthetic
+     * mark attribute, recording a {@link MarkJoinSpec} per replacement. The boolean-composing nodes are:
+     * <ul>
+     *   <li>{@link And}, {@link Or}, {@link Not} — standard boolean connectives.</li>
+     *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
+     *       grammar so it must be parenthesized, but the  resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
+     *       directly.</li>
+     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
+     *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.
+     *       Note: at this stage the plan is pre-analysis, so these appear as {@link UnresolvedFunction}, not as the resolved
+     *       {@code Case}/{@code Coalesce} classes.</li>
+     * </ul>
+     * {@link InSubquery} occurrences under any other wrapper (arithmetic, comparison, lambda, etc.) are left in place for {@link #verify}
+     * to reject. Any expression with no eligible {@link InSubquery} below it is returned unchanged.
      */
     private static Expression rewriteOrContextInSubqueries(Expression expr, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
         if (expr instanceof And and) {
@@ -259,10 +275,37 @@ public class InSubqueryResolver {
         if (expr instanceof InSubquery inSubquery) {
             return rewriteAsMarkJoin(inSubquery, joins, syntheticEvals);
         }
-        // Non-boolean expression (function call, comparison, IS NOT NULL, etc.). Do NOT recurse:
-        // any nested InSubquery should be reported as unsupported by the verifier rather than
-        // silently lifted out into a join that would change the expression's semantics.
+        if (isEligibleFunctionForInSubqueryRewrite(expr)) {
+            List<Expression> children = expr.children();
+            List<Expression> rewritten = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (Expression child : children) {
+                Expression r = rewriteOrContextInSubqueries(child, joins, syntheticEvals);
+                rewritten.add(r);
+                changed |= r != child;
+            }
+            return changed ? expr.replaceChildren(rewritten) : expr;
+        }
         return expr;
+    }
+
+    /**
+     * Returns {@code true} if {@code expr} is a boolean-composing expression whose children may be freely rewritten with {@link MarkJoin}
+     * substitutions without changing semantics — i.e. an explicit allowlist of wrappers for which hoisting an {@link InSubquery} into a
+     * join below the {@link Filter} is safe.
+     * <p>
+     * This is an allowlist, not "recurse into everything", so that lambdas and other constructs where the {@link InSubquery} LHS
+     * references an in-scope parameter are kept out.
+     */
+    private static boolean isEligibleFunctionForInSubqueryRewrite(Expression expr) {
+        if (expr instanceof IsNull || expr instanceof IsNotNull) {
+            return true;
+        }
+        if (expr instanceof UnresolvedFunction uf) {
+            String lowerName = uf.name().toLowerCase(Locale.ROOT);
+            return lowerName.equals("case") || lowerName.equals("coalesce");
+        }
+        return false;
     }
 
     /**
@@ -349,12 +392,14 @@ public class InSubqueryResolver {
      * {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}/{@link MarkJoin}.
      * <p>
      * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And} /
-     * {@link Or} / {@link Not} above it) the resolver normally rewrites it; if one survives here
-     * it means the surrounding boolean shape is not yet supported (e.g. an unsupported LHS shape).
-     * In that case we report the whole filter source (the entire {@code WHERE} clause).
+     * {@link Or} / {@link Not} / {@link IsNull} / {@link IsNotNull} / {@code CASE} /
+     * {@code COALESCE} above it) the resolver normally rewrites it; if one survives here it means
+     * the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression
+     * like {@code abs(x)}). In that case we report the whole filter source (the entire
+     * {@code WHERE} clause).
      * <p>
-     * Otherwise (the IN subquery is nested inside a non-boolean expression such as a scalar
-     * function or {@code IS NOT NULL}), we report the immediately enclosing expression.
+     * Otherwise (the IN subquery is nested inside an expression that is not in the supported
+     * allowlist), we report the immediately enclosing expression.
      */
     private static void checkInFilterCondition(Filter filter, Expression expr, Expression outerExpr, Failures failures) {
         if (expr instanceof InSubquery in) {
@@ -367,7 +412,8 @@ public class InSubqueryResolver {
         Expression newOuterExpr = outerExpr == null
             && expr instanceof And == false
             && expr instanceof Or == false
-            && expr instanceof Not == false ? expr : outerExpr;
+            && expr instanceof Not == false
+            && isEligibleFunctionForInSubqueryRewrite(expr) == false ? expr : outerExpr;
         for (Expression child : expr.children()) {
             checkInFilterCondition(filter, child, newOuterExpr, failures);
         }

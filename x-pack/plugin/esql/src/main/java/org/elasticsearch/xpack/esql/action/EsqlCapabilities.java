@@ -1488,6 +1488,12 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
+
         /**
          * Support for views in cluster state (and REST API).
          */

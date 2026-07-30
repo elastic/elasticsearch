@@ -87,14 +87,6 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testRejectsInSubqueryInWhereInsideCaseExpression() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE CASE(id IN (FROM test | KEEP id), true, false)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN subquery is not supported within other expressions [CASE(id IN (FROM test | KEEP id), true, false)]")
-        );
-    }
-
     public void testRejectInSubqueryUsedInWhereInsideMvContains() {
         var e = expectThrows(
             VerificationException.class,

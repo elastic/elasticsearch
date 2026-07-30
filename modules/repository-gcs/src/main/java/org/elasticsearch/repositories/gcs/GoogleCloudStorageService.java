@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -55,6 +56,8 @@ import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -67,11 +70,19 @@ public class GoogleCloudStorageService {
     private final GoogleCloudStorageClientsManager clientsManager;
 
     private final boolean isServerless;
+    @Nullable
+    private final Executor parallelCompositeUploadExecutor;
 
     public GoogleCloudStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
         final Settings nodeSettings = clusterService.getSettings();
         this.isServerless = DiscoveryNode.isStateless(nodeSettings);
         this.clientsManager = new GoogleCloudStorageClientsManager(nodeSettings, projectResolver.supportsMultipleProjects());
+        // For parallel composite uploads, the calling thread blocks on tasks submitted to this executor, causing a deadlock if the thread
+        // pool only has 1 thread or is a DeterministicTaskQueue
+        Executor writeExecutor = clusterService.threadPool().executor(ThreadPool.Names.WRITE);
+        this.parallelCompositeUploadExecutor = writeExecutor instanceof ThreadPoolExecutor pool && pool.getCorePoolSize() > 1
+            ? writeExecutor
+            : null;
         if (projectResolver.supportsMultipleProjects()) {
             clusterService.addHighPriorityApplier(this.clientsManager);
         }
@@ -114,6 +125,10 @@ public class GoogleCloudStorageService {
         final GcsRepositoryStatsCollector statsCollector
     ) throws IOException {
         return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
+    }
+
+    boolean supportsParallelCompositeUpload() {
+        return parallelCompositeUploadExecutor != null;
     }
 
     GoogleCloudStorageClientSettings clientSettings(@Nullable ProjectId projectId, final String clientName) {
@@ -188,7 +203,7 @@ public class GoogleCloudStorageService {
         };
 
         final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
-        return new MeteredStorage(storageOptions.getService(), statsCollector);
+        return new MeteredStorage(storageOptions.getService(), statsCollector, parallelCompositeUploadExecutor);
     }
 
     StorageOptions createStorageOptions(

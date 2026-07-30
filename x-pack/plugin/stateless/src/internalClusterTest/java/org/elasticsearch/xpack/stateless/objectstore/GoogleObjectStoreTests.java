@@ -22,7 +22,9 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -34,6 +36,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Collection;
@@ -46,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 
@@ -188,6 +192,43 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
             ) {
                 assertArrayEquals(BytesReference.toBytes(blobData), is.readAllBytes());
             }
+        } finally {
+            internalCluster().stopNode(node);
+        }
+    }
+
+    public void testWriteBlobAtomicViaParallelCompositeUpload() throws Exception {
+        final String node = startMasterAndIndexNode();
+        try {
+            final var objectStoreService = getCurrentMasterObjectStoreService();
+
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            final var shardId = new ShardId(resolveIndex(indexName), 0);
+            final long primaryTerm = 1L;
+
+            final var blobContainer = objectStoreService.getProjectBlobContainer(shardId, primaryTerm);
+            assumeTrue("PCU requires a multi-threaded WRITE pool", blobContainer.supportsConcurrentMultipartUploads());
+            Set<String> blobs = new HashSet<>(blobContainer.listBlobs(OperationPurpose.INDICES).keySet());
+
+            // LARGE_BLOB_THRESHOLD_BYTE_SIZE is 5MB
+            final byte[] blobContent = randomByteArrayOfLength((int) ByteSizeValue.ofMb(randomIntBetween(6, 30)).getBytes());
+            final String blobName = "test_parallel_composite_upload_blob";
+            blobContainer.writeBlobAtomic(
+                OperationPurpose.INDICES,
+                blobName,
+                blobContent.length,
+                (offset, length) -> new ByteArrayInputStream(blobContent, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+
+            try (var readBack = blobContainer.readBlob(OperationPurpose.INDICES, blobName)) {
+                assertArrayEquals(blobContent, readBack.readAllBytes());
+            }
+            blobs.add(blobName);
+            // check that temp blobs were deleted
+            assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), equalTo(blobs));
         } finally {
             internalCluster().stopNode(node);
         }

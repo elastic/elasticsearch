@@ -116,65 +116,14 @@ public final class GroupingAggregatorPageBuilder {
         boolean success = false;
         try {
             IntVector allOrdinals = prepared.selected.keys;
-            int n = allOrdinals.getPositionCount();
-
-            int[] partitionOf = new int[n];
-            int[] counts = new int[partitionCount];
-            for (int i = 0; i < n; i++) {
-                int part = partitioner.applyAsInt(allOrdinals.getInt(i));
-                partitionOf[i] = part;
-                counts[part]++;
-            }
-
-            // Bucket sort by partition; stable, so ordinals within each partition stay ascending.
-            int[] offsets = new int[partitionCount + 1];
-            for (int p = 0; p < partitionCount; p++) {
-                offsets[p + 1] = offsets[p] + counts[p];
-            }
-            int[] cursor = Arrays.copyOf(offsets, partitionCount);
-            int[] sorted = new int[n];
-            for (int i = 0; i < n; i++) {
-                sorted[cursor[partitionOf[i]]++] = i;
-            }
-
+            PartitionLayout layout = computePartitionLayout(allOrdinals, partitionCount, partitioner);
             BlockFactory bf = ctx.blockFactory();
             for (int p = 0; p < partitionCount; p++) {
-                int start = offsets[p], end = offsets[p + 1];
+                int start = layout.offsets[p], end = layout.offsets[p + 1];
                 if (start == end) {
                     continue;
                 }
-                int count = end - start;
-                IntVector partitionOrdinals = null;
-                Selected partSelected = null;
-                boolean innerSuccess = false;
-                try {
-                    try (var builder = bf.newIntVectorFixedBuilder(count)) {
-                        for (int j = 0; j < count; j++) {
-                            builder.appendInt(j, allOrdinals.getInt(sorted[start + j]));
-                        }
-                        partitionOrdinals = builder.build();
-                    }
-                    IntVector[] partitionAggs = new IntVector[aggregators.size()];
-                    try {
-                        for (int a = 0; a < aggregators.size(); a++) {
-                            partitionAggs[a] = customizeSelected.customize(aggregators.get(a), partitionOrdinals);
-                        }
-                        innerSuccess = true;
-                    } finally {
-                        if (innerSuccess == false) {
-                            Releasables.close(partitionAggs);
-                        }
-                    }
-                    // partSelected takes ownership: keys (1 ref) + aggs (each incRef'd by customize)
-                    partSelected = new Selected(partitionOrdinals, partitionAggs);
-                    partitionOrdinals = null;
-                    result[p] = prepared.buildPage(partSelected, aggBlockCounts, p);
-                } finally {
-                    Releasables.close(partSelected);
-                    if (innerSuccess == false && partitionOrdinals != null) {
-                        partitionOrdinals.close();
-                    }
-                }
+                result[p] = prepared.buildPageForPartition(aggBlockCounts, allOrdinals, layout.sorted, start, end - start, p, bf);
             }
             success = true;
             List<Page> pages = new ArrayList<>();
@@ -195,6 +144,34 @@ public final class GroupingAggregatorPageBuilder {
             }
         }
     }
+
+    /**
+     * Bucket-sorts {@code allOrdinals} by partition (stable, so ordinals within each partition
+     * stay ascending). Returns the permuted index array and the partition offsets into it:
+     * partition {@code p}'s ordinals occupy {@code sorted[offsets[p]..offsets[p+1]]}.
+     */
+    private static PartitionLayout computePartitionLayout(IntVector allOrdinals, int partitionCount, IntUnaryOperator partitioner) {
+        int n = allOrdinals.getPositionCount();
+        int[] partitionOf = new int[n];
+        int[] counts = new int[partitionCount];
+        for (int i = 0; i < n; i++) {
+            int part = partitioner.applyAsInt(allOrdinals.getInt(i));
+            partitionOf[i] = part;
+            counts[part]++;
+        }
+        int[] offsets = new int[partitionCount + 1];
+        for (int p = 0; p < partitionCount; p++) {
+            offsets[p + 1] = offsets[p] + counts[p];
+        }
+        int[] cursor = Arrays.copyOf(offsets, partitionCount);
+        int[] sorted = new int[n];
+        for (int i = 0; i < n; i++) {
+            sorted[cursor[partitionOf[i]]++] = i;
+        }
+        return new PartitionLayout(sorted, offsets);
+    }
+
+    private record PartitionLayout(int[] sorted, int[] offsets) {}
 
     /**
      * Returns many pages of results from aggregations. Works by breaking chunks off
@@ -292,6 +269,53 @@ public final class GroupingAggregatorPageBuilder {
             this.ctx = ctx;
             this.selected = selected;
             this.preparedAggregators = preparedAggregators;
+        }
+
+        /**
+         * Builds the output page for a single partition: extracts the partition's ordinals from
+         * {@code sorted[start..start+count]}, customizes the aggregator selections, and evaluates
+         * to a page tagged with {@code partitionIndex}.
+         */
+        Page buildPageForPartition(
+            int[] aggBlockCounts,
+            IntVector allOrdinals,
+            int[] sorted,
+            int start,
+            int count,
+            int partitionIndex,
+            BlockFactory bf
+        ) {
+            IntVector partitionOrdinals = null;
+            Selected partSelected = null;
+            boolean success = false;
+            try {
+                try (var builder = bf.newIntVectorFixedBuilder(count)) {
+                    for (int j = 0; j < count; j++) {
+                        builder.appendInt(j, allOrdinals.getInt(sorted[start + j]));
+                    }
+                    partitionOrdinals = builder.build();
+                }
+                IntVector[] partitionAggs = new IntVector[aggregators.size()];
+                try {
+                    for (int a = 0; a < aggregators.size(); a++) {
+                        partitionAggs[a] = customizeSelected.customize(aggregators.get(a), partitionOrdinals);
+                    }
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        Releasables.close(partitionAggs);
+                    }
+                }
+                // partSelected takes ownership: keys (1 ref) + aggs (each incRef'd by customize)
+                partSelected = new Selected(partitionOrdinals, partitionAggs);
+                partitionOrdinals = null;
+                return buildPage(partSelected, aggBlockCounts, partitionIndex);
+            } finally {
+                Releasables.close(partSelected);
+                if (success == false && partitionOrdinals != null) {
+                    partitionOrdinals.close();
+                }
+            }
         }
 
         /**

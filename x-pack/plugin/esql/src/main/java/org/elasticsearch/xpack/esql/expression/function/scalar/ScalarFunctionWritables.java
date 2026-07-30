@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
+import org.elasticsearch.xpack.esql.expression.function.WindowWithPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -144,6 +145,7 @@ public class ScalarFunctionWritables {
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
         entries.add(WindowFilter.ENTRY);
+        entries.add(WindowWithPartial.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

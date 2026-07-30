@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
+import org.elasticsearch.xpack.esql.expression.function.WindowWithPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
@@ -8204,6 +8205,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithWindow() {
+        // multiple of the bucket (including equal): the plain window duration is preserved
         {
             int window = between(1, 20);
             var query = String.format(Locale.ROOT, """
@@ -8256,7 +8258,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
-        // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
+        // non-multiple window (>= bucket): decomposed into the full window plus a partial filter over the remainder
         {
             int window = randomValueOtherThanMany(n -> n % 5 == 0 || n < 5, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
@@ -8264,12 +8266,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var plan = planMetrics(query);
+            var plan = planMetricsWithLatestVersion(query);
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
-            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            WindowWithPartial windowWithPartial = (WindowWithPartial) holder.get().window();
+            assertThat(windowWithPartial.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            assertThat(windowWithPartial.partialFilter().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window % 5)));
         }
         // no time bucket
         {
@@ -8321,7 +8325,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
-    public void testApplyWindowFilter() {
+    public void testApplyWindowSemanticsSmallWindows() {
         // single layer of aggregations
         {
             int window = randomIntBetween(1, 4);
@@ -8419,59 +8423,53 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithNonMultipleWindow() {
-        // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
+        // 7m window with 5m bucket -> full window plus a partial channel over the trailing 2m
         {
             var query = """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            var plan = planMetrics(query);
+            var plan = planMetricsWithLatestVersion(query);
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // Internal bucket should be GCD(7m, 5m) = 1m
+            // The time bucket is always the user bucket; the window never rewrites it
             assertNotNull(tsAgg.timeBucket());
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
-            // Output bucket should be the user-specified 5m
-            assertNotNull(tsAgg.outputTimeBucket());
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            // The 7m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            assertWindowWithPartial(tsAgg, Duration.ofMinutes(7), Duration.ofMinutes(2));
         }
-        // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
+        // 12m window with 8m bucket -> full window plus a partial channel over the trailing 4m
         {
             var query = """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, 12 minute)) BY tbucket(8 minute)
                 | LIMIT 10
                 """;
-            var plan = planMetrics(query);
+            var plan = planMetricsWithLatestVersion(query);
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
-            // The 12m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(12)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+            assertWindowWithPartial(tsAgg, Duration.ofMinutes(12), Duration.ofMinutes(4));
         }
-        // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
+        // A window and bucket combination that used to exceed the GCD sub-bucket limit: 301s over a 5m bucket
+        // decomposes into the full window plus a 1s partial filter
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetricsWithLatestVersion(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            assertWindowWithPartial(tsHolder.get(), Duration.ofSeconds(301), Duration.ofSeconds(1));
+        }
+        // Exact multiple: 10m window with 5m bucket -> the plain window duration is preserved
         {
             var query = """
                 TS k8s
@@ -8483,9 +8481,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // When window is an exact multiple, internal and output buckets should both be the user bucket
             assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
             // The 10m window must be preserved on the first-pass aggregate function
             Holder<AggregateFunction> afHolder = new Holder<>();
             tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
@@ -8498,34 +8494,64 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
-    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
+    private static void assertWindowWithPartial(TimeSeriesAggregate tsAgg, Duration window, Duration remainder) {
+        Holder<AggregateFunction> afHolder = new Holder<>();
+        tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+            if (af.hasWindow()) {
+                afHolder.set(af);
+            }
         });
-        assertThat(e.getMessage(), containsString("Combining windows smaller than the time bucket with non-multiple windows"));
+        assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+        WindowWithPartial windowWithPartial = (WindowWithPartial) afHolder.get().window();
+        assertThat(windowWithPartial.window().fold(FoldContext.small()), equalTo(window));
+        assertThat(windowWithPartial.partialFilter().window().fold(FoldContext.small()), equalTo(remainder));
     }
 
-    public void testTranslateOverTimeWithTooManySubBuckets() {
-        // 301s window with 300s (5m) bucket -> GCD=1s -> 300 sub-buckets, exceeds limit of 128
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
-        });
+    /**
+     * Windows smaller than the bucket and non-multiple windows dispatch per aggregate, so combining them in the
+     * same STATS works: the small one becomes a row filter, the non-multiple one a window with a partial channel.
+     */
+    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
+        var query = """
+            TS k8s
+            | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetricsWithLatestVersion(query);
+        Holder<Max> maxHolder = new Holder<>();
+        Holder<Rate> rateHolder = new Holder<>();
+        plan.forEachExpressionDown(Max.class, maxHolder::set);
+        plan.forEachExpressionDown(Rate.class, rateHolder::set);
+        assertNotNull(maxHolder.get());
+        assertNotNull(rateHolder.get());
+        // the 2m window became a row filter
+        assertFalse(maxHolder.get().hasWindow());
+        assertTrue(maxHolder.get().hasFilter());
+        WindowFilter smallWindowFilter = (WindowFilter) maxHolder.get().filter();
+        assertThat(smallWindowFilter.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
+        // the 7m window became a window with a 2m partial channel
+        assertTrue(rateHolder.get().hasWindow());
+        WindowWithPartial windowWithPartial = (WindowWithPartial) rateHolder.get().window();
+        assertThat(windowWithPartial.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+        assertThat(windowWithPartial.partialFilter().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
+    }
+
+    /**
+     * A non-multiple window widens the intermediate aggregation state, so it requires every node in the cluster to
+     * understand the partial channel. On a mixed-version cluster the query is rejected with a clear error.
+     */
+    public void testTranslateOverTimeWithNonMultipleWindowOnOlderVersion() {
+        var query = """
+            TS k8s
+            | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
+            | LIMIT 10
+            """;
+        var e = expectThrows(IllegalArgumentException.class, () -> planMetrics(query));
         assertThat(
             e.getMessage(),
             equalTo(
-                "The window [301 second] and bucket [5 minute] combination requires [300] internal sub-buckets of size [1s]"
-                    + " per output bucket, which exceeds the limit of [128];"
-                    + " use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
+                "cannot use window [7 minute] that is not a multiple of the time bucket [5 minute] "
+                    + "until all nodes in the cluster have been upgraded"
             )
         );
     }

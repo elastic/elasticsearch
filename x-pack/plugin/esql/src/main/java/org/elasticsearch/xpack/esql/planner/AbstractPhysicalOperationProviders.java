@@ -32,11 +32,13 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.WindowWithPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -372,8 +374,26 @@ public abstract class AbstractPhysicalOperationProviders {
                     } else {
                         aggSupplier = supplier(aggregateFunction);
                     }
-                    // apply the grouping window in the final phase
-                    if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
+                    // apply the grouping window: a window with a partial channel is wired in every phase because it
+                    // widens the intermediate state, while a plain window only merges buckets in the final phase
+                    if (aggregateFunction.hasWindow() && aggregateFunction.window() instanceof WindowWithPartial windowWithPartial) {
+                        Duration windowInterval = (Duration) windowWithPartial.window().fold(foldContext);
+                        Duration partialInterval = (Duration) windowWithPartial.partialFilter().window().fold(foldContext);
+                        AggregatorFunctionSupplier partialSupplier;
+                        if (mode.isInputPartial()) {
+                            // the partial channel arrives pre-filtered from the raw-input phase
+                            partialSupplier = supplier(aggregateFunction);
+                        } else {
+                            Expression partialFilter = aggregateFunction.hasFilter()
+                                ? Predicates.combineAnd(List.of(aggregateFunction.filter(), windowWithPartial.partialFilter()))
+                                : windowWithPartial.partialFilter();
+                            partialSupplier = new FilteredAggregatorFunctionSupplier(
+                                supplier(aggregateFunction),
+                                EvalMapper.toEvaluator(foldContext, partialFilter, layout, context.shardContexts())
+                            );
+                        }
+                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, partialSupplier, windowInterval, partialInterval);
+                    } else if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
                         Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
                         aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
                     }

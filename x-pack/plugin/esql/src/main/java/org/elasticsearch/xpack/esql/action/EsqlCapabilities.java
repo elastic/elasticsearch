@@ -1524,6 +1524,16 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/146208
          */
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
+        /**
+         * Fixed a bug where explicitly including a view and then explicitly excluding it (either by its
+         * concrete name or by a wildcard that matches it) alongside another concrete index caused an
+         * {@code IndexNotFoundException("no such index [view-name]")} at search-shards time. The view
+         * resolver stripped the exclusion token but left the positive view-name literal in the pattern,
+         * which then leaked into {@code EsRelation#originalIndices} and reached the data-node
+         * search-shards request with options that cannot resolve view names.
+         * See https://github.com/elastic/elasticsearch/issues/147863
+         */
+        VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
@@ -2099,6 +2109,11 @@ public class EsqlCapabilities {
          * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
         DATE_RANGE_FIELD_TYPE_V6,
+
+        /**
+         * Support for the DOUBLE_RANGE field type.
+         */
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V2(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2818,13 +2833,22 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
-         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
-         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
-         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
-         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
-         * containing such a node correctly returns {@code supported=false}.
+         * Signals that this node reports no datasets during remote field resolution whenever federation is unavailable
+         * (see {@code Federation}), whether because the operator property suppressed it or because the setting leaves it
+         * off, so a {@code FROM <remote>:<dataset>} falls through to normal index resolution instead of surfacing a
+         * {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster predate this behavior and will not
+         * report the capability via {@code /_capabilities}, so any mixed cluster containing such a node correctly
+         * returns {@code supported=false}.
          */
         REGISTER_FEDERATION_FEATURE,
+
+        /**
+         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so
+         * federation is off unless a deployment opts in. Nodes that only have the operator kill switch report
+         * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
+         * per node, so a test that drives the setting has to skip against them.
+         */
+        FEDERATION_ENABLED_SETTING,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -3352,6 +3376,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_MATCHER_PARAMS,
 
         /**
+         * Support for identifier parameters in PromQL label lists:
+         * <a href="https://github.com/elastic/elasticsearch/issues/152500">#152500</a>
+         */
+        PROMQL_LABEL_LIST_IDENTIFIER_PARAMS,
+
+        /**
          * Fix for PromQL scalar integer division losing the fractional part.
          * Integer literals like {@code 4/6} were folded with integer division (result: 0)
          * instead of float64 division (result: ~0.667).
@@ -3521,6 +3551,12 @@ public class EsqlCapabilities {
          * Fix multi value unsigned long conversion to aggregate metric double
          */
         FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
+        /**
+         * Constant folding of logical operators ({@code AND}, {@code OR}, {@code NOT}) applied to multivalue
+         * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
+         */
+        FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -75,7 +75,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 true,
                 onFailure
             );
-            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED_LOW_CARDINALITY;
             default -> throw new IllegalStateException();
         };
     }

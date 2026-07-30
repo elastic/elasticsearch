@@ -305,7 +305,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
             parser.nextToken();
             parser.nextToken();
             ParsingException e = expectThrows(ParsingException.class, () -> { SearchAfterBuilder.fromXContent(parser); });
-            assertThat(e.getMessage(), equalTo("[search_after] values cannot contain null."));
+            assertThat(e.getMessage(), containsString("[VALUE_NULL]"));
+            assertThat(e.getMessage(), containsString("search_after"));
         }
     }
 

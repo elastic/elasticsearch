@@ -251,8 +251,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     values.add(parser.text());
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     values.add(parser.booleanValue());
-                } else if (token == XContentParser.Token.VALUE_NULL) {
-                    throw new ParsingException(parser.getTokenLocation(), "[search_after] values cannot contain null.");
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -262,8 +260,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             + XContentParser.Token.VALUE_NUMBER
                             + "] or ["
                             + XContentParser.Token.VALUE_BOOLEAN
-                            + "] or ["
-                            + XContentParser.Token.VALUE_NULL
                             + "] but found ["
                             + token
                             + "] inside search_after."

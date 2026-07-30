@@ -17,13 +17,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,15 +53,9 @@ public class BlobCachePeriodicMetricsTests extends ESTestCase {
             assertThat(recording.getLongGauge(BlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_CURRENT), notNullValue());
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
-            final var getLastMeasurement = new Supplier<Measurement>() {
-                @Override
-                public Measurement get() {
-                    return recording.getRecorder()
-                        .getMeasurements(InstrumentType.LONG_GAUGE, BlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_CURRENT)
-                        .getLast();
-                }
-            };
-            final var firstMeasurement = getLastMeasurement.get();
+            final var firstMeasurement = recording.getRecorder()
+                .getMeasurements(InstrumentType.LONG_GAUGE, BlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_CURRENT)
+                .getLast();
             assertThat(firstMeasurement.getLong(), equalTo(0L));
             assertThat(firstMeasurement.attributes().isEmpty(), equalTo(true));
 

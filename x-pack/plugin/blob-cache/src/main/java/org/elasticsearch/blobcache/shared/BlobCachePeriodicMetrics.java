@@ -103,7 +103,7 @@ public final class BlobCachePeriodicMetrics extends AbstractLifecycleComponent {
                 meterRegistry,
                 BLOB_CACHE_REGIONS_CURRENT,
                 "The number of occupied shared blob-cache regions, with additional attributes supplied by the active eviction policy",
-                "entries"
+                "regions"
             )
         );
         metricsTask.set(threadPool.scheduleWithFixedDelay(this::sample, metricsInterval, threadPool.generic()));

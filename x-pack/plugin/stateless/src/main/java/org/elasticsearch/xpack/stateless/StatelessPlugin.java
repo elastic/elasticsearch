@@ -66,6 +66,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -1232,8 +1233,7 @@ public class StatelessPlugin extends Plugin
         super.close();
         STATELESS_FEATURE.stopTracking(getLicenseState(), NAME);
 
-        // Shared blob cache is a LifecycleComponent closed with other plugin components after IndicesService.
-        // Await shard close first so we can warn if anything is still open when the cache stops.
+        // We should close the shared blob cache only after we made sure that all shards have been closed.
         try {
             if (indicesService.get().awaitClose(1, TimeUnit.MINUTES) == false) {
                 logger.warn("Closing the Stateless services while some shards are still open");
@@ -1241,6 +1241,7 @@ public class StatelessPlugin extends Plugin
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        Releasables.close(sharedBlobCacheService.get());
         IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());

@@ -41,10 +41,11 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -113,29 +114,54 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
         refresh(indexName);
         flush(indexName);
 
-        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
-
         var cacheService = (CapturingCacheService) internalCluster().getInstance(
             StatelessPlugin.SharedBlobCacheServiceSupplier.class,
             searchNode
         ).get();
-        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
-        var cacheKey = new FileCacheKey(shardId, primaryTerm, bccBlobName);
+        final var cacheKeyTs = getCacheKeyForIndex(indexName, shardId);
 
         assertBusy(() -> {
-            var stamps = cacheService.capturedTimestamps(cacheKey);
+            var stamps = cacheService.capturedTimestamps(cacheKeyTs);
             assertThat(
                 "prefetch should have populated at least one region of the new BCC blob with the commit timestamp",
                 stamps,
                 hasItem(timestamp)
             );
             assertThat(
-                "regions of the new BCC blob must only be stamped with the commit timestamp or UNKNOWN_TIMESTAMP",
+                "on a time-based shard the prefetcher resolves every region of the new BCC blob to the commit timestamp, never UNKNOWN",
                 stamps,
-                everyItem(anyOf(equalTo(timestamp), equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)))
+                everyItem(equalTo(timestamp))
             );
         });
+
+        // Next we index documents with no @timestamp, so the new commit has no timestamp range.
+        indexDocs(
+            indexName,
+            between(100, 1000),
+            UnaryOperator.identity(),
+            null,
+            () -> Map.<String, Object>of("field", randomAlphaOfLength(10))
+        );
+        refresh(indexName);
+        flush(indexName);
+
+        final var cacheKeyNoTs = getCacheKeyForIndex(indexName, shardId);
+        assertBusy(() -> {
+            var stamps = cacheService.capturedTimestamps(cacheKeyNoTs);
+            assertThat("prefetch should have populated at least one region of the untimestamped time-based BCC blob", stamps, not(empty()));
+            assertThat(
+                "with no data timestamp available a time-based shard floors prefetched regions to MINIMAL_CACHE_TIMESTAMP, never UNKNOWN",
+                stamps,
+                everyItem(equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP))
+            );
+        });
+    }
+
+    FileCacheKey getCacheKeyForIndex(String indexName, ShardId shardId) {
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+        return new FileCacheKey(shardId, primaryTerm, bccBlobName);
     }
 
     public static final class CapturingTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {

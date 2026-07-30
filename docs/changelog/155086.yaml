@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 141582
+pr: 155086
+summary: Add setting to disable knn filter eager cache
+type: enhancement

@@ -27,6 +27,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -246,6 +247,12 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
         assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    public void testKnnFilterEagerCacheDefaultsToTrue() {
+        assertTrue(DenseVectorFieldMapper.KNN_FILTER_EAGER_CACHE.get(Settings.EMPTY));
+        IndexSettings indexSettings = newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertTrue(indexSettings.getKnnFilterEagerCache());
     }
 
     public void testSliceEnabledSettingRequiresFeatureFlag() {

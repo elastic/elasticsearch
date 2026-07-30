@@ -31,6 +31,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CachingEnableFilterQueryTests extends ESTestCase {
+    public void testWrapForKnnFilterCaching() {
+        TermQuery termQuery = new TermQuery(new Term("foo", "bar"));
+        assertThat(CachingEnableFilterQuery.wrapForKnnFilterCaching(null, true), equalTo(null));
+        assertThat(CachingEnableFilterQuery.wrapForKnnFilterCaching(null, false), equalTo(null));
+        assertThat(CachingEnableFilterQuery.wrapForKnnFilterCaching(termQuery, true), instanceOf(CachingEnableFilterQuery.class));
+        assertThat(CachingEnableFilterQuery.wrapForKnnFilterCaching(termQuery, false), equalTo(termQuery));
+    }
+
     public void testEquals() {
         Query c1 = new CachingEnableFilterQuery(new TermQuery(new Term("foo", "bar")));
         Query c2 = new CachingEnableFilterQuery(new TermQuery(new Term("foo", "bar")));

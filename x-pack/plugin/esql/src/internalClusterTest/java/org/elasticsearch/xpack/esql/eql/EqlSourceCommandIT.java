@@ -131,8 +131,11 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTiebreakerMakesHeadDeterministic() {
-        // All events share one @timestamp, so the tiebreaker (value, ascending) alone decides order; `head 3` then
-        // deterministically returns the three smallest values, preserved by the ES|QL pipeline (no SORT).
+        // All events share one @timestamp, so the tiebreaker (value) alone decides order. `head 3` returns the three
+        // earliest events, i.e. the three smallest tiebreaker values (1,2,3 = e,d,c); the ES|QL pipeline preserves
+        // that order (no SORT). The predicate `value >= 0` matches every doc but is not folded away, so EQL keeps the
+        // head->ascending ordering. Without a tiebreaker the order among equal timestamps would be non-deterministic;
+        // the tiebreaker is what makes this assertion stable.
         String index = "eql_tiebreaker";
         assertAcked(indicesAdmin().prepareCreate(index).setMapping("@timestamp", "type=date", "value", "type=long"));
         List<IndexRequestBuilder> docs = List.of(
@@ -143,7 +146,7 @@ public class EqlSourceCommandIT extends AbstractEsqlIntegTestCase {
             prepareIndex(index).setId("e").setSource("@timestamp", "2024-01-01T00:00:00Z", "value", 1)
         );
         indexRandom(true, docs);
-        String query = "EQL " + index + " | \"any where true | head 3\" WITH {\"tiebreaker_field\": \"value\"} | KEEP _id";
+        String query = "EQL " + index + " | \"any where value >= 0 | head 3\" WITH {\"tiebreaker_field\": \"value\"} | KEEP _id";
         try (EsqlQueryResponse resp = run(query)) {
             List<List<Object>> rows = getValuesList(resp);
             assertThat(rows, hasSize(3));

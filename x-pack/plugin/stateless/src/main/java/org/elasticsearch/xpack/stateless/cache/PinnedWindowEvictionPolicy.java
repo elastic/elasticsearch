@@ -12,7 +12,8 @@ import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,22 +46,18 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     private final Predicate<ShardId> hasShardPredicate;
     private final ThreadPool threadPool;
 
-    private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
+    private volatile TimeValue pinnedWindowDuration;
+
+    private final Releasable releasePinnedWindowDurationUpdater;
 
     public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> hasShardPredicate) {
         this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
         this.threadPool = Objects.requireNonNull(threadPool);
-        Objects.requireNonNull(clusterSettings)
-            .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
-    }
-
-    /**
-     * For test subclasses that override {@link #hasShard(ShardId)} and optionally {@link #currentTimeMillis()}.
-     */
-    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> hasShardPredicate, TimeValue pinnedWindowDuration) {
-        this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
-        this.threadPool = Objects.requireNonNull(threadPool);
-        this.pinnedWindowDuration = pinnedWindowDuration;
+        this.pinnedWindowDuration = clusterSettings.get(PINNED_WINDOW_DURATION_SETTING);
+        this.releasePinnedWindowDurationUpdater = Releasables.releaseOnce(
+            Objects.requireNonNull(clusterSettings)
+                .addRemovableSettingsUpdateConsumer(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value)
+        );
     }
 
     public TimeValue getPinnedWindowDuration() {
@@ -110,4 +107,10 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
 
     @Override
     public void onEvicted(CacheRegion<FileCacheKey> region) {}
+
+    @Override
+    public void close() {
+        // Remove the pinned window duration updater from ClusterSettings registration
+        Releasables.close(releasePinnedWindowDurationUpdater);
+    }
 }

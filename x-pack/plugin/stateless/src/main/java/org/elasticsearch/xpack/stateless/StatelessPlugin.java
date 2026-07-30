@@ -795,12 +795,6 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        // already initialized based on passed settings, no need for initializeAndWatch
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
-                cacheService::setEvictObsoleteRegionsEnabled
-            );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -924,7 +918,7 @@ public class StatelessPlugin extends Plugin
         // available on all nodes despite being useful only on indexing nodes
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
-            new HollowShardsService(
+            createHollowShardsService(
                 settings,
                 clusterService,
                 indicesService,
@@ -1192,6 +1186,30 @@ public class StatelessPlugin extends Plugin
         );
     }
 
+    protected HollowShardsService createHollowShardsService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
+        IndexShardCacheWarmer indexShardCacheWarmer,
+        ThreadPool threadPool,
+        HollowShardsMetrics metrics,
+        Executor bccHeaderReadExecutor
+    ) {
+        return new HollowShardsService(
+            settings,
+            clusterService,
+            indicesService,
+            objectStoreService,
+            commitService,
+            indexShardCacheWarmer,
+            threadPool,
+            metrics,
+            bccHeaderReadExecutor
+        );
+    }
+
     protected GetVirtualBatchedCompoundCommitChunksPressure createVirtualBatchedCompoundCommitChunksPressure(
         Settings settings,
         MeterRegistry meterRegistry
@@ -1370,6 +1388,8 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
     }

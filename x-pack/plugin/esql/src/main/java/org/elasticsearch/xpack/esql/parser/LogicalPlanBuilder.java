@@ -448,8 +448,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return visitFromCommand(ctx.fromCommand());
         } else if (ctx.timeSeriesCommand() != null) {
             return visitTimeSeriesCommand(ctx.timeSeriesCommand());
-        } else {
+        } else if (ctx.eqlCommand() != null) {
+            // EQL is a first-class source command: legal wherever FROM is, including subquery source
+            // position (FROM (EQL ...)). The same subquery rule also feeds visitLogicalInSubquery, so with
+            // the IN_SUBQUERY_EQL_LP lexer rule this enables WHERE x IN (EQL ...) too. Delegated execution
+            // rides the coordinator (see UnresolvedEqlRelation).
+            return visitEqlCommand(ctx.eqlCommand());
+        } else if (ctx.rowCommand() != null) {
             return visitRowCommand(ctx.rowCommand());
+        } else {
+            throw new IllegalStateException("Unexpected subquery source command: " + ctx.getText());
         }
     }
 

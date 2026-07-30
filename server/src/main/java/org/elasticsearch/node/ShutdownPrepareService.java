@@ -73,7 +73,7 @@ public class ShutdownPrepareService {
      * we proceed with shutdown. This should not be very long because we've already timed out
      * waiting for the tasks to relocate.
      */
-    private static final TimeValue REINDEXING_FAILURE_TIMEOUT = TimeValue.timeValueSeconds(3);
+    private static final TimeValue REINDEXING_CANCELLATION_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
@@ -270,7 +270,7 @@ public class ShutdownPrepareService {
                         );
                     }
                 });
-                awaitTasksComplete(REINDEXING_FAILURE_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
+                awaitTasksComplete(REINDEXING_CANCELLATION_TIMEOUT, sleeper, ReindexAction.NAME, taskManager, null, null);
             }
         );
     }

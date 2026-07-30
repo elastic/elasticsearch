@@ -11,11 +11,13 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -262,12 +264,22 @@ public class ShutdownPrepareService {
                 // for them to exit the task manager before proceeding with shutdown.
                 tasks.forEach(t -> {
                     if (t instanceof CancellableTask cancellable) {
-                        taskManager.cancelTaskAndDescendants(
-                            cancellable,
-                            CANNOT_RELOCATE_REINDEX_CANCEL_REASON,
-                            false,
-                            ActionListener.noop()
-                        );
+                        try {
+                            // We know that BulkByPaginatedSearchTask implements ensureCancellable, so call it
+                            // first to avoid cancelling actively relocating tasks
+                            // TaskManager should probably do this (see https://github.com/elastic/elasticsearch/issues/155444)
+                            cancellable.ensureCancellable();
+                            taskManager.cancelTaskAndDescendants(
+                                cancellable,
+                                CANNOT_RELOCATE_REINDEX_CANCEL_REASON,
+                                false,
+                                ActionListener.noop()
+                            );
+                        } catch (ElasticsearchStatusException e) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(() -> Strings.format("Unable to cancel reindex task %s", t), e);
+                            }
+                        }
                     } else {
                         assert false : "Expected reindex tasks to be cancellable";
                     }

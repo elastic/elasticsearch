@@ -578,18 +578,65 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testMatchRuntimeWithAnalyzerOptionThrowsError() {
+    public void testMatchRuntimeWithAnalyzerOption() {
+        // The whitespace analyzer does not lowercase, so "Fox" only matches the value that kept the capital F.
+        var query = """
+            ROW content = to_text(["the Fox jumped", "the fox jumped"])
+            | MV_EXPAND content
+            | WHERE match(content, "Fox", {"analyzer": "whitespace"})
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertValues(resp.values(), List.of(List.of("the Fox jumped")));
+        }
+    }
+
+    public void testUnmappedWithAnalyzerOption() {
+        // The whitespace analyzer does not lowercase: only the value with a lowercase "this" token (id 4) matches,
+        // on both the mapped and the unmapped (loaded from _source) index.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | EVAL content = to_text(content)
+            | WHERE match(content, "this", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(4, "test"), List.of(4, "test_unmapped")));
+        }
+    }
+
+    public void testPotentiallyUnmappedFieldWithAnalyzerOption() {
+        // Options are accepted on a potentially unmapped text field. On shards where the field is mapped the query
+        // keeps indexed-field semantics: the whitespace analyzer applies to the query only, so "this" matches the
+        // standard-analyzed (lowercased) index tokens of ids 1-4. On the unmapped index the field loads as null
+        // without an explicit to_text cast, so it contributes no matches.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test, test_unmapped METADATA _index
+            | WHERE match(content, "this", {"analyzer": "whitespace"})
+            | KEEP id, _index
+            | SORT id, _index
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_index"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "test"), List.of(2, "test"), List.of(3, "test"), List.of(4, "test")));
+        }
+    }
+
+    public void testMatchRuntimeWithUnknownAnalyzerThrowsError() {
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " extra"))
-            | WHERE match(new_content, "fox", {"analyzer": "standard"})
+            | WHERE match(new_content, "fox", {"analyzer": "nonexistent"})
             | KEEP new_content
             """;
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("The analyzer option is not supported for [MATCH] function call on non-index-mapped field [new_content]")
-        );
+        assertThat(error.getMessage(), containsString("[nonexistent] is not a registered analyzer"));
     }
 
     public void testMatchRuntimeWithInvalidOptionsThrowsError() {

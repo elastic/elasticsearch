@@ -1977,6 +1977,37 @@ public class VerifierTests extends ESTestCase {
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
 
+    public void testFullTextFunctionsRuntimeAnalyzerOption() throws Exception {
+        // a registered analyzer is accepted on a runtime text expression
+        fullText().query("from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"analyzer\": \"whitespace\"})");
+        fullText().query(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"analyzer\": \"whitespace\"})"
+        );
+    }
+
+    public void testFullTextFunctionsRuntimeUnknownAnalyzerOption() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"analyzer\": \"nonexistent\"})",
+            containsString("[nonexistent] is not a registered analyzer")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"analyzer\": \"nonexistent\"})",
+            containsString("[nonexistent] is not a registered analyzer")
+        );
+    }
+
+    public void testFullTextFunctionsRuntimeAnalyzerOptionOnNonTextExpression() throws Exception {
+        // options (including analyzer) are still rejected on non-TEXT runtime expressions; concat returns keyword
+        fullText().error(
+            "from test | eval k = concat(title, body) | where match(k, \"cat\", {\"analyzer\": \"whitespace\"})",
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [k]")
+        );
+        fullText().error(
+            "from test | eval k = concat(title, body) | where match_phrase(k, \"cat\", {\"analyzer\": \"whitespace\"})",
+            containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [k]")
+        );
+    }
+
     private void checkFieldBasedFunctionNotAllowedAfterCommands(
         String functionName,
         String functionType,
@@ -4646,6 +4677,15 @@ public class VerifierTests extends ESTestCase {
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
         fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
         defaultAnalyzer().query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
+        // A full-text function's analyzer option resolves when it names the highlight analyzer, which the runtime
+        // context registers under its own name.
+        fullText().query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"whitespace\" }"
+        );
+        fullText().query(
+            "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
+                + " WITH { \"analyzer\": \"whitespace\" }"
+        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -4691,10 +4731,15 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // The runtime context only registers its default analyzer.
+        // The runtime context registers only the highlight analyzer (under "default" and its own name), so a
+        // full-text function's analyzer option must name that analyzer; anything else is not resolvable.
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
         );
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",

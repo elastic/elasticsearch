@@ -296,7 +296,7 @@ public class Verifier {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification());
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
             }
         };
         plan.forEachDown(p -> {

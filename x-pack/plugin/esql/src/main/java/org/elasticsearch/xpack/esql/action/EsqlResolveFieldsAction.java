@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * API without risking breaking the external field-caps API. For now, this API delegates to the field-caps API, but gradually,
  * we will decouple this API completely from the field-caps.
  */
-public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabilitiesRequest, EsqlResolveFieldsResponse> {
+public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveFieldsRequest, EsqlResolveFieldsResponse> {
     public static final String NAME = "indices:data/read/esql/resolve_fields";
     public static final ActionType<EsqlResolveFieldsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<EsqlResolveFieldsResponse> RESOLVE_REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -72,7 +72,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ProjectResolver projectResolver
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, EsqlResolveFieldsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.fieldCapsAction = fieldCapsAction;
         this.clusterService = clusterService;
         this.viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
@@ -82,40 +82,14 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     }
 
     @Override
-    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
-        // resolveViews / resolveDatasets are only set on a request from the originating cluster, so this detection runs
-        // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
-        // them together, so a single remote that hosts both fails with one exception naming both rather than just the
-        // first kind checked.
-        var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
-        List<String> remoteViews = abstractionOptions.resolveViews()
-            ? qualify(request.clusterAlias(), getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions()))
-            : List.of();
-        // When federation is not available this node reports no datasets, so a FROM <remote:name> falls through to normal
-        // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
-        // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
-        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && federationAvailable
-            ? qualify(request.clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
-            : List.of();
-        boolean hasRemoteViews = remoteViews.isEmpty() == false;
-        boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;
-        if (hasRemoteViews || hasRemoteDatasets) {
-            // A coordinator that asked for datasets (resolveDatasets) also understands the combined exception; an older,
-            // views-only coordinator only knows RemoteViewNotSupportedException, so a single-kind failure keeps using the
-            // per-kind exception it can deserialize.
-            ElasticsearchException failure;
-            if (hasRemoteViews && hasRemoteDatasets) {
-                failure = new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
-            } else if (hasRemoteViews) {
-                failure = new RemoteViewNotSupportedException(remoteViews);
-            } else {
-                failure = new RemoteDatasetNotSupportedException(remoteDatasets);
-            }
+    protected void doExecute(Task task, EsqlResolveFieldsRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
+        var failure = validateNoRemoteViewsOrDatasets(request);
+        if (failure != null) {
             listener.onFailure(failure);
             return;
         }
 
-        fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
+        fieldCapsAction.executeRequest(task, request.fieldCapsRequest(), new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(
                 TransportService transportService,
@@ -159,6 +133,42 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
                 return esqlResolveFieldsResponse.caps();
             }
         }, listener);
+    }
+
+    private ElasticsearchException validateNoRemoteViewsOrDatasets(EsqlResolveFieldsRequest request) {
+        // resolveViews / resolveDatasets are only set on a request from the originating cluster, so this detection runs
+        // only on a remote cluster. Views and datasets are both non-remotable abstractions; detect both here and report
+        // them together, so a single remote that hosts both fails with one exception naming both rather than just the
+        // first kind checked.
+        var abstractionOptions = request.indicesOptions().indexAbstractionOptions();
+        List<String> remoteViews = abstractionOptions.resolveViews()
+            ? qualify(
+                request.fieldCapsRequest().clusterAlias(),
+                getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions())
+            )
+            : List.of();
+        // When federation is not available this node reports no datasets, so a FROM <remote:name> falls through to normal
+        // remote index resolution and the node is indistinguishable from one that never shipped the feature, rather than
+        // failing with a RemoteDatasetNotSupportedException that names pre-existing datasets still in cluster state.
+        List<String> remoteDatasets = abstractionOptions.resolveDatasets() && federationAvailable
+            ? qualify(request.fieldCapsRequest().clusterAlias(), getDatasets(request.indices(), request.indicesOptions()))
+            : List.of();
+        boolean hasRemoteViews = remoteViews.isEmpty() == false;
+        boolean hasRemoteDatasets = remoteDatasets.isEmpty() == false;
+
+        if (hasRemoteViews || hasRemoteDatasets) {
+            // A coordinator that asked for datasets (resolveDatasets) also understands the combined exception; an older,
+            // views-only coordinator only knows RemoteViewNotSupportedException, so a single-kind failure keeps using the
+            // per-kind exception it can deserialize.
+            if (hasRemoteViews && hasRemoteDatasets) {
+                return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
+            } else if (hasRemoteViews) {
+                return new RemoteViewNotSupportedException(remoteViews);
+            } else {
+                return new RemoteDatasetNotSupportedException(remoteDatasets);
+            }
+        }
+        return null;
     }
 
     private Set<String> getViews(String[] indices, IndicesOptions indicesOptions, ResolvedIndexExpressions resolvedIndexExpressions) {

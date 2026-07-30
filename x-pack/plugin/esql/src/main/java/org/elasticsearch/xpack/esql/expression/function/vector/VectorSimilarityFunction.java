@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -48,7 +49,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderExpression {
+        BlockLoaderExpression,
+        AnyNullIsNull {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);

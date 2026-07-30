@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import java.io.IOException;
 import java.util.List;
 
-public class Abs extends UnaryScalarFunction {
+public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
         .unary(Abs::new)

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,9 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
+    // The implicit _unmapped flattened sink, or null when the index has none.
+    private final DynamicFieldType unmappedSink;
+
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
         this(fieldMappers, fieldAliasMappers, List.of(), List.of(), Map.of());
     }
@@ -78,10 +82,15 @@ final class FieldTypeLookup {
         Map<String, Integer> ptAliasPriorities = new HashMap<>();
         Map<String, MappedFieldType> ptAliasTypes = new HashMap<>();
 
+        DynamicFieldType unmappedSink = null;
+
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
+            if (fieldMapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink()) {
+                unmappedSink = (DynamicFieldType) fieldType;
+            }
             fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
@@ -115,6 +124,8 @@ final class FieldTypeLookup {
                 }
             }
         }
+
+        this.unmappedSink = unmappedSink;
 
         int maxParentPathDots = 0;
         for (String dynamicRoot : dynamicFieldTypes.keySet()) {
@@ -189,11 +200,23 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
+        return get(field, true);
+    }
+
+    /**
+     * Returns the mapped field type for the given field name. With {@code includeUnmappedSink} false the {@code _unmapped} catch-all is
+     * skipped, so unmapped names resolve to null; the parse path uses that to tell real runtime fields from names the sink absorbs.
+     */
+    MappedFieldType get(String field, boolean includeUnmappedSink) {
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
         }
-        return getDynamicField(field);
+        fieldType = getDynamicField(field);
+        if (fieldType != null) {
+            return fieldType;
+        }
+        return (includeUnmappedSink && unmappedSink != null) ? unmappedSink.getChildFieldType(field) : null;
     }
 
     // for testing

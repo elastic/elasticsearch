@@ -29,6 +29,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMP
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicToolUtils.extractText;
 
 /**
  * Builds the request body for the Anthropic Messages API
@@ -102,7 +103,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             for (var msg : systemMessages) {
                 builder.startObject();
                 builder.field(TYPE_FIELD, TEXT_TYPE);
-                builder.field(TEXT_FIELD, extractSystemText(msg.content()));
+                builder.field(TEXT_FIELD, extractText(msg.content()));
                 builder.endObject();
             }
             builder.endArray();
@@ -143,22 +144,6 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
 
         builder.endObject();
         return builder;
-    }
-
-    private static String extractSystemText(Content content) {
-        if (content instanceof ContentString(String text)) {
-            return text;
-        }
-        if (content instanceof ContentObjects(List<ContentObject> contentObjects)) {
-            var text = new StringBuilder();
-            for (var contentObject : contentObjects) {
-                if (contentObject instanceof ContentObject.ContentObjectText textObject) {
-                    text.append(textObject.text());
-                }
-            }
-            return text.toString();
-        }
-        return "";
     }
 
 }

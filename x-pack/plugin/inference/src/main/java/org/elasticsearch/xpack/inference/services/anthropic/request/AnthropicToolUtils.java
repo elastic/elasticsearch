@@ -117,7 +117,7 @@ public final class AnthropicToolUtils {
         builder.startArray(MESSAGES_FIELD);
         for (var message : messages) {
             if (USER_ROLE.equals(message.role())) {
-                writePlainMessage(builder, message);
+                writePlainMessage(builder, USER_ROLE, message);
             } else if (ASSISTANT_ROLE.equals(message.role())) {
                 writeAssistantMessage(builder, message);
             } else if (TOOL_ROLE.equals(message.role())) {
@@ -137,20 +137,20 @@ public final class AnthropicToolUtils {
      * plain-string content is passed through with the unified serialization; content objects are translated into Anthropic blocks;
      * empty or absent content is normalized to a single empty text block since Anthropic rejects messages without content.
      */
-    private static void writePlainMessage(XContentBuilder builder, Message message) throws IOException {
+    private static void writePlainMessage(XContentBuilder builder, String role, Message message) throws IOException {
         if (message.content() instanceof ContentString(String content) && content.isEmpty() == false) {
-            message.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            writeContentObjectsMessage(builder, role, List.of(new ContentObjectText(content)));
         } else if (message.content() instanceof ContentObjects(List<ContentObject> contentObjects) && contentObjects.isEmpty() == false) {
-            writeContentObjectsMessage(builder, message.role(), contentObjects);
+            writeContentObjectsMessage(builder, role, contentObjects);
         } else {
-            writeContentObjectsMessage(builder, message.role(), List.of(new ContentObjectText("")));
+            writeContentObjectsMessage(builder, role, List.of(new ContentObjectText("")));
         }
     }
 
     private static void writeAssistantMessage(XContentBuilder builder, Message message) throws IOException {
         var toolCalls = message.toolCalls();
         if (toolCalls == null || toolCalls.isEmpty()) {
-            writePlainMessage(builder, message);
+            writePlainMessage(builder, ASSISTANT_ROLE, message);
             return;
         }
 
@@ -461,7 +461,7 @@ public final class AnthropicToolUtils {
         builder.endObject();
     }
 
-    private static String extractText(Content content) {
+    public static String extractText(Content content) {
         if (content instanceof ContentString(String text)) {
             return text;
         }

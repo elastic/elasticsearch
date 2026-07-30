@@ -205,7 +205,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * Set to {@code true} on the first intermediate emit; once set, all subsequent emits (including
      * the final one) are partitioned regardless of key count.
      */
-    private boolean partitioned;
+    private boolean usePartitioning;
 
     @SuppressWarnings("this-escape")
     PartitionedHashAggregationOperator(
@@ -222,7 +222,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             AggregatorMode.INITIAL,
             aggregatorFactories,
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
-            Integer.MAX_VALUE, // shouldEmitPartialResultsPeriodically() always returns false; this value is never used
+            Integer.MAX_VALUE, // shouldEmitPartialResultsPeriodically() is overridden so this parameter is not used
             1.0,
             maxPageSize,
             null,
@@ -240,34 +240,27 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
     }
 
     /**
-     * Suppresses HAO's two-condition self-emit check (key count + uniqueness ratio). This operator
-     * drives its own emit threshold — a simple key-count gate — from {@link #addInput} directly.
+     * Replaces HAO's two-condition self-emit check (key count + uniqueness ratio) with a simpler
+     * key-count gate. Also latches {@link #usePartitioning} when the threshold is crossed: hitting
+     * {@link #emitKeysThreshold} means there are enough keys to partition, and we want all
+     * subsequent emits — including the final one — to also partition, even if the final batch
+     * happens to be small enough that {@link #emit()} would otherwise skip partitioning via the
+     * {@link #partitionThreshold} guard.
      */
     @Override
     protected boolean shouldEmitPartialResultsPeriodically() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        try {
-            processPage(page);
-            if (blockHash.numKeys() >= emitKeysThreshold) {
-                partitioned = true;
-                emit();
-            }
-        } finally {
-            page.releaseBlocks();
-            pagesProcessed++;
-            rowsReceived += page.getPositionCount();
+        if (blockHash.numKeys() >= emitKeysThreshold) {
+            usePartitioning = true;
+            return true;
         }
+        return false;
     }
 
     /**
      * Evaluates the accumulated table to intermediate pages and either partitions them (tagging each
      * sub-page with its partition id) or emits them untagged for the small-query path.
      * <p>
-     *     Partitioning occurs when {@link #partitioned} is already {@code true} (a previous
+     *     Partitioning occurs when {@link #usePartitioning} is already {@code true} (a previous
      *     intermediate emit set the latch) or when the current key count meets or exceeds
      *     {@link #partitionThreshold}. Otherwise the pages are emitted untagged so that
      *     {@link PartitionedHashMergeOperator} can handle them on its driver thread without
@@ -284,7 +277,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         try {
             int numKeys = blockHash.numKeys();
             if (numKeys > 0) {
-                boolean shouldPartition = partitioned || numKeys >= partitionThreshold;
+                boolean shouldPartition = usePartitioning || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
                 if (shouldPartition) {
                     Page[] perPartition = pageBuilder.buildPartitioned(
@@ -295,9 +288,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
                     for (int p = 0; p < partitionCount; p++) {
                         Page page = perPartition[p];
                         if (page != null) {
-                            Page tagged = page.withPartitionId(p);
-                            page.releaseBlocks();
-                            resultPages.add(tagged);
+                            resultPages.add(page);
                         }
                     }
                 } else {

@@ -471,12 +471,12 @@ public class BasicPageTests extends SerializationTestCase {
         int positions = randomIntBetween(1, 100);
         int partitionId = randomIntBetween(0, 31);
 
-        Page basePage = new Page(
-            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
-            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        Page origPage = new Page(
+            new Block[] {
+                blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+                blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock() },
+            partitionId
         );
-        Page origPage = basePage.withPartitionId(partitionId);
-        basePage.releaseBlocks();
         try {
             Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
             try {
@@ -496,12 +496,12 @@ public class BasicPageTests extends SerializationTestCase {
         int positions = randomIntBetween(1, 100);
         int partitionId = randomIntBetween(0, 31);
 
-        Page basePage = new Page(
-            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
-            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        Page origPage = new Page(
+            new Block[] {
+                blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+                blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock() },
+            partitionId
         );
-        Page origPage = basePage.withPartitionId(partitionId);
-        basePage.releaseBlocks();
         try {
             // Serialize with a version that pre-dates PARTITION_ID_VERSION; partitionId should be dropped.
             TransportVersion oldVersion = TransportVersion.fromName("esql_batch_page");

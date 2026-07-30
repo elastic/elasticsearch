@@ -84,6 +84,16 @@ public final class Page implements Writeable, Releasable {
     }
 
     /**
+     * Creates a new page with the given blocks and partition id.
+     *
+     * @param blocks the blocks
+     * @param partitionId the partition id to tag this page with
+     */
+    public Page(Block[] blocks, int partitionId) {
+        this(true, determinePositionCount(blocks), blocks, null, partitionId);
+    }
+
+    /**
      * Create a new page with the given blocks and batch metadata.
      */
     public Page(BatchMetadata batchMetadata, Block... blocks) {
@@ -281,7 +291,10 @@ public final class Page implements Writeable, Releasable {
      * The blocks are shared (ref count incremented) with the original page.
      */
     public Page withBatchMetadata(BatchMetadata metadata) {
-        return copyWith(metadata, partitionId);
+        for (Block block : blocks) {
+            block.incRef();
+        }
+        return new Page(false, positionCount, blocks.clone(), metadata, partitionId);
     }
 
     /**
@@ -291,21 +304,6 @@ public final class Page implements Writeable, Releasable {
     @Nullable
     public Integer partitionId() {
         return partitionId;
-    }
-
-    /**
-     * Creates a new page with the same blocks but tagged with the given partition ID.
-     * The blocks are shared (ref count incremented) with the original page.
-     */
-    public Page withPartitionId(int id) {
-        return copyWith(batchMetadata, id);
-    }
-
-    private Page copyWith(@Nullable BatchMetadata metadata, @Nullable Integer id) {
-        for (Block block : blocks) {
-            block.incRef();
-        }
-        return new Page(false, positionCount, blocks.clone(), metadata, id);
     }
 
     /**
@@ -363,7 +361,10 @@ public final class Page implements Writeable, Releasable {
      * {@link Block#incRef}ing all of the {@link Block}s.
      */
     public Page shallowCopy() {
-        return copyWith(batchMetadata, partitionId);
+        for (Block block : blocks) {
+            block.incRef();
+        }
+        return new Page(false, positionCount, blocks.clone(), batchMetadata, partitionId);
     }
 
     /**

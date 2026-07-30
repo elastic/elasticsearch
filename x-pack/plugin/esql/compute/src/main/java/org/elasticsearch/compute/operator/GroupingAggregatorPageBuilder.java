@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -162,7 +163,7 @@ public final class GroupingAggregatorPageBuilder {
                     // partSelected takes ownership: keys (1 ref) + aggs (each incRef'd by customize)
                     partSelected = new Selected(partitionOrdinals, partitionAggs);
                     partitionOrdinals = null;
-                    result[p] = prepared.buildPage(partSelected, aggBlockCounts);
+                    result[p] = prepared.buildPage(partSelected, aggBlockCounts, p);
                 } finally {
                     Releasables.close(partSelected);
                     if (innerSuccess == false && partitionOrdinals != null) {
@@ -259,6 +260,10 @@ public final class GroupingAggregatorPageBuilder {
          *                       emitting a single page then this is {@code ==} to {@link #selected}.
          */
         Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
+            return buildPage(selectedInPage, aggBlockCounts, null);
+        }
+
+        Page buildPage(Selected selectedInPage, int[] aggBlockCounts, @Nullable Integer partitionId) {
             Block[] keys = blockHash.getKeys(selectedInPage.keys);
             Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
@@ -269,7 +274,7 @@ public final class GroupingAggregatorPageBuilder {
                     aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
                     blockOffset += aggBlockCounts[i];
                 }
-                Page result = new Page(blocks);
+                Page result = partitionId == null ? new Page(blocks) : new Page(blocks, partitionId);
                 blocks = null;
                 return result;
             } finally {

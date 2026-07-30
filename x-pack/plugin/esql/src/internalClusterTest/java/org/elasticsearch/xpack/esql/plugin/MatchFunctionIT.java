@@ -628,6 +628,22 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testPotentiallyUnmappedKeywordFieldWithOptionsThrowsError() {
+        // Options work on a fully mapped keyword field (pushed down as a Lucene query), but the same query is
+        // rejected when the field is unmapped in one index, since it is then matched at runtime and the runtime
+        // keyword path is exact equality where options do not apply.
+        var query = """
+            SET unmapped_fields = "LOAD";
+            FROM test_keyword, test_unmapped
+            | WHERE match(content, "cat", {"fuzziness": "1"})
+            """;
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [content]")
+        );
+    }
+
     public void testMatchRuntimeWithUnknownAnalyzerThrowsError() {
         var query = """
             FROM test

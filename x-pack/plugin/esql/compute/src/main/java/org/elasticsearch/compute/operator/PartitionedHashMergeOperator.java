@@ -602,16 +602,17 @@ public class PartitionedHashMergeOperator implements Operator {
                 Integer.MAX_VALUE,
                 GroupingAggregatorPageBuilder.NO_CUSTOMIZATION
             );
-            Page[] perPartition = pageBuilder.buildPartitioned(
-                partitionCount,
-                noneOp.blockHash.partitioner(partitionCount),
-                new GroupingAggregatorEvaluationContext(driverContext)
-            );
-            for (int p = 0; p < partitionCount; p++) {
-                Page page = perPartition[p];
-                if (page != null) {
+            try (
+                var pages = pageBuilder.buildPartitioned(
+                    partitionCount,
+                    noneOp.blockHash.partitioner(partitionCount),
+                    new GroupingAggregatorEvaluationContext(driverContext)
+                )
+            ) {
+                while (pages.hasNext()) {
+                    Page page = pages.next();
                     page.allowPassingToDifferentDriver();
-                    workerBuffers[p].addPage(page);
+                    workerBuffers[page.partitionId()].addPage(page);
                 }
             }
         }

@@ -13,11 +13,9 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.ReleasableIterator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static java.util.stream.Collectors.joining;
@@ -272,40 +270,24 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        List<Page> resultPages = new ArrayList<>();
         long emitStart = System.nanoTime();
         try {
             int numKeys = blockHash.numKeys();
             if (numKeys > 0) {
                 boolean shouldPartition = usePartitioning || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
-                if (shouldPartition) {
-                    Page[] perPartition = pageBuilder.buildPartitioned(
+                output = shouldPartition
+                    ? pageBuilder.buildPartitioned(
                         partitionCount,
                         blockHash.partitioner(partitionCount),
                         new GroupingAggregatorEvaluationContext(driverContext)
-                    );
-                    for (int p = 0; p < partitionCount; p++) {
-                        Page page = perPartition[p];
-                        if (page != null) {
-                            resultPages.add(page);
-                        }
-                    }
-                } else {
-                    try (ReleasableIterator<Page> pages = pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext))) {
-                        while (pages.hasNext()) {
-                            resultPages.add(pages.next());
-                        }
-                    }
-                }
+                    )
+                    : pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
             }
         } finally {
             rowsAddedInCurrentBatch = 0;
             emitNanos += System.nanoTime() - emitStart;
             emitCount++;
-        }
-        if (resultPages.isEmpty() == false) {
-            output = new PageListIterator(resultPages);
         }
     }
 
@@ -321,35 +303,4 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             + "]";
     }
 
-    /**
-     * Iterates over a pre-collected list of tagged pages, releasing unconsumed pages on close.
-     */
-    private static final class PageListIterator implements ReleasableIterator<Page> {
-        private final List<Page> pages;
-        private int index;
-
-        PageListIterator(List<Page> pages) {
-            this.pages = pages;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return index < pages.size();
-        }
-
-        @Override
-        public Page next() {
-            if (hasNext() == false) {
-                throw new NoSuchElementException();
-            }
-            return pages.get(index++);
-        }
-
-        @Override
-        public void close() {
-            for (int i = index; i < pages.size(); i++) {
-                pages.get(i).releaseBlocks();
-            }
-        }
-    }
 }

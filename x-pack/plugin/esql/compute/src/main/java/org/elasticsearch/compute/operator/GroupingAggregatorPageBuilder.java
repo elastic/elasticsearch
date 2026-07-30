@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -94,9 +95,9 @@ public final class GroupingAggregatorPageBuilder {
 
     /**
      * Evaluates the hash table into one {@link Page} per non-empty partition, assigning each group
-     * to a partition via {@code partitioner.applyAsInt(groupId)}. The returned array has exactly
-     * {@code partitionCount} slots; empty partitions are {@code null}. The caller owns all returned
-     * pages and must release them.
+     * to a partition via {@code partitioner.applyAsInt(groupId)}. Each returned page carries its
+     * partition index via {@link Page#partitionId()}. Empty partitions produce no page. The caller
+     * owns all returned pages; closing the iterator before it is exhausted releases any unconsumed pages.
      *
      * <p>The {@code partitioner} receives the raw group ids from {@link BlockHash#nonEmpty()}, which
      * are always in ascending order. Within each partition the group ids also remain in ascending
@@ -104,7 +105,11 @@ public final class GroupingAggregatorPageBuilder {
      * {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PreparedForEvaluation}
      * contract that selected ids are ascending.
      */
-    public Page[] buildPartitioned(int partitionCount, IntUnaryOperator partitioner, GroupingAggregatorEvaluationContext ctx) {
+    public ReleasableIterator<Page> buildPartitioned(
+        int partitionCount,
+        IntUnaryOperator partitioner,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
         PreparedForEvaluation prepared = new PreparedForEvaluation(ctx);
         Page[] result = new Page[partitionCount];
@@ -172,7 +177,13 @@ public final class GroupingAggregatorPageBuilder {
                 }
             }
             success = true;
-            return result;
+            List<Page> pages = new ArrayList<>();
+            for (Page page : result) {
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            return new PartitionedPageIterator(pages);
         } finally {
             prepared.close();
             if (success == false) {
@@ -224,6 +235,35 @@ public final class GroupingAggregatorPageBuilder {
         @Override
         public void close() {
             prepared.close();
+        }
+    }
+
+    private static class PartitionedPageIterator implements ReleasableIterator<Page> {
+        private final List<Page> pages;
+        private int index;
+
+        PartitionedPageIterator(List<Page> pages) {
+            this.pages = pages;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < pages.size();
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            return pages.get(index++);
+        }
+
+        @Override
+        public void close() {
+            for (int i = index; i < pages.size(); i++) {
+                pages.get(i).releaseBlocks();
+            }
         }
     }
 

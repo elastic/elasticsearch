@@ -143,7 +143,7 @@ The index-level setting `index.mapping.doc_values.nullability` will control the 
 
 ## Multi-valued doc values ordering
 
-Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates and null values may be lost.
+{{es}} supports storing multi-valued fields at index time. Multi-valued fields can be provided as a JSON array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates and null values might be lost.
 This implementation detail of doc values is visible when features directly interact with doc values, which may be the case for example in ES|QL or aggregations in the search API. Note, that _source always returns arrays in the way that was provided at index time.
 
 How the ordering differs depends on whether the array is mapped as keyword or a numeric field type. In case of the `keyword` field type, the multi-valued values for each document are ordered lexicographically and duplicates are lost. If retaining duplicates is important then the `counted_keyword` field type should be used.

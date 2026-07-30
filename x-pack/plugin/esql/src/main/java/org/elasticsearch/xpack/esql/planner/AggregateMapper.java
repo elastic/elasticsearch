@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.WindowWithPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,10 +57,26 @@ public final class AggregateMapper {
         return attrToExpressionsBuilder.build().values().stream().toList();
     }
 
+    /**
+     * Suffix distinguishing the partial-channel copy of the intermediate state of an aggregate whose window is a
+     * {@link WindowWithPartial}. Such aggregates ship two copies of their intermediate state: the regular one over
+     * all rows of a bucket, followed by one restricted to the trailing remainder of the window.
+     */
+    private static final String WINDOW_PARTIAL_SUFFIX = "$partial";
+
     public static List<IntermediateStateDesc> intermediateStateDesc(AggregateFunction fn, boolean grouping) {
         if (fn instanceof ToAggregator toAggregator) {
             var supplier = toAggregator.supplier();
-            return grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
+            var intermediateState = grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
+            if (fn.window() instanceof WindowWithPartial) {
+                List<IntermediateStateDesc> doubled = new ArrayList<>(intermediateState.size() * 2);
+                doubled.addAll(intermediateState);
+                for (IntermediateStateDesc desc : intermediateState) {
+                    doubled.add(new IntermediateStateDesc(desc.name() + WINDOW_PARTIAL_SUFFIX, desc.type(), desc.dataType()));
+                }
+                intermediateState = doubled;
+            }
+            return intermediateState;
         } else {
             throw new EsqlIllegalArgumentException("Aggregate has no defined intermediate state: " + fn);
         }
@@ -76,14 +94,7 @@ public final class AggregateMapper {
     }
 
     private static List<NamedExpression> entryForAgg(String aggAlias, AggregateFunction aggregateFunction, boolean grouping) {
-        List<IntermediateStateDesc> intermediateState;
-        if (aggregateFunction instanceof ToAggregator toAggregator) {
-            var supplier = toAggregator.supplier();
-            intermediateState = grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
-        } else {
-            throw new EsqlIllegalArgumentException("Aggregate has no defined intermediate state: " + aggregateFunction);
-        }
-        return intermediateStateToNamedExpressions(intermediateState, aggAlias).toList();
+        return intermediateStateToNamedExpressions(intermediateStateDesc(aggregateFunction, grouping), aggAlias).toList();
     }
 
     /** Maps intermediate state description to named expressions.  */

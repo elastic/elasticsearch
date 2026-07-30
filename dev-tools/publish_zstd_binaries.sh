@@ -10,10 +10,9 @@
 
 set -e
 
-if [ "$#" -ne 1 ]; then
-    printf 'Usage: %s <version>\n' "$(basename "$0")"
-    exit 0;
-fi
+VERSION="1.5.7"
+BUILD_REVISION="1"
+ARTIFACT_VERSION="${VERSION}-${BUILD_REVISION}"
 
 if [ $(docker buildx inspect --bootstrap | grep -c 'Platforms:.*linux/arm64') -ne 1 ]; then
   echo 'Error: No Docker support for linux/arm64 detected'
@@ -26,9 +25,11 @@ if [ -z "$ARTIFACTORY_API_KEY" ]; then
   exit 1;
 fi
 
-VERSION="$1"
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"
 TEMP=$(mktemp -d)
+
+echo "Source version: $VERSION"
+echo "Artifact version: $ARTIFACT_VERSION"
 
 fetch_homebrew_artifact() {
   DIGEST=$(curl -sS --retry 3 -H "Accept: application/vnd.oci.image.index.v1+json" -H "Authorization: Bearer QQ==" \
@@ -49,7 +50,7 @@ DARWIN_ARM_BREW=$(fetch_homebrew_artifact 'arm64')
 DARWIN_X86_BREW=$(fetch_homebrew_artifact 'amd64')
 
 build_darwin_jar() {
-  ARTIFACT="$TEMP/zstd-$VERSION-darwin-$2.jar"
+  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-darwin-$2.jar"
   TAR_DIR="$TEMP/darwin-$2"
   mkdir $TAR_DIR
   tar zxf $1 --strip-components=2 --include="*/LICENSE" --include="*/libzstd.$VERSION.dylib" -C $TAR_DIR && rm $1
@@ -68,7 +69,7 @@ DARWIN_ARM_JAR=$(build_darwin_jar $DARWIN_ARM_BREW "aarch64")
 DARWIN_X86_JAR=$(build_darwin_jar $DARWIN_X86_BREW "x86-64")
 
 build_linux_jar() {
-  ARTIFACT="$TEMP/zstd-$VERSION-linux-$2.jar"
+  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-linux-$2.jar"
   OUTPUT_DIR="$TEMP/linux-$2"
   mkdir $OUTPUT_DIR
   DOCKER_IMAGE=$(docker build --build-arg="ZSTD_VERSION=${VERSION}" --file zstd.Dockerfile --platform $1 --quiet .)
@@ -83,7 +84,7 @@ LINUX_ARM_JAR=$(build_linux_jar "linux/arm64" "aarch64")
 LINUX_X86_JAR=$(build_linux_jar "linux/amd64" "x86-64")
 
 build_windows_jar() {
-  ARTIFACT="$TEMP/zstd-$VERSION-windows-x86-64.jar"
+  ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-windows-x86-64.jar"
   OUTPUT_DIR="$TEMP/win32-x86-64"
   mkdir $OUTPUT_DIR
   curl -sS --retry 3 --location https://github.com/facebook/zstd/releases/download/v${VERSION}/zstd-v${VERSION}-win64.zip --output $OUTPUT_DIR/zstd.zip
@@ -98,7 +99,7 @@ echo 'Building Windows jar...'
 WINDOWS_X86_JAR=$(build_windows_jar)
 
 upload_artifact() {
-  curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary "@$1" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/zstd/${VERSION}/$(basename $1)"
+  curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary "@$1" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/zstd/${ARTIFACT_VERSION}/$(basename $1)"
 }
 
 echo 'Uploading artifacts...'

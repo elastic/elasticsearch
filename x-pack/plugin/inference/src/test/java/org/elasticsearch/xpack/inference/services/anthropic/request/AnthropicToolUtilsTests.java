@@ -566,7 +566,7 @@ public class AnthropicToolUtilsTests extends ESTestCase {
     }
 
     public void testWriteMessages_wrapsAssistantStringContentInTextBlock() throws IOException {
-        // An assistant message with no tool calls also gets the array-shaped content, mirroring the EIS gateway.
+        // An assistant message with no tool calls also gets the array-shaped content.
         var message = new Message(new ContentString("The weather is sunny."), "assistant", null, null);
         assertMessagesJson(List.of(message), """
             {
@@ -608,8 +608,8 @@ public class AnthropicToolUtilsTests extends ESTestCase {
     }
 
     public void testWriteMessages_emptyAssistantContentBecomesEmptyTextBlock() throws IOException {
-        // An assistant message with no tool calls and empty or absent content is normalized to a single empty text block,
-        // mirroring the EIS gateway's fallback when no content blocks were produced.
+        // An assistant message with no tool calls and empty or absent content is normalized to a single empty text block, which is
+        // a fallback when no content blocks were produced.
         var toolCalls = randomBoolean() ? null : List.<ToolCall>of();
         var expectedJson = """
             {

@@ -106,9 +106,9 @@ public final class AnthropicToolUtils {
      *         blocks and {@code file} objects become {@code document} blocks, since Anthropic rejects the OpenAI shapes.</li>
      * </ul>
      *
-     * <p>Every message is emitted with array-shaped {@code content}, mirroring the EIS gateway: plain-string content becomes a
-     * single {@code text} block, and a user or assistant message whose content is empty or absent (and that carries no tool calls)
-     * is normalized to a single empty {@code text} block, since Anthropic requires {@code content} on every message.
+     * <p>Every message is emitted with array-shaped {@code content}: plain-string content becomes a single {@code text} block, and
+     * a user or assistant message whose content is empty or absent (and that carries no tool calls) is normalized to a single
+     * empty {@code text} block, since Anthropic requires {@code content} on every message.
      * Both the direct Anthropic service and the Google Model Garden Anthropic provider share this logic so they emit identical
      * Anthropic-shaped messages.
      */
@@ -197,11 +197,11 @@ public final class AnthropicToolUtils {
 
     /**
      * Writes a {@code tool_result} block's {@code content}. Anthropic accepts either a plain string or an array of content blocks
-     * here; the array form is always emitted (mirroring the EIS gateway) so the unified API's two tool-message content shapes
-     * serialize uniformly: a {@link ContentString} becomes a single {@code text} block and each item of a {@link ContentObjects}
-     * is translated via {@link #writeContentBlock} - {@code text}, {@code image} and {@code document} are exactly the block types
-     * Anthropic allows inside a {@code tool_result}. A {@code null} content writes no {@code content} field, which Anthropic
-     * permits on a {@code tool_result}.
+     * here; the array form is always emitted, so the unified API's two tool-message content shapes serialize uniformly: a
+     * {@link ContentString} becomes a single {@code text} block and each item of a {@link ContentObjects} is translated via
+     * {@link #writeContentBlock} - {@code text}, {@code image} and {@code document} are exactly the block types Anthropic allows
+     * inside a {@code tool_result}. A {@code null} content writes no {@code content} field, which Anthropic permits on a
+     * {@code tool_result}.
      */
     private static void writeToolResultContent(XContentBuilder builder, Content content) throws IOException {
         if (content instanceof ContentString(String text)) {
@@ -340,7 +340,7 @@ public final class AnthropicToolUtils {
 
     /**
      * Normalizes a data URI's declared media type for Anthropic: RFC 2397 parameters (e.g. {@code ;charset=utf-8}) are stripped
-     * and the common non-standard {@code image/jpg} alias is mapped to {@code image/jpeg}, mirroring the EIS gateway.
+     * and the common non-standard {@code image/jpg} alias is mapped to {@code image/jpeg}.
      */
     private static String normalizeMediaType(String mediaType) {
         var paramsStart = mediaType.indexOf(';');

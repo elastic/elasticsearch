@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
@@ -277,6 +278,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testAllMapping; // k8s metrics index with time-series fields
 
     private final Configuration config;
+    /** Min transport version to analyze at, or {@code null} to keep the analyzer's default per-context random version. */
+    @Nullable
+    private final TransportVersion minimumVersion;
     private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {
@@ -301,18 +305,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> params() {
-        return settings().stream().map(t -> {
-            var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
-        }).toList();
+        List<Object[]> params = new ArrayList<>();
+        for (Tuple<String, Map<String, Object>> setting : settings()) {
+            var settings = Settings.builder().loadFromMap(setting.v2()).build();
+            for (Tuple<String, TransportVersion> mode : minimumVersionModes()) {
+                params.add(new Object[] { setting.v1() + " " + mode.v1(), configuration(new QueryPragmas(settings)), mode.v2() });
+            }
+        }
+        return params;
+    }
+
+    /**
+     * Every test runs under both modes. {@code current} pins {@link TransportVersion#current()} so that a plan change gated on a new
+     * transport version fails in the PR introducing it, rather than only when the random draw happens to pick that version.
+     * {@code historical} passes {@code null}, leaving the analyzer's default per-context random version untouched, so the older
+     * planning paths keep exactly the coverage they have today.
+     */
+    private static List<Tuple<String, TransportVersion>> minimumVersionModes() {
+        return asList(new Tuple<>("current", TransportVersion.current()), new Tuple<>("historical", null));
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
         return asList(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, Configuration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config, @Nullable TransportVersion minimumVersion) {
         this.config = config;
+        this.minimumVersion = minimumVersion;
     }
 
     @Before
@@ -389,6 +408,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        if (minimumVersion != null) {
+            builder.minimumTransportVersion(minimumVersion);
+        }
         setupEnrichPolicies(builder);
         for (IndexResolution lookupIndex : lookupResolution.values()) {
             builder.addIndex(lookupIndex);

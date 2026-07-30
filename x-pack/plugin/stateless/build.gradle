@@ -46,6 +46,8 @@ dependencies {
   internalClusterTestImplementation project(':modules:mapper-extras')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
+  // esql extends x-pack-eql-action; the in-JVM node loading esql needs its DTOs on the classpath.
+  internalClusterTestImplementation project(xpackModule('eql-action'))
   internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
   internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'

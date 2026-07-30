@@ -24,6 +24,8 @@ dependencies {
   testImplementation project(':x-pack:plugin:encryption')
   testImplementation project(':x-pack:plugin:encryption:spi')
   testImplementation project(xpackModule('esql-core'))
+  // esql extends x-pack-eql-action; the in-JVM node loading esql needs its DTOs on the classpath.
+  testImplementation project(xpackModule('eql-action'))
 }
 
 addQaCheckDependencies(project)

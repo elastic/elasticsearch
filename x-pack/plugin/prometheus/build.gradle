@@ -23,6 +23,8 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('esql'))
   testImplementation project(path: xpackModule('esql-core'))
+  // esql extends x-pack-eql-action; the in-JVM node loading esql needs its DTOs on the classpath.
+  testImplementation project(path: xpackModule('eql-action'))
   testImplementation project(xpackModule('esql:qa:testFixtures'))
   internalClusterTestImplementation project(path: xpackModule('esql'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))

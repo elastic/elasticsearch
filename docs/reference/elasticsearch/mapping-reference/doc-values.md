@@ -79,7 +79,7 @@ PUT my-index-000001
 ## Restricting fields to a single value [doc-values-multi-value]
 
 ```{applies_to}
-stack: preview
+stack: preview 9.5
 serverless: preview
 ```
 

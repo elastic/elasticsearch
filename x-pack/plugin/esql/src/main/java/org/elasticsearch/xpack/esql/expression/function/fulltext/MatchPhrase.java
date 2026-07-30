@@ -358,7 +358,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     ) {
         Map<String, Object> opts = matchPhraseQueryOptions();
         // The registry is only available in the post-analysis pass; analyzer names cannot change during
-        // optimization, so the post-optimization will a null registry will this check.
+        // optimization, so the post-optimization pass runs with a null registry and skips this check.
         if (analysisRegistry != null && opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
             try {
                 PlannerUtils.resolveAnalyzer(BytesRefs.toString(opts.get(ANALYZER_FIELD.getPreferredName())), analysisRegistry);

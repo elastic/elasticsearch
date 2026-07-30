@@ -58,6 +58,7 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
      * Assert that two task statuses are equal after serialization.
      */
     public static void assertTaskStatusEquals(BulkByPaginatedSearchTask.Status expected, BulkByPaginatedSearchTask.Status actual) {
+        assertEquals(expected.getSliceId(), actual.getSliceId());
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());

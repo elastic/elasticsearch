@@ -172,7 +172,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         @SuppressWarnings("unchecked")
                         private TransportResponseHandler<TransportReplicationAction.ReplicaResponse> getResponseHandler() {
                             return (TransportResponseHandler<TransportReplicationAction.ReplicaResponse>) getResponseHandlers()
-                                .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER);
+                                .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER, -1);
                         }
 
                         @Override

@@ -99,6 +99,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             settings -> StatelessCacheEvictionPolicyType.defaultEvictionPolicyType(settings).name(),
             "stateless.cache_boost_preference.eviction_policy.search",
             s -> {},
+            Setting.Property.OperatorDynamic,
             Setting.Property.NodeScope
         );
 
@@ -171,7 +172,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             clusterService.getClusterSettings(),
             threadPool,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            createEvictionPolicy(settings, clusterService, indicesService, threadPool),
             System::nanoTime,
             threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
             metricsHolder
@@ -205,6 +206,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
         );
+    }
+
+    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool
+    ) {
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+        } else {
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+        }
     }
 
     /**

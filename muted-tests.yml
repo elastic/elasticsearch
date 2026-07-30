@@ -316,9 +316,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchDuringRollingRestartIT
   method: testSearchesSurviveRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/151828
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/152367
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testFromStatsGroupingByDate
   issue: https://github.com/elastic/elasticsearch/issues/152475
@@ -358,9 +355,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search.vectors/45_knn_search_bit/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
   issue: https://github.com/elastic/elasticsearch/issues/155328
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/42_knn_search_int4_flat_bfloat16/Test index configured rescore vector}
-  issue: https://github.com/elastic/elasticsearch/issues/155447
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/155449

@@ -786,6 +786,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return runningMergeTasks;
     }
 
+    /**
+     * Marks all queued and running merges as aborted. This should be called before signalling
+     * abort-merge-reads to ensure {@code merge.isAborted()} is {@code true} before any
+     * {@link MergePolicy.MergeAbortedException} can be thrown during compound-file creation,
+     * preventing Lucene's {@code mergeMiddle()} from committing a segment with
+     * {@code useCompoundFile=true} but without the corresponding {@code .cfs} file.
+     */
+    @Override
+    public synchronized void abortAllMerges() {
+        for (MergePolicy.OneMerge merge : runningMergeTasks.keySet()) {
+            merge.setAborted();
+        }
+    }
+
     private static double nsToSec(long ns) {
         return ns / (double) TimeUnit.SECONDS.toNanos(1);
     }

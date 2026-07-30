@@ -991,15 +991,16 @@ public class IndexEngine extends InternalEngine {
      * before {@code mergeScheduler.close()}, so without this early signal the abort would only fire
      * after all running merges finish — defeating the purpose of the interrupt.
      *
-     * <p>Running merges are also marked as aborted ({@link MergePolicy.OneMerge#setAborted()}) before
-     * the signal fires. Without this, a merge in the compound-file creation phase can receive
-     * {@link MergePolicy.MergeAbortedException} while {@code merge.isAborted()} is still {@code false},
-     * causing Lucene's {@code mergeMiddle()} to skip its abort guard and commit a segment with
-     * {@code useCompoundFile=true} but without the corresponding {@code .cfs} file.
+     * <p>All queued and running merges are also marked as aborted
+     * ({@link MergePolicy.OneMerge#setAborted()}) before the signal fires. Without this, a merge in
+     * the compound-file creation phase can receive {@link MergePolicy.MergeAbortedException} while
+     * {@code merge.isAborted()} is still {@code false}, causing Lucene's {@code mergeMiddle()} to
+     * skip its abort guard and commit a segment with {@code useCompoundFile=true} but without the
+     * corresponding {@code .cfs} file.
      */
     @Override
     public void close() throws IOException {
-        getMergeScheduler().onGoingMerges().forEach(m -> m.getMerge().setAborted());
+        getMergeScheduler().abortAllMerges();
         signalAbortMergeReads();
         super.close();
     }
@@ -1044,6 +1045,16 @@ public class IndexEngine extends InternalEngine {
                 mergeSchedulerWrapper = new AbortOnCloseMergeScheduler(delegate.getMergeScheduler(), abortAction);
             }
             return mergeSchedulerWrapper;
+        }
+
+        /**
+         * Marks all queued and running merges as aborted so that {@code merge.isAborted()} is
+         * {@code true} before the abort signal fires. This prevents the compound-file creation
+         * race in Lucene's {@code mergeMiddle()}.
+         */
+        @Override
+        public void abortAllMerges() {
+            delegate.abortAllMerges();
         }
     }
 

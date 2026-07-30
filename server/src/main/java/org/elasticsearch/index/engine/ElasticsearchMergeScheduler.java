@@ -24,4 +24,15 @@ public interface ElasticsearchMergeScheduler {
     void refreshConfig();
 
     MergeScheduler getMergeScheduler();
+
+    /**
+     * Marks all queued and running merges as aborted before abort-merge-reads is signalled.
+     * Implementations backed by {@link ThreadPoolMergeScheduler} call
+     * {@link org.apache.lucene.index.MergePolicy.OneMerge#setAborted()} on every pending merge so
+     * that {@code merge.isAborted()} is {@code true} before any
+     * {@link org.apache.lucene.index.MergePolicy.MergeAbortedException} can be thrown during
+     * compound-file creation, preventing a corrupt-segment write in Lucene's {@code mergeMiddle()}.
+     * Other implementations may provide a no-op default.
+     */
+    default void abortAllMerges() {}
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
 public class DLMFrozenTransitionPlugin extends Plugin {
     public static final String EXECUTOR_NAME = "dlm_frozen_transition";
     private final List<AbstractDLMPeriodicMasterOnlyService> managedServices = new ArrayList<>();
+    private final SetOnce<DLMFrozenTransitionExecutor> transitionExecutor = new SetOnce<>();
 
     public DLMFrozenTransitionPlugin() {}
 
@@ -47,6 +49,19 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     protected Supplier<XPackLicenseState> getLicenseStateSupplier() {
         return XPackPlugin::getSharedLicenseState;
+    }
+
+    /**
+     * Returns the transition executor, or {@code null} if {@link #createComponents} has not run yet. Used by
+     * {@link DLMFrozenTransitionInfoProvider}, which is instantiated before this plugin's components are created.
+     */
+    DLMFrozenTransitionExecutor getTransitionExecutor() {
+        return transitionExecutor.get();
+    }
+
+    // visible for testing
+    void setTransitionExecutorForTesting(DLMFrozenTransitionExecutor executor) {
+        transitionExecutor.set(executor);
     }
 
     @Override
@@ -92,6 +107,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             services.dlmErrorStore(),
             services.threadPool().executor(EXECUTOR_NAME)
         );
+        transitionExecutor.set(dlmFrozenTransitionExecutor);
 
         var originClient = new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN);
 

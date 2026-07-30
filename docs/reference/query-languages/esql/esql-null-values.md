@@ -10,7 +10,7 @@ description: How ES|QL represents and evaluates NULL values in expressions, filt
 
 `NULL` represents a value that is unknown, missing, or unavailable in a result row. It is common when a document has no value for a field, when a field is not mapped for part of a query, or when an expression cannot produce a value.
 
-The most important thing to know is that `NULL` is not the same as `false`, an empty string, `0`, or an empty multivalued field. Many expressions that involve `NULL` evaluate to `NULL`, and [`WHERE`](commands/where.md) keeps only rows where the condition is `true`. This can make rows disappear unless you handle `NULL` explicitly.
+The most important thing to know is that `NULL` is not the same as `false`, an empty string, or `0`. Many expressions that involve `NULL` evaluate to `NULL`, and [`WHERE`](commands/where.md) keeps only rows where the condition is `true`. This can make rows disappear unless you handle `NULL` explicitly.
 
 Use this page to avoid the most common `NULL` gotchas, then refer to the sections that follow for the details behind each rule.
 
@@ -24,8 +24,8 @@ Use these patterns to avoid unexpected behavior:
 | `field != NULL` | `field IS NOT NULL` | Comparisons with `NULL` return `NULL`, not `false`. **Learn more:** [Test for NULL values](#esql-test-for-null). |
 | `WHERE field != "x"` when you also want missing values | `WHERE field != "x" OR field IS NULL` | `WHERE` drops rows where the comparison returns `NULL`. **Learn more:** [Comparisons and NULL](#esql-null-comparisons). |
 | `WHERE NOT field == "x"` when you also want missing values | `WHERE field != "x" OR field IS NULL` | `NOT NULL` is still `NULL`. **Learn more:** [Boolean logic with NULL](#esql-null-boolean-logic). |
-| `WHERE optional_field > 0` when null rows should remain | `WHERE optional_field > 0 OR optional_field IS NULL` | `WHERE` keeps only `true`, not `NULL`. **Learn more:** [WHERE and NULL](#esql-where-null). |
-| `COUNT(condition OR NULL)` | `COUNT(*) WHERE condition` | Filtered aggregates are clearer and avoid relying on three-valued logic. **Learn more:** [Aggregates and NULL](#esql-null-aggregates). |
+| `WHERE optional_field < 100` when null rows should remain | `WHERE optional_field < 100 OR optional_field IS NULL` | `WHERE` keeps only `true`, not `NULL`. **Learn more:** [WHERE and NULL](#esql-where-null). |
+| `COUNT(condition OR NULL)` | `COUNT(*) WHERE condition` | Filtered aggregates state the condition directly. **Learn more:** [Aggregates and NULL](#esql-null-aggregates). |
 
 :::{warning}
 Rows can disappear when a `WHERE` condition evaluates to `NULL`. `WHERE` keeps only rows where the condition is `true`; it drops both `false` and `NULL`.
@@ -100,17 +100,19 @@ Negating a comparison is not the same as including missing values. If the compar
 
 Boolean operators use three-valued logic. `NULL` means unknown, so it is preserved unless the other operand determines the result.
 
-| `AND` | `true` | `false` | `NULL` |
-| --- | --- | --- | --- |
-| `true` | `true` | `false` | `NULL` |
-| `false` | `false` | `false` | `false` |
-| `NULL` | `NULL` | `false` | `NULL` |
+Read the `AND` and `OR` tables as operator result matrices. Choose the left operand from the first column and the right operand from the header row; the cell where they meet is the result.
 
-| `OR` | `true` | `false` | `NULL` |
+| left `AND` right | `true` | `false` | `NULL` |
 | --- | --- | --- | --- |
-| `true` | `true` | `true` | `true` |
-| `false` | `true` | `false` | `NULL` |
-| `NULL` | `true` | `NULL` | `NULL` |
+| **`true`** | `true` | `false` | `NULL` |
+| **`false`** | `false` | `false` | `false` |
+| **`NULL`** | `NULL` | `false` | `NULL` |
+
+| left `OR` right | `true` | `false` | `NULL` |
+| --- | --- | --- | --- |
+| **`true`** | `true` | `true` | `true` |
+| **`false`** | `true` | `false` | `NULL` |
+| **`NULL`** | `true` | `NULL` | `NULL` |
 
 | expression | result |
 | --- | --- |
@@ -156,7 +158,7 @@ If you want a filter to keep rows where a value is either missing or matches ano
 
 ```esql
 FROM employees
-| WHERE salary > 0 OR salary IS NULL
+| WHERE salary < 100 OR salary IS NULL
 ```
 
 ## Expressions and functions [esql-null-functions]
@@ -188,7 +190,7 @@ For exact behavior, check the reference page for the function you are using.
 
 ## Aggregates and NULL [esql-null-aggregates]
 
-Aggregate functions handle `NULL` according to the function.
+Aggregate functions handle `NULL` depending on the function.
 
 Common cases:
 
@@ -220,6 +222,21 @@ Do not use `COUNT(condition OR NULL)` unless you specifically want to rely on th
 FROM employees
 | STATS hired = COUNT(*) WHERE still_hired
 ```
+
+Other aggregates commonly return `NULL` when every input value is `NULL`. The following query has a row to aggregate, but no non-null value for `SUM`:
+
+```esql
+ROW x = NULL
+| STATS sum_x = SUM(TO_INTEGER(x))
+```
+
+::::{dropdown} Example response
+```text
+   sum_x
+--------
+    null
+```
+::::
 
 Refer to [`COUNT`](functions-operators/aggregation-functions/count.md) and [aggregation functions](functions-operators/aggregation-functions.md).
 
@@ -257,7 +274,7 @@ Refer to [unmapped fields](esql-unmapped-fields.md) and [`SET unmapped_fields`](
 
 ## Multivalued fields and NULL [esql-multivalued-null]
 
-A multivalued field is not the same as `NULL`. A multivalued field has more than one value; `NULL` means no known value.
+A multivalued field with one or more values is different from `NULL`. An empty multivalued field can appear as `NULL` in {{esql}}.
 
 Some scalar comparisons and functions return `NULL` when a multivalued value cannot be reduced to a single value. Also, `MV_APPEND` currently returns `NULL` when either input is `NULL`.
 

@@ -37,7 +37,7 @@ Add the following to your {{kib}} configuration:
 xpack.dataFederation.enabled: true
 ```
 
-To learn more, refer to [Elastic Stack settings](https://www.elastic.co/docs/deploy-manage/stack-settings).
+To learn how to configure these settings on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
 
 ## Why use federated data
 

@@ -64,6 +64,14 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
         }
     }
 
+    /**
+     * Returns a set of attributes for the expression with the property that
+     * if any of these attributes is null, the expression is null.
+     *
+     * @param exp      the expression to resolve
+     * @param aliases  mapping from attributes to other expressions
+     * @param inputSet set of input attributes visible for the expression
+     */
     static Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases, AttributeSet inputSet) {
         Set<Expression> resolvedExpressions = new LinkedHashSet<>();
         resolve(exp, aliases, inputSet, resolvedExpressions);

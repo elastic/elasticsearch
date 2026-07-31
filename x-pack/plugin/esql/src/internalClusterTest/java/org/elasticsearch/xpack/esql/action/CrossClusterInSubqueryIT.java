@@ -305,10 +305,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
             assertEquals(0L, values.get(0).get(0));
-            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            // subquery is local-only (1 shard); the empty result folds the SEMI join to an empty LocalRelation, so the
+            // main plan never searches the remotes — both report zero shards, like any coordinator-only query
             assertCCSExecutionInfoDetailsWithShards(
                 resp.getExecutionInfo(),
-                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 0, REMOTE_CLUSTER_2, 0)
             );
         }
     }

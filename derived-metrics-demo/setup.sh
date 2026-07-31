@@ -70,6 +70,11 @@ DERIVED_METRICS=$(cat <<'JSON'
       "type": "gauge",
       "value": { "field": "event.duration" },
       "aggregation": "avg"
+    },
+    {
+      "name": "event.duration.distribution",
+      "type": "histogram",
+      "value": { "field": "event.duration" }
     }
   ]
 }

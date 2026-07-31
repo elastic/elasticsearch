@@ -229,3 +229,34 @@ POST /_query?format=txt
     | STATS source_documents = COUNT(*)
   """
 }
+
+# =================================================================================================
+# 7. Percentiles: derived vs source
+#
+# A histogram metric keeps the whole distribution per interval, so percentiles survive the
+# reduction. The mean in section 5 cannot tell you this no matter how it is aggregated. The two
+# should agree to within the histogram's bucket resolution, which is a fraction of a percent.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "event.duration.distribution"
+      AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS p50_ms = PERCENTILE(metric.histogram, 50) / 1000000,
+            p95_ms = PERCENTILE(metric.histogram, 95) / 1000000,
+            p99_ms = PERCENTILE(metric.histogram, 99) / 1000000
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS p50_ms = PERCENTILE(event.duration, 50) / 1000000,
+            p95_ms = PERCENTILE(event.duration, 95) / 1000000,
+            p99_ms = PERCENTILE(event.duration, 99) / 1000000
+  """
+}

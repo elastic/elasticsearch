@@ -153,6 +153,27 @@ cmd_status() {
     --url "${ES}" --user "${ES_USER}" --password "${ES_PASSWORD}" \
     --data-stream "${DATA_STREAM}" --interval "${DEFAULT_INTERVAL}" \
     --compare-with "${LEAN_DATA_STREAM}"
+  cmd_health
+}
+
+# What the feature is costing the node it runs on, as opposed to what it is producing. All three are
+# things the feature bounds deliberately, so seeing them at rest is as informative as seeing them
+# under strain.
+cmd_health() {
+  es_up || die "Elasticsearch is not running"
+  echo
+  printf '\033[1;34m==>\033[0m %s\n' "Node cost"
+  curl -sS "${AUTH[@]}" "${ES}/_nodes/stats/breaker,thread_pool?filter_path=nodes.*.breakers.derived_metrics,nodes.*.thread_pool.derived_metrics" \
+    | python3 -c '
+import json, sys
+for node in json.load(sys.stdin).get("nodes", {}).values():
+    breaker = node.get("breakers", {}).get("derived_metrics", {})
+    pool = node.get("thread_pool", {}).get("derived_metrics", {})
+    print(f"    breaker      {breaker.get(\"estimated_size\", \"-\")} of {breaker.get(\"limit_size\", \"-\")}"
+          f"   tripped {breaker.get(\"tripped\", 0)}")
+    print(f"    thread pool  active {pool.get(\"active\", 0)}  queue {pool.get(\"queue\", 0)}"
+          f"  completed {pool.get(\"completed\", 0)}  rejected {pool.get(\"rejected\", 0)}")
+'
 }
 
 # A closed, 10s-aligned window, for the side-by-side queries in compare.console. Closed because the
@@ -215,11 +236,12 @@ case "${1:-up}" in
   up)      cmd_up ;;
   down)    cmd_down ;;
   status)  cmd_status ;;
+  health)  cmd_health ;;
   logs)    cmd_logs ;;
   window)  cmd_window "${2:-5}" ;;
   eslogs)  cmd_eslogs ;;
   setup)   bash "$HERE/setup.sh" ;;
   bootstrap-kibana) bash "$HERE/bootstrap-kibana.sh" ;;
   load)    start_load ;;
-  *)       die "usage: $0 [up|down|status|window|logs|eslogs|setup|bootstrap-kibana|load]" ;;
+  *)       die "usage: $0 [up|down|status|health|window|logs|eslogs|setup|bootstrap-kibana|load]" ;;
 esac

@@ -203,6 +203,18 @@ def build_rows(derived_dv, source_dv, derived, source):
             d_line("Mean latency, ms", "event.duration.avg",
                    "avg_ms = SUM(metric.value) / SUM(metric.count) / 1000000", "avg_ms"),
             s_line("Mean latency, ms", "avg_ms = AVG(event.duration) / 1000000", "avg_ms")),
+
+        # --- the histogram metric, which is the one that can answer a question a mean cannot ---
+        # PERCENTILE reads an exponential_histogram field directly, so the derived side is the same
+        # query as the source side with a different field. A mean would not get you here at all.
+        row(CHART_HEIGHT,
+            d_line("p95 latency, ms", "event.duration.distribution",
+                   "p95_ms = PERCENTILE(metric.histogram, 95) / 1000000", "p95_ms"),
+            s_line("p95 latency, ms", "p95_ms = PERCENTILE(event.duration, 95) / 1000000", "p95_ms")),
+        row(CHART_HEIGHT,
+            d_line("p99 latency, ms", "event.duration.distribution",
+                   "p99_ms = PERCENTILE(metric.histogram, 99) / 1000000", "p99_ms"),
+            s_line("p99 latency, ms", "p99_ms = PERCENTILE(event.duration, 99) / 1000000", "p99_ms")),
     ]
 
 

@@ -23,6 +23,7 @@ rate does not move.** The derived metrics still track the load, because the load
 cd derived-metrics-demo
 ./demo.sh up        # build + start ES, start Kibana, configure the stream, start indexing
 ./demo.sh status    # source rate vs derived rate, and the current metric values
+./demo.sh health    # what the feature costs the node: its breaker and its threadpool
 ./demo.sh logs      # follow the load generator
 ./demo.sh eslogs    # follow Elasticsearch
 ./demo.sh down      # stop everything
@@ -200,7 +201,10 @@ when the stream is created. The runtime picks the change up on the next cluster 
 restart.
 
 The demo runs Elasticsearch with a 1s flush interval and a 2s grace period, rather than the 1s/5s
-defaults, so changes show up quickly.
+defaults, so changes show up quickly. Everything else is left at its default, which is the point:
+the feature's own threadpool, its circuit breaker at 5% of heap, its series caps, the
+`flush_early` memory pressure policy and the indexing pressure ceiling all apply here exactly as
+they would in production. `./demo.sh health` shows the two that move.
 
 ## Notes
 
@@ -210,6 +214,7 @@ defaults, so changes show up quickly.
 - The transport layer stays on loopback, which keeps the node out of production bootstrap checks.
 - `KIBANA_IMAGE` must match `build-tools-internal/version.properties`. It is pinned to
   `9.6.0-SNAPSHOT` here.
-- Histogram metrics are configurable but not emitted yet, so the demo does not use one.
+- The `exponential_histogram` mapper the destination uses for histogram metrics ships in
+  `x-pack-analytics`, which the default distribution always bundles. Nothing to install.
 - State lives in `.run/` — logs and pid files. `./demo.sh down` cleans up the processes; the data
   directory is managed by `./gradlew run` and is wiped on each start.

@@ -140,3 +140,35 @@ FROM logs-derived-demo-default
 | EVAL docs_per_sec = docs / 10
 | SORT bucket DESC, docs_per_sec DESC
 | LIMIT 25
+
+
+// ---------------------------------------------------------------------------------------------
+// 12. Percentiles from a histogram metric.
+//
+// This is the one question a gauge cannot answer at any aggregation. event.duration.distribution
+// keeps the whole distribution per interval as an exponential_histogram, and PERCENTILE reads that
+// field directly — so the derived query is the source query with a different field name.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "event.duration.distribution"
+| STATS p50_ms = PERCENTILE(metric.histogram, 50) / 1000000,
+        p95_ms = PERCENTILE(metric.histogram, 95) / 1000000,
+        p99_ms = PERCENTILE(metric.histogram, 99) / 1000000
+    BY bucket = BUCKET(@timestamp, 1 minute)
+| SORT bucket DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 13. The same percentiles the expensive way, and per service.
+//
+// Compare the two. The derived query above reads one document per interval; this one reads every
+// document written in the window. They should agree to within the histogram's bucket resolution.
+// ---------------------------------------------------------------------------------------------
+FROM logs-derived-demo-default
+| WHERE @timestamp > NOW() - 5 minutes
+| STATS p50_ms = PERCENTILE(event.duration, 50) / 1000000,
+        p95_ms = PERCENTILE(event.duration, 95) / 1000000,
+        p99_ms = PERCENTILE(event.duration, 99) / 1000000
+    BY service = service.name
+| SORT p99_ms DESC

@@ -393,6 +393,125 @@ public class EqlPageConverterTests extends ESTestCase {
         }
     }
 
+    public void testNumericArmsParseStringShapedValues() {
+        // The fields API can render numbers as strings; every numeric arm must parse the string shape (not blind-cast),
+        // covering the String branch of the long/integer/double conversions.
+        List<Attribute> schema = List.of(fieldAttribute("l", LONG), fieldAttribute("i", INTEGER), fieldAttribute("d", DOUBLE));
+        Event e0 = event(Map.of("l", List.of("100"), "i", List.of("7"), "d", List.of("2.5")));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertEquals(100L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(7, ((IntBlock) page.getBlock(1)).getInt(0));
+            assertEquals(2.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.0);
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testSampleModeUnnestsLikeSequence() {
+        // SAMPLE routes through the same sequence-unnesting path as SEQUENCE (one row per event, with synthetics);
+        // pin that the SAMPLE mode arm produces the join-key groups, since only SEQUENCE exercised it before.
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(List.of("host-a"), List.of(fieldEvent("p0"), fieldEvent("p1")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SAMPLE, schema);
+        try {
+            assertEquals(2, page.getPositionCount());
+            LongBlock seq = page.getBlock(0);
+            IntBlock stage = page.getBlock(1);
+            assertEquals(0L, seq.getLong(0));
+            assertEquals(0, stage.getInt(0));
+            assertEquals(1, stage.getInt(1));
+            assertBytesRefColumn(page, 2, "host-a", "host-a"); // join_keys
+            assertBytesRefColumn(page, 3, "p0", "p1");         // process.name
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testEmptyEventResponseYieldsZeroPositions() {
+        // No events (e.g. a matched-nothing event query) must yield a zero-row page under the schema, not throw.
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD));
+
+        Page page = convert(eventResponse(List.of()), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertEquals(1, page.getBlockCount());
+            assertEquals(0, page.getPositionCount());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testEmptySequenceResponseYieldsZeroPositions() {
+        // No sequences must yield a zero-row page including the synthetics columns, not throw.
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+
+        Page page = convert(sequenceResponse(List.of()), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            assertEquals(4, page.getBlockCount());
+            assertEquals(0, page.getPositionCount());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testEmptyJoinKeysRenderNull() {
+        // A sequence whose join-keys list is empty (no BY keys) renders the join_keys synthetic as null, not "".
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(List.of(), List.of(fieldEvent("p0")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            BytesRefBlock joinKeys = page.getBlock(2);
+            assertTrue("empty join keys must render as null", joinKeys.isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testEventWithNullFetchFieldsRendersFieldNull() {
+        // An event that carries no fields map at all (fetchFields() == null) yields a null in every field column.
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD));
+        Event noFields = new Event("logs", "id0", null, null, false);
+
+        Page page = convert(eventResponse(List.of(noFields)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertTrue("field of a fields-less event must be null", page.getBlock(0).isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testEmptyFieldValuesRenderNull() {
+        // A field present in the event but with an empty values list (nothing extracted) renders as null.
+        List<Attribute> schema = List.of(fieldAttribute("process.name", KEYWORD));
+        Event e0 = event(Map.of("process.name", List.of()));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertTrue("empty-values field must be null", page.getBlock(0).isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testUnexpectedSyntheticNameThrows() {
+        // A ReferenceAttribute whose name is not one of the three synthetics is a defensive tripwire in valueFor:
+        // the resolver only ever emits _sequence/_sequence_stage/join_keys, so any other synthetic name is a bug.
+        List<Attribute> schema = List.of(new ReferenceAttribute(EMPTY, "_bogus_synthetic", LONG));
+        EqlSearchResponse response = sequenceResponse(List.of(new Sequence(List.of("k"), List.of(fieldEvent("p0")))));
+        try {
+            EsqlIllegalArgumentException e = expectThrows(
+                EsqlIllegalArgumentException.class,
+                () -> EqlPageConverter.toPage(response, EqlRelation.Mode.SEQUENCE, schema, TestBlockFactory.getNonBreakingInstance())
+            );
+            assertThat(e.getMessage(), containsString("unexpected EQL synthetic column [_bogus_synthetic]"));
+        } finally {
+            response.decRef();
+        }
+    }
+
     private static MetadataAttribute metadata(String name) {
         return (MetadataAttribute) MetadataAttribute.create(EMPTY, name);
     }

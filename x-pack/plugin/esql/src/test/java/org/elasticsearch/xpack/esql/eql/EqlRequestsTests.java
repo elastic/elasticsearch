@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -185,6 +186,33 @@ public class EqlRequestsTests extends ESTestCase {
     public void testRejectsWrongTypedOption() {
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", "10")));
         assertThat(e.getMessage(), containsString("[size] requires a numeric value"));
+    }
+
+    public void testRejectsWrongTypedStringOption() {
+        // A string-typed option supplied a non-string value must fail loud, not be silently dropped.
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("timestamp_field", 5)));
+        assertThat(e.getMessage(), containsString("[timestamp_field] requires a string value"));
+    }
+
+    public void testRejectsWrongTypedBooleanOption() {
+        // The one boolean option: a non-boolean value must fail with the boolean type name, not be coerced or ignored.
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> EqlRequests.validateOptions(EMPTY, Map.of("allow_partial_sequence_results", "true"))
+        );
+        assertThat(e.getMessage(), containsString("[allow_partial_sequence_results] requires a boolean value"));
+    }
+
+    public void testUnknownOptionMessageListsSupportedKeys() {
+        // The unknown-option message enumerates the supported surface so a typo points the user at the real keys.
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> EqlRequests.validateOptions(EMPTY, Map.of("event_category_fields", "category"))
+        );
+        assertThat(
+            e.getMessage(),
+            allOf(containsString("unknown EQL command option [event_category_fields]"), containsString("event_category_field"))
+        );
     }
 
     public void testAcceptsEverySupportedOption() {

@@ -70,6 +70,65 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         assertThat(eql.indexPattern().indexPattern(), equalTo("logs-a,logs-b"));
     }
 
+    public void testQuotedAndTripleQuotedIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // The EQL leading pattern reuses FROM's full indexPattern grammar, so quoted and triple-quoted forms parse
+        // the same way — the quotes are stripped to the bare pattern string.
+        assertEqlIndexPattern("logs-2026,logs-old", "\"logs-2026\",\"logs-old\"");
+        assertEqlIndexPattern("logs-2026", "\"\"\"logs-2026\"\"\"");
+    }
+
+    public void testDateMathIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Date-math index expressions flow through unchanged, exactly as for FROM.
+        assertEqlIndexPattern("<logstash-{now/d}>", "<logstash-{now/d}>");
+        assertEqlIndexPattern("<logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>");
+    }
+
+    public void testRemoteClusterIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // Cross-cluster (cluster:index) patterns parse; the analyzer/EQL engine handle remote resolution downstream.
+        assertEqlIndexPattern("cluster:logs", "cluster:logs");
+        assertEqlIndexPattern("cluster*:logs-*", "cluster*:logs-*");
+    }
+
+    public void testSelectorIndexPattern() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
+
+        // Component selectors (::data / ::failures) parse on the EQL leading pattern the same as FROM.
+        assertEqlIndexPattern("logs::data", "logs::data");
+        assertEqlIndexPattern("logs::failures", "logs::failures");
+    }
+
+    public void testInvalidIndexPatternRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // A fully-quoted pattern with an invalid character is a semantic error, not a silent misbind into the EQL engine.
+        expectError(
+            "EQL \"index|pattern\" \"process where true\"",
+            "Invalid index name [index|pattern], must not contain the following characters"
+        );
+    }
+
+    public void testQuotedQueryWithoutPatternFailsToParse() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // The grammar requires a query string AFTER the leading pattern, so a lone quoted string binds as the index
+        // pattern and the missing query is a parse error — the quoted query is never silently consumed as the pattern.
+        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL \"process where true\""));
+        assertThat(e.getMessage(), containsString("line 1:"));
+    }
+
+    /** Parses {@code EQL <pattern> "process where true"} and asserts the leading pattern resolves to {@code expected}. */
+    private void assertEqlIndexPattern(String expected, String pattern) {
+        UnresolvedEqlRelation eql = as(query("EQL " + pattern + " \"process where true\""), UnresolvedEqlRelation.class);
+        assertThat(eql.indexPattern().indexPattern(), equalTo(expected));
+    }
+
     public void testMetadataParsesIntoRelation() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 

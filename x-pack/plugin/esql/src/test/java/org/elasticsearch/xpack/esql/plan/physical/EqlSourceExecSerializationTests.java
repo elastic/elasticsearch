@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -97,5 +98,28 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    public void testPreResolvedFieldCapsGetterAndDroppedOnSerialization() throws IOException {
+        // The coordinator-resolved field-caps carrier is readable in-process but never written to the wire: a
+        // deserialized copy carries null (the EQL engine simply re-resolves) and still compares equal, since the
+        // carrier is excluded from equals/hashCode.
+        FieldCapabilitiesResponse carrier = new FieldCapabilitiesResponse(new String[] { "logs-1" }, Map.of());
+        EqlSourceExec original = new EqlSourceExec(
+            Source.EMPTY,
+            "process where true",
+            "logs-*",
+            Map.of("size", 10),
+            EqlRelation.Mode.EVENT,
+            List.of(randomReferenceAttribute(true)),
+            5,
+            carrier
+        );
+        assertSame(carrier, original.preResolvedFieldCaps());
+        assertEquals(Integer.valueOf(5), original.pushedLimit());
+
+        EqlSourceExec copy = copyInstance(original);
+        assertNull("the transient field-caps carrier must not survive serialization", copy.preResolvedFieldCaps());
+        assertEquals("dropping the redundant carrier must not change plan identity", original, copy);
     }
 }

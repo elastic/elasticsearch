@@ -274,8 +274,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_doti7u_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI7uBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -284,8 +284,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_doti7u_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI7uBulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -294,8 +294,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductI7uBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -306,23 +306,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductI7uBulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductI7uBulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_doti7u_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI7uBulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductI7uBulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductI7uBulkSparse_raw(addresses, b, length, count, scores);
+        dotProductI7uBulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_sqri7u")
@@ -336,8 +336,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqri7u_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceI7uBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -346,8 +346,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqri7u_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceI7uBulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -356,8 +356,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void squareDistanceI7uBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -368,46 +368,46 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        squareDistanceI7uBulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        squareDistanceI7uBulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqri7u_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceI7uBulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void squareDistanceI7uBulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void squareDistanceI7uBulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        squareDistanceI7uBulkSparse_raw(addresses, b, length, count, scores);
+        squareDistanceI7uBulkSparse_raw(addresses, query, length, count, scores);
     }
 
     // --- INT4: dot product only ---
     //
-    // Int4 is asymmetric: the query holds one value per byte (`2 * length` bytes) while the dataset
-    // packs two nibbles per byte (`length` bytes). `length` is the *packed* byte count, not the
-    // logical dimension count. Note the single-vector form takes the
-    // query as `a` and the packed dataset as `b`; the bulk forms take the dataset as `a`.
+    // Int4 is asymmetric: the query holds one value per byte (`2 * documentBytes`) while the document
+    // packs two nibbles per byte (`documentBytes`). `documentBytes` is the *packed* byte count, not the
+    // logical dimension count. Note the single-vector form takes the query first and the packed document
+    // second.
 
     @Function("vec_doti4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int dotProductI4(
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        int documentBytes
     );
 
     @Function("vec_doti4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -415,9 +415,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_doti4_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI4BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -425,35 +425,35 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductI4BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductI4BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductI4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_doti4_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI4BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductI4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductI4BulkSparse(MemorySegment addresses, MemorySegment query, int documentBytes, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductI4BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductI4BulkSparse_raw(addresses, query, documentBytes, count, scores);
     }
 
     // --- INT8: cosine, dot product, square distance ---
@@ -471,8 +471,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_cosi8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void cosineI8Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -481,8 +481,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_cosi8_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void cosineI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -491,8 +491,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void cosineI8BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -503,23 +503,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        cosineI8BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        cosineI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_cosi8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void cosineI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void cosineI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void cosineI8BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        cosineI8BulkSparse_raw(addresses, b, length, count, scores);
+        cosineI8BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_doti8")
@@ -533,8 +533,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_doti8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI8Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -543,8 +543,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_doti8_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -553,8 +553,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductI8BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -565,23 +565,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductI8BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_doti8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductI8BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductI8BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductI8BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_sqri8")
@@ -595,8 +595,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqri8_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceI8Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -605,8 +605,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqri8_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceI8BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -615,8 +615,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void squareDistanceI8BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -627,23 +627,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        squareDistanceI8BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        squareDistanceI8BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqri8_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void squareDistanceI8BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void squareDistanceI8BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        squareDistanceI8BulkSparse_raw(addresses, b, length, count, scores);
+        squareDistanceI8BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     // --- FLOAT32: dot product and square distance ---
@@ -661,8 +661,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -672,22 +672,22 @@ public abstract class VectorSimilarityFunctions {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductF32BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductF32BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_dotf32_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -696,8 +696,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductF32BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -708,8 +708,8 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductF32BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqrf32")
@@ -723,8 +723,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqrf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -733,8 +733,8 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_sqrf32_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -743,8 +743,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void squareDistanceF32BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -755,23 +755,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        squareDistanceF32BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        squareDistanceF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqrf32_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void squareDistanceF32BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        squareDistanceF32BulkSparse_raw(addresses, b, length, count, scores);
+        squareDistanceF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     // --- BFloat16 ---
@@ -782,16 +782,16 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotDbf16Qf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductDBF16QF32(
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 
     @Function("vec_dotDbf16Qf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductDBF16QF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -801,22 +801,22 @@ public abstract class VectorSimilarityFunctions {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductDBF16QF32BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductDBF16QF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_dotDbf16Qf32_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -825,8 +825,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductDBF16QF32BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -837,23 +837,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductDBF16QF32BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductDBF16QF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqrDbf16Qf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceDBF16QF32(
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 
     @Function("vec_sqrDbf16Qf32_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceDBF16QF32Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -863,22 +863,28 @@ public abstract class VectorSimilarityFunctions {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void squareDistanceDBF16QF32BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void squareDistanceDBF16QF32BulkSparse(
+        MemorySegment addresses,
+        MemorySegment query,
+        int length,
+        int count,
+        MemorySegment scores
+    ) {
         assert validateBulkSparse(addresses, count);
-        squareDistanceDBF16QF32BulkSparse_raw(addresses, b, length, count, scores);
+        squareDistanceDBF16QF32BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_sqrDbf16Qf32_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QF32BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -887,8 +893,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void squareDistanceDBF16QF32BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -899,23 +905,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        squareDistanceDBF16QF32BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        squareDistanceDBF16QF32BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotDbf16Qbf16")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductDBF16QBF16(
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length
     );
 
     @Function("vec_dotDbf16Qbf16_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductDBF16QBF16Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -925,22 +931,22 @@ public abstract class VectorSimilarityFunctions {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductDBF16QBF16BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_dotDbf16Qbf16_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QBF16BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -949,8 +955,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductDBF16QBF16BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -961,23 +967,23 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductDBF16QBF16BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductDBF16QBF16BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     @Function("vec_sqrDbf16Qbf16")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceDBF16QBF16(
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length
     );
 
     @Function("vec_sqrDbf16Qbf16_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void squareDistanceDBF16QBF16Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
@@ -987,22 +993,28 @@ public abstract class VectorSimilarityFunctions {
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void squareDistanceDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void squareDistanceDBF16QBF16BulkSparse(
+        MemorySegment addresses,
+        MemorySegment query,
+        int length,
+        int count,
+        MemorySegment scores
+    ) {
         assert validateBulkSparse(addresses, count);
-        squareDistanceDBF16QBF16BulkSparse_raw(addresses, b, length, count, scores);
+        squareDistanceDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
     }
 
     @Function("vec_sqrDbf16Qbf16_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QBF16BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment b,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
         int length,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
@@ -1011,8 +1023,8 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void squareDistanceDBF16QBF16BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
+        MemorySegment dataset,
+        MemorySegment query,
         int length,
         int pitch,
         MemorySegment offsets,
@@ -1023,29 +1035,29 @@ public abstract class VectorSimilarityFunctions {
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        squareDistanceDBF16QBF16BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        squareDistanceDBF16QBF16BulkWithOffsets_raw(dataset, query, length, pitch, offsets, count, scores);
     }
 
     // --- BBQ: dot product for all BBQ types ---
     //
-    // `length` is the dataset vector size in bytes. The query width is a fixed multiple of it, given
-    // by BBQType#queryBytesPerDocByte(): x1 for D1Q1/D2Q2/D4Q4, x2 for D2Q4, x4 for D1Q4/D2Q4_PACKED.
+    // `documentBytes` is the document vector size in bytes. The query width is a fixed multiple of it,
+    // given by BBQType#queryBytesPerDocByte(): x1 for D1Q1/D2Q2/D4Q4, x2 for D2Q4, x4 for D1Q4/D2Q4_PACKED.
 
     @Function("vec_dotd1q1")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD1Q1(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd1q1_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD1Q1Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1053,9 +1065,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd1q1_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD1Q1BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1063,36 +1075,36 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD1Q1BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD1Q1BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD1Q1BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotd1q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD1Q4(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd1q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD1Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1100,9 +1112,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd1q4_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD1Q4BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1110,51 +1122,51 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD1Q4BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD1Q4BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD1Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotd1q4_bulk_sparse")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD1Q4BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE, aligned = true) MemorySegment scores
     );
 
-    public void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment b, int length, int count, MemorySegment scores) {
+    public void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment query, int documentBytes, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
-        dotProductD1Q4BulkSparse_raw(addresses, b, length, count, scores);
+        dotProductD1Q4BulkSparse_raw(addresses, query, documentBytes, count, scores);
     }
 
     @Function("vec_dotd2q2")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q2(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd2q2_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q2Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1162,9 +1174,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd2q2_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q2BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1172,36 +1184,36 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD2Q2BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD2Q2BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD2Q2BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotd2q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q4(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd2q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1209,9 +1221,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd2q4_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q4BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 2 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1219,36 +1231,36 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD2Q4BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD2Q4BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD2Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotd2q4_packed")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q4Packed(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd2q4_packed_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q4PackedBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1256,9 +1268,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd2q4_packed_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q4PackedBulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = 4 * Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1266,36 +1278,36 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD2Q4PackedBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD2Q4PackedBulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD2Q4PackedBulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     @Function("vec_dotd4q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD4Q4(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes
     );
 
     @Function("vec_dotd4q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD4Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
     );
@@ -1303,9 +1315,9 @@ public abstract class VectorSimilarityFunctions {
     @Function("vec_dotd4q4_bulk_offsets")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD4Q4BulkWithOffsets_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
-        int length,
+        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
+        int documentBytes,
         int pitch,
         @VectorSegment(countParam = "count", elementBits = Integer.SIZE, aligned = true) MemorySegment offsets,
         int count,
@@ -1313,20 +1325,20 @@ public abstract class VectorSimilarityFunctions {
     );
 
     public void dotProductD4Q4BulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int length,
+        MemorySegment dataset,
+        MemorySegment query,
+        int documentBytes,
         int pitch,
         MemorySegment offsets,
         int count,
         MemorySegment scores
     ) {
-        long rowBytes = length;
+        long rowBytes = documentBytes;
         if (pitch < rowBytes) {
             throw new IllegalArgumentException("Pitch needs to be at least " + rowBytes);
         }
-        assert validateBulkOffsets(a, offsets, count, pitch, rowBytes);
-        dotProductD4Q4BulkWithOffsets_raw(a, b, length, pitch, offsets, count, scores);
+        assert validateBulkOffsets(dataset, offsets, count, pitch, rowBytes);
+        dotProductD4Q4BulkWithOffsets_raw(dataset, query, documentBytes, pitch, offsets, count, scores);
     }
 
     // --- Corrections (DiskBBQ) ---

@@ -30,6 +30,9 @@ dependencies {
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
   testImplementation(project(xpackModule('esql-core')))
+  // TopN version-field tests use org.elasticsearch.xpack.versionfield; esql-core no longer re-exports
+  // mapper-version (it extends it), so depend on it directly for the test classpath.
+  testImplementation(project(path: xpackModule('mapper-version')))
   testImplementation(project(xpackModule('esql:compute:test'))) {
     /*
      * compute:test depends on this project's main code which is fine

@@ -282,6 +282,10 @@ public abstract class FieldMapper extends Mapper {
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
+    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
+    // This should be straightforward. We would reject array columns for multi-value and force
+    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
+    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"

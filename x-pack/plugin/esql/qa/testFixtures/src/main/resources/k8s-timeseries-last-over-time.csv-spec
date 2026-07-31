@@ -87,9 +87,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 357.0          | staging         | 2024-05-10T00:03:00.000Z
 ;
 
-// The time bucket is named after the timestamp field, which used to hide @timestamp from the implicit last_over_time.
-// Same results as implicit_last_over_time_of_integer, only the grouping name differs.
-implicit_last_over_time_of_integer_bucket_named_timestamp
+override_timestamp_field
 required_capability: ts_command_v0
 required_capability: fix_ts_time_bucket_named_after_timestamp
 TS k8s | STATS clients = avg(network.eth0.currently_connected_clients) BY cluster, @timestamp = bucket(@timestamp,1minute) | SORT @timestamp, cluster | LIMIT 10;

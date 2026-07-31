@@ -10524,11 +10524,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
-     * Naming the time bucket after the timestamp field is allowed: the first pass buckets on a synthetic name so that
-     * {@code @timestamp} stays visible to the per-time-series aggregation, and the second pass renames the bucket back.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>.
-     *
-     * {@snippet lang="text":
      * Limit[10000[INTEGER],false,false]
      * \_Aggregate[[$$@timestamp$time_bucket{r}#120],[MAX(LASTOVERTIME_$1{r}#152,true[BOOLEAN],PT0S[TIME_DURATION])
      *   AS max(network.cost)#122, $$@timestamp$time_bucket{r}#120 AS @timestamp#120]]

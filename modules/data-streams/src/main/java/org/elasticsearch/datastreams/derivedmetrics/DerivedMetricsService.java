@@ -21,10 +21,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Interval;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Drained;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.logging.LogManager;
@@ -37,6 +39,7 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -103,6 +106,32 @@ public class DerivedMetricsService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * What to do when the buffer can take no more, either because a series cap was reached or because the circuit breaker refused the
+     * memory a new series needed.
+     */
+    public enum MemoryPressurePolicy {
+        /**
+         * Emit what has been collected so far as a partial bucket, then carry on collecting. No observation is lost, because partials of
+         * one bucket are reduced together at query time. The costs are more documents while the pressure lasts, and a partial whose
+         * timestamp sits a few milliseconds after its bucket start rather than exactly on it — still inside the same
+         * {@code date_histogram} bucket, but visible to anyone aligning windows by hand.
+         */
+        FLUSH_EARLY,
+        /**
+         * Drop the observation. Document volume stays perfectly flat and timestamps stay exactly on bucket boundaries, at the cost of
+         * losing data. This is what Micrometer and the Prometheus Java client do.
+         */
+        DROP
+    }
+
+    public static final Setting<MemoryPressurePolicy> MEMORY_PRESSURE_POLICY = Setting.enumSetting(
+        MemoryPressurePolicy.class,
+        "data_streams.derived_metrics.memory_pressure_policy",
+        MemoryPressurePolicy.FLUSH_EARLY,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Integer> BULK_SIZE = Setting.intSetting(
         "data_streams.derived_metrics.bulk_size",
         1_000,
@@ -111,8 +140,12 @@ public class DerivedMetricsService implements Closeable {
     );
 
     /**
-     * Ceiling on bulk requests outstanding at once. Emission is fire and forget, so a destination that cannot keep up would otherwise
-     * let every flush add to a queue with nothing bounding it.
+     * Ceiling on emission outstanding at once, expressed as a number of full bulks. Emission is fire and forget, so a destination that
+     * cannot keep up would otherwise let every flush add to a queue with nothing bounding it.
+     *
+     * <p>What is actually bounded is documents rather than requests, this many times {@link #BULK_SIZE}. Counting requests would make the
+     * ceiling depend on how the documents happened to be divided up: flushing early under memory pressure emits a handful of documents at
+     * a time, and a request-based ceiling would shed almost all of them while barely any memory was in flight.
      */
     public static final Setting<Integer> MAX_IN_FLIGHT_BULKS = Setting.intSetting(
         "data_streams.derived_metrics.max_in_flight_bulks",
@@ -127,10 +160,13 @@ public class DerivedMetricsService implements Closeable {
     private final TimeValue flushInterval;
     private final long graceMillis;
     private final int bulkSize;
-    private final int maxInFlightBulks;
+    private final int maxInFlightDocuments;
+    private final MemoryPressurePolicy memoryPressurePolicy;
     private final String nodeName;
-    private final AtomicInteger inFlightBulks = new AtomicInteger();
+    private final AtomicInteger inFlightDocuments = new AtomicInteger();
     private final AtomicLong droppedForBackpressure = new AtomicLong();
+    private final AtomicBoolean relievingPressure = new AtomicBoolean();
+    private final AtomicLong earlyFlushes = new AtomicLong();
 
     private final ThreadLocal<RecordingScratch> scratches = ThreadLocal.withInitial(RecordingScratch::new);
 
@@ -145,7 +181,8 @@ public class DerivedMetricsService implements Closeable {
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
         this.bulkSize = BULK_SIZE.get(settings);
-        this.maxInFlightBulks = MAX_IN_FLIGHT_BULKS.get(settings);
+        this.maxInFlightDocuments = MAX_IN_FLIGHT_BULKS.get(settings) * this.bulkSize;
+        this.memoryPressurePolicy = MEMORY_PRESSURE_POLICY.get(settings);
         this.nodeName = nodeName;
     }
 
@@ -197,13 +234,50 @@ public class DerivedMetricsService implements Closeable {
             resolveDimensions(metric.dimensions(), source, values);
             Interval interval = metric.interval();
             long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
-            buffer.record(
-                scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis()),
-                values,
-                scratch.encoding,
-                value
-            );
+            TableKey key = scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis());
+            if (buffer.record(key, values, scratch.encoding, value) == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
+                // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
+                // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
+                relievePressure();
+                buffer.record(key, values, scratch.encoding, value);
+            }
         }
+    }
+
+    /**
+     * Empties the buffer, including buckets that are still open, so that the write path can carry on collecting. The drain itself is a
+     * handful of map operations and runs here on the indexing thread; building and sending the documents is handed to the flush thread.
+     *
+     * <p>Only one thread does this at a time. The others simply fail to record the observation that found the buffer full, which is the
+     * same outcome as {@code drop} for that one observation and avoids every indexing thread piling into the same drain.
+     */
+    private void relievePressure() {
+        if (relievingPressure.compareAndSet(false, true) == false) {
+            return;
+        }
+        final List<Drained> drained;
+        try {
+            drained = buffer.drainForPressure();
+        } finally {
+            relievingPressure.set(false);
+        }
+        if (drained.isEmpty()) {
+            return;
+        }
+        earlyFlushes.incrementAndGet();
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                emit(drained);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // emit closes every table it consumes and close is idempotent, so this only has to catch the tables it never reached
+                drained.forEach(entry -> entry.table().close());
+                logger.warn("failed to emit derived metrics flushed early under memory pressure", e);
+            }
+        });
     }
 
     /**
@@ -271,34 +345,30 @@ public class DerivedMetricsService implements Closeable {
      * what keeps a quiet stream from producing a steady trickle of zeroes.
      */
     void flush() {
-        flush(buffer.drainClosed(threadPool.absoluteTimeInMillis(), graceMillis));
+        emit(buffer.drainClosed(threadPool.absoluteTimeInMillis(), graceMillis));
+        reportDrops();
     }
 
     /**
-     * Converts and sends in bulk-sized chunks rather than materialising every closed bucket first, so peak memory during a flush is one
-     * bulk rather than the whole drained set.
-     */
-    /**
-     * Converts and sends in bulk-sized chunks rather than materialising every closed bucket first, so peak memory during a flush is one
+     * Converts and sends in bulk-sized chunks rather than materialising every drained bucket first, so peak memory during a flush is one
      * bulk rather than the whole drained set. Every drained table is closed, which is what returns its memory to the circuit breaker.
      */
-    private void flush(List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> closed) {
-        if (closed.isEmpty()) {
-            reportDrops();
+    private void emit(List<Drained> drained) {
+        if (drained.isEmpty()) {
             return;
         }
         // Group by project only: a bulk can address any number of destinations, but it is scoped to one project.
         Map<ProjectId, BulkRequest> pending = new HashMap<>();
         BytesRef spare = new BytesRef();
-        for (Map.Entry<TableKey, DerivedMetricsSeriesTable> entry : closed) {
-            TableKey key = entry.getKey();
-            DerivedMetricsSeriesTable table = entry.getValue();
+        for (Drained entry : drained) {
+            TableKey key = entry.key();
+            DerivedMetricsSeriesTable table = entry.table();
             try {
                 long series = table.size();
                 for (long ordinal = 0; ordinal < series; ordinal++) {
                     ProjectId project = key.project();
                     BulkRequest bulk = pending.computeIfAbsent(project, unused -> new BulkRequest());
-                    bulk.add(DerivedMetricsEmitter.toIndexRequest(key, table, ordinal, spare, nodeName, 0));
+                    bulk.add(DerivedMetricsEmitter.toIndexRequest(key, table, ordinal, spare, nodeName, entry.partial()));
                     if (bulk.numberOfActions() >= bulkSize) {
                         pending.remove(project);
                         send(project, bulk);
@@ -309,7 +379,6 @@ public class DerivedMetricsService implements Closeable {
             }
         }
         pending.forEach(this::send);
-        reportDrops();
     }
 
     /**
@@ -318,8 +387,8 @@ public class DerivedMetricsService implements Closeable {
      */
     private void send(ProjectId project, BulkRequest bulk) {
         int documents = bulk.numberOfActions();
-        if (inFlightBulks.incrementAndGet() > maxInFlightBulks) {
-            inFlightBulks.decrementAndGet();
+        if (inFlightDocuments.addAndGet(documents) > maxInFlightDocuments) {
+            inFlightDocuments.addAndGet(-documents);
             droppedForBackpressure.addAndGet(documents);
             return;
         }
@@ -343,17 +412,27 @@ public class DerivedMetricsService implements Closeable {
             public void onFailure(Exception e) {
                 logger.warn(() -> "failed to write [" + documents + "] derived metric documents for project [" + project + "]", e);
             }
-        }, inFlightBulks::decrementAndGet));
+        }, () -> inFlightDocuments.addAndGet(-documents)));
     }
 
     private void reportDrops() {
         long shed = droppedForBackpressure.getAndSet(0);
         if (shed > 0) {
             logger.warn(
-                "derived metrics dropped [{}] documents because [{}] bulk requests were already in flight; "
-                    + "the destination is not keeping up",
+                "derived metrics dropped [{}] documents because [{}] were already in flight; the destination is not keeping up",
                 shed,
-                maxInFlightBulks
+                maxInFlightDocuments
+            );
+        }
+        long early = earlyFlushes.getAndSet(0);
+        if (early > 0) {
+            logger.warn(
+                "derived metrics flushed [{}] times early because the buffer was full; the affected buckets are emitted as several "
+                    + "partials, which costs documents but loses nothing. Reduce the configured dimensions, raise [{}], or set [{}] to "
+                    + "[drop] to shed observations instead",
+                early,
+                MAX_SERIES_PER_NODE.getKey(),
+                MEMORY_PRESSURE_POLICY.getKey()
             );
         }
         long dropped = buffer.droppedSeries();
@@ -385,7 +464,7 @@ public class DerivedMetricsService implements Closeable {
             cancellable.cancel();
         }
         // emit whatever is still buffered rather than losing the partial intervals
-        flush(buffer.drainAll());
+        emit(buffer.drainAll());
         buffer.close();
     }
 }

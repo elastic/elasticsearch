@@ -43,6 +43,8 @@ public class DerivedMetricsSeriesTable implements Releasable {
     private DoubleArray first;
     private DoubleArray last;
     private LongArray count;
+    private boolean sealed;
+    private boolean closed;
 
     public DerivedMetricsSeriesTable(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
@@ -112,6 +114,22 @@ public class DerivedMetricsSeriesTable implements Releasable {
         return dimensions.size();
     }
 
+    /**
+     * Marks this table as removed from the buffer, so that a writer which read it just before it was drained knows to look the bucket up
+     * again rather than record into a table nobody will ever emit.
+     *
+     * @return the number of series the table held, which is what the buffer gives back to its budget
+     */
+    long seal() {
+        sealed = true;
+        return dimensions.size();
+    }
+
+    /** Whether this table has been drained. Read under the table's lock, like everything else here. */
+    boolean sealed() {
+        return sealed;
+    }
+
     /** The dimension values of one series, one entry per configured dimension and null where the document had none. */
     public String[] dimensionsOf(long ordinal, int dimensionCount, BytesRef spare) {
         return DerivedMetricsDimensionCodec.decode(dimensions.get(ordinal, spare), dimensionCount);
@@ -135,8 +153,16 @@ public class DerivedMetricsSeriesTable implements Releasable {
         };
     }
 
+    /**
+     * Idempotent, because a drained table can be closed both by the emission that consumed it and by the error path that gave up on it,
+     * and releasing twice would credit the circuit breaker for memory it never got back.
+     */
     @Override
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         Releasables.close(dimensions, sum, min, max, first, last, count);
     }
 }

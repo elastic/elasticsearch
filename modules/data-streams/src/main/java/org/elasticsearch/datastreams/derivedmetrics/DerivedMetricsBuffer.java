@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Predicate;
 
 /**
  * Node-local state for derived metrics: one table per metric per interval bucket, and within a table one accumulator slot per series.
@@ -54,13 +55,29 @@ public class DerivedMetricsBuffer implements Releasable {
         long intervalMillis
     ) {}
 
+    /**
+     * One drained table, together with which partial of its bucket it is. A bucket is normally emitted once, as partial zero; it is
+     * emitted more than once only when memory pressure forced it out early, and the emitter uses the partial number to keep the documents
+     * from colliding.
+     *
+     * <p>The caller owns the table and <em>must</em> close it, or its circuit breaker accounting leaks.
+     */
+    public record Drained(TableKey key, DerivedMetricsSeriesTable table, int partial) {}
+
     private final BigArrays bigArrays;
     private final ConcurrentHashMap<TableKey, DerivedMetricsSeriesTable> tables = new ConcurrentHashMap<>();
+    /**
+     * How many times each bucket has already been emitted. Only ever non-zero under {@code flush_early}, and swept alongside the tables
+     * once the bucket is closed.
+     */
+    private final ConcurrentHashMap<TableKey, AtomicInteger> partials = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> perStream = new ConcurrentHashMap<>();
     private final LongAdder droppedSeries = new LongAdder();
     private final AtomicInteger totalSeries = new AtomicInteger();
     private final int maxSeries;
     private final int maxSeriesPerStream;
+
+    private static final AtomicInteger ZERO = new AtomicInteger();
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries) {
         this(bigArrays, maxSeries, maxSeries);
@@ -79,35 +96,41 @@ public class DerivedMetricsBuffer implements Releasable {
      * @param values one entry per dimension the metric configures, null where the document did not have it
      */
     public boolean record(TableKey key, String[] values, Scratch scratch, double value) {
-        DerivedMetricsSeriesTable table = tables.get(key);
-        if (table == null) {
-            table = openTable(key);
-            if (table == null) {
-                return false;
-            }
-        }
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
         AtomicInteger held = perStream.computeIfAbsent(key.sourceDataStream(), unused -> new AtomicInteger());
-        synchronized (table) {
-            // Reserve before creating: a series that would exceed a cap must not be interned, or the table would hold it forever.
-            if (table.contains(encoded) == false) {
-                if (totalSeries.get() >= maxSeries || held.get() >= maxSeriesPerStream) {
+        while (true) {
+            DerivedMetricsSeriesTable table = tables.get(key);
+            if (table == null) {
+                table = openTable(key);
+                if (table == null) {
+                    return false;
+                }
+            }
+            synchronized (table) {
+                if (table.sealed()) {
+                    // drained while we were waiting for the lock, so it will never be emitted again; start over on the fresh bucket
+                    continue;
+                }
+                // Reserve before creating: a series that would exceed a cap must not be interned, or the table would hold it forever.
+                if (table.contains(encoded) == false) {
+                    if (totalSeries.get() >= maxSeries || held.get() >= maxSeriesPerStream) {
+                        droppedSeries.increment();
+                        return false;
+                    }
+                    totalSeries.incrementAndGet();
+                    held.incrementAndGet();
+                }
+                try {
+                    table.record(encoded, value);
+                } catch (CircuitBreakingException e) {
+                    totalSeries.decrementAndGet();
+                    held.decrementAndGet();
                     droppedSeries.increment();
                     return false;
                 }
-                totalSeries.incrementAndGet();
-                held.incrementAndGet();
             }
-            try {
-                table.record(encoded, value);
-            } catch (CircuitBreakingException e) {
-                totalSeries.decrementAndGet();
-                held.decrementAndGet();
-                droppedSeries.increment();
-                return false;
-            }
+            return true;
         }
-        return true;
     }
 
     /**
@@ -128,37 +151,62 @@ public class DerivedMetricsBuffer implements Releasable {
      *
      * <p>The caller owns the returned tables and <em>must</em> close them, or their circuit breaker accounting leaks.
      */
-    public List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> drainClosed(long nowMillis, long graceMillis) {
-        return drain(key -> key.bucketStartMillis() + key.intervalMillis() + graceMillis <= nowMillis);
+    public List<Drained> drainClosed(long nowMillis, long graceMillis) {
+        Predicate<TableKey> closed = key -> key.bucketStartMillis() + key.intervalMillis() + graceMillis <= nowMillis;
+        List<Drained> drained = drain(closed, false);
+        // A closed bucket receives nothing further, so its partial count has nothing left to keep it honest. Sweeping here rather than in
+        // drain covers buckets that were flushed early and then never saw another write.
+        partials.keySet().removeIf(key -> closed.test(key) && tables.containsKey(key) == false);
+        return drained;
+    }
+
+    /**
+     * Removes everything currently buffered, including buckets that are still open, and remembers that those buckets have now been
+     * emitted once more so the next emission of the same bucket does not collide with this one. This is the {@code flush_early} response
+     * to memory pressure: the observations already collected are kept rather than the ones still to come being dropped.
+     */
+    public List<Drained> drainForPressure() {
+        return drain(key -> true, true);
     }
 
     /**
      * Removes everything currently buffered, including buckets that are still open. Used on shutdown so partial intervals are not lost.
      */
-    public List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> drainAll() {
-        return drain(key -> true);
+    public List<Drained> drainAll() {
+        List<Drained> drained = drain(key -> true, false);
+        partials.clear();
+        return drained;
     }
 
-    private List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> drain(java.util.function.Predicate<TableKey> take) {
-        List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> drained = new ArrayList<>();
+    private List<Drained> drain(Predicate<TableKey> take, boolean reopening) {
+        List<Drained> drained = new ArrayList<>();
         Iterator<Map.Entry<TableKey, DerivedMetricsSeriesTable>> iterator = tables.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<TableKey, DerivedMetricsSeriesTable> entry = iterator.next();
-            if (take.test(entry.getKey()) == false) {
+            TableKey key = entry.getKey();
+            DerivedMetricsSeriesTable table = entry.getValue();
+            if (take.test(key) == false) {
                 continue;
             }
-            iterator.remove();
-            DerivedMetricsSeriesTable table = entry.getValue();
+            // Remove this exact table rather than whatever the key maps to now, so a bucket recreated by a concurrent write survives. And
+            // remove it before sealing, so a writer that finds it sealed is guaranteed to see the replacement on its next lookup.
+            if (tables.remove(key, table) == false) {
+                continue;
+            }
             long released;
             synchronized (table) {
-                released = table.size();
+                released = table.seal();
             }
             totalSeries.addAndGet(-(int) released);
-            AtomicInteger held = perStream.get(entry.getKey().sourceDataStream());
+            AtomicInteger held = perStream.get(key.sourceDataStream());
             if (held != null && held.addAndGet(-(int) released) <= 0) {
-                perStream.remove(entry.getKey().sourceDataStream(), held);
+                perStream.remove(key.sourceDataStream(), held);
             }
-            drained.add(Map.entry(entry.getKey(), table));
+            int partial = partials.getOrDefault(key, ZERO).get();
+            if (reopening) {
+                partials.computeIfAbsent(key, unused -> new AtomicInteger()).incrementAndGet();
+            }
+            drained.add(new Drained(key, table, partial));
         }
         return drained;
     }
@@ -170,6 +218,11 @@ public class DerivedMetricsBuffer implements Releasable {
 
     public long droppedSeries() {
         return droppedSeries.sum();
+    }
+
+    // visible for testing
+    int partialsTracked() {
+        return partials.size();
     }
 
     // visible for testing
@@ -188,6 +241,6 @@ public class DerivedMetricsBuffer implements Releasable {
 
     @Override
     public void close() {
-        drainAll().forEach(entry -> entry.getValue().close());
+        drainAll().forEach(drained -> drained.table().close());
     }
 }

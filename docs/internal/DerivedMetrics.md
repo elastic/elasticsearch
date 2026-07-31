@@ -145,13 +145,35 @@ Nothing is coordinated across nodes. Each node emits partial series carrying its
 across that dimension to get stream-wide values. This is what avoids a cluster-wide hot counter on the write path.
 
 Series count is the one thing that grows with the data, because dimension values come from documents. It is capped per node by
-`data_streams.derived_metrics.max_series_per_node` and per source stream by `max_series_per_stream`; once a cap is reached, observations
-that would create a new series are dropped and a warning names the setting. The per-stream cap exists because the node budget would
-otherwise be first-come-first-served, letting one high-cardinality stream starve every other stream on the node.
+`data_streams.derived_metrics.max_series_per_node` and per source stream by `max_series_per_stream`. The per-stream cap exists because the
+node budget would otherwise be first-come-first-served, letting one high-cardinality stream starve every other stream on the node.
 
 Emission is bounded too. A flush converts and sends in bulk-sized chunks rather than materialising every closed bucket first, and no
-more than `max_in_flight_bulks` requests are outstanding at once. Without that ceiling a destination that cannot keep up would let every
-flush add to a queue with nothing bounding it; documents shed for this reason are logged.
+more than `max_in_flight_bulks` bulks' worth of documents are outstanding at once. Without that ceiling a destination that cannot keep up
+would let every flush add to a queue with nothing bounding it; documents shed for this reason are logged. The ceiling counts documents
+rather than requests, because otherwise it would depend on how the documents happened to be divided up — flushing early emits a handful
+at a time, and a request-based ceiling would shed almost all of them while barely any memory was actually in flight.
+
+### Memory pressure
+
+`data_streams.derived_metrics.memory_pressure_policy` decides what happens when the buffer can take no more, either because a series cap
+was reached or because the circuit breaker refused the memory a new series needed.
+
+`flush_early`, the default, emits what has been collected so far as a partial bucket and carries on collecting. Nothing is lost, because
+partials of one bucket are reduced together at query time exactly as partials from different nodes already are. The costs are more
+documents while the pressure lasts, and a timestamp that sits a few milliseconds after its bucket start rather than exactly on it.
+
+The offset is not cosmetic. A time series `_id` is `createId(routingHash, tsid, timestamp)` and the destination is written with
+`op_type=create`, so two partials of the same series in the same bucket would produce the same `_id` and the second would be silently
+rejected. Partial *N* is therefore stamped at `bucketStart + N` milliseconds. The alternative — putting the partial number in a dimension —
+was rejected because the tsid *is* the series identity: partials would become separate series, downsampling would keep them apart, and
+tsid cardinality would grow precisely when the node is already under pressure. The offset keeps one logical series one series, keeps the
+document inside the same `date_histogram` bucket, and orders the partials for `first_value` and `last_value`. Intervals are at least one
+second, so up to a thousand partials fit before the offset could reach the next bucket.
+
+`drop` discards the observation instead. Document volume stays perfectly flat and timestamps stay exactly on bucket boundaries, at the
+cost of losing data. This is what Micrometer and the Prometheus Java client do, and it is the right choice for anyone aligning query
+windows to bucket boundaries by hand. Either way the buffer names the setting in a warning when it happens.
 
 Histogram metrics are accepted and validated by the configuration model but are not emitted yet. Compilation reports them and the runtime
 logs them once per data stream. Emitting them needs a histogram representation this module cannot map today.
@@ -174,7 +196,8 @@ lifecycle edited by hand on a destination is left alone. See `docs/internal/Deri
 | `data_streams.derived_metrics.max_series_per_node` | `10000` | per-node series cap |
 | `data_streams.derived_metrics.max_series_per_stream` | the node cap | per-source-stream cap, so one stream cannot spend the whole node budget |
 | `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
-| `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on bulk requests outstanding at once |
+| `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on emission outstanding at once, counted as this many `bulk_size` documents |
+| `data_streams.derived_metrics.memory_pressure_policy` | `flush_early` | `flush_early` emits a partial bucket and keeps collecting; `drop` sheds the observation |
 
 ## Managed Destination
 

@@ -11,7 +11,10 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
@@ -21,10 +24,14 @@ import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Sourc
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DerivedMetricsBufferTests extends ESTestCase {
 
@@ -36,10 +43,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // MockBigArrays fails the test if anything we allocate is not released, which is exactly the leak we care about
-        bigArrays = new MockBigArrays(
-            new MockPageCacheRecycler(org.elasticsearch.common.settings.Settings.EMPTY),
-            new NoneCircuitBreakerService()
-        );
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     public void testBucketsAreAlignedToTheEpoch() {
@@ -57,7 +61,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             }
             var drained = buffer.drainAll();
             try {
-                DerivedMetricsSeriesTable table = drained.get(0).getValue();
+                DerivedMetricsSeriesTable table = drained.get(0).table();
                 assertEquals(1L, table.size());
                 assertEquals(3L, table.countOf(0));
                 assertEquals(12.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
@@ -70,7 +74,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 // an avg gauge emits its sum, and the count travels alongside it
                 assertEquals(12.0, table.reduce(0, Reduction.AVG, 10_000L), 0.0);
             } finally {
-                drained.forEach(entry -> entry.getValue().close());
+                drained.forEach(d -> d.table().close());
             }
         }
     }
@@ -85,7 +89,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
 
             var drained = buffer.drainAll();
             try {
-                DerivedMetricsSeriesTable table = drained.get(0).getValue();
+                DerivedMetricsSeriesTable table = drained.get(0).table();
                 assertEquals(2L, table.size());
                 BytesRef spare = new BytesRef();
                 assertEquals("checkout", table.dimensionsOf(0, 1, spare)[0]);
@@ -93,7 +97,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 assertEquals("search", table.dimensionsOf(1, 1, spare)[0]);
                 assertEquals(2.0, table.reduce(1, Reduction.SUM, 10_000L), 0.0);
             } finally {
-                drained.forEach(entry -> entry.getValue().close());
+                drained.forEach(d -> d.table().close());
             }
         }
     }
@@ -109,9 +113,9 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             var closed = buffer.drainClosed(15_000, 5_000);
             try {
                 assertEquals(1, closed.size());
-                assertEquals(0L, closed.get(0).getKey().bucketStartMillis());
+                assertEquals(0L, closed.get(0).key().bucketStartMillis());
             } finally {
-                closed.forEach(entry -> entry.getValue().close());
+                closed.forEach(d -> d.table().close());
             }
             assertEquals(1, buffer.size());
         }
@@ -160,11 +164,129 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             assertTrue(record(buffer, noisy, "b", 1.0));
             assertFalse(record(buffer, noisy, "c", 1.0));
 
-            buffer.drainAll().forEach(entry -> entry.getValue().close());
+            buffer.drainAll().forEach(d -> d.table().close());
             assertEquals(0, buffer.seriesFor("logs-noisy-default"));
             assertEquals(0, buffer.size());
             assertTrue(record(buffer, noisy, "c", 1.0));
         }
+    }
+
+    /**
+     * A bucket flushed early is emitted more than once. A time series _id is derived from the tsid and the timestamp, so the partials
+     * have to be numbered or the second would collide with the first and be rejected.
+     */
+    public void testEachEarlyFlushOfABucketIsANewPartial() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertEquals(0, drainForPressure(buffer).get(0).partial());
+
+            assertTrue(record(buffer, key, "checkout", 2.0));
+            assertEquals(1, drainForPressure(buffer).get(0).partial());
+
+            // the bucket then closes normally, and its final emission continues the numbering
+            assertTrue(record(buffer, key, "checkout", 3.0));
+            var closed = buffer.drainClosed(20_000, 0);
+            try {
+                assertEquals(2, closed.get(0).partial());
+                // each partial carries only what was collected since the previous one; consumers sum them back together
+                assertEquals(3.0, closed.get(0).table().reduce(0, Reduction.SUM, 10_000L), 0.0);
+            } finally {
+                closed.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * A bucket flushed early and then never written to again would otherwise leave its partial counter behind forever, since nothing
+     * drains a table that no longer exists.
+     */
+    public void testPartialCountersAreSweptOnceTheBucketCloses() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            drainForPressure(buffer);
+            assertEquals(1, buffer.partialsTracked());
+
+            buffer.drainClosed(20_000, 0);
+            assertEquals(0, buffer.partialsTracked());
+        }
+    }
+
+    /**
+     * Draining a bucket that is still open leaves the writers free to carry on, which is the whole point of flushing early. A writer that
+     * held the drained table must not record into it, since nothing will ever emit it again.
+     */
+    public void testRecordingAfterAnEarlyFlushStartsAFreshBucket() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            drainForPressure(buffer);
+            assertEquals(0, buffer.size());
+
+            assertTrue(record(buffer, key, "checkout", 5.0));
+            var drained = buffer.drainAll();
+            try {
+                assertEquals(1L, drained.get(0).table().size());
+                assertEquals(5.0, drained.get(0).table().reduce(0, Reduction.SUM, 10_000L), 0.0);
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * Flushing early is what turns a full buffer from lost observations into extra documents: the series that had been refused fits once
+     * the bucket has been emitted.
+     */
+    public void testAnEarlyFlushMakesRoomForARefusedSeries() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 2)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "a", 1.0));
+            assertTrue(record(buffer, key, "b", 1.0));
+            assertFalse(record(buffer, key, "c", 1.0));
+
+            drainForPressure(buffer);
+            assertTrue(record(buffer, key, "c", 1.0));
+        }
+    }
+
+    /**
+     * The property the whole design exists for: hold the budget fixed and raise both the number of distinct series offered and the number
+     * of observations by an order of magnitude, and the memory actually taken must not follow. It is bounded by the cap, not by the load.
+     */
+    public void testMemoryStaysFlatAsSeriesAndWritesGrow() {
+        long small = peakBytesFor(50, 100);
+        long large = peakBytesFor(500, 1_000);
+
+        assertThat("nothing was accounted at all, so the measurement proves nothing", small, greaterThan(0L));
+        // an order of magnitude more series offered and ten times the writes, for the same bounded footprint
+        assertThat(large, equalTo(small));
+    }
+
+    /**
+     * Offers {@code series} distinct dimension values, {@code writesPerSeries} times each, to a buffer capped at ten series, and returns
+     * the bytes the circuit breaker had accounted at the end.
+     */
+    private long peakBytesFor(int series, int writesPerSeries) {
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofMb(64));
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            for (int write = 0; write < writesPerSeries; write++) {
+                for (int i = 0; i < series; i++) {
+                    record(buffer, key, "service-" + i, 1.0);
+                }
+            }
+            return breakerService.getBreaker(DerivedMetricsService.BREAKER_NAME).getUsed();
+        }
+    }
+
+    private static List<DerivedMetricsBuffer.Drained> drainForPressure(DerivedMetricsBuffer buffer) {
+        List<DerivedMetricsBuffer.Drained> drained = buffer.drainForPressure();
+        drained.forEach(d -> d.table().close());
+        return drained;
     }
 
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {

@@ -128,9 +128,9 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
             }
             var drained = buffer.drainAll();
             try {
-                return DerivedMetricsEmitter.toIndexRequest(key, drained.get(0).getValue(), 0, new BytesRef(), "node-1", partial);
+                return DerivedMetricsEmitter.toIndexRequest(key, drained.get(0).table(), 0, new BytesRef(), "node-1", partial);
             } finally {
-                drained.forEach(entry -> entry.getValue().close());
+                drained.forEach(d -> d.table().close());
             }
         }
     }

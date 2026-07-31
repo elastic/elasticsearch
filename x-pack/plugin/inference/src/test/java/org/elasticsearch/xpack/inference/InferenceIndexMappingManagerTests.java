@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -30,9 +31,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
@@ -41,6 +44,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -107,6 +111,13 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
             capturedListeners.add(listener);
             return null;
         }).when(mockClient).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
 
         TestActionListener callerListener = new TestActionListener();
         manager.withUpToDateMappings(clusterState, callerListener);
@@ -129,10 +140,17 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
             equalTo(descriptor.getSettings())
         );
 
-        // Simulate an acknowledged create response.
+        // Simulate an acknowledged create response. Creation alone does not guarantee the latest
+        // mappings (in a mixed-version cluster the master applies the minimum compatible descriptor),
+        // so a follow-up PutMapping must be issued before the caller is notified.
         capturedListeners.get(0).onResponse(new CreateIndexResponse(true, true, InferenceIndex.INDEX_NAME));
 
-        assertTrue("Caller listener must be notified after successful create", callerListener.completed);
+        assertThat("PutMapping should follow the successful create", putMappingListeners, hasSize(1));
+        assertFalse("Caller listener should not be notified until the put-mapping completes", callerListener.completed);
+
+        putMappingListeners.get(0).onResponse(AcknowledgedResponse.of(true));
+
+        assertTrue("Caller listener must be notified after create and put-mapping complete", callerListener.completed);
         assertNull("No failure should be reported", callerListener.failure);
     }
 
@@ -173,6 +191,12 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
             "PutMappingRequest must carry the descriptor's latest mappings",
             jsonToMap(putMappingCaptor.getValue().source()),
             equalTo(jsonToMap(descriptor.getMappings()))
+        );
+        assertThat(
+            "PutMappingRequest must carry the inference origin so an older master does not reject "
+                + "mappings that differ from its own descriptor",
+            putMappingCaptor.getValue().origin(),
+            equalTo(ClientHelper.INFERENCE_ORIGIN)
         );
 
         // Simulate an acknowledged put-mapping response.
@@ -231,6 +255,29 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
 
         assertTrue("Caller listener must receive the failure", callerListener.completed);
         assertSame("The original exception must be forwarded unchanged", mappingError, callerListener.failure);
+    }
+
+    public void testPutMappingNotAcknowledged_failsWithRetryableStatus() {
+        ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3());
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.of(false));
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(clusterState, callerListener);
+
+        assertTrue("Caller listener must receive the failure", callerListener.completed);
+        assertThat(callerListener.failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(
+            "An unacknowledged put-mapping usually means a busy master and must be reported as retryable",
+            ((ElasticsearchStatusException) callerListener.failure).status(),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
     }
 
     public void testAliasResolution_currentMappings_immediateCallback() {

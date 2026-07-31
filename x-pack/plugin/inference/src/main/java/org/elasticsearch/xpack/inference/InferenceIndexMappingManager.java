@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +25,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 
@@ -40,6 +42,12 @@ import java.util.List;
  * the mapping version stored in {@code _meta.managed_index_mappings_version} on every write path and,
  * when the version is behind the descriptor's current version, issues a {@code CreateIndex} or
  * {@code PutMapping} request before allowing the write to proceed.
+ *
+ * <p>Note that in a mixed-version cluster creating the index is not enough: managed system indices are
+ * created with the mappings of the descriptor compatible with the minimum mappings version across all
+ * nodes, which may be older than this node's latest. A successful create is therefore always followed
+ * by a {@code PutMapping} carrying this node's latest mappings, which (as a cluster-generated,
+ * origin-carrying request) is allowed to move the mappings ahead of an older master's descriptor.
  *
  * <p>Concurrent callers are handled safely: every caller that detects an update is needed is added to
  * {@link #pendingListeners}; the first of them acquires an in-flight guard ({@link #updateInProgress})
@@ -175,8 +183,13 @@ public class InferenceIndexMappingManager {
 
         client.admin().indices().create(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
-                logger.debug("Successfully created index [{}]", primaryIndex);
-                listener.onResponse(null);
+                // A successful create does NOT guarantee the index got this node's latest mappings:
+                // for managed system indices, TransportCreateIndexAction ignores the mappings in the
+                // request and applies the descriptor compatible with the minimum mappings version
+                // across all nodes. In a mixed-version cluster that may be an older version, so we
+                // always follow up with a put-mapping to bring the index to the latest mappings.
+                logger.debug("Successfully created index [{}]; updating mappings to the latest version", primaryIndex);
+                putMapping(listener);
             } else {
                 logger.warn("Create index request for [{}] was not acknowledged", primaryIndex);
                 listener.onFailure(new ElasticsearchException("Create index request for [" + primaryIndex + "] was not acknowledged"));
@@ -197,15 +210,28 @@ public class InferenceIndexMappingManager {
     private void putMapping(ActionListener<Void> listener) {
         String primaryIndex = descriptor.getPrimaryIndex();
         logger.debug("Updating mappings for index [{}] to version [{}]", primaryIndex, descriptor.getMappingsVersion().version());
-        PutMappingRequest request = new PutMappingRequest(primaryIndex).source(descriptor.getMappings(), XContentType.JSON);
+        // Setting the origin on the request itself exempts it from
+        // TransportPutMappingAction.checkForSystemIndexViolations, which would otherwise reject the
+        // request when this node's mappings differ from the master's descriptor (i.e. when the master
+        // is an older node during a rolling upgrade). Cluster-generated requests are explicitly
+        // permitted to differ so that rolling upgrade scenarios work; see also
+        // ElasticsearchMappings.addDocMappingIfMissing which uses the same mechanism for ML indices.
+        PutMappingRequest request = new PutMappingRequest(primaryIndex).source(descriptor.getMappings(), XContentType.JSON)
+            .origin(ClientHelper.INFERENCE_ORIGIN);
 
         client.admin().indices().putMapping(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 logger.debug("Successfully updated mappings for index [{}]", primaryIndex);
                 listener.onResponse(null);
             } else {
+                // An unacknowledged put-mapping usually means a busy master; report it as retryable.
                 logger.warn("Put mapping request for [{}] was not acknowledged", primaryIndex);
-                listener.onFailure(new ElasticsearchException("Put mapping request for [" + primaryIndex + "] was not acknowledged"));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Put mapping request for [" + primaryIndex + "] was not acknowledged",
+                        RestStatus.TOO_MANY_REQUESTS
+                    )
+                );
             }
         }, e -> {
             logger.warn("Put mapping request for [{}] failed", primaryIndex, e);

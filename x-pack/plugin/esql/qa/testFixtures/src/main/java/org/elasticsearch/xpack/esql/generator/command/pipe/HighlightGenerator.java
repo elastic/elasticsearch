@@ -144,6 +144,8 @@ public class HighlightGenerator implements CommandGenerator {
                     return new ValidationResult(false, "HIGHLIGHT column [" + name + "] should be [keyword] but was [" + type + "]");
                 }
             }
+        } else {
+            throw new IllegalStateException("HIGHLIGHT description is missing its [" + HIGHLIGHT_COLUMNS + "] context: " + generated);
         }
         return VALIDATION_OK;
     }
@@ -185,7 +187,8 @@ public class HighlightGenerator implements CommandGenerator {
             .filter(c -> EsqlQueryGenerator.needsQuoting(c.name()) == false)
             .toList();
 
-        // String queries work with every eligible field.
+        // String queries work with every eligible field and cover HIGHLIGHT-specific query string syntax.
+        // Reserve 40% of queries for this form rather than giving it one slot among the forms below.
         if (functionFields.isEmpty() || randomIntBetween(0, 9) < 4) {
             return stringLiteralQuery();
         }
@@ -282,6 +285,7 @@ public class HighlightGenerator implements CommandGenerator {
     }
 
     private static String maybeWith() {
+        // Exercise WITH options without making them more common than the default behavior.
         if (randomIntBetween(0, 9) < 6) {
             return "";
         }

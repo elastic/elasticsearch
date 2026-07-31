@@ -81,7 +81,7 @@ public final class FullTextFunctionGenerator {
      * Returns the subset of columns that are index-mapped (originate from the actual index mapping).
      * Full-text functions (match, match_phrase, {@code :} operator) require these fields.
      * Returns {@code null} when the information is unavailable (e.g. non-FROM source), or when
-     * {@code SET unmapped_fields} makes even columns of a FROM source resolve as non-index-mapped.
+     * {@code SET unmapped_fields="nullify"} makes even columns of a FROM source resolve as non-index-mapped.
      */
     public static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {

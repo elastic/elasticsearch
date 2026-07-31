@@ -56,6 +56,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
 /**
@@ -129,7 +131,13 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isType(
+            field,
+            t -> isSpatial(t) == false && isRepresentable(t),
+            sourceText(),
+            FIRST,
+            "representableNonSpatial"
+        );
 
         if (resolution.unresolved()) {
             return resolution;

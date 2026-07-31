@@ -45,10 +45,8 @@ import org.elasticsearch.xpack.stateless.MetricQuality;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -624,25 +622,15 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         long manyIndicesHeapBytes = service.getIndexMetadataEstimatedHeapBytes();
 
         assertThat(manyIndicesHeapBytes, greaterThan(oneIndexHeapBytes));
-        assertThat(
-            service.getIndexMetadataEstimatedHeapBytes(),
-            equalTo(estimateIndexMetadataHeapBytes(manyIndicesClusterState.metadata()))
-        );
+        // None of these indices share a mapping instance, so the estimate should be an exact sum of the per-index
+        // values (the dedup path is covered separately by testGetIndexMetadataEstimatedHeapBytesDedupesSharedMappings).
+        long expectedTotal = 0;
+        for (IndexMetadata indexMetadata : manyIndicesClusterState.metadata().indicesAllProjects()) {
+            expectedTotal += indexMetadata.ramBytesUsed();
+        }
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(expectedTotal));
         assertThat(manyIndicesHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * manyIndices));
         assertThat(manyIndicesHeapBytes, lessThan(service.getIndexMemoryOverhead()));
-    }
-
-    private static long estimateIndexMetadataHeapBytes(Metadata metadata) {
-        long total = 0;
-        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
-            total += indexMetadata.ramBytesUsed();
-            MappingMetadata mapping = indexMetadata.mapping();
-            if (mapping != null && seenMappings.add(mapping) == false) {
-                total -= IndexMetadata.estimateMappingMetadataHeap(mapping);
-            }
-        }
-        return total;
     }
 
     private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {

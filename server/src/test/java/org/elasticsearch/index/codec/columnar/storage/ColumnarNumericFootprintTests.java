@@ -172,8 +172,7 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
         }
     }
 
-    private static SegmentWriteState segmentWriteState(ByteBuffersDirectory dir, FieldInfo fieldInfo, int maxDoc)
-        throws IOException {
+    private static SegmentWriteState segmentWriteState(ByteBuffersDirectory dir, FieldInfo fieldInfo, int maxDoc) throws IOException {
         final SegmentInfo segInfo = new SegmentInfo(
             dir,
             Version.LATEST,

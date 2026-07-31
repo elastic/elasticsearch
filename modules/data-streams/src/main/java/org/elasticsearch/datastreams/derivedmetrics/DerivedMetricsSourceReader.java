@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Reads the handful of source paths that derived metrics need out of a document that is being written.
@@ -37,10 +36,12 @@ public final class DerivedMetricsSourceReader {
     /**
      * Returns the requested paths of the document's source, or null when the source could not be read. Callers treat a null source as
      * "no values available" rather than as an error, because a malformed document must never fail the write it is derived from.
+     *
+     * @param sourceFilter the filter restricted to the required paths, compiled once per configuration by {@link CompiledDerivedMetrics}.
+     *                     Building it here instead would run {@code FilterPath.compile} for every document.
      */
-    public static Map<String, Object> read(ParsedDocument parsedDocument, Set<String> requiredPaths) {
-        XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withFiltering(null, requiredPaths, null, true);
-        try (XContentParser parser = parsedDocument.source().parser(configuration)) {
+    public static Map<String, Object> read(ParsedDocument parsedDocument, XContentParserConfiguration sourceFilter) {
+        try (XContentParser parser = parsedDocument.source().parser(sourceFilter)) {
             return parser.map();
         } catch (IOException | RuntimeException e) {
             logger.debug(() -> "unable to read source for derived metrics", e);
@@ -52,8 +53,8 @@ public final class DerivedMetricsSourceReader {
      * The value at the given path rendered as a dimension value, or null when the path is absent or holds something that cannot be a
      * single dimension value such as an object or a multi-valued field.
      */
-    public static String stringValue(Map<String, Object> source, String path) {
-        Object value = XContentMapValues.extractValue(path, source);
+    public static String stringValue(Map<String, Object> source, String[] path) {
+        Object value = XContentMapValues.extractValue(source, path);
         if (value == null || value instanceof Map<?, ?> || value instanceof Collection<?>) {
             return null;
         }
@@ -63,8 +64,8 @@ public final class DerivedMetricsSourceReader {
     /**
      * The numeric value at the given path, or null when the path is absent or does not hold a number.
      */
-    public static Double numericValue(Map<String, Object> source, String path) {
-        Object value = XContentMapValues.extractValue(path, source);
+    public static Double numericValue(Map<String, Object> source, String[] path) {
+        Object value = XContentMapValues.extractValue(source, path);
         if (value instanceof Number number) {
             return number.doubleValue();
         }

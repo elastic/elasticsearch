@@ -45,21 +45,21 @@ public interface DerivedMetricsPredicate {
         Object value = entry.getValue();
         return switch (operator) {
             case "exists" -> {
-                String field = (String) single(asMap(value, operator)).getValue();
-                yield source -> hasValue(XContentMapValues.extractValue(field, source));
+                String[] field = path((String) single(asMap(value, operator)).getValue());
+                yield source -> hasValue(XContentMapValues.extractValue(source, field));
             }
             case "term" -> {
                 Map.Entry<String, Object> term = single(asMap(value, operator));
-                String field = term.getKey();
+                String[] field = path(term.getKey());
                 Object expected = term.getValue();
-                yield source -> matches(XContentMapValues.extractValue(field, source), expected);
+                yield source -> matches(XContentMapValues.extractValue(source, field), expected);
             }
             case "terms" -> {
                 Map.Entry<String, Object> terms = single(asMap(value, operator));
-                String field = terms.getKey();
+                String[] field = path(terms.getKey());
                 List<?> expected = (List<?>) terms.getValue();
                 yield source -> {
-                    Object actual = XContentMapValues.extractValue(field, source);
+                    Object actual = XContentMapValues.extractValue(source, field);
                     for (Object candidate : expected) {
                         if (matches(actual, candidate)) {
                             return true;
@@ -70,14 +70,14 @@ public interface DerivedMetricsPredicate {
             }
             case "range" -> {
                 Map.Entry<String, Object> range = single(asMap(value, operator));
-                String field = range.getKey();
+                String[] field = path(range.getKey());
                 Map<String, Object> bounds = asMap(range.getValue(), operator);
                 Double gt = bound(bounds, "gt");
                 Double gte = bound(bounds, "gte");
                 Double lt = bound(bounds, "lt");
                 Double lte = bound(bounds, "lte");
                 yield source -> {
-                    Object actual = XContentMapValues.extractValue(field, source);
+                    Object actual = XContentMapValues.extractValue(source, field);
                     for (Object candidate : values(actual)) {
                         Double number = asDouble(candidate);
                         if (number == null) {
@@ -128,6 +128,14 @@ public interface DerivedMetricsPredicate {
             }
             default -> throw new IllegalArgumentException("unsupported derived metrics predicate operator [" + operator + "]");
         };
+    }
+
+    /**
+     * Splits a dotted path once, at compile time. {@link XContentMapValues#extractValue(String, Map)} splits on every call, which on the
+     * write path means a regular expression split per predicate per document.
+     */
+    private static String[] path(String field) {
+        return field.split("\\.");
     }
 
     /**

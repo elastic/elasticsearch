@@ -225,10 +225,12 @@ public class DerivedMetricsService implements Closeable {
         }
         Map<String, Object> source = null;
         if (compiled.needsSource() && parsedDocument != null) {
-            source = DerivedMetricsSourceReader.read(parsedDocument, compiled.requiredPaths());
+            source = DerivedMetricsSourceReader.read(parsedDocument, compiled.sourceFilter());
         }
         long now = threadPool.absoluteTimeInMillis();
         long documentSize = parsedDocument == null ? 0L : parsedDocument.source().estimatedSizeInBytes();
+        RecordingScratch scratch = scratches.get();
+        scratch.startDocument(compiled);
 
         for (CompiledMetric metric : compiled.metrics()) {
             if (metric.trigger() != trigger) {
@@ -241,13 +243,11 @@ public class DerivedMetricsService implements Closeable {
                 // the predicate needs a source we could not read, so the metric cannot be said to match
                 continue;
             }
-            Double value = valueOf(metric, source, documentSize);
-            if (value == null) {
+            double value = valueOf(metric, source, documentSize);
+            if (Double.isNaN(value)) {
                 continue;
             }
-            RecordingScratch scratch = scratches.get();
-            String[] values = scratch.dimensionValues(metric.dimensions().size());
-            resolveDimensions(metric.dimensions(), source, values);
+            String[] values = scratch.dimensionValues(metric, source);
             Interval interval = metric.interval();
             long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
             TableKey key = scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis());
@@ -303,15 +303,49 @@ public class DerivedMetricsService implements Closeable {
      */
     private static final class RecordingScratch {
         private final DerivedMetricsDimensionCodec.Scratch encoding = new DerivedMetricsDimensionCodec.Scratch();
-        private String[] values = new String[16];
         private TableKey key;
 
-        String[] dimensionValues(int size) {
-            if (values.length < size) {
-                values = new String[size];
+        /**
+         * One row of resolved values per distinct dimension list, and the document generation each row was filled for. Metrics sharing a
+         * dimension list therefore read {@code _source} once between them rather than once each.
+         */
+        private String[][] resolved = new String[0][];
+        private int[] resolvedFor = new int[0];
+        private int generation;
+        private CompiledDerivedMetrics compiled;
+
+        /**
+         * Invalidates every cached row, because a new document is being observed. Sized against the configuration, and reset outright when
+         * the configuration changes, since slot numbers only mean anything within one compilation and one thread serves many streams.
+         */
+        void startDocument(CompiledDerivedMetrics compiled) {
+            if (this.compiled != compiled) {
+                this.compiled = compiled;
+                resolved = new String[compiled.dimensionSets()][];
+                resolvedFor = new int[compiled.dimensionSets()];
+                generation = 0;
             }
-            for (int i = 0; i < size; i++) {
-                values[i] = null;
+            generation++;
+        }
+
+        /**
+         * The dimension values for one metric, resolved at most once per document per distinct dimension list. The returned array is
+         * caller-read-only: the buffer encodes it and does not retain it.
+         */
+        String[] dimensionValues(CompiledMetric metric, Map<String, Object> source) {
+            int set = metric.dimensionSet();
+            int size = metric.dimensions().size();
+            String[] values = resolved[set];
+            if (values == null || values.length < size) {
+                values = new String[size];
+                resolved[set] = values;
+            }
+            if (resolvedFor[set] != generation) {
+                resolvedFor[set] = generation;
+                for (int i = 0; i < size; i++) {
+                    values[i] = null;
+                }
+                resolveDimensions(metric.dimensionPaths(), source, values);
             }
             return values;
         }
@@ -333,13 +367,22 @@ public class DerivedMetricsService implements Closeable {
         }
     }
 
-    private static Double valueOf(CompiledMetric metric, Map<String, Object> source, long documentSize) {
+    /**
+     * What this document contributes to the metric, or {@code NaN} when it contributes nothing — because the field is absent, is not
+     * numeric, or the source could not be read. A sentinel rather than a {@code Double} because this runs once per metric per document and
+     * boxing there is a real allocation on the indexing thread; a NaN observation would be meaningless anyway.
+     */
+    private static double valueOf(CompiledMetric metric, Map<String, Object> source, long documentSize) {
         return switch (metric.source()) {
             case CompiledDerivedMetrics.Source.Constant constant -> constant.value();
             case CompiledDerivedMetrics.Source.DocumentSize unused -> (double) documentSize;
-            case CompiledDerivedMetrics.Source.Field field -> source == null
-                ? null
-                : DerivedMetricsSourceReader.numericValue(source, field.path());
+            case CompiledDerivedMetrics.Source.Field field -> {
+                if (source == null) {
+                    yield Double.NaN;
+                }
+                Double numeric = DerivedMetricsSourceReader.numericValue(source, field.segments());
+                yield numeric == null ? Double.NaN : numeric;
+            }
         };
     }
 
@@ -347,12 +390,12 @@ public class DerivedMetricsService implements Closeable {
      * Fills the caller's reusable array with the value of each configured dimension, leaving null where the document did not have one.
      * A document missing a dimension forms its own series rather than sharing a placeholder.
      */
-    private static void resolveDimensions(List<String> dimensions, Map<String, Object> source, String[] values) {
-        if (dimensions.isEmpty() || source == null) {
+    private static void resolveDimensions(String[][] dimensions, Map<String, Object> source, String[] values) {
+        if (dimensions.length == 0 || source == null) {
             return;
         }
-        for (int i = 0; i < dimensions.size(); i++) {
-            values[i] = DerivedMetricsSourceReader.stringValue(source, dimensions.get(i));
+        for (int i = 0; i < dimensions.length; i++) {
+            values[i] = DerivedMetricsSourceReader.stringValue(source, dimensions[i]);
         }
     }
 

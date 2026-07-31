@@ -131,7 +131,30 @@ configuration is cached per cluster state version, so the steady-state per-docum
 `CompiledDerivedMetrics` is the write-path form of the configuration: predicates are compiled once, built-in selectors are expanded, and
 the set of source paths any metric needs is known up front. When that set is empty — the common case for a stream that only asks for the
 built-in ingest metrics without dimensions — the write path never parses `_source` at all. When it is not empty, only those paths are
-parsed, using the same filtered-parsing technique `IndexRouting` uses for routing fields.
+parsed, using the same filtered-parsing technique `IndexRouting` uses for routing fields — including, as `IndexRouting` does, compiling
+the filter once per configuration rather than once per document.
+
+Everything else that can be precomputed is: predicate and dimension paths are split into segments at compile time rather than on every
+lookup, and metrics that configure the same dimensions share a resolution slot so their values are read out of `_source` once per document
+between them rather than once per metric. That last one is the difference between a linear and a quadratic write path, since global
+dimensions apply to every metric by definition.
+
+### What observing a write costs
+
+Measured by `DerivedMetricsObservationBench` in the `benchmarks` project — run it with `-prof gc`, because the allocation number matters
+at least as much as the time. This path runs once per document on the indexing thread, inside the shard's operation permit.
+
+| configuration | ns/op | B/op |
+|---|---|---|
+| built-in ingest metrics, no dimensions | 423 | 160 |
+| built-in ingest metrics, one dimension | 1,781 | 3,130 |
+| built-in plus a predicate-guarded counter, five dimensions | 3,620 | 6,884 |
+| one histogram metric over a field | 1,793 | 3,580 |
+
+The shape of that table is the important part. A stream that only wants the built-in ingest metrics never reads `_source`, and costs
+essentially nothing. The moment a single dimension is configured the write path has to parse a filtered slice of the document, and that
+parse then dominates: for the five-dimension case roughly two thirds of the remaining bytes are the filtered parse itself, and everything
+derived from it is the other third. If this needs to get cheaper again, the parse is where to look, not the accumulation.
 
 `DerivedMetricsBuffer` holds one table per metric per interval bucket, and within a table one accumulator slot per series. A series is
 interned to a dense ordinal by `DerivedMetricsSeriesTable` and its state lives in parallel `BigArrays` arrays indexed by that ordinal —

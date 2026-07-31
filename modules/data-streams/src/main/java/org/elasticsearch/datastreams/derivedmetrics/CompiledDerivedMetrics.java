@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -32,6 +33,8 @@ import java.util.Set;
 public record CompiledDerivedMetrics(
     List<CompiledMetric> metrics,
     Set<String> requiredPaths,
+    XContentParserConfiguration sourceFilter,
+    int dimensionSets,
     List<String> unsupportedMetrics,
     EnumSet<Trigger> triggers
 ) {
@@ -78,8 +81,15 @@ public record CompiledDerivedMetrics(
 
         /**
          * The numeric value of a source field. Documents where the field is absent or not numeric contribute nothing.
+         *
+         * @param segments the path split once, at compile time, because splitting it per document is a regular expression match per
+         *                 document
          */
-        record Field(String path) implements Source {}
+        record Field(String path, String[] segments) implements Source {
+            static Field of(String path) {
+                return new Field(path, splitPath(path));
+            }
+        }
 
         /**
          * The size of the document's source in bytes, used by the {@code ingest.bytes.*} built-ins.
@@ -98,6 +108,13 @@ public record CompiledDerivedMetrics(
     /**
      * A metric is accumulated at exactly one interval: its own override, or the stream's default. The interval determines which
      * destination data stream the metric is written to.
+     *
+     * @param dimensions     dimension names, in the order they are emitted
+     * @param dimensionPaths the same names split once, at compile time, for reading out of {@code _source}
+     * @param dimensionSet   which distinct dimension list this metric uses. Metrics that configure the same dimensions — the normal case,
+     *                       since global dimensions apply to every metric — share a slot, so the write path resolves those values once per
+     *                       document instead of once per metric. Reading a value out of {@code _source} is not free: it allocates a list
+     *                       per path level and concatenates keys, so the multiplier matters.
      */
     public record CompiledMetric(
         String name,
@@ -106,8 +123,34 @@ public record CompiledDerivedMetrics(
         DerivedMetricsPredicate predicate,
         Source source,
         List<String> dimensions,
+        String[][] dimensionPaths,
+        int dimensionSet,
         Interval interval
-    ) {}
+    ) {
+        public CompiledMetric(
+            String name,
+            Trigger trigger,
+            Reduction reduction,
+            DerivedMetricsPredicate predicate,
+            Source source,
+            List<String> dimensions,
+            Interval interval
+        ) {
+            this(name, trigger, reduction, predicate, source, dimensions, splitPaths(dimensions), 0, interval);
+        }
+    }
+
+    private static String[][] splitPaths(List<String> paths) {
+        String[][] split = new String[paths.size()][];
+        for (int i = 0; i < paths.size(); i++) {
+            split[i] = splitPath(paths.get(i));
+        }
+        return split;
+    }
+
+    private static String[] splitPath(String path) {
+        return path.split("\\.");
+    }
 
     private static final String INGEST_DOCS_COUNT = "ingest.docs.count";
     private static final String INGEST_DOCS_RATE = "ingest.docs.rate";
@@ -141,7 +184,7 @@ public record CompiledDerivedMetrics(
             DerivedMetricsPredicate.collectPaths(metric.when(), requiredPaths);
             Source source;
             if (metric.value().field() != null) {
-                source = new Source.Field(metric.value().field());
+                source = Source.Field.of(metric.value().field());
                 requiredPaths.add(metric.value().field());
             } else {
                 source = new Source.Constant(metric.value().constant());
@@ -164,7 +207,44 @@ public record CompiledDerivedMetrics(
             triggers.add(metric.trigger());
         }
 
-        return new CompiledDerivedMetrics(List.copyOf(metrics), Set.copyOf(requiredPaths), List.copyOf(unsupported), triggers);
+        // Compiling the source filter here rather than per document is the point: withFiltering runs FilterPath.compile, which parses
+        // every path. The paths are a property of the configuration, so this is done once per configuration change.
+        Set<String> paths = Set.copyOf(requiredPaths);
+        XContentParserConfiguration sourceFilter = paths.isEmpty()
+            ? XContentParserConfiguration.EMPTY
+            : XContentParserConfiguration.EMPTY.withFiltering(null, paths, null, true);
+
+        List<List<String>> dimensionSets = new ArrayList<>();
+        List<CompiledMetric> assigned = new ArrayList<>(metrics.size());
+        for (CompiledMetric metric : metrics) {
+            int set = dimensionSets.indexOf(metric.dimensions());
+            if (set < 0) {
+                set = dimensionSets.size();
+                dimensionSets.add(metric.dimensions());
+            }
+            assigned.add(
+                new CompiledMetric(
+                    metric.name(),
+                    metric.trigger(),
+                    metric.reduction(),
+                    metric.predicate(),
+                    metric.source(),
+                    metric.dimensions(),
+                    metric.dimensionPaths(),
+                    set,
+                    metric.interval()
+                )
+            );
+        }
+
+        return new CompiledDerivedMetrics(
+            List.copyOf(assigned),
+            paths,
+            sourceFilter,
+            dimensionSets.size(),
+            List.copyOf(unsupported),
+            triggers
+        );
     }
 
     private static List<String> expandBuiltins(List<String> builtin) {

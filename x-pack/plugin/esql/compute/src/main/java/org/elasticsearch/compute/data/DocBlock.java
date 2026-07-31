@@ -54,7 +54,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
     }
 
     @Override
-    public Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+    public DocBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         return new DocBlock(vector.filter(mayContainDuplicates, positions, offset, length));
     }
 

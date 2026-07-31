@@ -8,11 +8,18 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
 
 /**
  * Loads dimension fields after a time-series aggregation.
@@ -25,7 +32,7 @@ public final class ReadDimsOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ReadDimsOperator(valuesSourceReader.get(driverContext), docChannel, tsidChannel);
+            return new ReadDimsOperator(valuesSourceReader.get(driverContext), docChannel, tsidChannel, driverContext.blockFactory());
         }
 
         @Override
@@ -37,12 +44,16 @@ public final class ReadDimsOperator implements Operator {
     private final Operator valuesReader;
     private final int docChannel;
     private final int tsidChannel;
+    private final BlockFactory blockFactory;
     private Page prevPage;
+    private int[] firstPos = new int[0];
+    private int[] ordsArray = new int[0];
 
-    ReadDimsOperator(Operator valuesReader, int ddocChannel, int tsidChannel) {
+    ReadDimsOperator(Operator valuesReader, int docChannel, int tsidChannel, BlockFactory blockFactory) {
         this.valuesReader = valuesReader;
-        this.docChannel = ddocChannel;
+        this.docChannel = docChannel;
         this.tsidChannel = tsidChannel;
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -88,8 +99,40 @@ public final class ReadDimsOperator implements Operator {
 
     Page process(Page page) {
         DocBlock docBlock = page.getBlock(docChannel);
-        Block[] fields = readFields(docBlock);
-        return page.appendBlocks(fields);
+        OrdinalBytesRefVector tsidOrdinals = tsidOrdinalVector((BytesRefBlock) page.getBlock(tsidChannel));
+        if (tsidOrdinals == null) {
+            return page.appendBlocks(readFields(docBlock));
+        }
+        IntVector ords = tsidOrdinals.getOrdinalsVector();
+        int dictSize = tsidOrdinals.getDictionaryVector().getPositionCount();
+        int positionCount = ords.getPositionCount();
+        if (dictSize >= positionCount) {
+            return page.appendBlocks(readFields(docBlock));
+        }
+        final Block[] fields;
+        try (var filteredDocs = filterDocBlock(docBlock, dictSize, ords)) {
+            fields = readFields(filteredDocs);
+        }
+        return page.appendBlocks(expand(fields, ords, positionCount));
+    }
+
+    private OrdinalBytesRefVector tsidOrdinalVector(BytesRefBlock tsidBlock) {
+        BytesRefVector tsidVector = tsidBlock.asVector();
+        return tsidVector != null ? tsidVector.asOrdinals() : null;
+    }
+
+    private DocBlock filterDocBlock(DocBlock docBlock, int dictSize, IntVector ords) {
+        if (dictSize > firstPos.length) {
+            firstPos = new int[dictSize];
+        }
+        Arrays.fill(firstPos, 0, dictSize, -1);
+        for (int p = 0; p < ords.getPositionCount(); p++) {
+            int ord = ords.getInt(p);
+            if (firstPos[ord] == -1) {
+                firstPos[ord] = p;
+            }
+        }
+        return docBlock.filter(false, firstPos, 0, dictSize);
     }
 
     Block[] readFields(DocBlock docBlock) {
@@ -103,6 +146,19 @@ public final class ReadDimsOperator implements Operator {
         Block[] fields = new Block[output.getBlockCount() - 1];
         for (int i = 1; i < output.getBlockCount(); i++) {
             fields[i - 1] = output.getBlock(i);
+        }
+        return fields;
+    }
+
+    private Block[] expand(Block[] fields, IntVector ords, int n) {
+        if (n > ordsArray.length) {
+            ordsArray = new int[n];
+        }
+        ords.copyTo(0, ordsArray, 0, n);
+        for (int f = 0; f < fields.length; f++) {
+            Block block = fields[f];
+            fields[f] = block.filter(true, ordsArray, 0, n);
+            block.close();
         }
         return fields;
     }

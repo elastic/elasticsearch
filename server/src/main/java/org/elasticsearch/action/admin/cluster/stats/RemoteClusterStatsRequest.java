@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * A request to get cluster level stats from the remote cluster.
  */
-public class RemoteClusterStatsRequest extends LegacyActionRequest {
+public class RemoteClusterStatsRequest extends UntypedActionRequest {
     public RemoteClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
     }

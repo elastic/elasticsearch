@@ -10,7 +10,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -23,7 +23,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to get node tasks
  */
-public class GetTaskRequest extends LegacyActionRequest {
+public class GetTaskRequest extends UntypedActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;

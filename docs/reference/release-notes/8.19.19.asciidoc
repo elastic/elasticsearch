@@ -1,0 +1,75 @@
+[[release-notes-8.19.19]]
+== {es} version 8.19.19
+
+coming[8.19.19]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[breaking-8.19.19]]
+[float]
+=== Breaking changes
+
+Inference::
+* Prevent overriding `secret_parameters` in the Inference API {es-pull}153309[#153309]
+
+[[bug-8.19.19]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Avoid out-of-memory errors by accounting for memory during the cardinality aggregation reduction phase {es-pull}152773[#152773] (issue: {es-issue}150290[#150290])
+* Fix error when aggregation parameter scripts return null {es-pull}152152[#152152] (issue: {es-issue}136639[#136639])
+
+Authorization::
+* Fix data stream privilege checking {es-pull}148179[#148179]
+* Improve authorization for the simulate bulk action {es-pull}152148[#152148]
+
+ES|QL::
+* Avoid dense run-length allocation in HyperLogLog {es-pull}152035[#152035]
+
+Geo::
+* Fix infinite loop in `GeoLineDecomposer` dateline crossing checks {es-pull}152096[#152096] (issue: {es-issue}152066[#152066])
+
+Ingest Node::
+* Include ingest metadata in self reference checks {es-pull}152932[#152932]
+
+Machine Learning::
+* Automatically repair ML anomaly results aliases pointing at a .reindexed-v7 index {es-pull}147688[#147688] (issue: {es-issue}147686[#147686])
+* Fix bug causing incorrect error on force deleting already deleted model {es-pull}107188[#107188] (issue: {es-issue}105420[#105420])
+* Retry datafeed STARTED state write on system reassignment {es-pull}151399[#151399]
+* Wait for up to 2 seconds for yellow status before starting search {es-pull}115938[#115938] (issues: {es-issue}107777[#107777], {es-issue}105955[#105955], {es-issue}107815[#107815], {es-issue}112191[#112191])
+
+Search::
+* Add more defensive protections when parsing `query_string` {es-pull}152385[#152385]
+* Apply search timeout to the DFS phase query rewrite {es-pull}153479[#153479]
+* Fork `ensureShardSearchActive` callbacks off the refresh thread {es-pull}152509[#152509] (issue: {es-issue}97280[#97280])
+* Return a 400 (Bad Request) for invalid tokens in a `script` query {es-pull}152476[#152476]
+* Trip request breaker on big completion suggest size/shardSize {es-pull}152552[#152552]
+
+Snapshot/Restore::
+* Fix snapshot creation on CIFS shares in case of access denied exception {es-pull}153219[#153219] (issue: {es-issue}152053[#152053])
+
+[[enhancement-8.19.19]]
+[float]
+=== Enhancements
+
+ES|QL::
+* Implement watchdog timeout for `GROK` {es-pull}152851[#152851]
+
+Machine Learning::
+* Add exponential-backoff retry for anomaly detection job opening during system-initiated reassignments {es-pull}144478[#144478]
+
+Search::
+* Add a fetch phase circuit breaker for source loading {es-pull}153924[#153924]
+
+[[upgrade-8.19.19]]
+[float]
+=== Upgrades
+
+Inference::
+* Bump the `commons-text` library version to match `commons-lang3` {es-pull}152092[#152092]
+
+Infra/Core::
+* Upgrade Jackson {es-pull}152163[#152163]
+
+

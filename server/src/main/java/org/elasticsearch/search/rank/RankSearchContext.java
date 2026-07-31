@@ -13,6 +13,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -534,5 +535,15 @@ public class RankSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return parent.circuitBreaker();
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return parent.memAccountingBufferSize();
     }
 }

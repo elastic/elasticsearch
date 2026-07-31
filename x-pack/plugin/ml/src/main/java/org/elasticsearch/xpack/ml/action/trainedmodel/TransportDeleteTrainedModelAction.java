@@ -32,14 +32,17 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -108,7 +111,9 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         cancelDownloadTask(
             client,
             id,
-            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)),
+            listener.delegateFailureAndWrap(
+                (l, ignored) -> deleteModel(request, state, new TaskId(clusterService.localNode().getId(), task.getId()), l)
+            ),
             request.ackTimeout()
         );
     }
@@ -146,23 +151,46 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         return modelAliases;
     }
 
-    private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    void deleteModel(
+        DeleteTrainedModelAction.Request request,
+        ClusterState state,
+        TaskId taskId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
-        if (request.isForce() == false && referencedModels.contains(id)) {
+        modelExists(id, taskId, listener.delegateFailureAndWrap((l, exists) -> {
+            if (!exists) {
+                l.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, id)));
+                return;
+            }
+
+            deleteExistingModel(request, state, id, referencedModels, l);
+        }));
+    }
+
+    void deleteExistingModel(
+        DeleteTrainedModelAction.Request request,
+        ClusterState state,
+        String requestId,
+        Set<String> referencedModels,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+
+        if (request.isForce() == false && referencedModels.contains(requestId)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete model [{}] as it is still referenced by ingest processors; use force to delete the model",
                     RestStatus.CONFLICT,
-                    id
+                    requestId
                 )
             );
             return;
         }
 
-        final List<String> modelAliases = getModelAliases(state, id);
+        final List<String> modelAliases = getModelAliases(state, requestId);
         if (request.isForce() == false) {
             Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
             if (referencedModelAlias.isPresent()) {
@@ -171,7 +199,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                         "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
                             + " use force to delete the model",
                         RestStatus.CONFLICT,
-                        id,
+                        requestId,
                         referencedModelAlias.get()
                     )
                 );
@@ -179,10 +207,10 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             }
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
+        if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(requestId)) {
             if (request.isForce()) {
                 forceStopDeployment(
-                    request.getId(),
+                    requestId,
                     listener.delegateFailureAndWrap((l, stopDeploymentResponse) -> deleteAliasesAndModel(request, modelAliases, l))
                 );
             } else {
@@ -190,13 +218,28 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                     new ElasticsearchStatusException(
                         "Cannot delete model [{}] as it is currently deployed; use force to delete the model",
                         RestStatus.CONFLICT,
-                        id
+                        requestId
                     )
                 );
             }
         } else {
             deleteAliasesAndModel(request, modelAliases, listener);
         }
+    }
+
+    void modelExists(String modelId, TaskId taskId, ActionListener<Boolean> listener) {
+        trainedModelProvider.getTrainedModel(
+            modelId,
+            GetTrainedModelsAction.Includes.empty(),
+            taskId,
+            ActionListener.wrap(model -> listener.onResponse(Boolean.TRUE), exception -> {
+                if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceNotFoundException) {
+                    listener.onResponse(Boolean.FALSE);
+                } else {
+                    listener.onFailure(exception);
+                }
+            })
+        );
     }
 
     private void forceStopDeployment(String modelId, ActionListener<StopTrainedModelDeploymentAction.Response> listener) {

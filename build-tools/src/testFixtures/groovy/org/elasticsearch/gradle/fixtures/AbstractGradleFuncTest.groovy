@@ -40,9 +40,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
 
-    @TempDir
-    File gradleUserHome
-
     File settingsFile
     File buildFile
     File propertiesFile
@@ -71,7 +68,18 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+        // Pin the JAXP TransformerFactory to the JDK built-in implementation.
+        // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
+        // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a
+        // javax.xml.transform.TransformerFactory service provider. Whether the JDK's FactoryFinder
+        // picks up that service registration depends on non-deterministic classpath/ServiceLoader
+        // ordering, so on some platforms (e.g. CI) Gradle's internal XmlFactories resolves to
+        // net.sf.saxon.TransformerFactoryImpl, which the Gradle core classloader cannot load,
+        // failing GenerateMavenPom with a TransformerFactoryConfigurationError. Forcing the JDK
+        // default keeps POM generation deterministic across environments.
+        propertiesFile <<
+            "systemProp.javax.xml.transform.TransformerFactory=com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl"
 
         def nativeLibsProject = subProject(":libs:native:native-libraries")
         // Stub mirrors the real producer: a dedicated `nativeLibs` consumable variant that
@@ -123,20 +131,34 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        def runner = GradleRunner.create()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                        .toString().indexOf("-agentlib:jdwp") > 0
+                )
+                .withProjectDir(projectDir)
+                .withPluginClasspath()
+                .forwardOutput()
+        File userHome = customGradleUserHome()
+        if (userHome != null) {
+            runner = runner.withTestKitDir(userHome)
+        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
-                    new InternalAwareGradleRunner(
-                        GradleRunner.create()
-                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                        .toString().indexOf("-agentlib:jdwp") > 0
-                                )
-                                .withProjectDir(projectDir)
-                                .withPluginClasspath()
-                                .withTestKitDir(gradleUserHome)
-                                .forwardOutput()
-            ), configurationCacheCompatible,
-                buildApiRestrictionsDisabled)
+                    new InternalAwareGradleRunner(runner),
+                    configurationCacheCompatible,
+                    buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
+    }
+
+    /**
+     * Override to supply a custom Gradle user home directory for the TestKit runner.
+     * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
+     * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
+     * logic.  Returns {@code null} by default, letting TestKit manage its own
+     * temporary directory.
+     */
+    protected File customGradleUserHome() {
+        return null
     }
 
     def assertOutputContains(String givenOutput, String expected) {

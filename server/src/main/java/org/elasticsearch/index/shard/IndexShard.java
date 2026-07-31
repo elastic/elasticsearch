@@ -4093,7 +4093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+            if (enableFieldHasValue && didRefresh) {
                 FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }
@@ -4183,6 +4183,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             listener.accept(false);
         }
+    }
+
+    /**
+     * Variant of {@link #ensureShardSearchActive(Consumer)} that dispatches the listener on {@code responseExecutor} when a refresh was
+     * pending, keeping non-trivial search-side work off the refresh-completing thread (often an indexing or recovery thread). When no
+     * refresh is pending the listener runs inline on the calling thread; if dispatching fails it is invoked inline with {@code true}.
+     *
+     * @param responseExecutor the executor on which to invoke the listener when it was registered to wait for a refresh
+     * @param listener         the listener to invoke once the pending refresh location is visible. The listener will be called with
+     *                         <code>true</code> if the listener was registered to wait for a refresh.
+     */
+    public final void ensureShardSearchActive(Executor responseExecutor, Consumer<Boolean> listener) {
+        Objects.requireNonNull(responseExecutor);
+        ensureShardSearchActive(wasRegistered -> {
+            if (wasRegistered) {
+                try {
+                    responseExecutor.execute(() -> listener.accept(true));
+                } catch (Exception e) {
+                    logger.warn(() -> format("ensureShardSearchActive could not dispatch to [%s], running inline", responseExecutor), e);
+                    listener.accept(true);
+                }
+            } else {
+                listener.accept(false);
+            }
+        });
     }
 
     /**

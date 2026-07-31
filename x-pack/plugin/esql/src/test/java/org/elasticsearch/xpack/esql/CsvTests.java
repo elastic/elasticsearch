@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -668,7 +669,8 @@ public class CsvTests extends ESTestCase {
             Mockito.mock(LookupFromIndexService.class),
             Mockito.mock(InferenceRunner.class),
             physicalOperationProviders,
-            List.of()
+            List.of(),
+            MatcherWatchdog.noop()
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

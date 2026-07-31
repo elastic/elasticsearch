@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
@@ -90,33 +89,30 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
-        assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
+        // The guard must cover both parameterized runs (OLD and UPGRADED). If it is placed only inside the OLD branch,
+        // @Before maybeUpgrade() still upgrades the cluster for the UPGRADED run. UPGRADED then enters the `else` branch
+        // against an empty cluster (no model was ever created) and fails with 404 on _stats. See #147226 for the
+        // full-bwc failure this caused on 9.4.
+        assumeTrue(
+            "PyTorch model deployment inference is not reliably supported before 8.3.0",
+            getOldClusterTestVersion().onOrAfter("8.3.0")
+        );
 
         String modelId = "trained-model-full-cluster-restart";
 
         if (isRunningAgainstOldCluster()) {
-            assumeTrue(
-                "PyTorch model deployment inference is not reliably supported before 8.3.0",
-                getOldClusterTestVersion().onOrAfter("8.3.0")
-            );
             createTrainedModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
             startDeployment(modelId);
             assertInfer(modelId);
         } else {
-            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "70s");
-            }));
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
                 } catch (ResponseException e) {
-                    // assertBusy only loops on AssertionErrors, so we have
-                    // to convert failure status exceptions to these
                     throw new AssertionError("Inference failed", e);
                 }
             }, 90, TimeUnit.SECONDS);
@@ -127,7 +123,12 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response;
+            try {
+                response = getTrainedModelStats(modelId);
+            } catch (ResponseException e) {
+                throw new AssertionError("Model stats not available yet", e);
+            }
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));

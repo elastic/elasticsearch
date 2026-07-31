@@ -127,4 +127,15 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
     }
+
+    public void testNullScript() {
+        String json = """
+            {
+              "script" : {
+                "script" : null
+              }
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("[script] query does not support token [VALUE_NULL]"));
+    }
 }

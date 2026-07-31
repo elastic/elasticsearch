@@ -11,7 +11,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
         private final String synonymsSetId;
 
         private final String synonymRuleId;

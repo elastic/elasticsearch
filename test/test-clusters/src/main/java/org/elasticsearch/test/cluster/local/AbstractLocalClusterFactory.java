@@ -105,6 +105,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
+        private static final int TOOL_SCRIPT_RETRY_TIMES = OS.current() == WINDOWS ? 15 : 0;
+        private static final int TOOL_SCRIPT_RETRY_DELAY_MS = OS.current() == WINDOWS ? 500 : 0;
+
         private final ObjectMapper objectMapper;
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
@@ -877,6 +880,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
 
+            if (OS.current() == WINDOWS) {
+                // cmd.exe needs SystemRoot to locate system32 DLLs, and Path so that batch scripts
+                // can resolve executables. ProcessUtils.exec() clears the inherited environment and
+                // repopulates it from this map, so these variables must be forwarded explicitly;
+                // without them elasticsearch-keystore.bat (and similar tools) fail with exit code 1.
+                Map<String, String> parentEnv = System.getenv();
+                for (String key : List.of("SystemRoot", "SYSTEMROOT", "SystemDrive", "ComSpec", "Path", "PATH")) {
+                    String value = parentEnv.get(key);
+                    if (value != null) {
+                        environment.putIfAbsent(key, value);
+                    }
+                }
+            }
+
             environment = environment.entrySet()
                 .stream()
                 .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
@@ -972,22 +989,54 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void runToolScript(String tool, String input, String... args) {
-            try {
-                int exit = ProcessUtils.exec(
-                    input,
-                    distributionDir,
-                    distributionDir.resolve("bin")
-                        .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
-                    getEnvironmentVariables(),
-                    false,
-                    args
-                ).waitFor();
+            int attempt = 0;
+            while (true) {
+                try {
+                    ProcessUtils.Result result = ProcessUtils.execAndCapture(
+                        input,
+                        distributionDir,
+                        distributionDir.resolve("bin")
+                            .resolve(OS.<String>conditional(c -> c.onWindows(() -> tool + ".bat").onUnix(() -> tool))),
+                        getEnvironmentVariables(),
+                        args
+                    );
 
-                if (exit != 0) {
-                    throw new RuntimeException("Execution of " + tool + " failed with exit code " + exit);
+                    if (result.exitCode() == 0) {
+                        return;
+                    }
+
+                    if (attempt >= TOOL_SCRIPT_RETRY_TIMES) {
+                        String argsDesc = "[" + String.join(", ", args) + "]";
+                        String stderrDesc = result.stderr().isEmpty()
+                            ? "<no output>"
+                            : String.join(System.lineSeparator(), result.stderr());
+                        throw new RuntimeException(
+                            "Execution of "
+                                + tool
+                                + " failed with exit code "
+                                + result.exitCode()
+                                + "; tool='"
+                                + tool
+                                + "', args='"
+                                + argsDesc
+                                + "', stderr output:"
+                                + System.lineSeparator()
+                                + stderrDesc
+                        );
+                    }
+
+                    attempt++;
+                    LOGGER.warn(
+                        "Execution of {} failed with exit code {}, retrying ({}/{})",
+                        tool,
+                        result.exitCode(),
+                        attempt,
+                        TOOL_SCRIPT_RETRY_TIMES
+                    );
+                    Thread.sleep(TOOL_SCRIPT_RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
         }
 

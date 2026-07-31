@@ -45,9 +45,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/112382
-- class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
-  method: test20SecurityNotAutoConfiguredOnReInstallation
-  issue: https://github.com/elastic/elasticsearch/issues/112635
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDelete_multipleRequest
   issue: https://github.com/elastic/elasticsearch/issues/112701
@@ -208,9 +205,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117591
 - class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/117596
-- class: org.elasticsearch.xpack.ml.integration.RegressionIT
-  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
-  issue: https://github.com/elastic/elasticsearch/issues/117805
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
   method: testNonexistentBucketReadonlyFalse
   issue: https://github.com/elastic/elasticsearch/issues/118225
@@ -224,9 +218,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldSourceOnlyRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120080
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
@@ -281,14 +272,8 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120148
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
-  method: testChildrenTasksCancelledOnTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/123568
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/nodes/line_361}
   issue: https://github.com/elastic/elasticsearch/issues/124103
@@ -313,9 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
-- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-  method: testLuceneVersionConstant
-  issue: https://github.com/elastic/elasticsearch/issues/139816
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128

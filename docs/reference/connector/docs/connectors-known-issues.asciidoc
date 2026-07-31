@@ -187,6 +187,15 @@ When the attribute is missing, `ldap3` returns `[]`, causing `ValueError: primar
 +
 *Fix*: https://github.com/elastic/connectors/pull/4078[elastic/connectors#4078^], shipped in 8.19.17.
 
+* *Outlook connector syncs intermittently fail with `NO_CERTIFICATE_OR_CRL_FOUND` when SSL is enabled*
++
+With SSL enabled, the connector wrote the configured CA to a fixed file on disk (`outlook_cert.cer`) shared across the process.
+Concurrent or overlapping syncs raced on it, causing an intermittent `SSLError: [X509] no certificate or crl found (NO_CERTIFICATE_OR_CRL_FOUND)` that aborted syncs with no configuration change between runs.
++
+*Affected versions*: 8.11.0–8.19.17. On-prem Exchange with SSL enabled only.
++
+*Fix*: https://github.com/elastic/connectors/pull/4094[elastic/connectors#4094^], shipped in 8.19.18.
+
 [discrete#es-connectors-known-issues-specific]
 === Individual connector known issues
 

@@ -113,6 +113,7 @@ final class DefaultSearchContext extends SearchContext {
     private final float queryBoost;
     private final boolean lowLevelCancellation;
     private TimeValue timeout;
+    private final long memoryAccountingBufferSize;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
@@ -172,11 +173,13 @@ final class DefaultSearchContext extends SearchContext {
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
+        long memoryAccountingBufferSize,
         @Nullable CircuitBreaker circuitBreaker
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.memoryAccountingBufferSize = memoryAccountingBufferSize;
         boolean success = false;
         try {
             this.searchType = request.searchType();
@@ -996,5 +999,15 @@ final class DefaultSearchContext extends SearchContext {
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return memoryAccountingBufferSize;
     }
 }

@@ -52,6 +52,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -154,6 +156,7 @@ public class LocalExecutionPlanner {
     private final InferenceRunner inferenceRunner;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
+    private final MatcherWatchdog grokMatcherWatchdog;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -169,7 +172,8 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceRunner inferenceRunner,
         PhysicalOperationProviders physicalOperationProviders,
-        List<ShardContext> shardContexts
+        List<ShardContext> shardContexts,
+        MatcherWatchdog grokMatcherWatchdog
     ) {
 
         this.sessionId = sessionId;
@@ -186,6 +190,10 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
         this.shardContexts = shardContexts;
+        // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
+        // by every GROK matcher this planner builds — MatcherWatchdog.Default is a stateless, immutable
+        // wrapper around a single timeout value.
+        this.grokMatcherWatchdog = grokMatcherWatchdog;
     }
 
     /**
@@ -501,11 +509,14 @@ public class LocalExecutionPlanner {
         }
 
         Layout layout = layoutBuilder.build();
+        // Rebind the matcher to this node's own grok.watchdog.max_execution_time setting instead of the
+        // no-op watchdog it was parsed/deserialized with, since the pattern is about to run against real data.
+        org.elasticsearch.grok.Grok watchdogGrok = Grok.pattern(grok.source(), grok.pattern().pattern(), grokMatcherWatchdog).grok();
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
-                () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+                () -> new GrokEvaluatorExtracter(watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
         );

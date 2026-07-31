@@ -1,9 +1,13 @@
 [[release-notes-8.19.17]]
 == {es} version 8.19.17
 
-coming[8.19.17]
-
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[known-issues-8.19.17]]
+[float]
+=== Known issues
+
+* The <<put-trained-models,create trained model API>> enforces overly restrictive input limits that may reject valid requests. A {es-pull}150227[change] in 8.19.17 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map`, and `metadata`. These limits are too low for some existing use cases, including the Problemchild and DGA Security integrations, which require more than the 100-field cap on `input.field_names`.
 
 [[bug-8.19.17]]
 [float]
@@ -42,6 +46,9 @@ Query Languages::
 
 Security::
 * Make Automatons wildcard code-point aware {es-pull}151143[#151143]
+
+Snapshot/Restore::
+* Update `repository-s3` to use the default request signer from AWS SDK for Java {es-pull}150237[#150237]
 
 Transform::
 * Honor `ClusterHealth` timeout when waiting for transform internal index shards {es-pull}149462[#149462] (issue: {es-issue}149400[#149400])

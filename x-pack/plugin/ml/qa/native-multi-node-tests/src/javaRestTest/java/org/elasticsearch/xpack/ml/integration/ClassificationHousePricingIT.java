@@ -1539,6 +1539,11 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
         String predictionField = TARGET_FIELD + "_prediction";
         initialize("classification_house_pricing_test_feature_importance_values");
         indexData(sourceIndex);
+        // gamma=0 disables the tree-size regularization penalty and the 70% training fraction
+        // keeps much of the imbalanced minority class in the training set; together they prevent
+        // boosted-tree training from occasionally collapsing to a degenerate single-node forest
+        // (constant predictor), which yields empty per-document feature_importance and fails the
+        // assertions below. See https://github.com/elastic/elasticsearch/issues/124341
         DataFrameAnalyticsConfig config = buildAnalytics(
             jobId,
             sourceIndex,
@@ -1546,11 +1551,11 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
             null,
             new Classification(
                 TARGET_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(5).build(),
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(5).setGamma(0.0).build(),
                 null,
                 null,
                 null,
-                35.0,
+                70.0,
                 randomizeSeed,
                 null,
                 null

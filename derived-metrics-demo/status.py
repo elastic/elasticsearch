@@ -7,7 +7,6 @@ import base64
 import json
 import urllib.request
 
-INTERVAL = "10s"
 BLOCKS = "▁▂▃▄▅▆▇█"
 
 
@@ -43,6 +42,8 @@ def main():
     parser.add_argument("--user", default="elastic-admin")
     parser.add_argument("--password", default="elastic-password")
     parser.add_argument("--data-stream", default="logs-derived-demo-default")
+    parser.add_argument("--interval", default="10s")
+    parser.add_argument("--compare-with", default=None, help="a second source stream to compare derived volume against")
     parser.add_argument("--window", default="6m", help="how far back the rate comparison looks")
     args = parser.parse_args()
 
@@ -58,8 +59,9 @@ def main():
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.load(response)
 
+    interval = args.interval
     source = args.data_stream
-    derived = f"derived-metrics-{args.data_stream}"
+    derived = f"derived-metrics-{args.data_stream}-{args.interval}"
     # Wide enough to span a full load cycle, so the comparison covers more than one phase.
     window = {"range": {"@timestamp": {"gte": f"now-{args.window}"}}}
 
@@ -67,7 +69,7 @@ def main():
         filters = [window] + ([extra_filter] if extra_filter else [])
         response = search(index, {
             "query": {"bool": {"filter": filters}},
-            "aggs": {"per_bucket": {"date_histogram": {"field": "@timestamp", "fixed_interval": INTERVAL}}},
+            "aggs": {"per_bucket": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval}}},
         })
         buckets = response["aggregations"]["per_bucket"]["buckets"]
         # The first and last buckets are partial, so they are not comparable to the rest.
@@ -77,10 +79,10 @@ def main():
     source_counts = per_bucket(source)
     # The demo runs a single interval, so everything in the destination is comparable as-is. The
     # filter still belongs here in case more intervals get configured in setup.sh.
-    derived_counts = per_bucket(derived, {"term": {"derived_metrics.interval": INTERVAL}})
+    derived_counts = per_bucket(derived, {"term": {"derived_metrics.interval": interval}})
 
     print()
-    print(f"  Documents per {INTERVAL} bucket over the last {args.window}")
+    print(f"  Documents per {interval} bucket over the last {args.window}")
     print(f"    source   {sparkline(source_counts)}  {summarize(source_counts)}")
     print(f"    derived  {sparkline(derived_counts)}  {summarize(derived_counts)}")
     if source_counts and derived_counts:
@@ -93,14 +95,14 @@ def main():
 
     metrics = search(derived, {
         "query": {"bool": {"filter": [
-            {"term": {"derived_metrics.interval": INTERVAL}},
+            {"term": {"derived_metrics.interval": interval}},
             window,
         ]}},
         "aggs": {"per_metric": {
             "terms": {"field": "metric.name", "size": 30},
             "aggs": {
                 "per_bucket": {
-                    "date_histogram": {"field": "@timestamp", "fixed_interval": INTERVAL, "min_doc_count": 1},
+                    "date_histogram": {"field": "@timestamp", "fixed_interval": interval, "min_doc_count": 1},
                     "aggs": {"value": {"sum": {"field": "metric.value"}}},
                 },
                 "latest": {"max_bucket": {"buckets_path": "per_bucket>value"}},
@@ -108,9 +110,19 @@ def main():
         }},
     })
 
+    if args.compare_with:
+        print()
+        print("  Derived documents per bucket for the same input, by configuration")
+        for label, stream in (("this stream", source), ("compared with", args.compare_with)):
+            counts = per_bucket(f"derived-metrics-{stream}-{interval}")
+            average = sum(counts) / len(counts) if counts else 0
+            print(f"    {label:<14} {stream:<30} {average:>7.0f} docs per {interval}")
+        print()
+        print("    Both streams receive identical documents, so the difference is configuration alone.")
+
     buckets = metrics.get("aggregations", {}).get("per_metric", {}).get("buckets", [])
     print()
-    print(f"  Peak value per metric over the last {args.window} ({INTERVAL} interval, summed across nodes)")
+    print(f"  Peak value per metric over the last {args.window} ({interval} interval, summed across nodes)")
     if not buckets:
         print("    no derived metrics yet; give it an interval or two")
     for bucket in buckets:

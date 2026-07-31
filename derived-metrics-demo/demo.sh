@@ -94,34 +94,51 @@ start_kibana() {
     || warn "Kibana is not answering yet; check 'docker logs ${KIBANA_CONTAINER}'"
 }
 
+stop_load() {
+  # Match on the command line rather than the pid file: a stale generator that outlived its pid file
+  # will happily keep writing, and if it beats setup.sh to a fresh cluster it auto-creates the data
+  # stream with a dynamically mapped @timestamp, which then breaks every date query.
+  if pgrep -f "$HERE/loadgen.py" >/dev/null 2>&1; then
+    pkill -f "$HERE/loadgen.py" 2>/dev/null || true
+    sleep 1
+  fi
+  rm -f "$RUN_DIR/loadgen.pid"
+}
+
 start_load() {
   if [[ -f "$RUN_DIR/loadgen.pid" ]] && kill -0 "$(cat "$RUN_DIR/loadgen.pid")" 2>/dev/null; then
     log "Load generator is already running (pid $(cat "$RUN_DIR/loadgen.pid"))"
     return 0
   fi
+  stop_load
   log "Starting the load generator"
   nohup python3 -u "$HERE/loadgen.py" \
     --url "${ES}" --user "${ES_USER}" --password "${ES_PASSWORD}" \
-    --data-stream "${DATA_STREAM}" --profile "${LOAD_PROFILE}" \
+    --data-stream "${DATA_STREAM}" --data-stream "${LEAN_DATA_STREAM}" --profile "${LOAD_PROFILE}" \
     > "$RUN_DIR/loadgen.log" 2>&1 &
   echo $! > "$RUN_DIR/loadgen.pid"
 }
 
 cmd_up() {
+  # A generator left over from a previous run would race setup.sh for the fresh cluster.
+  stop_load
   start_elasticsearch
   if [[ "${KIBANA:-}" != "skip" ]]; then
     start_kibana
   fi
-  bash "$HERE/setup.sh"
+  bash "$HERE/setup.sh" || warn "setup did not complete cleanly; see above"
   start_load
   cat <<BANNER
 
   Elasticsearch  ${ES}   (${ES_USER} / ${ES_PASSWORD})
   Kibana         http://localhost:${KIBANA_PORT}   (same credentials)
-  Dashboard      http://localhost:${KIBANA_PORT}/app/dashboards#/view/derived-metrics-demo-dashboard
+  Dashboards     http://localhost:${KIBANA_PORT}/app/dashboards#/view/derived-metrics-demo-dashboard
+                 http://localhost:${KIBANA_PORT}/app/dashboards#/view/derived-metrics-demo-dashboard-lean
 
-  source stream       ${DATA_STREAM}
-  derived metrics     derived-metrics-${DATA_STREAM}   (hidden data stream)
+  rich stream         ${DATA_STREAM}
+                      derived-metrics-${DATA_STREAM}-${DEFAULT_INTERVAL}   (hidden)
+  lean stream         ${LEAN_DATA_STREAM}   (same documents, far fewer metrics)
+                      derived-metrics-${LEAN_DATA_STREAM}-${DEFAULT_INTERVAL}   (hidden)
 
   ./demo.sh status    counts on both sides, plus the current derived values
   ./demo.sh logs      tail the load generator
@@ -134,7 +151,8 @@ cmd_status() {
   es_up || die "Elasticsearch is not running"
   python3 "$HERE/status.py" \
     --url "${ES}" --user "${ES_USER}" --password "${ES_PASSWORD}" \
-    --data-stream "${DATA_STREAM}"
+    --data-stream "${DATA_STREAM}" --interval "${DEFAULT_INTERVAL}" \
+    --compare-with "${LEAN_DATA_STREAM}"
 }
 
 # A closed, 10s-aligned window, for the side-by-side queries in compare.console. Closed because the
@@ -183,11 +201,8 @@ stop_elasticsearch() {
 }
 
 cmd_down() {
-  if [[ -f "$RUN_DIR/loadgen.pid" ]]; then
-    log "Stopping the load generator"
-    kill "$(cat "$RUN_DIR/loadgen.pid")" 2>/dev/null || true
-    rm -f "$RUN_DIR/loadgen.pid"
-  fi
+  log "Stopping the load generator"
+  stop_load
   if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
     log "Removing the Kibana container"
     docker rm -f "${KIBANA_CONTAINER}" >/dev/null 2>&1 || true
@@ -204,6 +219,7 @@ case "${1:-up}" in
   window)  cmd_window "${2:-5}" ;;
   eslogs)  cmd_eslogs ;;
   setup)   bash "$HERE/setup.sh" ;;
+  bootstrap-kibana) bash "$HERE/bootstrap-kibana.sh" ;;
   load)    start_load ;;
-  *)       die "usage: $0 [up|down|status|window|logs|eslogs|setup|load]" ;;
+  *)       die "usage: $0 [up|down|status|window|logs|eslogs|setup|bootstrap-kibana|load]" ;;
 esac

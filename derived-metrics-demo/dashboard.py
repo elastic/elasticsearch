@@ -16,11 +16,13 @@ import urllib.error
 import urllib.request
 
 DASHBOARD_ID = "derived-metrics-demo-dashboard"
+LEAN_DASHBOARD_ID = "derived-metrics-demo-dashboard-lean"
 LAYER = "layer_0"
 # Accessor ids are arbitrary; they only have to match between the columns and the visualisation.
 METRIC_COL = "metric_col"
 X_COL = "x_col"
 Y_COL = "y_col"
+BREAKDOWN_COL = "breakdown_col"
 
 
 def esql_layer(data_view_id, query, columns):
@@ -59,11 +61,15 @@ def metric_panel(title, data_view_id, query, value_field, subtitle):
     }
 
 
-def line_panel(title, data_view_id, query, x_field, y_field, colour):
+def line_panel(title, data_view_id, query, x_field, y_field, colour, breakdown_field=None):
+    """A line chart. With breakdown_field the series is split by that column, so one panel carries a
+    line per dimension value rather than a single aggregate line."""
     columns = [
         {"columnId": X_COL, "fieldName": x_field, "meta": {"type": "date"}},
         {"columnId": Y_COL, "fieldName": y_field, "meta": {"type": "number"}},
     ]
+    if breakdown_field:
+        columns.append({"columnId": BREAKDOWN_COL, "fieldName": breakdown_field, "meta": {"type": "string"}})
     return {
         "title": title,
         "visualizationType": "lnsXY",
@@ -76,7 +82,7 @@ def line_panel(title, data_view_id, query, x_field, y_field, colour):
             "filters": [],
             "query": {"language": "kuery", "query": ""},
             "visualization": {
-                "legend": {"isVisible": False, "position": "right"},
+                "legend": {"isVisible": bool(breakdown_field), "position": "right"},
                 "valueLabels": "hide",
                 "fittingFunction": "Linear",
                 "emphasizeFitting": True,
@@ -94,7 +100,9 @@ def line_panel(title, data_view_id, query, x_field, y_field, colour):
                         "seriesType": "line",
                         "xAccessor": X_COL,
                         "accessors": [Y_COL],
-                        "yConfig": [{"forAccessor": Y_COL, "color": colour}],
+                        # Lens colours split series from its palette, so a fixed colour would flatten them.
+                        **({"splitAccessors": [BREAKDOWN_COL]} if breakdown_field else {}),
+                        **({} if breakdown_field else {"yConfig": [{"forAccessor": Y_COL, "color": colour}]}),
                     }
                 ],
             },
@@ -204,12 +212,77 @@ def build_rows(derived_dv, source_dv, derived, source):
     ]
 
 
+
+def build_lean_rows(derived_dv, source_dv, derived, source, rich_derived_dv, rich_derived, rich_source):
+    """The lean stream's own panels, led by what its configuration costs against the rich one.
+
+    Both streams receive exactly the same documents, so any difference in derived volume is entirely
+    down to how many metrics and dimensions each one asks for.
+    """
+    b = "BUCKET(@timestamp, 10 second)"
+    return [
+        # --- the showcase: identical input, two configurations, two very different costs ---
+        row(METRIC_HEIGHT,
+            metric_panel("Derived documents stored  ·  LEAN config", derived_dv,
+                f"FROM {derived} | STATS documents = COUNT(*)",
+                "documents", "one rate, two metrics, no dimensions"),
+            metric_panel("Derived documents stored  ·  RICH config", rich_derived_dv,
+                f"FROM {rich_derived} | STATS documents = COUNT(*)",
+                "documents", "six built-ins, seven metrics, two dimensions")),
+        row(METRIC_HEIGHT,
+            metric_panel("Documents observed  ·  LEAN", derived_dv,
+                f'FROM {derived} | WHERE metric.name == "ingest.docs.rate" '
+                "| STATS docs = SUM(metric.value) * 10",
+                "docs", "reconstructed from ingest.docs.rate"),
+            metric_panel("Documents written to each source", source_dv,
+                f"FROM {source} | STATS docs = COUNT(*)",
+                "docs", f"the same documents also go to {rich_source}")),
+        row(CHART_HEIGHT,
+            line_panel("Derived documents per 10s  ·  LEAN", derived_dv,
+                f"FROM {derived} | STATS documents = COUNT(*) BY bucket = {b}",
+                "bucket", "documents", DERIVED_COLOUR),
+            line_panel("Derived documents per 10s  ·  RICH", rich_derived_dv,
+                f"FROM {rich_derived} | STATS documents = COUNT(*) BY bucket = {b}",
+                "bucket", "documents", SOURCE_COLOUR)),
+
+        # --- everything the lean configuration actually asks for, broken down by its one dimension ---
+        row(CHART_HEIGHT,
+            line_panel("Ingest rate per service, docs/sec  ·  DERIVED", derived_dv,
+                f'FROM {derived} | WHERE metric.name == "ingest.docs.rate" '
+                f"| STATS docs_per_sec = SUM(metric.value) BY bucket = {b}, service = dimensions.service.name",
+                "bucket", "docs_per_sec", DERIVED_COLOUR, breakdown_field="service"),
+            line_panel("Ingest rate per service, docs/sec  ·  SOURCE", source_dv,
+                f"FROM {source} | STATS docs_per_sec = TO_DOUBLE(COUNT(*)) / 10 BY bucket = {b}, service = service.name",
+                "bucket", "docs_per_sec", SOURCE_COLOUR, breakdown_field="service")),
+        row(CHART_HEIGHT,
+            line_panel("5xx errors per service  ·  DERIVED", derived_dv,
+                f'FROM {derived} | WHERE metric.name == "http.errors" '
+                f"| STATS errors = SUM(metric.value) BY bucket = {b}, service = dimensions.service.name",
+                "bucket", "errors", DERIVED_COLOUR, breakdown_field="service"),
+            line_panel("5xx errors per service  ·  SOURCE", source_dv,
+                f"FROM {source} | WHERE http.response.status_code >= 500 "
+                f"| STATS errors = COUNT(*) BY bucket = {b}, service = service.name",
+                "bucket", "errors", SOURCE_COLOUR, breakdown_field="service")),
+        row(CHART_HEIGHT,
+            line_panel("Peak queue depth per service  ·  DERIVED", derived_dv,
+                f'FROM {derived} | WHERE metric.name == "queue.depth.max" '
+                f"| STATS peak = MAX(metric.value) BY bucket = {b}, service = dimensions.service.name",
+                "bucket", "peak", DERIVED_COLOUR, breakdown_field="service"),
+            line_panel("Peak queue depth per service  ·  SOURCE", source_dv,
+                f"FROM {source} | STATS peak = MAX(queue.depth) BY bucket = {b}, service = service.name",
+                "bucket", "peak", SOURCE_COLOUR, breakdown_field="service")),
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kibana", default="http://localhost:5601")
     parser.add_argument("--user", default="elastic-admin")
     parser.add_argument("--password", default="elastic-password")
     parser.add_argument("--data-stream", default="logs-derived-demo-default")
+    parser.add_argument("--interval", default="10s")
+    parser.add_argument("--lean", action="store_true", help="build the lean stream's dashboard instead")
+    parser.add_argument("--compare-with", default=None, help="the rich stream to compare the lean one against")
     args = parser.parse_args()
 
     token = base64.b64encode(f"{args.user}:{args.password}".encode()).decode()
@@ -230,17 +303,48 @@ def main():
             return json.load(response)
 
     source = args.data_stream
-    derived = f"derived-metrics-{args.data_stream}"
+    derived = f"derived-metrics-{args.data_stream}-{args.interval}"
 
     found = call("GET", "/api/saved_objects/_find?type=index-pattern&per_page=100")
     by_title = {o["attributes"]["title"]: o["id"] for o in found["saved_objects"]}
-    missing = [t for t in (source, derived) if t not in by_title]
+    wanted_views = [source, derived]
+    if args.lean:
+        wanted_views.append(f"derived-metrics-{args.compare_with}-{args.interval}")
+    missing = [t for t in wanted_views if t not in by_title]
     if missing:
-        raise SystemExit(f"missing data views for {missing}; run ./demo.sh setup first")
+        raise SystemExit(
+            f"missing data views for {missing}. The destination only exists once metrics have been emitted, "
+            "so start the load generator with ./demo.sh load and re-run ./demo.sh setup."
+        )
+
+    if args.lean:
+        rich_source = args.compare_with
+        rich_derived = f"derived-metrics-{rich_source}-{args.interval}"
+        if rich_derived not in by_title:
+            raise SystemExit(f"missing data view for {rich_derived}; set up the rich stream first")
+        rows = build_lean_rows(
+            by_title[derived], by_title[source], derived, source, by_title[rich_derived], rich_derived, rich_source
+        )
+        dashboard_id = LEAN_DASHBOARD_ID
+        title = "Derived metrics — lean configuration, and what it saves"
+        description = (
+            "Both streams receive identical documents. The lean stream asks for one built-in rate, two metrics "
+            "and no dimensions; the rich stream asks for everything. The difference in stored documents is "
+            "entirely down to configuration."
+        )
+    else:
+        rows = build_rows(by_title[derived], by_title[source], derived, source)
+        dashboard_id = DASHBOARD_ID
+        title = "Derived metrics — derived vs source"
+        description = (
+            "Left: answered from derived metrics. Right: answered from the raw data stream. "
+            "The derived side trails by one unflushed interval (~13s). "
+            "Full-width panels are metrics the source stream cannot answer."
+        )
 
     panels, references = [], []
     y = 0
-    for index, (height, left, right) in enumerate(build_rows(by_title[derived], by_title[source], derived, source)):
+    for index, (height, left, right) in enumerate(rows):
         sides = (("l", left), ("r", right)) if right is not None else (("l", left),)
         for side, attributes in sides:
             panel_id = f"{index}{side}"
@@ -259,12 +363,8 @@ def main():
 
     dashboard = {
         "attributes": {
-            "title": "Derived metrics — derived vs source",
-            "description": (
-                "Left: answered from derived metrics. Right: answered from the raw data stream. "
-                "The derived side trails by one unflushed interval (~13s). "
-                "Full-width panels are metrics the source stream cannot answer."
-            ),
+            "title": title,
+            "description": description,
             "panelsJSON": json.dumps(panels),
             "optionsJSON": json.dumps({"hidePanelTitles": False, "useMargins": True, "syncColors": False}),
             "timeRestore": True,
@@ -282,11 +382,11 @@ def main():
     }
 
     try:
-        call("POST", f"/api/saved_objects/dashboard/{DASHBOARD_ID}?overwrite=true", dashboard)
+        call("POST", f"/api/saved_objects/dashboard/{dashboard_id}?overwrite=true", dashboard)
     except urllib.error.HTTPError as e:
         raise SystemExit(f"failed to create the dashboard: {e.read().decode()[:500]}")
 
-    print(f"    dashboard: {args.kibana}/app/dashboards#/view/{DASHBOARD_ID}")
+    print(f"    dashboard: {args.kibana}/app/dashboards#/view/{dashboard_id}")
 
 
 if __name__ == "__main__":

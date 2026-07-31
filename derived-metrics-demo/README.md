@@ -4,6 +4,9 @@ A local playground for the derived metrics feature. One command builds and start
 this checkout, runs Kibana in a container against it, configures a data stream with derived metrics,
 and indexes documents at a rate that deliberately swings up and down.
 
+It sets up **two** source streams that receive identical documents but ask for very different amounts
+of derived data, so you can see what configuration costs.
+
 The thing to watch: **the source write rate varies by orders of magnitude, and the derived document
 rate does not move.** The derived metrics still track the load, because the load is in the metric
 *values*, not in the number of documents.
@@ -33,9 +36,10 @@ To skip Kibana entirely: `KIBANA=skip ./demo.sh up`.
 |---|---|
 | Elasticsearch | <http://localhost:9200> — `elastic-admin` / `elastic-password` |
 | Kibana | <http://localhost:5601> — same credentials |
-| source data stream | `logs-derived-demo-default` |
-| derived metrics | `derived-metrics-logs-derived-demo-default` (hidden) |
-| dashboard | <http://localhost:5601/app/dashboards#/view/derived-metrics-demo-dashboard> |
+| rich source stream | `logs-derived-demo-default` |
+| lean source stream | `logs-derived-lean-default` — the same documents, far less configured |
+| derived metrics | `derived-metrics-<source>-10s` (hidden), one per source |
+| dashboards | [rich](http://localhost:5601/app/dashboards#/view/derived-metrics-demo-dashboard) · [lean](http://localhost:5601/app/dashboards#/view/derived-metrics-demo-dashboard-lean) |
 
 ## What `./demo.sh status` shows
 
@@ -63,9 +67,29 @@ series only exist while something is returning 5xx.
 If a phase is quiet enough that an interval sees no writes at all, that interval emits nothing rather
 than a zero, and `status` says so.
 
+## Two configurations, one input
+
+Every document is written to **both** source streams. They differ only in what they ask for:
+
+| | rich (`logs-derived-demo-default`) | lean (`logs-derived-lean-default`) |
+|---|---|---|
+| built-ins | all six `ingest.*` | `ingest.docs.rate` only |
+| dimensions | `service.name`, `cloud.region` | `service.name` |
+| user metrics | seven | two |
+| **derived documents** | **~255 per 10s** | **~27 per 10s** |
+
+Same write volume, ~9x less derived data. Derived cost is a function of metrics x dimensions x
+intervals, and nothing else — which is exactly the knob you have.
+
+`./demo.sh status` prints that comparison, and the lean dashboard leads with it.
+
+The lean stream keeps one dimension, so its metrics are still broken down per service across ten
+services, plotted as a line per service in a single graph.
+
 ## Looking at it in Kibana
 
-`./demo.sh up` builds a dashboard, **Derived metrics — derived vs source**. Every row asks the same
+`./demo.sh up` builds two dashboards. **Derived metrics — derived vs source** covers the rich stream;
+every row asks the same
 question twice: the **left** panel answers it from the derived metrics, the **right** panel answers it
 from the raw data stream. Reading down:
 
@@ -115,13 +139,14 @@ That second term is why lengthening the window changes the gap. Measured on a ru
 Align the leading edge and the gap collapses to a constant — the tail, and nothing else. That is what
 `compare.console` and `./demo.sh window` do, and why they agree to ~0.15%.
 
-`dashboard.py` regenerates it — edit that file and re-run `./demo.sh setup` to change the panels.
+`dashboard.py` regenerates both — edit that file and re-run `./demo.sh setup` to change the panels.
 
-Two data views are created for you, including one over the hidden destination stream (data views need
-`allowHidden` for that, which `setup.sh` sets):
+The second dashboard, **Derived metrics — lean configuration, and what it saves**, leads with the cost
+comparison above and then shows the lean stream's own metrics, each split per service in one graph.
 
-- **demo source stream** — the raw documents.
-- **demo derived metrics** — the derived series.
+Four data views are created for you — a source and a derived one per stream, named `demo …` and
+`lean …`. The derived ones need `allowHidden`, which `setup.sh` sets, because the destinations are
+hidden data streams.
 
 `queries.esql` in this directory has a dozen ready-made ES|QL queries, all verified against a running
 demo. Paste them into Discover in ES|QL mode.

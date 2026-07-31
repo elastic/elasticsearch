@@ -28,7 +28,7 @@
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "ingest.docs.count"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS docs = SUM(metric.value), documents_scanned = COUNT(*)
@@ -52,7 +52,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.errors"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS errors = SUM(metric.value)
@@ -77,7 +77,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.response.bytes"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS bytes = SUM(metric.value)
@@ -101,7 +101,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "queue.depth.max"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS peak = MAX(metric.value)
@@ -134,7 +134,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "event.duration.avg"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS avg_ms = ROUND(AVG(metric.value) / 1000000, 2)
@@ -145,7 +145,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name IN ("event.duration.avg", "ingest.docs.count")
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS avg_v = MAX(CASE(metric.name == "event.duration.avg", metric.value, null)),
@@ -176,7 +176,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "ingest.docs.rate"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS docs_per_sec = ROUND(SUM(metric.value), 1)
@@ -206,7 +206,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.requests"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS requests = SUM(metric.value) BY method = dimensions.http.request.method
@@ -234,7 +234,7 @@ POST /_query?format=txt
 POST /_query?format=txt
 {
   "query": """
-    FROM derived-metrics-logs-derived-demo-default
+    FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
     | STATS derived_documents = COUNT(*)
   """

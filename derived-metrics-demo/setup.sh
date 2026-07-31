@@ -25,7 +25,7 @@ DERIVED_METRICS=$(cat <<'JSON'
 {
   "enabled": true,
   "builtin": ["ingest.*"],
-  "intervals": ["10s"],
+  "default_interval": "__INTERVAL__",
   "dimensions": ["service.name", "cloud.region"],
   "metrics": [
     {
@@ -75,6 +75,7 @@ DERIVED_METRICS=$(cat <<'JSON'
 }
 JSON
 )
+DERIVED_METRICS=${DERIVED_METRICS/__INTERVAL__/${DEFAULT_INTERVAL}}
 
 echo "==> Creating index template [${INDEX_TEMPLATE}] for [${DATA_STREAM}]"
 # The derived metrics configuration lives in data_stream_options, so it is inherited by the data
@@ -122,39 +123,78 @@ es PUT "/_data_stream/${DATA_STREAM}" | python3 -m json.tool || true
 echo "==> Applying derived metrics to the live data stream"
 es PUT "/_data_stream/${DATA_STREAM}/_options" -d "{\"derived_metrics\": ${DERIVED_METRICS}}" | python3 -m json.tool
 
+
+# The lean stream receives exactly the same documents but asks for far less: one built-in rate, two
+# user metrics, and a single dimension. Its derived volume is a fraction of the rich stream's, which
+# is the point of the comparison, while still being broken down per service.
+LEAN_DERIVED_METRICS=$(cat <<'JSON'
+{
+  "enabled": true,
+  "builtin": ["ingest.docs.rate"],
+  "default_interval": "__INTERVAL__",
+  "dimensions": ["service.name"],
+  "metrics": [
+    {
+      "name": "http.errors",
+      "type": "counter",
+      "when": { "range": { "http.response.status_code": { "gte": 500 } } },
+      "value": 1
+    },
+    {
+      "name": "queue.depth.max",
+      "type": "gauge",
+      "value": { "field": "queue.depth" },
+      "aggregation": "max"
+    }
+  ]
+}
+JSON
+)
+LEAN_DERIVED_METRICS=${LEAN_DERIVED_METRICS/__INTERVAL__/${DEFAULT_INTERVAL}}
+
+echo "==> Creating index template [${LEAN_INDEX_TEMPLATE}] for [${LEAN_DATA_STREAM}]"
+es PUT "/_index_template/${LEAN_INDEX_TEMPLATE}" -d @- <<JSON | python3 -m json.tool
+{
+  "index_patterns": ["${LEAN_DATA_STREAM}"],
+  "priority": 200,
+  "data_stream": {},
+  "template": {
+    "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+    "mappings": {
+      "properties": {
+        "@timestamp":                 { "type": "date" },
+        "message":                    { "type": "text" },
+        "service":   { "properties": { "name": { "type": "keyword" } } },
+        "cloud":     { "properties": { "region": { "type": "keyword" } } },
+        "host":      { "properties": { "name": { "type": "keyword" } } },
+        "event":     { "properties": { "duration": { "type": "long" }, "outcome": { "type": "keyword" } } },
+        "queue":     { "properties": { "depth": { "type": "long" } } },
+        "http": {
+          "properties": {
+            "request":  { "properties": { "method": { "type": "keyword" } } },
+            "response": { "properties": { "status_code": { "type": "short" }, "body": { "properties": { "bytes": { "type": "long" } } } } }
+          }
+        }
+      }
+    },
+    "data_stream_options": { "derived_metrics": ${LEAN_DERIVED_METRICS} }
+  }
+}
+JSON
+
+echo "==> Creating data stream [${LEAN_DATA_STREAM}]"
+es PUT "/_data_stream/${LEAN_DATA_STREAM}" | python3 -m json.tool || true
+
+echo "==> Applying derived metrics to the live lean data stream"
+es PUT "/_data_stream/${LEAN_DATA_STREAM}/_options" -d "{\"derived_metrics\": ${LEAN_DERIVED_METRICS}}" | python3 -m json.tool
+
 echo "==> Effective derived metrics configuration"
 es GET "/_data_stream/${DATA_STREAM}/_options" | python3 -m json.tool
 
-# Kibana data views are optional: the demo is still usable through the ES API without them.
-if curl -sS -m 5 -o /dev/null "${KB}/api/status" 2>/dev/null; then
-  create_data_view() {
-    local title=$1 name=$2
-    echo "==> Creating Kibana data view [${name}] for [${title}]"
-    # allowHidden matters for the destination, which is a hidden data stream.
-    curl -sS -X POST "${KB}/api/data_views/data_view" \
-      "${AUTH[@]}" \
-      -H 'Content-Type: application/json' \
-      -H 'kbn-xsrf: true' \
-      -d "{\"data_view\":{\"title\":\"${title}\",\"name\":\"${name}\",\"timeFieldName\":\"@timestamp\",\"allowHidden\":true}}" \
-      | python3 -c 'import sys,json
-try:
-    r = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-if "data_view" in r:
-    print("    created:", r["data_view"]["id"])
-else:
-    print("    skipped:", r.get("message", r))'
-  }
-  create_data_view "${DATA_STREAM}" "demo source stream"
-  create_data_view "derived-metrics-${DATA_STREAM}" "demo derived metrics"
-
-  echo "==> Creating the comparison dashboard"
-  python3 "$HERE/dashboard.py" \
-    --kibana "${KB}" --user "${ES_USER}" --password "${ES_PASSWORD}" \
-    --data-stream "${DATA_STREAM}"
-else
-  echo "==> Kibana is not reachable at ${KB}, skipping data view creation"
+# Kibana is optional: the demo is usable through the ES API without it, and it may still be starting.
+# Its bootstrap lives in its own script so it can be re-run on demand with ./demo.sh bootstrap-kibana.
+if ! bash "$HERE/bootstrap-kibana.sh"; then
+  echo "==> Skipping Kibana for now; run ./demo.sh bootstrap-kibana once it is ready"
 fi
 
 echo

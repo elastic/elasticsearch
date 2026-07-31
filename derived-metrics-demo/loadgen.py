@@ -20,12 +20,44 @@ import urllib.error
 import urllib.request
 from collections import deque
 
-SERVICES = ["checkout", "search", "cart", "payments", "recommendations"]
+class Service:
+    """One service's personality.
+
+    Services differ in how much traffic they take, how reliably they answer, and how slow they are, so
+    that a per-service breakdown shows ten distinguishable lines rather than ten copies of the same
+    one. `fault` scales the phase's 5xx ratio, so a spike hurts the fragile services far more than the
+    healthy ones.
+    """
+
+    def __init__(self, name, weight, fault, client_error, latency_ms, queue):
+        self.name = name
+        self.weight = weight
+        self.fault = fault
+        self.client_error = client_error
+        self.latency_ns = latency_ms * 1_000_000
+        self.queue = queue
+
+
+SERVICES = [
+    #       name              traffic  5xx x  4xx    latency  queue
+    Service("search",           2.5,   0.3,  0.02,     20,      8),
+    Service("checkout",         1.6,   1.0,  0.04,     45,     25),
+    Service("cart",             1.2,   0.6,  0.06,     30,     15),
+    Service("accounts",         1.1,   0.5,  0.09,     35,     10),   # auth failures, mostly 4xx
+    Service("recommendations",  1.0,   0.4,  0.01,     60,     12),
+    Service("inventory",        0.9,   1.8,  0.05,     80,     30),
+    Service("payments",         0.8,   2.5,  0.03,    120,     40),   # slow and fragile
+    Service("shipping",         0.6,   1.2,  0.02,     95,     20),
+    Service("pricing",          0.7,   0.2,  0.01,     25,      6),   # the reliable one
+    Service("notifications",    0.5,   3.0,  0.02,    150,     55),   # the worst offender
+]
+SERVICE_WEIGHTS = [s.weight for s in SERVICES]
 REGIONS = ["eu-west-1", "us-east-1", "ap-south-1"]
 METHODS = ["GET", "POST", "PUT", "DELETE"]
 HOSTS = [f"host-{i:02d}" for i in range(1, 7)]
 
 # (label, seconds, docs/sec at start, docs/sec at end, ratio of 5xx responses)
+# These are documents generated; each one is written to every configured stream.
 CYCLE = [
     ("calm", 60, 100, 100, 0.01),
     ("ramp up", 90, 100, 1500, 0.02),
@@ -43,8 +75,11 @@ PROFILES = {
 
 
 class Indexer:
-    def __init__(self, url, user, password, data_stream):
-        self.bulk_url = f"{url}/{data_stream}/_bulk"
+    def __init__(self, url, user, password, data_streams):
+        # Every document is written to every stream, so the streams differ only in how they are
+        # configured. The action line names the target, so one bulk request covers all of them.
+        self.data_streams = data_streams
+        self.bulk_url = f"{url}/_bulk"
         token = base64.b64encode(f"{user}:{password}".encode()).decode()
         self.headers = {
             "Content-Type": "application/x-ndjson",
@@ -55,19 +90,21 @@ class Indexer:
         self.lock = threading.Lock()
 
     def document(self, now_ms, error_ratio):
-        service = random.choice(SERVICES)
-        if random.random() < error_ratio:
+        service = random.choices(SERVICES, weights=SERVICE_WEIGHTS, k=1)[0]
+        # The phase sets the weather; the service decides how badly it copes with it.
+        faults = min(0.9, error_ratio * service.fault)
+        if random.random() < faults:
             status = random.choice([500, 502, 503])
-        elif random.random() < 0.05:
+        elif random.random() < service.client_error:
             status = random.choice([400, 404, 429])
         else:
             status = 200
-        # Latency and queue depth track the error ratio, so a spike is visible in the gauges too.
-        latency_base = 40_000_000 if status < 500 else 900_000_000
+        # A failing request is far slower than a healthy one, so the latency gauge moves with the errors.
+        latency_base = service.latency_ns * (12 if status >= 500 else 1)
         return {
             "@timestamp": now_ms,
-            "message": f"{service} handled a request",
-            "service": {"name": service},
+            "message": f"{service.name} handled a request",
+            "service": {"name": service.name},
             "cloud": {"region": random.choice(REGIONS)},
             "host": {"name": random.choice(HOSTS)},
             "http": {
@@ -81,7 +118,7 @@ class Indexer:
                 "duration": int(random.expovariate(1 / latency_base)),
                 "outcome": "failure" if status >= 500 else "success",
             },
-            "queue": {"depth": max(0, int(random.gauss(20 + 200 * error_ratio, 8)))},
+            "queue": {"depth": max(0, int(random.gauss(service.queue * (1 + 8 * faults), service.queue / 4)))},
         }
 
     def send(self, count, error_ratio):
@@ -90,9 +127,11 @@ class Indexer:
         now_ms = int(time.time() * 1000)
         lines = []
         for _ in range(count):
-            # Data streams only accept create.
-            lines.append('{"create":{}}')
-            lines.append(json.dumps(self.document(now_ms, error_ratio)))
+            document = json.dumps(self.document(now_ms, error_ratio))
+            for data_stream in self.data_streams:
+                # Data streams only accept create.
+                lines.append(json.dumps({"create": {"_index": data_stream}}))
+                lines.append(document)
         body = ("\n".join(lines) + "\n").encode()
         request = urllib.request.Request(self.bulk_url, data=body, headers=self.headers, method="POST")
         try:
@@ -100,7 +139,8 @@ class Indexer:
                 payload = json.load(response)
             errors = sum(1 for item in payload.get("items", []) if item.get("create", {}).get("error"))
             with self.lock:
-                self.indexed += count - errors
+                # count is documents generated; each one lands in every stream
+                self.indexed += count * len(self.data_streams) - errors
                 self.failed += errors
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             with self.lock:
@@ -121,7 +161,10 @@ def main():
     parser.add_argument("--url", default="http://localhost:9200")
     parser.add_argument("--user", default="elastic-admin")
     parser.add_argument("--password", default="elastic-password")
-    parser.add_argument("--data-stream", default="logs-derived-demo-default")
+    parser.add_argument(
+        "--data-stream", action="append", dest="data_streams", default=None,
+        help="repeat to write the same documents to more than one stream"
+    )
     parser.add_argument("--profile", default="cycle", choices=sorted(PROFILES))
     parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
@@ -130,7 +173,8 @@ def main():
         random.seed(args.seed)
 
     phases = PROFILES[args.profile]
-    indexer = Indexer(args.url, args.user, args.password, args.data_stream)
+    data_streams = args.data_streams or ["logs-derived-demo-default"]
+    indexer = Indexer(args.url, args.user, args.password, data_streams)
     # A small pool keeps the higher rates achievable without letting requests pile up unboundedly.
     workers = []
     pending = deque()
@@ -151,7 +195,7 @@ def main():
         thread.start()
         workers.append(thread)
 
-    print(f"Indexing into {args.data_stream} with the '{args.profile}' profile. Ctrl-C to stop.")
+    print(f"Indexing into {', '.join(data_streams)} with the '{args.profile}' profile. Ctrl-C to stop.")
     tick = 0.1  # seconds
     try:
         while True:

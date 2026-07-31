@@ -1317,6 +1317,26 @@ c:long | cluster:keyword
 5      | staging
 ;
 
+// Wildcard patterns that match views are silently excluded from TS commands.
+// view_k8s_* matches several loaded views but none is a concrete name in the pattern,
+// so they are skipped and the result is identical to plain TS k8s.
+tsWildcardSkipsViews
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: ts_command_wildcards_skip_views
+
+TS k8s, view_k8s_*
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT max_bytes DESC
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+10277          | prod
+7403           | staging
+;
+
 tsViewAndIndexPatternWithStats
 required_capability: subquery_in_from_command
 required_capability: views_with_no_branching

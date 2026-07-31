@@ -1029,7 +1029,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
                                 @SuppressWarnings("rawtypes")
                                 @Override
-                                public void onResponseReceived(final long responseRequestId, final Transport.ResponseContext context) {
+                                public void onResponseReceived(
+                                    final long responseRequestId,
+                                    final Transport.ResponseContext context,
+                                    final int networkMessageSize
+                                ) {
                                     if (requestId == responseRequestId) {
                                         final RetentionLeaseNotFoundException e = new RetentionLeaseNotFoundException(retentionLeaseId);
                                         context.handler().handleException(new RemoteTransportException(e.getMessage(), e));

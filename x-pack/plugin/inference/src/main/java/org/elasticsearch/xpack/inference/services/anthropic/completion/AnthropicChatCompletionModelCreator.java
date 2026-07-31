@@ -14,14 +14,23 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.anthropic.compatibility.CompatibilityService;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link AnthropicChatCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
 public class AnthropicChatCompletionModelCreator implements ModelCreator<AnthropicChatCompletionModel> {
+
+    private final CompatibilityService compatibilityService;
+
+    public AnthropicChatCompletionModelCreator(CompatibilityService compatibilityService) {
+        this.compatibilityService = Objects.requireNonNull(compatibilityService);
+    }
+
     @Override
     public AnthropicChatCompletionModel createFromMaps(
         String inferenceId,
@@ -33,7 +42,17 @@ public class AnthropicChatCompletionModelCreator implements ModelCreator<Anthrop
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AnthropicChatCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        var model = new AnthropicChatCompletionModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            context
+        );
+        compatibilityService.checkCompatibility(model.getServiceSettings(), context);
+        return model;
     }
 
     @Override

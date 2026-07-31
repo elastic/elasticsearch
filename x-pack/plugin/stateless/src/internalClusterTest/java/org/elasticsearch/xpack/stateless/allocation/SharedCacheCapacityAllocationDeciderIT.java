@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.CacheSizesAndCommitmentStats;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
-    public void testCanRemainDeprioritizesOversubscribedNode() throws Exception {
+    public void testCanRemainDeprioritizesOversubscribedNode() {
         startMasterOnlyNode();
         startIndexNode();
         // Start with only one search node, so the shard's initial host is unambiguous and there is no alternative node an incidental
@@ -157,26 +158,17 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
 
         // Only now introduce a healthy alternative node. Nothing could have relocated the shard prematurely before this point, since
-        // no alternative existed.
+        // no alternative existed. There's no need to fake anything for the new node, as the decider treats a node it has no cache data
+        // for as healthy. Joining the cluster triggers a reroute of its own, so the reconciler picks up the existing oversubscription
+        // and relocates the shard without any explicit reroute call here.
         final var healthySearchNode = startSearchNode();
         ensureStableCluster(4);
         final String healthyNodeId = getNodeId(healthySearchNode);
-        final long healthyBoostedCommitmentBytes = 0L;
-        fakeNodeCacheSizeAndCommitments(
-            Map.of(
-                hostedNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
-                healthyNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, healthyBoostedCommitmentBytes, noUnboostedCommitmentBytes)
-            )
-        );
 
-        // The reconciler only moves shards away from a node when canRemain returns NO/NOT_PREFERRED and a better target exists. Drive
-        // reroute passes until it picks up the fake oversubscription and relocates the shard to the healthy node.
-        assertBusy(() -> {
-            ClusterRerouteUtils.reroute(client());
-            assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(healthyNodeId));
-        });
+        awaitClusterState(
+            state -> state.getRoutingNodes().node(healthyNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isPresent()
+                && state.getRoutingNodes().node(hostedNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isEmpty()
+        );
     }
 
     public void testCanAllocateNotPreferredWhenShardRequirementWouldExceedWatermark() {
@@ -315,7 +307,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
-    public void testCanRemainDisabledThenEnabledDynamically() throws Exception {
+    public void testCanRemainDisabledThenEnabledDynamically() {
         startMasterOnlyNode();
         startIndexNode();
         final var searchNodeA = startSearchNode();
@@ -340,16 +332,14 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // while disabled" assertions below even run.
         updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false));
 
-        // The hosting node is heavily over the 95% high watermark. The other search node has no commitment at all.
+        // The hosting node is heavily over the 95% high watermark. No need to fake anything for the other node, as the decider treats a
+        // node it has no cache data for as healthy (YES).
         final long hostedBoostedCommitmentBytes = bytesForPercent(97);
-        final long otherBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
         fakeNodeCacheSizeAndCommitments(
             Map.of(
                 hostedNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
-                otherNodeId,
-                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+                new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes)
             )
         );
 
@@ -379,10 +369,11 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // Re-enabling canRemain dynamically, without restarting any node, should let the same fake oversubscription trigger
         // relocation.
         updateClusterSettings(Settings.builder().putNull(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey()));
-        assertBusy(() -> {
-            ClusterRerouteUtils.reroute(client());
-            assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(otherNodeId));
-        });
+        ClusterRerouteUtils.reroute(client());
+        awaitClusterState(
+            state -> state.getRoutingNodes().node(otherNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isPresent()
+                && state.getRoutingNodes().node(hostedNodeId).shardsWithState(indexName, ShardRoutingState.STARTED).findAny().isEmpty()
+        );
     }
 
     public void testCanRemainNotPreferredButShardStaysAssignedWithNoAlternativeNode() {

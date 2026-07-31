@@ -51,10 +51,6 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     static final String INDEX_NODE_ID = "index-node-id";
     static final String INDEX_NODE_NAME = "index-node-name";
 
-    private static final String SEARCH_NODE_NAME = "search-node-name";
-    private static final String OTHER_SEARCH_NODE_NAME = "other-" + SEARCH_NODE_NAME;
-    private static final String INDEX_NODE_NAME = "index-node-name";
-
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final long NO_COMMITMENT_BYTES = 0L;
     private static final int LOW_WATERMARK_PERCENT = 75;

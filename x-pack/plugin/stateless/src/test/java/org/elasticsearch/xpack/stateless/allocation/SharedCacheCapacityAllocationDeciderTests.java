@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -45,6 +46,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     static final String SEARCH_NODE_ID = "search-node";
     static final String OTHER_SEARCH_NODE_ID = "other-" + SEARCH_NODE_ID;
     static final String INDEX_NODE_ID = "index-node";
+
+    private static final String SEARCH_NODE_NAME = "search-node-name";
+    private static final String OTHER_SEARCH_NODE_NAME = "other-" + SEARCH_NODE_NAME;
+    private static final String INDEX_NODE_NAME = "index-node-name";
 
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final long NO_COMMITMENT_BYTES = 0L;
@@ -95,16 +100,13 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
 
         final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+        final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
-        final Decision decision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
-            routingAllocation
-        );
+        final Decision decision = decider.canAllocate(shardRouting, searchNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
-            containsString("no cache size and commitment data available for node [" + SEARCH_NODE_ID + "]")
+            containsString("no cache size and commitment data available for node [" + searchNode.getShortNodeDescription() + "]")
         );
     }
 
@@ -119,18 +121,15 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             Map.of()
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+        final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
-        final Decision decision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
-            routingAllocation
-        );
+        final Decision decision = decider.canAllocate(shardRouting, searchNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
             decision.getExplanation(),
             containsString(
                 "node ["
-                    + SEARCH_NODE_ID
+                    + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
                     + overWatermarkCommitmentBytes
                     + "] bytes already exceeds the low "
@@ -278,17 +277,14 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             HIGH_WATERMARK_PERCENT
         );
         final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
-        final Decision totalDecision = totalDecider.canAllocate(
-            shardRouting,
-            totalAllocation.routingNodes().node(SEARCH_NODE_ID),
-            totalAllocation
-        );
+        final RoutingNode totalSearchNode = totalAllocation.routingNodes().node(SEARCH_NODE_ID);
+        final Decision totalDecision = totalDecider.canAllocate(shardRouting, totalSearchNode, totalAllocation);
         assertThat(totalDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
             totalDecision.getExplanation(),
             containsString(
                 "node ["
-                    + SEARCH_NODE_ID
+                    + totalSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
                     + totalCommitmentBytes
                     + "] bytes already exceeds the low watermark "
@@ -431,8 +427,8 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
 
     private static DiscoveryNodes.Builder nodesBuilder() {
         return DiscoveryNodes.builder()
-            .add(newNode(SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)))
-            .add(newNode(OTHER_SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)))
-            .add(newNode(INDEX_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)));
+            .add(newNode(SEARCH_NODE_NAME, SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)))
+            .add(newNode(OTHER_SEARCH_NODE_NAME, OTHER_SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)))
+            .add(newNode(INDEX_NODE_NAME, INDEX_NODE_ID, Set.of(DiscoveryNodeRole.INDEX_ROLE)));
     }
 }

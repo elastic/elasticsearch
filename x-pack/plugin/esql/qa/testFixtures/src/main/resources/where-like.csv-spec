@@ -1542,10 +1542,15 @@ c:long
 
 likeConstantExpressionConcat
 required_capability: like_rlike_constant_expression
-from employees | where first_name like concat("Eber", "*") | keep emp_no, first_name;
+// tag::likeConstExprConcat[]
+from employees | where first_name like concat("Eber", "*") | keep emp_no, first_name
+// end::likeConstExprConcat[]
+;
 
+// tag::likeConstExprConcat-result[]
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
+// end::likeConstExprConcat-result[]
 ;
 
 

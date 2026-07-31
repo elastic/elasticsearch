@@ -18,7 +18,6 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.Suggest;
@@ -34,6 +33,8 @@ import java.util.Set;
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
     public static final CompletionSuggester INSTANCE = new CompletionSuggester();
+
+    private static final String COLLECTOR_MEMORY_LABEL = "completion-suggest-collector";
 
     private CompletionSuggester() {}
 
@@ -52,10 +53,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             // TopSuggestGroupDocsCollector uses a Lucene's SuggestScoreDocPriorityQueue
             // which extends PriorityQueue and allocates a heap array of length shardSize + 1. This is the
             // dominant cost so we make sure here we have enough heap to allocate it
-            long collectorBytes = RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (shardSize + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-            );
-            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, "completion-suggest-collector");
+            long collectorBytes = priorityQueueRamBytesUsed(shardSize);
+            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             try {
                 TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
                 suggest(searcher, suggestionContext.toQuery(), collector);

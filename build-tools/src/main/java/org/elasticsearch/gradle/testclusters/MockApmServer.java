@@ -15,6 +15,9 @@ import io.grpc.stub.StreamObserver;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
 import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -105,8 +108,8 @@ public class MockApmServer {
         instance = server;
         logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
 
-        grpcInstance = ServerBuilder.forPort(0).addService(new GrpcMetricsService()).build().start();
-        logger.lifecycle("MockApmServer gRPC (OTLP metrics) started on port " + grpcInstance.getPort());
+        grpcInstance = ServerBuilder.forPort(0).addService(new GrpcMetricsService()).addService(new GrpcTraceService()).build().start();
+        logger.lifecycle("MockApmServer gRPC (OTLP metrics + traces) started on port " + grpcInstance.getPort());
     }
 
     public int getPort() {
@@ -263,6 +266,15 @@ public class MockApmServer {
             if (samples.isEmpty() == false) {
                 logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
             }
+        }
+    }
+
+    class GrpcTraceService extends TraceServiceGrpc.TraceServiceImplBase {
+        @Override
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            logger.lifecycle("OTLP Spans:\n{}", request);
+            responseObserver.onNext(ExportTraceServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 }

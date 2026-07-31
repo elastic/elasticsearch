@@ -57,6 +57,16 @@ public class Clusters {
         return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider, false, false);
     }
 
+    /**
+     * A cluster with the feature registered but no {@link Federation#FEDERATION_ENABLED} in {@code elasticsearch.yml},
+     * so the node takes the build default: federation is on in a snapshot build and off in a release build. Used by
+     * {@link FederationBuildDefaultRestIT}, whose subject is the default itself. Every other suite here pins the
+     * setting, or unregisters the feature, so that its outcome does not depend on how the distribution was built.
+     */
+    public static ElasticsearchCluster clusterWithoutFederationSettings() {
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false);
+    }
+
     private static ElasticsearchCluster testCluster(
         Path csvDataPath,
         LocalClusterConfigProvider configProvider,
@@ -77,10 +87,11 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false");
         if (federationSettings) {
-            // Federation is opt-in for users; the data source and dataset suites here need it on. A test that wants the
-            // default-off surface turns it back off through the config provider applied below. This default is a
-            // supplier, not a plain value, so that a config provider can override it with either form: explicit
-            // settings win over suppliers regardless of order, and among suppliers the last one applied wins.
+            // Federation is only on by default in snapshot builds; the data source and dataset suites here need it on
+            // in a release build too. A test that wants the unavailable surface turns it back off through the config
+            // provider applied below. This default is a supplier, not a plain value, so that a config provider can
+            // override it with either form: explicit settings win over suppliers regardless of order, and among
+            // suppliers the last one applied wins.
             builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
                 .setting("esql.datasource.local_allowed_paths", csvDataPath::toString);
         }

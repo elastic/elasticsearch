@@ -22,7 +22,6 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Verifies that {@link NumericPipelineSelector} is called per field and that the pipeline it
@@ -40,13 +39,11 @@ public class NumericPipelineSelectorTests extends ESTestCase {
     private static final byte[] ALP_COUNTER_TRANSFORM_IDS = { 4, 3, 0, 1, 2 };
 
     public void testSelectorIsInvokedPerField() throws IOException {
-        final AtomicReference<String> capturedName = new AtomicReference<>();
         final NumericPipelineSelector selector = (fieldName, blockSize) -> {
-            capturedName.set(fieldName);
+            assertEquals("my_field", fieldName);
             return NumericPipeline.defaultPipeline(blockSize);
         };
         writeAndReadMetadata("my_field", selector, longValues());
-        assertEquals("my_field", capturedName.get());
     }
 
     public void testDefaultPipelineTransformIds() throws IOException {

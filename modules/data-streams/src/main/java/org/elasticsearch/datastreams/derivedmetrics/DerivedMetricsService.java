@@ -35,16 +35,20 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 /**
  * Owns the node-local derived metrics state: it observes writes handed to it by {@link DerivedMetricsIndexingListener}, buffers them per
@@ -197,15 +201,22 @@ public class DerivedMetricsService implements Closeable {
     private final AtomicLong droppedForBackpressure = new AtomicLong();
     private final AtomicLong earlyFlushes = new AtomicLong();
     private final AtomicLong droppedForIndexingPressure = new AtomicLong();
+    private final AtomicLong lostSeries = new AtomicLong();
+    private final AtomicLong emissionFailures = new AtomicLong();
     private final IndexingPressure indexingPressure;
     private final double indexingPressureCeiling;
     private final Executor executor;
+    private final MeterRegistry meterRegistry;
+    private final List<AutoCloseable> metrics = new ArrayList<>();
 
     private final ThreadLocal<RecordingScratch> scratches = ThreadLocal.withInitial(RecordingScratch::new);
 
     private volatile Scheduler.Cancellable scheduled;
     private volatile boolean closed;
     private long lastReportedDrops;
+    private final long[] reportedBackpressureDrops = new long[1];
+    private final long[] reportedIndexingPressureDrops = new long[1];
+    private final long[] reportedEarlyFlushes = new long[1];
 
     public DerivedMetricsService(
         Settings settings,
@@ -213,6 +224,7 @@ public class DerivedMetricsService implements Closeable {
         ThreadPool threadPool,
         BigArrays bigArrays,
         IndexingPressure indexingPressure,
+        MeterRegistry meterRegistry,
         String nodeName
     ) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
@@ -220,11 +232,15 @@ public class DerivedMetricsService implements Closeable {
         this.executor = threadPool.executor(DataStreamsPlugin.DERIVED_METRICS_THREAD_POOL);
         this.indexingPressure = indexingPressure;
         this.indexingPressureCeiling = INDEXING_PRESSURE_CEILING.get(settings);
+        this.meterRegistry = meterRegistry;
         this.buffer = new DerivedMetricsBuffer(
             bigArrays,
             MAX_SERIES_PER_NODE.get(settings),
             MAX_SERIES_PER_STREAM.get(settings),
-            HISTOGRAM_BUCKETS.get(settings)
+            HISTOGRAM_BUCKETS.get(settings),
+            // Vary the first partial's offset per service instance, so a node that restarts inside a bucket it had already emitted for
+            // does not stamp a second partial at the same timestamp and have it silently rejected as a duplicate _id.
+            Math.floorMod(threadPool.absoluteTimeInMillis(), PARTIAL_SEED_RANGE)
         );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
@@ -234,8 +250,53 @@ public class DerivedMetricsService implements Closeable {
         this.nodeName = nodeName;
     }
 
+    /**
+     * How many distinct starting offsets a partial can take. Small enough to leave the rest of the interval for actual partials, large
+     * enough that two restarts inside one bucket are very unlikely to pick the same one.
+     */
+    private static final int PARTIAL_SEED_RANGE = 128;
+
     public void init() {
+        registerMetrics();
         scheduled = threadPool.scheduleWithFixedDelay(this::flush, flushInterval, executor);
+    }
+
+    /**
+     * Publishes what the feature is shedding, because every one of these was previously only a log line — which means nobody sees it until
+     * they go looking, and nobody can alert on it at all.
+     */
+    private void registerMetrics() {
+        register("es.derived_metrics.series.current", "series currently buffered on this node", "count", () -> (long) buffer.size());
+        register(
+            "es.derived_metrics.series.dropped.total",
+            "observations dropped because a series cap or the circuit breaker refused them",
+            "count",
+            buffer::droppedSeries
+        );
+        register(
+            "es.derived_metrics.series.lost.total",
+            "buffered series lost because they could not be flushed before this node stopped observing",
+            "count",
+            lostSeries::get
+        );
+        register(
+            "es.derived_metrics.documents.dropped.backpressure.total",
+            "documents dropped because the destination was not keeping up",
+            "count",
+            droppedForBackpressure::get
+        );
+        register(
+            "es.derived_metrics.documents.dropped.indexing_pressure.total",
+            "documents dropped because the node was above its indexing pressure ceiling",
+            "count",
+            droppedForIndexingPressure::get
+        );
+        register("es.derived_metrics.documents.failed.total", "documents whose bulk request failed", "count", emissionFailures::get);
+        register("es.derived_metrics.flushes.early.total", "buckets flushed early because the buffer was full", "count", earlyFlushes::get);
+    }
+
+    private void register(String name, String description, String unit, LongSupplier value) {
+        metrics.add(meterRegistry.registerLongAsyncCounter(name, description, unit, () -> new LongWithAttributes(value.getAsLong())));
     }
 
     /**
@@ -442,6 +503,44 @@ public class DerivedMetricsService implements Closeable {
     }
 
     /**
+     * Emits everything buffered, including intervals that are still open, because something is about to make this node stop observing
+     * the writes those intervals cover.
+     *
+     * <p>This is the bounded-durability half of the contract. Nothing is persisted, so a hard kill still loses the open interval, but
+     * every loss the node can see coming — a shard leaving, an orderly shutdown — is avoided rather than left to chance.
+     */
+    void flushEverything(String reason) {
+        if (closed) {
+            return;
+        }
+        List<Drained> drained = buffer.drainAll();
+        if (drained.isEmpty()) {
+            return;
+        }
+        logger.debug("flushing [{}] buffered derived metric series because {}", drained.size(), reason);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                emit(drained);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                drained.forEach(entry -> entry.table().close());
+                logger.warn(() -> "failed to flush derived metrics because " + reason, e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                long lost = drained.stream().mapToLong(entry -> entry.table().size()).sum();
+                lostSeries.addAndGet(lost);
+                drained.forEach(entry -> entry.table().close());
+                logger.warn("lost [{}] buffered derived metric series: the derived metrics pool was full while {}", lost, reason);
+            }
+        });
+    }
+
+    /**
      * Converts and sends in bulk-sized chunks rather than materialising every drained bucket first, so peak memory during a flush is one
      * bulk rather than the whole drained set. Every drained table is closed, which is what returns its memory to the circuit breaker.
      */
@@ -506,6 +605,7 @@ public class DerivedMetricsService implements Closeable {
 
             @Override
             public void onFailure(Exception e) {
+                emissionFailures.addAndGet(documents);
                 logger.warn(() -> "failed to write [" + documents + "] derived metric documents for project [" + project + "]", e);
             }
         }, () -> inFlightDocuments.addAndGet(-documents)));
@@ -524,8 +624,12 @@ public class DerivedMetricsService implements Closeable {
         return limit > 0 && stats.getCurrentCombinedCoordinatingAndPrimaryBytes() > limit * indexingPressureCeiling;
     }
 
+    /**
+     * Logs what has been shed since the last flush. The counters themselves are cumulative, because they are also published as metrics;
+     * this only reports the delta so the logs stay readable.
+     */
     private void reportDrops() {
-        long shed = droppedForBackpressure.getAndSet(0);
+        long shed = delta(droppedForBackpressure, reportedBackpressureDrops);
         if (shed > 0) {
             logger.warn(
                 "derived metrics dropped [{}] documents because [{}] were already in flight; the destination is not keeping up",
@@ -533,7 +637,17 @@ public class DerivedMetricsService implements Closeable {
                 maxInFlightDocuments
             );
         }
-        long early = earlyFlushes.getAndSet(0);
+        long shedForPressure = delta(droppedForIndexingPressure, reportedIndexingPressureDrops);
+        if (shedForPressure > 0) {
+            logger.warn(
+                "derived metrics dropped [{}] documents because the node was above [{}] of its indexing pressure budget; user writes take "
+                    + "precedence, raise [{}] to change that",
+                shedForPressure,
+                indexingPressureCeiling,
+                INDEXING_PRESSURE_CEILING.getKey()
+            );
+        }
+        long early = delta(earlyFlushes, reportedEarlyFlushes);
         if (early > 0) {
             logger.warn(
                 "derived metrics flushed [{}] times early because the buffer was full; the affected buckets are emitted as several "
@@ -542,16 +656,6 @@ public class DerivedMetricsService implements Closeable {
                 early,
                 MAX_SERIES_PER_NODE.getKey(),
                 MEMORY_PRESSURE_POLICY.getKey()
-            );
-        }
-        long shedForPressure = droppedForIndexingPressure.getAndSet(0);
-        if (shedForPressure > 0) {
-            logger.warn(
-                "derived metrics dropped [{}] documents because the node was above [{}] of its indexing pressure budget; user writes take "
-                    + "precedence, raise [{}] to change that",
-                shedForPressure,
-                indexingPressureCeiling,
-                INDEXING_PRESSURE_CEILING.getKey()
             );
         }
         long dropped = buffer.droppedSeries();
@@ -565,6 +669,17 @@ public class DerivedMetricsService implements Closeable {
             );
             lastReportedDrops = dropped;
         }
+    }
+
+    /**
+     * How much a cumulative counter has moved since it was last reported. The holder is a single-element array because these are only
+     * touched from the flush thread and a field per counter would be four more fields.
+     */
+    private static long delta(AtomicLong counter, long[] lastReported) {
+        long total = counter.get();
+        long moved = total - lastReported[0];
+        lastReported[0] = total;
+        return moved;
     }
 
     // visible for testing
@@ -582,8 +697,30 @@ public class DerivedMetricsService implements Closeable {
         if (cancellable != null) {
             cancellable.cancel();
         }
-        // emit whatever is still buffered rather than losing the partial intervals
-        emit(buffer.drainAll());
+        // By the time plugins are closed the cluster service, the indices service and the transport service are already down, so a bulk
+        // sent from here cannot land. Rather than firing one and pretending, report what is being lost. The flushes on shard close and on
+        // node shutdown are what make this set small; see flushEverything.
+        List<Drained> lost = buffer.drainAll();
+        long series = 0;
+        for (Drained drained : lost) {
+            series += drained.table().size();
+            drained.table().close();
+        }
+        if (series > 0) {
+            lostSeries.addAndGet(series);
+            logger.warn(
+                "lost [{}] buffered derived metric series that had not been flushed when the node shut down; this is the open interval, "
+                    + "which is not persisted",
+                series
+            );
+        }
         buffer.close();
+        for (AutoCloseable metric : metrics) {
+            try {
+                metric.close();
+            } catch (Exception e) {
+                logger.debug("failed to deregister a derived metrics metric", e);
+            }
+        }
     }
 }

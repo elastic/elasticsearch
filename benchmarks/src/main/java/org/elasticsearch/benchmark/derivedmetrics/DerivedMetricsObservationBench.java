@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -109,6 +110,7 @@ public class DerivedMetricsObservationBench {
             threadPool,
             BigArrays.NON_RECYCLING_INSTANCE,
             new IndexingPressure(Settings.EMPTY),
+            MeterRegistry.NOOP,
             "node-1"
         );
         compiled = CompiledDerivedMetrics.compile(configFor(shape));

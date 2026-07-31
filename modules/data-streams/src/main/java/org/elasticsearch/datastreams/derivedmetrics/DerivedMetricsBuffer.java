@@ -80,23 +80,37 @@ public class DerivedMetricsBuffer implements Releasable {
     private final int maxSeriesPerStream;
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
-
-    private static final AtomicInteger ZERO = new AtomicInteger();
+    private final int partialSeed;
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries) {
-        this(bigArrays, maxSeries, maxSeries, DEFAULT_HISTOGRAM_BUCKETS);
+        this(bigArrays, maxSeries, maxSeries, DEFAULT_HISTOGRAM_BUCKETS, 0);
     }
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream) {
-        this(bigArrays, maxSeries, maxSeriesPerStream, DEFAULT_HISTOGRAM_BUCKETS);
+        this(bigArrays, maxSeries, maxSeriesPerStream, DEFAULT_HISTOGRAM_BUCKETS, 0);
     }
 
-    public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream, int histogramBuckets) {
+    /**
+     * @param partialSeed the offset the first partial of any bucket is stamped at. Non-zero so that a node which restarts inside a bucket
+     *                    it had already emitted a partial for does not reuse an offset, which would produce the same time series
+     *                    {@code _id} and be silently rejected by {@code op_type=create}.
+     */
+    public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream, int histogramBuckets, int partialSeed) {
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker(bigArrays);
+        this.partialSeed = partialSeed;
+    }
+
+    /**
+     * How many partials a bucket may be split into. A partial is stamped at {@code bucketStart + partial} milliseconds, so the offset has
+     * to stay inside the interval or the document would land in the following bucket. Reaching this means the node is flushing early
+     * hundreds of times within a single interval, at which point shedding is the honest response.
+     */
+    private static int maxPartials(TableKey key) {
+        return (int) Math.min(Integer.MAX_VALUE, key.intervalMillis());
     }
 
     /**
@@ -213,7 +227,16 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public Drained drainForPressure(TableKey key) {
         DerivedMetricsSeriesTable table = tables.get(key);
-        return table == null ? null : take(key, table, true);
+        if (table == null) {
+            return null;
+        }
+        AtomicInteger counter = partials.get(key);
+        if (counter != null && counter.get() >= maxPartials(key) - 1) {
+            // no offset left inside the interval, so a further partial would collide or land in the next bucket
+            droppedSeries.increment();
+            return null;
+        }
+        return take(key, table, true);
     }
 
     /**
@@ -263,9 +286,10 @@ public class DerivedMetricsBuffer implements Releasable {
         if (held != null && held.addAndGet(-(int) released) <= 0) {
             perStream.remove(key.sourceDataStream(), held);
         }
-        int partial = partials.getOrDefault(key, ZERO).get();
+        AtomicInteger counter = partials.get(key);
+        int partial = counter == null ? partialSeed : counter.get();
         if (reopening) {
-            partials.computeIfAbsent(key, unused -> new AtomicInteger()).incrementAndGet();
+            partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
         }
         return new Drained(key, table, partial);
     }

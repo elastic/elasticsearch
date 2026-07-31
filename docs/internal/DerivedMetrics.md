@@ -242,6 +242,29 @@ worth knowing, because it takes the whole feature with it.
 
 Exemplars are not collected. There is nowhere in a time series data stream to put them today.
 
+### What is guaranteed, and what is not
+
+Derived metrics are best-effort telemetry about writes, not a second copy of them. Being explicit about that is more useful than implying
+more:
+
+**A hard kill loses the open interval.** The buffer is heap only and nothing is persisted. Every loss the node can *see coming* is
+avoided, though: a shard flushes what it collected before it leaves the node (`beforeIndexShardClosed`, which relocation hand-off reaches
+only after draining the shard's permits), and the whole buffer flushes as soon as the node is marked for shutdown in cluster state. That
+last one is the latest point at which a flush can still land — by the time plugins are closed the cluster service, the indices service and
+the transport service are already down, so `close()` reports what is being lost rather than firing a bulk that cannot arrive.
+
+**Counting is at-least-once, not exactly-once, for a few paths.** Recovery replay is not one of them: replicas, peer recovery, local
+translog replay and engine resets all carry a non-primary origin and are ignored, so a restarted node does not re-count. But an update with
+`retry_on_conflict` is applied on the primary once per attempt, and each attempt is observed; a coordinating retry after a primary failover
+is explicitly flagged as *possibly already executed* and is observed again on the new primary; and when a whole batch throws, every
+operation in it is reported as failed, including ones the engine never attempted. All three inflate failure-triggered metrics rather than
+success-triggered ones. A CCR follower also replays leader operations as primary writes, so a follower stream with derived metrics
+configured counts them as its own.
+
+**Everything shed is counted and published.** Series dropped at a cap, documents dropped for backpressure or indexing pressure, buckets
+flushed early, bulks that failed, and series lost because they could not be flushed in time are all `es.derived_metrics.*` metrics, not
+just log lines.
+
 ### Retention
 
 Each destination is given a lifecycle once, when it is first created, from the `destinations` entry for its interval. Without one it

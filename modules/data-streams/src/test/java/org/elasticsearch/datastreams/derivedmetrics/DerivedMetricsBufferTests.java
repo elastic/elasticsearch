@@ -200,6 +200,44 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     /**
+     * The partial counter lives only in heap, so a node that restarts inside a bucket it had already emitted for would start again at
+     * offset zero — same tsid, same timestamp, same _id, silently rejected by op_type=create. Seeding the counter per service instance is
+     * what keeps the post-restart partial distinguishable from the pre-crash one.
+     */
+    public void testPartialOffsetsFromDifferentInstancesDoNotCollide() {
+        TableKey key = key(Reduction.SUM, 0L);
+        int before;
+        int after;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10, 10, 8, 17)) {
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            before = drainForPressure(buffer, key).partial();
+        }
+        // a second instance stands for the node coming back up inside the same bucket
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10, 10, 8, 42)) {
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            after = drainForPressure(buffer, key).partial();
+        }
+        assertEquals(17, before);
+        assertEquals(42, after);
+    }
+
+    /**
+     * A partial is stamped at bucketStart plus its number, so the number has to stay inside the interval. Past that the document would
+     * land in the following bucket, which is worse than shedding it.
+     */
+    public void testPartialsStopBeingIssuedAtTheEndOfTheInterval() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10, 10, 8, (int) TEN_SECONDS.millis() - 2)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+
+            // the seed leaves exactly one offset, so the first early flush is issued and the next is refused
+            assertNotNull(drainForPressure(buffer, key));
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertNull(drainForPressure(buffer, key));
+        }
+    }
+
+    /**
      * A bucket flushed early and then never written to again would otherwise leave its partial counter behind forever, since nothing
      * drains a table that no longer exists.
      */

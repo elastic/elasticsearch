@@ -52,6 +52,8 @@ import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAct
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestinationLifecycle;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsIndexingListener;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShardEventListener;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShutdownListener;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsTemplateRegistry;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
@@ -168,6 +170,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<DerivedMetricsService> derivedMetricsService = new SetOnce<>();
     private final SetOnce<DerivedMetricsTemplateRegistry> derivedMetricsTemplateRegistry = new SetOnce<>();
+    private final SetOnce<DerivedMetricsShutdownListener> derivedMetricsShutdownListener = new SetOnce<>();
     private final SetOnce<DerivedMetricsDestinationLifecycle> derivedMetricsDestinationLifecycle = new SetOnce<>();
     private final SetOnce<CircuitBreaker> derivedMetricsBreaker = new SetOnce<>();
     private final Settings settings;
@@ -286,10 +289,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 // per-request, so giving up the recycler costs nothing.
                 new BigArrays(null, services.bigArrays().breakerService(), DerivedMetricsService.BREAKER_NAME).withCircuitBreaking(),
                 services.indexingPressure(),
+                services.telemetryProvider().getMeterRegistry(),
                 services.clusterService().getNodeName()
             )
         );
         derivedMetricsService.get().init();
+        derivedMetricsShutdownListener.set(new DerivedMetricsShutdownListener(services.clusterService(), derivedMetricsService.get()));
+        derivedMetricsShutdownListener.get().init();
         derivedMetricsTemplateRegistry.set(new DerivedMetricsTemplateRegistry(services.client(), services.clusterService()));
         derivedMetricsTemplateRegistry.get().init();
         derivedMetricsDestinationLifecycle.set(
@@ -365,6 +371,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
             indexModule.addIndexOperationListener(
                 new DerivedMetricsIndexingListener(clusterService.get(), service, indexModule.getIndex())
             );
+            // flush what a shard collected before it leaves this node, so an avoidable loss is avoided
+            indexModule.addIndexEventListener(new DerivedMetricsShardEventListener(service));
         }
     }
 
@@ -441,6 +449,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         DerivedMetricsDestinationLifecycle destinationLifecycle = derivedMetricsDestinationLifecycle.get();
         if (destinationLifecycle != null) {
             destinationLifecycle.close();
+        }
+        DerivedMetricsShutdownListener shutdownListener = derivedMetricsShutdownListener.get();
+        if (shutdownListener != null) {
+            shutdownListener.close();
         }
         try {
             IOUtils.close(dataLifecycleInitialisationService.get(), derivedMetricsService.get());

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 public class HuggingFaceResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode() {
+    public void testBuildFailureStatusCodeException() {
         var statusLine = mock(StatusLine.class);
 
         var httpResponse = mock(HttpResponse.class);

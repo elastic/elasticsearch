@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 public class FireworksAiResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
+    public void testBuildFailureStatusCodeException_ReturnsFor500_WithShouldRetryTrue() {
         var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -40,7 +40,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor503_WithShouldRetryFalse() {
+    public void testBuildFailureStatusCodeException_ReturnsFor503_WithShouldRetryFalse() {
         var exception = callHandleFailureStatusCode(503, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -50,7 +50,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
+    public void testBuildFailureStatusCodeException_ReturnsFor429_WithShouldRetryTrue() {
         var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -60,7 +60,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor401_WithShouldRetryFalse() {
+    public void testBuildFailureStatusCodeException_ReturnsFor401_WithShouldRetryFalse() {
         var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -72,7 +72,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor400_WithShouldRetryFalse() {
+    public void testBuildFailureStatusCodeException_ReturnsFor400_WithShouldRetryFalse() {
         var exception = callHandleFailureStatusCode(400, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -82,7 +82,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor300_WithShouldRetryFalse() {
+    public void testBuildFailureStatusCodeException_ReturnsFor300_WithShouldRetryFalse() {
         var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(

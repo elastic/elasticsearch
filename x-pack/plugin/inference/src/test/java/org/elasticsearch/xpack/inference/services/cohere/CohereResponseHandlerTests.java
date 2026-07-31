@@ -30,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CohereResponseHandlerTests extends ESTestCase {
-    public void testHandleFailureStatusCode_ThrowsFor503() {
+    public void testBuildFailureStatusCodeException_ReturnsFor503() {
         var exception = callHandleFailureStatusCode(503, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -40,7 +40,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
+    public void testBuildFailureStatusCodeException_ReturnsFor500_WithShouldRetryTrue() {
         var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -50,7 +50,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429() {
+    public void testBuildFailureStatusCodeException_ReturnsFor429() {
         var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -60,7 +60,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor400() {
+    public void testBuildFailureStatusCodeException_ReturnsFor400() {
         var exception = callHandleFailureStatusCode(400, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -70,7 +70,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor400_TextsTooLarge() {
+    public void testBuildFailureStatusCodeException_ReturnsFor400_TextsTooLarge() {
         var exception = callHandleFailureStatusCode(400, "invalid request: total number of texts must be at most 96 - received 100", "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -80,7 +80,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor401() {
+    public void testBuildFailureStatusCodeException_ReturnsFor401() {
         var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -92,7 +92,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor300() {
+    public void testBuildFailureStatusCodeException_ReturnsFor300() {
         var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(

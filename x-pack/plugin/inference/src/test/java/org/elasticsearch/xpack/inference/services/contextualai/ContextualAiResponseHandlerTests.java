@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 public class ContextualAiResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode_StatusCode500_ThrowsRetryableServerError() {
+    public void testBuildFailureStatusCodeException_StatusCode500_ReturnsRetryableServerError() {
         var errorBody = "Internal server error: service unavailable";
         var exception = callHandleFailureStatusCode(500, errorBody);
         assertTrue(exception.shouldRetry());
@@ -48,7 +48,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_StatusCode503_ThrowsRetryableServerError() {
+    public void testBuildFailureStatusCodeException_StatusCode503_ReturnsRetryableServerError() {
         var errorBody = "Service temporarily unavailable";
         var exception = callHandleFailureStatusCode(503, errorBody);
         assertTrue(exception.shouldRetry());
@@ -65,7 +65,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_StatusCode429_ThrowsRetryableRateLimitError() {
+    public void testBuildFailureStatusCodeException_StatusCode429_ReturnsRetryableRateLimitError() {
         var errorBody = "Rate limit exceeded, please retry later";
         var exception = callHandleFailureStatusCode(429, errorBody);
         assertTrue(exception.shouldRetry());
@@ -82,7 +82,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_StatusCode401_ThrowsAuthenticationError() {
+    public void testBuildFailureStatusCodeException_StatusCode401_ReturnsAuthenticationError() {
         var errorBody = "Invalid API key provided";
         var exception = callHandleFailureStatusCode(401, errorBody);
         assertFalse(exception.shouldRetry());
@@ -99,7 +99,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testHandleFailureStatusCode_StatusCode400_ThrowsUnsuccessfulError() {
+    public void testBuildFailureStatusCodeException_StatusCode400_ReturnsUnsuccessfulError() {
         var errorBody = "Invalid request: missing required field";
         var exception = callHandleFailureStatusCode(400, errorBody);
         assertFalse(exception.shouldRetry());
@@ -116,7 +116,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_StatusCode300_ThrowsRedirectionError() {
+    public void testBuildFailureStatusCodeException_StatusCode300_ReturnsRedirectionError() {
         var errorBody = "Resource has been moved";
         var exception = callHandleFailureStatusCode(300, errorBody);
         assertFalse(exception.shouldRetry());

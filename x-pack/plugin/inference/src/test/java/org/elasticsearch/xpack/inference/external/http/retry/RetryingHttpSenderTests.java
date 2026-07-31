@@ -528,6 +528,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verify(httpClient, times(1)).stream(any(), any(), any());
         verifyNoMoreInteractions(httpClient);
         verify(responseHandler, times(1)).parseResult(any(), ArgumentMatchers.<Flow.Publisher<HttpResult>>any());
+        verify(responseHandler, never()).buildFailureStatusCodeException(any(), any());
     }
 
     private Flow.Publisher<byte[]> randomPublisher() {
@@ -696,7 +697,8 @@ public class RetryingHttpSenderTests extends ESTestCase {
         }
     }
 
-    public void testStream_RetriesInitialStreamResponseFailure_WhenValidationThrowsRetryableException() throws IOException {
+    public void testStream_RetriesInitialStreamResponseFailure_WhenBuildFailureStatusCodeExceptionReturnsRetryableException()
+        throws IOException {
         var httpClient = mock(HttpClient.class);
         doAnswer(ans -> {
             ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
@@ -731,7 +733,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verify(responseHandler, never()).parseResult(any(OutboundRequest.class), any(HttpResult.class));
     }
 
-    public void testStream_ReturnsFailure_WhenInitialStreamResponseValidationThrowsNonRetryableException() throws IOException {
+    public void testStream_ReturnsFailure_WhenBuildFailureStatusCodeExceptionReturnsNonRetryableException() throws IOException {
         var httpClient = mock(HttpClient.class);
         doAnswer(ans -> {
             ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
@@ -760,7 +762,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verify(responseHandler, never()).parseResult(any(OutboundRequest.class), any(HttpResult.class));
     }
 
-    public void testStream_StopsRetrying_WhenInitialStreamResponseValidationAlwaysThrowsRetryableException() throws IOException {
+    public void testStream_StopsRetrying_WhenBuildFailureStatusCodeExceptionAlwaysReturnsRetryableException() throws IOException {
         var threadPool = new TestThreadPool(getTestName());
         try {
             var httpClient = mock(HttpClient.class);
@@ -837,6 +839,127 @@ public class RetryingHttpSenderTests extends ESTestCase {
         var messageCaptor = ArgumentCaptor.forClass(String.class);
         verify(throttlerManager).warn(any(Logger.class), messageCaptor.capture(), any(Throwable.class));
         assertThat(messageCaptor.getValue(), containsString(Integer.toString(FAILED_STATUS_CODE)));
+    }
+
+    public void testStream_RetriesInitialStreamResponseFailure_WhenBuildFailureStatusCodeExceptionThrowsRetryableException()
+        throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(FAILED_STATUS_CODE, REASON_PHRASE), randomPublisher()));
+            return null;
+        }).doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(), randomPublisher()));
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var inferenceResults = mock(InferenceServiceResults.class);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenThrow(
+            new RetryException(true, new IOException("build failed"))
+        );
+        when(responseHandler.parseResult(any(OutboundRequest.class), ArgumentMatchers.<Flow.Publisher<HttpResult>>any())).thenReturn(
+            inferenceResults
+        );
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 1);
+
+        assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT), sameInstance(inferenceResults));
+        verify(httpClient, times(2)).stream(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        verify(responseHandler, times(1)).parseResult(any(OutboundRequest.class), ArgumentMatchers.<Flow.Publisher<HttpResult>>any());
+    }
+
+    public void testStream_ReturnsFailure_WhenBuildFailureStatusCodeExceptionThrowsNonRetryableException() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(FAILED_STATUS_CODE, REASON_PHRASE), randomPublisher()));
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenThrow(new IllegalStateException("build failed"));
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), is("build failed"));
+        verify(httpClient, times(1)).stream(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        verify(responseHandler, never()).parseResult(any(OutboundRequest.class), any(HttpResult.class));
+    }
+
+    public void testStream_RetriesInitialStreamResponseFailure_WhenBuildFailureStatusCodeExceptionReturnsContentTooLargeException()
+        throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(FAILED_STATUS_CODE, REASON_PHRASE), randomPublisher()));
+            return null;
+        }).doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(), randomPublisher()));
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var inferenceResults = mock(InferenceServiceResults.class);
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenReturn(
+            new ContentTooLargeException(new IllegalStateException("content too large"))
+        );
+        when(responseHandler.parseResult(any(OutboundRequest.class), ArgumentMatchers.<Flow.Publisher<HttpResult>>any())).thenReturn(
+            inferenceResults
+        );
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 1);
+
+        assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT), sameInstance(inferenceResults));
+        verify(httpClient, times(2)).stream(any(), any(), any());
+        verifyNoMoreInteractions(httpClient);
+        verify(request).truncate();
+    }
+
+    public void testStream_ThrowsNullPointerException_WhenBuildFailureStatusCodeExceptionReturnsNull() throws IOException {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(ans -> {
+            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
+            listener.onResponse(new StreamingHttpResult(mockHttpResponse(FAILED_STATUS_CODE, REASON_PHRASE), randomPublisher()));
+            return null;
+        }).when(httpClient).stream(any(), any(), any());
+
+        var responseHandler = mock(ResponseHandler.class);
+        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenReturn(null);
+
+        var retrier = createRetrier(httpClient);
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var request = mockRequest();
+        when(request.isStreaming()).thenReturn(true);
+        executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, listener), 0);
+
+        var thrownException = expectThrows(NullPointerException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), containsString("must not be null"));
     }
 
     private static HttpResponse mockHttpResponse() {

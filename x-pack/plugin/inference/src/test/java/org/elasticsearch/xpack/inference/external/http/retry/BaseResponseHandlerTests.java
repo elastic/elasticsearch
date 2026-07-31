@@ -42,7 +42,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         assertThat(toRestStatus(1000), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testValidateResponse_SkipsHandleFailureStatusCode_WhenResponseIsSuccessful() {
+    public void testValidateResponse_SkipsBuildFailureStatusCodeException_WhenResponseIsSuccessful() {
         var handler = new BaseResponseHandler(
             "test",
             (OutboundRequest outboundRequest, HttpResult result) -> null,
@@ -194,6 +194,33 @@ public class BaseResponseHandlerTests extends ESTestCase {
             request,
             new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
+    }
+
+    public void testValidateResponse_UsesBuildFailureStatusCodeException_WhenResponseIsNotSuccessful_AndBodyIsEmpty() {
+        var handler = new BaseResponseHandler(
+            "test",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure exception"));
+            }
+        };
+
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(500);
+        var response = mock(HttpResponse.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("test-id");
+
+        // An empty body must not suppress the failure-status exception; buildFailureStatusCodeException wins.
+        var thrownException = expectThrows(
+            RetryException.class,
+            () -> handler.validateResponse(mock(ThrottlerManager.class), mock(Logger.class), request, new HttpResult(response, new byte[0]))
+        );
+        assertThat(thrownException.getCause().getMessage(), is("failure exception"));
     }
 
     private static HttpResponse mock200Response() {

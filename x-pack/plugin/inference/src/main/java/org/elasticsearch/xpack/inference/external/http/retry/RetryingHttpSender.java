@@ -218,6 +218,7 @@ public class RetryingHttpSender implements RequestSender {
             } catch (Exception e) {
                 failure = e;
             }
+            Objects.requireNonNull(failure, "Failure exception must not be null");
             listener.onFailure(new SenderException(httpResult, failure));
         }
 

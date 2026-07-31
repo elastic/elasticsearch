@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 public class AnthropicResponseHandlerTests extends ESTestCase {
 
-    public void testHandleFailureStatusCode_ThrowsFor500_ShouldRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor500_ShouldRetry() {
         var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
@@ -37,7 +37,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor529_ShouldRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor529_ShouldRetry() {
         var exception = callHandleFailureStatusCode(529, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
@@ -49,7 +49,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor505_ShouldNotRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor505_ShouldNotRetry() {
         var exception = callHandleFailureStatusCode(505, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
@@ -59,7 +59,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429_ShouldRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry() {
         var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
@@ -73,7 +73,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor429_ShouldRetry_RetrievesFieldsFromHeaders() {
+    public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry_RetrievesFieldsFromHeaders() {
         int statusCode = 429;
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
@@ -113,7 +113,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor403_ShouldNotRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor403_ShouldNotRetry() {
         var exception = callHandleFailureStatusCode(403, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
@@ -123,7 +123,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor300_ShouldNotRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor300_ShouldNotRetry() {
         var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
@@ -133,7 +133,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    public void testHandleFailureStatusCode_ThrowsFor425_ShouldNotRetry() {
+    public void testBuildFailureStatusCodeException_ReturnsFor425_ShouldNotRetry() {
         var exception = callHandleFailureStatusCode(425, "id");
         assertFalse(exception.shouldRetry());
         assertThat(

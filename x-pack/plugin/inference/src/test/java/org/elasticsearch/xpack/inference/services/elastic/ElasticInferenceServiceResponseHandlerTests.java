@@ -133,7 +133,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testHandleFailureStatusCode_Throws_WithErrorMessage() {
+    public void testBuildFailureStatusCodeException_Returns_WithErrorMessage() {
         var exception = callHandleFailureStatusCode(
             failureTestCase.inputStatusCode,
             failureTestCase.errorMessage,
@@ -148,7 +148,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         }
     }
 
-    public void testHandleFailureStatusCode_AlwaysAppliesRetryAfterHeaderWhenPresent() {
+    public void testBuildFailureStatusCodeException_AlwaysAppliesRetryAfterHeaderWhenPresent() {
         final String retryAfter = String.valueOf(randomIntBetween(1, 1000));
         var exception = callHandleFailureStatusCode(
             randomIntBetween(300, 599),

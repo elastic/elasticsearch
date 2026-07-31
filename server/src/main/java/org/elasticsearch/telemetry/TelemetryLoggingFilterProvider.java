@@ -12,7 +12,7 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.core.Nullable;
 
 /**
- * SPI for plugins to supply a per-appender {@link TelemetryLogEventFilter}.
+ * Interface for plugins to supply a per-appender {@link TelemetryLogEventFilter}.
  * Implement this interface (directly on your {@link org.elasticsearch.plugins.Plugin} class
  * or on a delegate) to attach a filter to a named telemetry log appender.
  * Appender name constants for APM are defined in {@code OtelSdkExportLogsSupplier}.

@@ -37,7 +37,17 @@ import java.util.Objects;
 public final class ShardRouting implements Writeable, ToXContentObject {
 
     /// Describes the priority of a recovery. The [#ordinal()] is significant, with lower values indicating higher priorities.
-    public enum RecoveryPriority {
+    public enum RecoveryPriority implements Writeable {
+
+        /*
+         * TODO:
+         *  - Javadoc for UNASSIGNED_NEW_PRIMARY
+         *  - Rename UNASSIGNED_EXISTING to UNASSIGNED_UNEXPECTED and fix javadoc
+         *  - Rename UNASSIGNED_NEW to UNASSIGNED_EXPECTED and fix javadoc
+         *  - Review all usages of all three and fix anything incorrect
+         */
+
+        UNASSIGNED_NEW_PRIMARY(false),
 
         /// An existing shard which is unassigned
         UNASSIGNED_EXISTING(false),
@@ -69,8 +79,44 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             this.isRelocation = isRelocation;
         }
 
-        public boolean isRelocation() {
+        static RecoveryPriority readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                return in.readEnum(RecoveryPriority.class);
+            } else {
+                // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
+                int legacyOrdinal = in.readVInt();
+                return switch (legacyOrdinal) {
+                    case 0 -> UNASSIGNED_EXISTING;
+                    case 1 -> UNASSIGNED_NEW;
+                    case 2 -> RELOCATION_CAN_REMAIN_NO;
+                    case 3 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                    case 4 -> RELOCATE_REBALANCING;
+                    default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + legacyOrdinal);
+                };
+            }
+        }
+
+        // Visible for testing
+        boolean isRelocation() {
             return isRelocation;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                out.writeEnum(this);
+            } else {
+                // Serialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values,
+                // or the nearest fallbacks:
+                int legacyOrdinal = switch (this) {
+                    case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_EXISTING -> 0;
+                    case UNASSIGNED_NEW -> 1;
+                    case RELOCATION_CAN_REMAIN_NO -> 2;
+                    case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
+                    case RELOCATE_REBALANCING, UNKNOWN -> 4;
+                };
+                out.writeVInt(legacyOrdinal);
+            }
         }
     }
 
@@ -79,9 +125,14 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
 
-    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
+    // visible for testing
+    static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
         "recovery_priority_in_shard_routing"
     );
+
+    /// Introduced along with [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY]
+    private static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion
+        .fromName("recovery_priority_unknown_and_unassigned_new_primary");
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -410,7 +461,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         if (state != ShardRoutingState.STARTED) {
             if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
-                recoveryPriority = in.readEnum(RecoveryPriority.class);
+                recoveryPriority = RecoveryPriority.readFrom(in);
             } else {
                 // When the ShardRouting is too old to have the recoveryPriority field, it must have been created with master-side recovery
                 // throttling in place, so the priority is of limited significance. We might as well use the highest which makes sense:
@@ -472,7 +523,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (state != ShardRoutingState.STARTED) {
             if (out.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
                 assert recoveryPriority != null;
-                out.writeEnum(recoveryPriority);
+                recoveryPriority.writeTo(out);
             }
         }
         out.writeOptionalWriteable(unassignedInfo);

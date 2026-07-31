@@ -14,20 +14,28 @@ import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestCase<GetShutdownStatusAction.Response> {
     @Override
@@ -74,8 +82,9 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         final var status = randomStatus();
         final int persistentTasksRemaining = randomIntBetween(0, 10);
         final int autoReassignRemaining = randomIntBetween(0, persistentTasksRemaining);
+        final var nodeShutdownMetadata = randomNodeShutdownMetadata();
         return new SingleNodeShutdownStatus(
-            randomNodeShutdownMetadata(),
+            nodeShutdownMetadata,
             new ShutdownShardMigrationStatus(status, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             status == SingleNodeShutdownMetadata.Status.NOT_STARTED
                 ? ShutdownPersistentTasksStatus.notStarted()
@@ -83,7 +92,8 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             new ShutdownPluginsStatus(randomBoolean()),
             status == SingleNodeShutdownMetadata.Status.NOT_STARTED
                 ? ShutdownShardSnapshotsStatus.NOT_STARTED
-                : ShutdownShardSnapshotsStatus.fromShardCounts(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+                : ShutdownShardSnapshotsStatus.fromShardCounts(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+            () -> nodeShutdownMetadata.getStartedAtMillis() + 1_000L
         );
     }
 
@@ -116,6 +126,60 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         );
     }
 
+    public void testRunningTimeEmittedWhileInProgress() throws IOException {
+        final var metadata = randomNodeShutdownMetadata();
+        final var shardMigrationStatus = new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, 0, 0, 0);
+        final var persistentTasksStatus = ShutdownPersistentTasksStatus.fromRemainingTasks(1, 1);
+        final var pluginsStatus = new ShutdownPluginsStatus(false);
+
+        var singleNodeStatus = new SingleNodeShutdownStatus(
+            metadata,
+            shardMigrationStatus,
+            persistentTasksStatus,
+            pluginsStatus,
+            ShutdownShardSnapshotsStatus.fromShardCounts(between(0, 100), between(0, 100), between(1, 100)),
+            () -> metadata.getStartedAtMillis() + 2500L
+        );
+
+        assertThat(toJsonMap(singleNodeStatus), hasEntry("shutdown_running_time", "2.5s"));
+    }
+
+    public void testRunningTimeOmittedWhenComplete() throws IOException {
+        final var metadata = randomNodeShutdownMetadata();
+        final var shardMigrationStatus = new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0);
+        final var persistentTasksStatus = ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0);
+        final var pluginsStatus = new ShutdownPluginsStatus(true);
+
+        var singleNodeStatus = new SingleNodeShutdownStatus(
+            metadata,
+            shardMigrationStatus,
+            persistentTasksStatus,
+            pluginsStatus,
+            ShutdownShardSnapshotsStatus.fromShardCounts(between(0, 100), between(0, 100), 0),
+            () -> metadata.getStartedAtMillis() + 2500L
+        );
+
+        assertThat(toJsonMap(singleNodeStatus), not(hasKey("shutdown_running_time")));
+    }
+
+    public void testRunningTimeIsClampedWhenClockRegresses() throws IOException {
+        final var metadata = randomNodeShutdownMetadata();
+        final var shardMigrationStatus = new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, 0, 0, 0);
+        final var persistentTasksStatus = ShutdownPersistentTasksStatus.fromRemainingTasks(1, 1);
+        final var pluginsStatus = new ShutdownPluginsStatus(false);
+
+        var singleNodeStatus = new SingleNodeShutdownStatus(
+            metadata,
+            shardMigrationStatus,
+            persistentTasksStatus,
+            pluginsStatus,
+            ShutdownShardSnapshotsStatus.fromShardCounts(between(0, 100), between(0, 100), between(1, 100)),
+            () -> metadata.getStartedAtMillis() - 1L
+        );
+
+        assertThat(toJsonMap(singleNodeStatus), hasEntry("shutdown_running_time", "0s"));
+    }
+
     public void testSerializationBwc() throws IOException {
         final var oldVersion = TransportVersionUtils.getPreviousVersion(ShutdownShardSnapshotsStatus.SHUTDOWN_SHARD_SNAPSHOTS_STATUS);
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -139,5 +203,12 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
 
     public static SingleNodeShutdownMetadata.Status randomStatus() {
         return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
+    }
+
+    private Map<String, Object> toJsonMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        var xContent = wrapAsToXContent(chunkedToXContent);
+        try (var parser = createParser(xContent.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))) {
+            return parser.map();
+        }
     }
 }

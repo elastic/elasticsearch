@@ -1582,7 +1582,6 @@ public class SharedBlobCacheWarmingService {
      */
     private class Region0Warmer extends AbstractWarmer {
         private final Set<BlobFile> blobFiles;
-        private static final BooleanSupplier isCancelled = () -> false;
 
         Region0Warmer(
             WarmingRun warmingRun,
@@ -1604,7 +1603,7 @@ public class SharedBlobCacheWarmingService {
                         // just to compute the ending region. With this we avoid having to know the blob length
                         // upfront and we can just let the cache to fetch the entire region 0.
                         new BlobLocation(blobFile, 0, 1),
-                        isCancelled,
+                        this::isCancelled,
                         listeners.acquire()
                     )
                 );

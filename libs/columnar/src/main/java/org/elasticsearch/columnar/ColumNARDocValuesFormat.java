@@ -55,7 +55,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
      * Existing callers and tests that do not need per-field selection use this constructor.
      */
     public ColumNARDocValuesFormat() {
-        this((fieldName, blockSize) -> NumericPipeline.defaultPipeline(blockSize));
+        this((fieldName, type, bs) -> NumericPipeline.defaultPipeline(bs));
     }
 
     @Override

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.columnar.numeric;
 
+import org.elasticsearch.columnar.ColumnarFieldType;
+
 /**
  * Selects the {@link NumericPipeline} to use when writing a numeric column. The library calls
  * {@link #select} once per field at write time and uses whatever pipeline is returned.
@@ -19,12 +21,12 @@ package org.elasticsearch.columnar.numeric;
  * context and routes by field semantics:
  *
  * <pre>{@code
- * new ColumNARDocValuesFormat((fieldName, blockSize) -> {
- *     if (isMonotonicLong(fieldName))
+ * new ColumNARDocValuesFormat((fieldName, type, blockSize) -> {
+ *     if (type == ColumnarFieldType.LONG && isMonotonicLong(fieldName))
  *         return NumericPipeline.monotonicLongPipeline(blockSize);
- *     if (isDoubleGauge(fieldName))
+ *     if (type == ColumnarFieldType.DOUBLE && isGauge(fieldName))
  *         return NumericPipeline.doubleGaugePipeline(blockSize);
- *     if (isDoubleCounter(fieldName))
+ *     if (type == ColumnarFieldType.DOUBLE && isCounter(fieldName))
  *         return NumericPipeline.doubleCounterPipeline(blockSize);
  *     return NumericPipeline.defaultPipeline(blockSize);
  * });
@@ -40,8 +42,9 @@ public interface NumericPipelineSelector {
      * Returns the pipeline to use for the named field.
      *
      * @param fieldName the Lucene field name
+     * @param type      the columnar field type resolved from {@link org.apache.lucene.index.FieldInfo} attributes
      * @param blockSize the number of values per block; pass to the chosen
      *                  {@link NumericPipeline} factory so stateful stages are sized correctly
      */
-    NumericPipeline select(String fieldName, int blockSize);
+    NumericPipeline select(String fieldName, ColumnarFieldType type, int blockSize);
 }

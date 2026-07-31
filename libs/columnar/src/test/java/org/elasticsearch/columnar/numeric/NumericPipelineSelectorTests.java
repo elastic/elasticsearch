@@ -16,6 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -39,7 +40,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
     private static final byte[] ALP_COUNTER_TRANSFORM_IDS = { 4, 3, 0, 1, 2 };
 
     public void testSelectorIsInvokedPerField() throws IOException {
-        final NumericPipelineSelector selector = (fieldName, blockSize) -> {
+        final NumericPipelineSelector selector = (fieldName, type, blockSize) -> {
             assertEquals("my_field", fieldName);
             return NumericPipeline.defaultPipeline(blockSize);
         };
@@ -47,23 +48,23 @@ public class NumericPipelineSelectorTests extends ESTestCase {
     }
 
     public void testDefaultPipelineTransformIds() throws IOException {
-        assertTransformIds((f, bs) -> NumericPipeline.defaultPipeline(bs), longValues(), DEFAULT_TRANSFORM_IDS);
+        assertTransformIds((f, t, bs) -> NumericPipeline.defaultPipeline(bs), longValues(), DEFAULT_TRANSFORM_IDS);
     }
 
     public void testSplitDeltaPipelineTransformIds() throws IOException {
-        assertTransformIds((f, bs) -> NumericPipeline.monotonicLongPipeline(bs), monotonicLongs(), SPLIT_DELTA_TRANSFORM_IDS);
+        assertTransformIds((f, t, bs) -> NumericPipeline.monotonicLongPipeline(bs), monotonicLongs(), SPLIT_DELTA_TRANSFORM_IDS);
     }
 
     public void testAlpGaugePipelineTransformIds() throws IOException {
-        assertTransformIds((f, bs) -> NumericPipeline.doubleGaugePipeline(bs), doubleBits(), ALP_GAUGE_TRANSFORM_IDS);
+        assertTransformIds((f, t, bs) -> NumericPipeline.doubleGaugePipeline(bs), doubleBits(), ALP_GAUGE_TRANSFORM_IDS);
     }
 
     public void testAlpCounterPipelineTransformIds() throws IOException {
-        assertTransformIds((f, bs) -> NumericPipeline.doubleCounterPipeline(bs), doubleBits(), ALP_COUNTER_TRANSFORM_IDS);
+        assertTransformIds((f, t, bs) -> NumericPipeline.doubleCounterPipeline(bs), doubleBits(), ALP_COUNTER_TRANSFORM_IDS);
     }
 
     public void testSelectorCanVaryPipelineByFieldName() throws IOException {
-        final NumericPipelineSelector selector = (fieldName, blockSize) -> fieldName.equals("alp_field")
+        final NumericPipelineSelector selector = (fieldName, type, blockSize) -> fieldName.equals("alp_field")
             ? NumericPipeline.doubleGaugePipeline(blockSize)
             : NumericPipeline.defaultPipeline(blockSize);
 
@@ -116,7 +117,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             final NumericColumnMetadata written;
             try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(out, "ColumnarNumericData", segmentId, "");
-                final NumericPipeline pipeline = selector.select(fieldName, NumericColumnWriter.BLOCK_SIZE);
+                final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG, NumericColumnWriter.BLOCK_SIZE);
                 written = NumericColumnWriter.write(
                     values.length,
                     values.length,

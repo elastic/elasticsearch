@@ -78,7 +78,7 @@ public class EqlSourceOperator extends SourceOperator {
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
 
-    public EqlSourceOperator(
+    private EqlSourceOperator(
         DriverContext driverContext,
         Client client,
         EqlSearchRequest request,

@@ -203,6 +203,13 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[allow_partial_sequence_results] requires a boolean value"));
     }
 
+    public void testRejectsOversizedNumericOption() {
+        // A numeric value above Integer.MAX_VALUE would wrap on intValue() (e.g. size 4294967296 -> 0), presenting an
+        // empty result as complete. It must fail at parse time, not truncate silently.
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", 4294967296L)));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("too large")));
+    }
+
     public void testUnknownOptionMessageListsSupportedKeys() {
         // The unknown-option message enumerates the supported surface so a typo points the user at the real keys.
         ParsingException e = expectThrows(

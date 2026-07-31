@@ -111,6 +111,19 @@ public final class EqlRequests {
                     "EQL command option [" + entry.getKey() + "] requires a " + option.typeName() + " value"
                 );
             }
+            // Every numeric option applies as an int; reject a value that would silently wrap on intValue()
+            // (e.g. size 4294967296 -> 0, presenting an empty result as complete) rather than truncate it.
+            if (entry.getValue() instanceof Number number && number.longValue() > Integer.MAX_VALUE) {
+                throw new ParsingException(
+                    source,
+                    "EQL command option ["
+                        + entry.getKey()
+                        + "] value ["
+                        + number.longValue()
+                        + "] is too large; must be at most "
+                        + Integer.MAX_VALUE
+                );
+            }
         }
     }
 

@@ -85,7 +85,7 @@ public final class EqlPageConverter {
     /** One output row: an event plus, for sequence/sample matches, the match ordinal, stage index and join keys. */
     private record Row(long sequenceOrdinal, int stage, List<Object> joinKeys, Event event) {}
 
-    public static Page toPage(EqlSearchResponse response, EqlRelation.Mode mode, List<Attribute> schema, BlockFactory blockFactory) {
+    static Page toPage(EqlSearchResponse response, EqlRelation.Mode mode, List<Attribute> schema, BlockFactory blockFactory) {
         List<Row> rows = mode == EqlRelation.Mode.EVENT ? eventRows(response) : sequenceRows(response);
         int positions = rows.size();
         int width = schema.size();

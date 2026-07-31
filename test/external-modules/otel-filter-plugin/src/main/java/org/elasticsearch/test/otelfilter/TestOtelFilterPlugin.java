@@ -9,10 +9,10 @@
 
 package org.elasticsearch.test.otelfilter;
 
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryLogEventFilter;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
-import org.elasticsearch.common.logging.activity.QueryLogging;
 
 import java.util.HashMap;
 import java.util.Map;

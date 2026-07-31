@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.UnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedStreamingProcessor;
@@ -88,7 +88,7 @@ public class GoogleVertexAiCompletionResponseEntity {
         // Response from generateContent has the same shape as streamGenerateContent. We reuse the already implemented
         // class to avoid code duplication
 
-        UnifiedChatCompletionResults chunk;
+        ChatCompletionChunk chunk;
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, responseJson)

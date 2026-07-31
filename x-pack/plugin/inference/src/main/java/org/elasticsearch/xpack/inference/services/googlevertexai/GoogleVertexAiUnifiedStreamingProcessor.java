@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.UnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -78,7 +78,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     protected void next(Deque<ServerSentEvent> events) throws Exception {
 
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = new ArrayDeque<UnifiedChatCompletionResults>(events.size());
+        var results = new ArrayDeque<ChatCompletionChunk>(events.size());
 
         for (var event : events) {
             try {
@@ -98,7 +98,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
     }
 
-    Iterator<UnifiedChatCompletionResults> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
+    Iterator<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, String event) throws IOException {
         return parseObjects(parserConfig, event, p -> Stream.of(GoogleVertexAiChatCompletionChunkParser.parse(p))).iterator();
     }
 
@@ -149,7 +149,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<UnifiedChatCompletionResults, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<ChatCompletionChunk, Void> PARSER = new ConstructingObjectParser<>(
             "google_vertexai_chat_completion_chunk",
             true,
             args -> {
@@ -163,7 +163,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
 
-                return new UnifiedChatCompletionResults(
+                return new ChatCompletionChunk(
                     responseId,
                     choices,
                     modelversion,
@@ -188,7 +188,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(RESPONSE_ID_FIELD));
         }
 
-        public static UnifiedChatCompletionResults parse(XContentParser parser) throws IOException {
+        public static ChatCompletionChunk parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
     }

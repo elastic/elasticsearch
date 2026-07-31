@@ -24,7 +24,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FINI
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
 
 /**
- * A single choice within a {@link UnifiedChatCompletionResults} response.
+ * A single choice within a {@link ChatCompletionChunk} response.
  *
  * <p>Field order: {@code message/delta, finish_reason, index}.
  *

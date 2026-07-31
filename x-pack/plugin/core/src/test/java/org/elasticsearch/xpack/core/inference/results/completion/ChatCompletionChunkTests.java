@@ -26,20 +26,20 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INFE
 import static org.hamcrest.Matchers.is;
 
 /**
- * Wire-serialization tests for {@link UnifiedChatCompletionResults} (the merged streaming/non-streaming payload).
+ * Wire-serialization tests for {@link ChatCompletionChunk} (the merged streaming/non-streaming payload).
  *
  * <p>Two public statics are exposed so that {@code StreamingUnifiedChatCompletionResultsTests} can
  * delegate to them, keeping both test classes in sync without duplicating the random-instance builders.
  */
-public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializationTestCase<UnifiedChatCompletionResults> {
-    public static UnifiedChatCompletionResults randomUnifiedChatCompletionResults() {
+public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChunk> {
+    public static ChatCompletionChunk randomChatCompletionChunk() {
         var randomOptionalString = new java.util.function.Supplier<String>() {
             @Override
             public String get() {
                 return randomBoolean() ? null : randomAlphanumericOfLength(5);
             }
         };
-        return new UnifiedChatCompletionResults(
+        return new ChatCompletionChunk(
             randomAlphanumericOfLength(5),
             randomBoolean()
                 ? null
@@ -89,7 +89,7 @@ public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializat
      * Mirrors the gating in {@link Usage#writeTo} and {@link Message#writeTo}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
-    public static UnifiedChatCompletionResults downgrade(UnifiedChatCompletionResults instance, TransportVersion version) {
+    public static ChatCompletionChunk downgrade(ChatCompletionChunk instance, TransportVersion version) {
         var choices = instance.choices();
         var usage = instance.usage();
 
@@ -138,44 +138,44 @@ public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializat
             );
         }
 
-        return new UnifiedChatCompletionResults(instance.id(), choices, instance.model(), instance.object(), usage);
+        return new ChatCompletionChunk(instance.id(), choices, instance.model(), instance.object(), usage);
     }
 
     @Override
-    protected Writeable.Reader<UnifiedChatCompletionResults> instanceReader() {
-        return UnifiedChatCompletionResults::new;
+    protected Writeable.Reader<ChatCompletionChunk> instanceReader() {
+        return ChatCompletionChunk::new;
     }
 
     @Override
-    protected UnifiedChatCompletionResults createTestInstance() {
-        return randomUnifiedChatCompletionResults();
+    protected ChatCompletionChunk createTestInstance() {
+        return randomChatCompletionChunk();
     }
 
     @Override
-    protected UnifiedChatCompletionResults mutateInstance(UnifiedChatCompletionResults instance) {
+    protected ChatCompletionChunk mutateInstance(ChatCompletionChunk instance) {
         return switch (randomIntBetween(0, 3)) {
-            case 0 -> new UnifiedChatCompletionResults(
+            case 0 -> new ChatCompletionChunk(
                 instance.id() + "x",
                 instance.choices(),
                 instance.model(),
                 instance.object(),
                 instance.usage()
             );
-            case 1 -> new UnifiedChatCompletionResults(
+            case 1 -> new ChatCompletionChunk(
                 instance.id(),
                 randomList(1, 3, () -> new Choice(new Message(randomAlphanumericOfLength(5), null, null, null), null, 0)),
                 instance.model(),
                 instance.object(),
                 instance.usage()
             );
-            case 2 -> new UnifiedChatCompletionResults(
+            case 2 -> new ChatCompletionChunk(
                 instance.id(),
                 instance.choices(),
                 instance.model() + "x",
                 instance.object(),
                 instance.usage()
             );
-            case 3 -> new UnifiedChatCompletionResults(
+            case 3 -> new ChatCompletionChunk(
                 instance.id(),
                 instance.choices(),
                 instance.model(),
@@ -192,12 +192,12 @@ public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializat
     }
 
     @Override
-    protected UnifiedChatCompletionResults mutateInstanceForVersion(UnifiedChatCompletionResults instance, TransportVersion version) {
+    protected ChatCompletionChunk mutateInstanceForVersion(ChatCompletionChunk instance, TransportVersion version) {
         return downgrade(instance, version);
     }
 
     public void testToXContentChunked_FullResponse() throws IOException {
-        var completion = new UnifiedChatCompletionResults(
+        var completion = new ChatCompletionChunk(
             "chatcmpl-123",
             List.of(
                 new Choice(
@@ -252,7 +252,7 @@ public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializat
     }
 
     public void testToXContentChunked_MinimalResponse() throws IOException {
-        var completion = new UnifiedChatCompletionResults(
+        var completion = new ChatCompletionChunk(
             "chatcmpl-456",
             List.of(new Choice(new Message("Hi", null, "assistant", null), "stop", 0)),
             "gpt-4o-mini",
@@ -283,7 +283,7 @@ public class UnifiedChatCompletionResultsTests extends AbstractBWCWireSerializat
      * Wraps the non-streaming form in a top-level object to match the outer object supplied by
      * {@code InferenceAction.Response.toXContentChunked()} in production.
      */
-    private static String toXContentNonStreaming(UnifiedChatCompletionResults completion) throws IOException {
+    private static String toXContentNonStreaming(ChatCompletionChunk completion) throws IOException {
         var builder = JsonXContent.contentBuilder();
         builder.startObject();
         completion.toXContentChunked(null).forEachRemaining(xContent -> {

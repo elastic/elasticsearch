@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.UnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage.CompletionTokenDetails;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage.PromptTokensDetails;
@@ -70,10 +70,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * </ul>
  *
  * <p>Both {@link #parseStreamingChunk} and {@link #parseNonStreamingResponse} return a
- * {@link UnifiedChatCompletionResults}. Streaming callers pass it to
+ * {@link ChatCompletionChunk}. Streaming callers pass it to
  * {@code StreamingUnifiedChatCompletionResults.Results} which calls
- * {@link UnifiedChatCompletionResults#toStreamingXContentChunked}; non-streaming callers use
- * {@link UnifiedChatCompletionResults#toXContentChunked} via {@code InferenceAction.Response}.
+ * {@link ChatCompletionChunk#toStreamingXContentChunked}; non-streaming callers use
+ * {@link ChatCompletionChunk#toXContentChunked} via {@code InferenceAction.Response}.
  */
 public final class OpenAiUnifiedChatCompletionParser {
 
@@ -88,8 +88,8 @@ public final class OpenAiUnifiedChatCompletionParser {
     private static final ConstructingObjectParser<PromptTokensDetails, Void> PROMPT_TOKENS_DETAILS_PARSER;
     private static final ConstructingObjectParser<Usage, Void> USAGE_PARSER;
 
-    private static final ConstructingObjectParser<UnifiedChatCompletionResults, Void> STREAMING_PARSER;
-    private static final ConstructingObjectParser<UnifiedChatCompletionResults, Void> NON_STREAMING_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionChunk, Void> STREAMING_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionChunk, Void> NON_STREAMING_PARSER;
 
     static {
         FUNCTION_PARSER = new ConstructingObjectParser<>(
@@ -135,24 +135,24 @@ public final class OpenAiUnifiedChatCompletionParser {
         NON_STREAMING_PARSER = buildRootParser(MESSAGE_FIELD, false);
     }
 
-    public static UnifiedChatCompletionResults parseStreamingChunk(XContentParser parser) throws IOException {
+    public static ChatCompletionChunk parseStreamingChunk(XContentParser parser) throws IOException {
         return STREAMING_PARSER.parse(parser, null);
     }
 
-    public static UnifiedChatCompletionResults parseNonStreamingResponse(XContentParser parser) throws IOException {
+    public static ChatCompletionChunk parseNonStreamingResponse(XContentParser parser) throws IOException {
         return NON_STREAMING_PARSER.parse(parser, null);
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<UnifiedChatCompletionResults, Void> buildRootParser(
+    private static ConstructingObjectParser<ChatCompletionChunk, Void> buildRootParser(
         String choiceContentField,
         boolean indexRequired
     ) {
         var choiceParser = buildChoiceParser(choiceContentField, buildMessageParser(buildToolCallParser(indexRequired), indexRequired));
-        var parser = new ConstructingObjectParser<UnifiedChatCompletionResults, Void>(
+        var parser = new ConstructingObjectParser<ChatCompletionChunk, Void>(
             "chat_completion_chunk",
             true,
-            args -> new UnifiedChatCompletionResults(
+            args -> new ChatCompletionChunk(
                 (String) args[0],
                 (List<Choice>) args[1],
                 Objects.requireNonNullElse((String) args[2], ""),

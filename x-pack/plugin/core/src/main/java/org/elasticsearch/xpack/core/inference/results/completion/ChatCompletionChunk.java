@@ -29,13 +29,14 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODE
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.OBJECT_FIELD;
 
 /**
- * Shared payload for OpenAI-compatible chat completion responses — both streaming
- * ({@code chat.completion.chunk}) and non-streaming ({@code chat.completion}).
+ * OpenAI-compatible chat completion payload, named after its primary role as a streaming
+ * {@code chat.completion.chunk}.
  *
- * <p>The two response types share all field shapes, component order, and wire encoding.
- * The only difference is the field name for the message wrapper ({@code "delta"} vs
- * {@code "message"}) and whether the top-level JSON object is emitted by this class or
- * by the outer {@code InferenceAction.Response}.
+ * <p>Despite the {@code Chunk} name, this record also serves as the non-streaming
+ * {@code chat.completion} payload: the two response types share all field shapes, component
+ * order, and wire encoding.  The only difference is the field name for the message wrapper
+ * ({@code "delta"} vs {@code "message"}) and whether the top-level JSON object is emitted by
+ * this class or by the outer {@code InferenceAction.Response}.
  *
  * <h2>XContent entry points</h2>
  * <ul>
@@ -50,13 +51,13 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.OBJE
  *       {@code StreamingUnifiedChatCompletionResults.Results}.</li>
  * </ul>
  */
-public record UnifiedChatCompletionResults(String id, @Nullable List<Choice> choices, String model, String object, @Nullable Usage usage)
+public record ChatCompletionChunk(String id, @Nullable List<Choice> choices, String model, String object, @Nullable Usage usage)
     implements
         InferenceServiceResults {
 
-    public static final String NAME = "unified_chat_completion_results";
+    public static final String NAME = "chat_completion_chunk";
 
-    public UnifiedChatCompletionResults(StreamInput in) throws IOException {
+    public ChatCompletionChunk(StreamInput in) throws IOException {
         this(in.readString(), in.readOptionalCollectionAsList(Choice::new), in.readString(), in.readString(), in.readOptional(Usage::new));
     }
 

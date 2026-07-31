@@ -586,3 +586,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593

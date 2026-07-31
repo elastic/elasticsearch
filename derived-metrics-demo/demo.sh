@@ -162,18 +162,9 @@ cmd_status() {
 cmd_health() {
   es_up || die "Elasticsearch is not running"
   echo
-  printf '\033[1;34m==>\033[0m %s\n' "Node cost"
+  log "Node cost"
   curl -sS "${AUTH[@]}" "${ES}/_nodes/stats/breaker,thread_pool?filter_path=nodes.*.breakers.derived_metrics,nodes.*.thread_pool.derived_metrics" \
-    | python3 -c '
-import json, sys
-for node in json.load(sys.stdin).get("nodes", {}).values():
-    breaker = node.get("breakers", {}).get("derived_metrics", {})
-    pool = node.get("thread_pool", {}).get("derived_metrics", {})
-    print(f"    breaker      {breaker.get(\"estimated_size\", \"-\")} of {breaker.get(\"limit_size\", \"-\")}"
-          f"   tripped {breaker.get(\"tripped\", 0)}")
-    print(f"    thread pool  active {pool.get(\"active\", 0)}  queue {pool.get(\"queue\", 0)}"
-          f"  completed {pool.get(\"completed\", 0)}  rejected {pool.get(\"rejected\", 0)}")
-'
+    | python3 "$HERE/health.py"
 }
 
 # A closed, 10s-aligned window, for the side-by-side queries in compare.console. Closed because the

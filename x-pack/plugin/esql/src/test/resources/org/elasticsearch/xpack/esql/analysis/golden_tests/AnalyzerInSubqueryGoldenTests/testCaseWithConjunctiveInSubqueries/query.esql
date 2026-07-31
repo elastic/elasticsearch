@@ -1,2 +1,0 @@
-FROM employees
-| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages), true, false)

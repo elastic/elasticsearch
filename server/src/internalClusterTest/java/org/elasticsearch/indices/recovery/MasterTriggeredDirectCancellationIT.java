@@ -723,9 +723,9 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 && initializingShard != null
                 && initializingShard.state() == SnapshotsInProgress.ShardState.WAITING
                 && relocatingShard != null
-                && relocatingShard.state() == SnapshotsInProgress.ShardState.WAITING
-                || relocatingShard.state() == SnapshotsInProgress.ShardState.INIT
-                || relocatingShard.state().completed();
+                && (relocatingShard.state() == SnapshotsInProgress.ShardState.WAITING
+                    || relocatingShard.state() == SnapshotsInProgress.ShardState.INIT
+                    || relocatingShard.state().completed());
         });
 
         safeAwait(cancellationSent);

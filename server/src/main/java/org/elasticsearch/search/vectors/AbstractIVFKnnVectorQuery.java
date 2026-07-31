@@ -39,6 +39,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -60,6 +61,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
+    /**
+     * When true, {@link #rewrite} skips auto-calibrate exact rescoring. Post-filter delegates only need
+     * the approximate candidate pool (stashed in {@link #rawPerLeafResults}); exact scores on the full
+     * oversampled pool would be wasted work.
+     */
+    protected final boolean skipAutoRescore;
     protected int vectorOpsCount;
     protected final IvfQueryConfigResolver ivfQueryConfigResolver;
 
@@ -77,6 +84,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         Query filter,
         IvfQueryConfigResolver ivfQueryConfigResolver
     ) {
+        this(field, visitRatio, k, numCands, filter, ivfQueryConfigResolver, false);
+    }
+
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        IvfQueryConfigResolver ivfQueryConfigResolver,
+        boolean skipAutoRescore
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -91,6 +110,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
+        this.skipAutoRescore = skipAutoRescore;
         this.ivfQueryConfigResolver = Objects.requireNonNull(ivfQueryConfigResolver, "ivfQueryConfigResolver should not be null");
     }
 
@@ -108,6 +128,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
             && numCands == that.numCands
+            && skipAutoRescore == that.skipAutoRescore
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio)
@@ -116,7 +137,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
+        return Objects.hash(field, k, numCands, skipAutoRescore, filter, providedVisitRatio, ivfQueryConfigResolver);
     }
 
     @Override
@@ -181,7 +202,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
-        if (ivfQueryConfigResolver.isAutoCalibrate()) {
+        // Post-filter delegates stash approximate candidates and apply the user filter outside rewrite;
+        // paying exact auto-calibrate rescore on the full oversampled pool is wasted work.
+        if (ivfQueryConfigResolver.isAutoCalibrate() && skipAutoRescore == false) {
+            // we would rescore 30 docs
+            // we would return k = 15
             return getAutoRescoreQuery(indexSearcher, topK, mergeK);
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
@@ -261,13 +286,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     /**
      * Rebuilds this query as a new instance of the same concrete type, carrying over every
-     * parameter except {@code filter}, {@code k}, {@code numCands}, and {@code queryVector}.
-     * Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate} so each subclass
-     * (sliced, diversifying-children, ...) reconstructs itself with its extra state (slice ids,
-     * parents filter) intact. Preconditioning is resolved per-segment during {@link #rewrite},
-     * so the (un-preconditioned) query vector is carried through unchanged.
+     * parameter except {@code filter}, {@code k}, {@code numCands}, {@code queryVector}, and
+     * {@code skipAutoRescore}. Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate}
+     * so each subclass (sliced, diversifying-children, ...) reconstructs itself with its extra state
+     * (slice ids, parents filter) intact. The query vector is cloned so callers cannot alias-mutate
+     * the delegate. Preconditioning is resolved per-segment during {@link #rewrite}.
      */
-    protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector);
+    protected abstract AbstractIVFKnnVectorQuery withParams(
+        Query filter,
+        int k,
+        int numCands,
+        float[] queryVector,
+        boolean skipAutoRescore
+    );
 
     /**
      * Returns the (un-preconditioned) query vector. Preconditioning is applied per-segment inside
@@ -276,15 +307,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      */
     protected abstract float[] queryVector();
 
+    /** Clones {@code queryVector} for a {@link #withParams} respawn. */
+    protected static float[] copyQueryVector(float[] queryVector) {
+        return Arrays.copyOf(queryVector, queryVector.length);
+    }
+
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         // seedDocsPerLeaf are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
         // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
-        // cross-round dedup. Preconditioning is re-applied per-segment on the retry, so pass the
-        // original query vector through.
+        // cross-round dedup
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands * remainingK / k));
-        return withParams(retryFilter, remainingK, scaledNumCands, queryVector());
+        return withParams(retryFilter, remainingK, numCands, queryVector(), true);
     }
 
     @Override
@@ -296,11 +330,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCands / k));
-        return withParams(null, scaledK, scaledNumCands, queryVector());
+        return withParams(null, scaledK, scaledNumCands, queryVector(), true);
     }
 
     @Override
     public ScoreDoc[][] getPostFilterCandidates() {
+        if (leaves == null) {
+            return new ScoreDoc[0][];
+        }
         return rawPerLeafResults == null
             ? new ScoreDoc[leaves.size()][]
             : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);

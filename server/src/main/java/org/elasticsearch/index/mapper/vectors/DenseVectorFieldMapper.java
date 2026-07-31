@@ -3629,7 +3629,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean sliceEnabled,
             @Nullable String sliceRouting
         ) {
-            int adjustedK = k;
+            int adjustedKForRescoring = k;
+            int adjustedNumCandsForRescoring = numCands;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
             Float oversample = queryOversample;
@@ -3641,8 +3642,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean rescore = needsRescore(oversample);
             if (rescore) {
                 // Will get k * oversample for rescoring, and get the top k
-                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
-                numCands = Math.max(adjustedK, numCands);
+                adjustedKForRescoring = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                adjustedNumCandsForRescoring = Math.max(adjustedKForRescoring, numCands);
             }
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
@@ -3655,6 +3656,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (bbqIndexOptions.autoCalibrate) {
                     // perform rescore internally within AbstractIVFKnnVectorQuery#getAutoRescoreQuery
                     rescore = false;
+                    adjustedKForRescoring = k;
+                    adjustedNumCandsForRescoring = numCands;
                 }
                 float mappingOversample = bbqIndexOptions.rescoreVector != null
                     ? bbqIndexOptions.rescoreVector.oversample
@@ -3670,69 +3673,69 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
-                            name(),
-                            queryVector,
-                            k,
-                            numCands,
-                            cachedFilter,
-                            parentFilter,
-                            visitRatio,
-                            ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
-                            sliceIds
-                        )
+                        name(),
+                        queryVector,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
+                        cachedFilter,
+                        parentFilter,
+                        visitRatio,
+                        ivfQueryConfigResolver,
+                        RoutingFieldMapper.NAME,
+                        sliceIds
+                    )
                         : new IVFKnnFloatSlicedVectorQuery(
-                            name(),
-                            queryVector,
-                            k,
-                            numCands,
-                            cachedFilter,
-                            visitRatio,
-                            ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
-                            sliceIds
-                        );
+                        name(),
+                        queryVector,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
+                        cachedFilter,
+                        visitRatio,
+                        ivfQueryConfigResolver,
+                        RoutingFieldMapper.NAME,
+                        sliceIds
+                    );
                 } else {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
-                            name(),
-                            queryVector,
-                            k,
-                            numCands,
-                            cachedFilter,
-                            parentFilter,
-                            visitRatio,
-                            ivfQueryConfigResolver
-                        )
-                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, cachedFilter, visitRatio, ivfQueryConfigResolver);
+                        name(),
+                        queryVector,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
+                        cachedFilter,
+                        parentFilter,
+                        visitRatio,
+                        ivfQueryConfigResolver
+                    )
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedKForRescoring, adjustedNumCandsForRescoring, cachedFilter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(
-                        name(),
-                        queryVector,
-                        cachedFilter,
-                        adjustedK,
-                        numCands,
-                        parentFilter,
-                        knnSearchStrategy,
-                        hnswEarlyTermination
-                    )
+                    name(),
+                    queryVector,
+                    cachedFilter,
+                    adjustedKForRescoring,
+                    adjustedNumCandsForRescoring,
+                    parentFilter,
+                    knnSearchStrategy,
+                    hnswEarlyTermination
+                )
                     : new ESKnnFloatVectorQuery(
-                        name(),
-                        queryVector,
-                        adjustedK,
-                        numCands,
-                        cachedFilter,
-                        knnSearchStrategy,
-                        hnswEarlyTermination
-                    );
+                    name(),
+                    queryVector,
+                    adjustedKForRescoring,
+                    adjustedNumCandsForRescoring,
+                    cachedFilter,
+                    knnSearchStrategy,
+                    hnswEarlyTermination
+                );
             }
             if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
-                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter, postFilterSelectivityThreshold);
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedKForRescoring, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
-                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedKForRescoring, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(

@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
@@ -95,6 +96,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             assertNull("post-filter delegate must be filterless", delegate.filter);
             assertEquals(EXPECTED_SCALED_K, delegate.k());
             assertEquals(EXPECTED_SCALED_NUM_CANDS, delegate.numCands());
+            assertTrue("post-filter delegates skip auto-calibrate exact rescore", delegate.skipAutoRescore);
         }
     }
 
@@ -106,15 +108,21 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreatePostFilterDelegateRespawnsFromOriginalVector() {
-        // withParams must reuse the un-preconditioned query vector, not the (possibly transformed) live one.
+    public void testCreatePostFilterDelegateRespawnsFromOriginalVectorCopy() {
+        // withParams must clone the un-preconditioned query vector, not alias the live one.
         for (AbstractIVFKnnVectorQuery original : Arrays.asList(plain(), sliced(), diversifying(), diversifyingSliced())) {
             IVFKnnFloatVectorQuery delegate = (IVFKnnFloatVectorQuery) original.createPostFilterDelegate(SELECTIVITY);
             assertArrayEquals(QUERY, delegate.getQuery(), 0f);
+            assertNotSame(original.queryVector(), delegate.getQuery());
         }
     }
 
-    public void testCreateRetryQueryExcludesDocsAndScalesNumCands() throws IOException {
+    public void testGetPostFilterCandidatesBeforeRewriteIsEmpty() {
+        ScoreDoc[][] candidates = plain().getPostFilterCandidates();
+        assertEquals(0, candidates.length);
+    }
+
+    public void testCreateRetryQueryExcludesDocsAndKeepsNumCands() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
                 for (int i = 0; i < 8; i++) {
@@ -132,18 +140,17 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                         remainingK
                     );
 
-                    // scaledNumCands = ceil(NUM_CANDS * remainingK / K) = ceil(20 * 3 / 10) = 6
-                    int expectedNumCands = (int) Math.ceil((double) NUM_CANDS * remainingK / K);
                     assertSame("retry must be the same concrete type", original.getClass(), retry.getClass());
                     assertEquals("retry asks only for the remaining k", remainingK, retry.k());
-                    assertEquals("retry scales numCands proportionally", expectedNumCands, retry.numCands());
+                    assertEquals("retry keeps numCands (IVF exploration knob)", NUM_CANDS, retry.numCands());
+                    assertTrue(retry.skipAutoRescore);
                     assertTrue("excluded docs must become an ExcludeDocsQuery", retry.filter instanceof ExcludeDocsQuery);
                 }
             }
         }
     }
 
-    public void testCreateRetryQueryCarriesCurrentVector() throws IOException {
+    public void testCreateRetryQueryCarriesClonedVector() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
                 w.addDocument(new Document());
@@ -152,6 +159,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 for (AbstractIVFKnnVectorQuery original : Arrays.asList(plain(), sliced(), diversifying(), diversifyingSliced())) {
                     IVFKnnFloatVectorQuery retry = (IVFKnnFloatVectorQuery) original.createRetryQuery(reader, new int[0], new int[0][], 4);
                     assertArrayEquals("retry must carry the original query vector", QUERY, retry.getQuery(), 0f);
+                    assertNotSame(original.queryVector(), retry.getQuery());
                 }
             }
         }

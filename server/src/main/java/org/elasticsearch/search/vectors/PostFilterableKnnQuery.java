@@ -24,7 +24,8 @@ import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 /**
  * Interface for KNN queries that support post-filtering with retry.
  * Implemented by the HNSW query classes ({@link ESKnnFloatVectorQuery},
- * {@link ESKnnByteVectorQuery}, and their diversifying-children variants).
+ * {@link ESKnnByteVectorQuery}, and their diversifying-children variants) and by
+ * {@link AbstractIVFKnnVectorQuery} (and its float/sliced/diversifying subtypes).
  */
 public interface PostFilterableKnnQuery {
 

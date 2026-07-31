@@ -56,7 +56,20 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, queryConfigResolver);
+        this(field, query, k, numCands, filter, visitRatio, queryConfigResolver, false);
+    }
+
+    IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean skipAutoRescore
+    ) {
+        super(field, visitRatio, k, numCands, filter, queryConfigResolver, skipAutoRescore);
         this.query = query;
     }
 
@@ -65,8 +78,17 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector) {
-        return new IVFKnnFloatVectorQuery(field, queryVector, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector, boolean skipAutoRescore) {
+        return new IVFKnnFloatVectorQuery(
+            field,
+            copyQueryVector(queryVector),
+            k,
+            numCands,
+            filter,
+            providedVisitRatio,
+            ivfQueryConfigResolver,
+            skipAutoRescore
+        );
     }
 
     @Override

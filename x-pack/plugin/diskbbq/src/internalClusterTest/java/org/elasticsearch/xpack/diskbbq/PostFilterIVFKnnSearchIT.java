@@ -133,6 +133,43 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFallback(indexName, new float[] { 1, 1, 1, 100 });
     }
 
+    /**
+     * Multi-segment variant of the flat post-filter path. Docs are indexed in two flushes without a
+     * force-merge so the IVF query must stash and filter per-leaf candidates across more than one segment.
+     */
+    public void testIvfFloatMultiSegment() throws IOException {
+        String indexName = "ivf_float_multi_segment_test";
+        createIvfIndex(indexName);
+        indexFlatDocsMultiSegment(indexName);
+        assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
+    }
+
+    /**
+     * Layout that forces round-0 to come up short of {@code k} while still leaving enough far-away
+     * "pass" docs for the retry round to fill the remainder — without falling back to the pre-filtered
+     * inner query. Nearest neighborhood is almost all "fail" with only two "pass" docs; additional
+     * "pass" docs sit far from the query so only the retry (after excluding round-0 candidates) can
+     * surface them. {@code default_visit_percentage: 100} keeps the search exhaustive so the retry is
+     * deterministic.
+     */
+    public void testIvfFloatRetryWithoutFallback() throws IOException {
+        String indexName = "ivf_float_retry_test";
+        createIvfIndex(indexName);
+        indexFlatDocsRetrySucceeds(indexName);
+        assertPostFilterRetry(indexName, new float[] { 1, 1, 1, 100 });
+    }
+
+    /**
+     * Post-filtering with {@code auto_calibrate: true}. The post-filter delegate must skip exact
+     * auto-rescore of the oversampled pool and still return filter-passing hits.
+     */
+    public void testIvfFloatAutoCalibrate() throws IOException {
+        String indexName = "ivf_float_auto_calibrate_test";
+        createIvfAutoCalibrateIndex(indexName);
+        indexFlatDocs(indexName);
+        assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
+    }
+
     public void testPostFilterReportsVectorOpsInProfile() throws IOException {
         String indexName = "ivf_profile_test";
         createIvfIndex(indexName);
@@ -172,6 +209,20 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     }
 
     private void createIvfIndex(String indexName) throws IOException {
+        prepareCreate(indexName).setMapping(ivfMapping(false)).get();
+        ensureGreen(indexName);
+    }
+
+    private void createIvfAutoCalibrateIndex(String indexName) throws IOException {
+        Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .build();
+        prepareCreate(indexName).setSettings(settings).setMapping(ivfMapping(true)).get();
+        ensureGreen(indexName);
+    }
+
+    private static XContentBuilder ivfMapping(boolean autoCalibrate) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -184,16 +235,11 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             .startObject("index_options")
             .field("type", "bbq_disk")
             .field("bits", 4)
-            .field("default_visit_percentage", 100)
-            .endObject()
-            .endObject()
-            .startObject(TAG_FIELD)
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject();
-        prepareCreate(indexName).setMapping(mapping).get();
-        ensureGreen(indexName);
+            .field("default_visit_percentage", 100);
+        if (autoCalibrate) {
+            mapping.field("auto_calibrate", true);
+        }
+        return mapping.endObject().endObject().startObject(TAG_FIELD).field("type", "keyword").endObject().endObject().endObject();
     }
 
     private void createIvfNestedIndex(String indexName) throws IOException {
@@ -408,6 +454,59 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
             }
             // Fallback path runs the inner query after post-filter retry comes up short — its
             // vectorOps must still be reported in the profile.
+            assertProfileReportsVectorOps(response);
+        });
+    }
+
+    /**
+     * Same 80/20 common/rare layout as {@link #indexFlatDocs}, but flushed in two batches and never
+     * force-merged so the index keeps multiple segments.
+     */
+    private void indexFlatDocsMultiSegment(String indexName) {
+        for (int i = 0; i < 100; i++) {
+            String tag = randomFloat() < .8f ? "common" : "rare";
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
+                .get();
+        }
+        refresh(indexName);
+        for (int i = 100; i < 200; i++) {
+            String tag = randomFloat() < .8f ? "common" : "rare";
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource(VECTOR_FIELD, new float[] { 1, 1, 1, randomIntBetween(-128, 127) }, TAG_FIELD, tag)
+                .get();
+        }
+        refresh(indexName);
+    }
+
+    /**
+     * Deterministic layout for retry-without-fallback. Docs 0-79, 97, 98 are "pass" (selectivity
+     * 0.82 &gt; 0.7 → post-filter); the rest are "fail". A high-index query sees only two "pass" docs
+     * (97, 98) inside its round-0 neighborhood, so round-0 returns 2 &lt; k and the retry must pull the
+     * remaining hits from the far "pass" docs.
+     */
+    private void indexFlatDocsRetrySucceeds(String indexName) {
+        for (int i = 0; i < 100; i++) {
+            String tag = (i <= 79 || i == 97 || i == 98) ? "pass" : "fail";
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, TAG_FIELD, tag).get();
+        }
+        forceMerge(true);
+        refresh(indexName);
+    }
+
+    private void assertPostFilterRetry(String indexName, float[] queryVector) {
+        int k = 5;
+        // numCands large enough that round-0's oversampled pool still sits inside the hostile
+        // high-index neighborhood (only 2 pass docs), so retry must contribute the remaining hits.
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 40, null, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "pass")
+        );
+
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
+            assertEquals("Expected exactly k results from round-0 + retry", k, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("pass", hit.getSourceAsMap().get(TAG_FIELD));
+            }
             assertProfileReportsVectorOps(response);
         });
     }

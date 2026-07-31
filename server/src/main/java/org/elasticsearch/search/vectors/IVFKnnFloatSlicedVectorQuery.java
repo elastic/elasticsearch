@@ -61,21 +61,37 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         String sliceField,
         BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
+        this(field, query, k, numCands, filter, visitRatio, queryConfigResolver, false, sliceField, sliceIds);
+    }
+
+    IVFKnnFloatSlicedVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean skipAutoRescore,
+        String sliceField,
+        BytesRef... sliceIds
+    ) {
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver, skipAutoRescore);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector) {
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector, boolean skipAutoRescore) {
         return new IVFKnnFloatSlicedVectorQuery(
             field,
-            queryVector,
+            copyQueryVector(queryVector),
             k,
             numCands,
             filter,
             providedVisitRatio,
             ivfQueryConfigResolver,
+            skipAutoRescore,
             sliceField,
             sliceIds
         );

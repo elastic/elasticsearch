@@ -13,10 +13,10 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage.CompletionTokenDetails;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage.PromptTokensDetails;
@@ -144,10 +144,7 @@ public final class OpenAiUnifiedChatCompletionParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<ChatCompletionChunk, Void> buildRootParser(
-        String choiceContentField,
-        boolean indexRequired
-    ) {
+    private static ConstructingObjectParser<ChatCompletionChunk, Void> buildRootParser(String choiceContentField, boolean indexRequired) {
         var choiceParser = buildChoiceParser(choiceContentField, buildMessageParser(buildToolCallParser(indexRequired), indexRequired));
         var parser = new ConstructingObjectParser<ChatCompletionChunk, Void>(
             "chat_completion_chunk",

@@ -14,10 +14,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -120,8 +120,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * @return a stream of ChatCompletionChunk
      * @throws IOException if parsing fails
      */
-    private static Stream<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
-        throws IOException {
+    private static Stream<ChatCompletionChunk> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) throws IOException {
         // Handle known event types
         switch (event.type()) {
             case VERTEX_EVENT_EVENT_TYPE, PING_EVENT_TYPE, CONTENT_BLOCK_STOP_EVENT_TYPE:

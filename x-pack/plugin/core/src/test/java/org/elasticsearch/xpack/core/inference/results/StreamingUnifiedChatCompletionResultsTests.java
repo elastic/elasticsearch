@@ -17,11 +17,11 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkTests;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkTests;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 

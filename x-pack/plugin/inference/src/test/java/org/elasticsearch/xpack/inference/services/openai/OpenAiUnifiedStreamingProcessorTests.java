@@ -16,9 +16,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
 import java.io.IOException;

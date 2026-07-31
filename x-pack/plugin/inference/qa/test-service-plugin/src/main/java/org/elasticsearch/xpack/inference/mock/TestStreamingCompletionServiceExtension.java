@@ -39,9 +39,9 @@ import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 
 import java.io.IOException;
 import java.util.ArrayList;

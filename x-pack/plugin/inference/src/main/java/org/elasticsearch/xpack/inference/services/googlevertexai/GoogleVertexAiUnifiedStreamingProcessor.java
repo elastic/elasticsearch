@@ -20,10 +20,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Choice;
 import org.elasticsearch.xpack.core.inference.results.completion.Message;
 import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.Usage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -163,13 +163,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
 
-                return new ChatCompletionChunk(
-                    responseId,
-                    choices,
-                    modelversion,
-                    CHAT_COMPLETION_CHUNK,
-                    usageMetadataToChunk(usage)
-                );
+                return new ChatCompletionChunk(responseId, choices, modelversion, CHAT_COMPLETION_CHUNK, usageMetadataToChunk(usage));
             }
         );
 

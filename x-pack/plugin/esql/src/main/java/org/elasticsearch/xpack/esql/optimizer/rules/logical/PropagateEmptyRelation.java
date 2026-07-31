@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproxima
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -44,6 +45,10 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        if (plan instanceof InsertEmptyBuckets) {
+            // InsertEmptyBuckets creates the missing histogram buckets and therefore emits rows even when its input is empty.
+            return plan;
+        }
         if (plan instanceof UnaryPlan unary && unary.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {

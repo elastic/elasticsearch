@@ -30,6 +30,7 @@ public class BucketOffsetTests extends ESTestCase {
             Literal.timeDuration(Source.EMPTY, Duration.ofHours(1)),
             null,
             null,
+            null,
             ConfigurationAware.CONFIGURATION_MARKER,
             Duration.ofMinutes(30).toMillis(),
             Rounding.RoundingConvention.UP
@@ -49,6 +50,7 @@ public class BucketOffsetTests extends ESTestCase {
             Literal.integer(Source.EMPTY, 4),
             Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T00:00:00Z")),
             Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T04:00:00Z")),
+            null,
             ConfigurationAware.CONFIGURATION_MARKER,
             Duration.ofMinutes(30).toMillis(),
             Rounding.RoundingConvention.UP

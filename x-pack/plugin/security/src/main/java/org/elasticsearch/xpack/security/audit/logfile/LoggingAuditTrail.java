@@ -13,7 +13,6 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +40,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
@@ -1140,7 +1138,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private class LogEntryBuilder {
 
-        private final StringMapMessage logEntry;
+        private final FastLogEntryAccumulator logEntry;
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
         private boolean includeThreadContext = true;
 
@@ -1149,7 +1147,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder(boolean showOrigin) {
-            logEntry = new StringMapMessage(LoggingAuditTrail.this.entryCommonFields.commonFields);
+            logEntry = new FastLogEntryAccumulator(LoggingAuditTrail.this.entryCommonFields.seedValues);
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
@@ -1727,7 +1725,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+        static void addAuthenticationFieldsToLogEntry(FastLogEntryAccumulator logEntry, Authentication authentication) {
             assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
@@ -1752,11 +1750,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    final FastLogEntryAccumulator crossClusterAccessLogEntry = new FastLogEntryAccumulator(Collections.emptyMap());
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(crossClusterAccessLogEntry.getData());
+                        builder.map(crossClusterAccessLogEntry.nestedObjectData());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         throw new ElasticsearchSecurityException(
@@ -1813,9 +1811,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder with(String key, String[] values) {
-            if (values != null) {
-                logEntry.with(key, toQuotedJsonArray(values));
-            }
+            logEntry.with(key, values);
             return this;
         }
 
@@ -1833,12 +1829,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder with(Map<String, Object> map) {
             for (Entry<String, Object> entry : map.entrySet()) {
-                Object value = entry.getValue();
-                if (value.getClass().isArray()) {
-                    logEntry.with(entry.getKey(), toQuotedJsonArray((Object[]) value));
-                } else {
-                    logEntry.with(entry.getKey(), value);
-                }
+                logEntry.with(entry.getKey(), entry.getValue());
             }
             return this;
         }
@@ -1848,25 +1839,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 withThreadContext();
             }
             logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
-        }
-
-        static String toQuotedJsonArray(Object[] values) {
-            assert values != null;
-            final StringBuilder stringBuilder = new StringBuilder();
-            final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
-            stringBuilder.append("[");
-            for (final Object value : values) {
-                if (value != null) {
-                    if (stringBuilder.length() > 1) {
-                        stringBuilder.append(",");
-                    }
-                    stringBuilder.append("\"");
-                    jsonStringEncoder.quoteAsString(value.toString(), stringBuilder);
-                    stringBuilder.append("\"");
-                }
-            }
-            stringBuilder.append("]");
-            return stringBuilder.toString();
         }
     }
 
@@ -2112,6 +2084,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final DiscoveryNode localNode;
         private final ClusterService clusterService;
         final Map<String, String> commonFields;
+        /**
+         * A seed for the Object[] values array populated for the logEntry within {@link FastLogEntryAccumulator}. It is an array initialized to
+         * the total length of the audit format, empty except for the commonFields values stored at appropriate indices. This optimization reduces
+         * a new logEntry construction to an array copy of seedValues, saving the cost of iterating commonFields for each logEntry within its
+         * constructor. Updated whenever commonFields is updated.
+         */
+        final Object[] seedValues;
 
         EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode, ClusterService clusterService) {
             this.settings = settings;
@@ -2167,6 +2146,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             commonFields.putIfAbsent(CLUSTER_NAME_FIELD_NAME, null);
             commonFields.putIfAbsent(CLUSTER_UUID_FIELD_NAME, null);
             this.commonFields = Collections.unmodifiableMap(commonFields);
+            this.seedValues = FastLogEntryAccumulator.seedValues(this.commonFields);
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {

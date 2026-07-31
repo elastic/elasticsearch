@@ -1849,7 +1849,8 @@ public class FileSplitProviderTests extends ESTestCase {
     /** The file start is always a split start, and each probed boundary follows in probe order. */
     public void testReduceProbeOutcomesSeedsTheFileStart() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240))
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240)),
+            0
         );
         assertEquals(List.of(0L, 120L, 240L), boundaries);
     }

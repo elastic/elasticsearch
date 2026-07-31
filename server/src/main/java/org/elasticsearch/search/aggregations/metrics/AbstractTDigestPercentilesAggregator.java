@@ -87,7 +87,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         states = bigArrays.grow(states, bucket + 1);
         HistogramUnionState state = states.get(bucket);
         if (state == null) {
-            state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
+            state = HistogramUnionState.create(context.breaker(), executionHint, compression);
             states.set(bucket, state);
         }
         return state;
@@ -107,6 +107,10 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
+        // Close each state individually so the circuit breaker bytes are returned before releasing the array.
+        for (long i = 0; i < states.size(); i++) {
+            Releasables.close(states.get(i));
+        }
         Releasables.close(states);
     }
 

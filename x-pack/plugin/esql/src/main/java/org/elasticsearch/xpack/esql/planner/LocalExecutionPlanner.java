@@ -1621,7 +1621,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
 
         // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -1728,7 +1728,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
         int sampleRows = tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
         if (sampleRows != TsInfoOperator.NO_LIMIT) {
             dedupedSource = dedupedSource.with(new LimitOperator.Factory(sampleRows), dedupedSource.layout);

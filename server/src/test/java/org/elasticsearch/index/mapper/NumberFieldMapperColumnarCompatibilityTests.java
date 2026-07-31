@@ -186,11 +186,75 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    public void testLongField_stringColumn_emptyStringMissing() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            columnarSettings(),
+            batch("long empty string missing", 1L, doc("d1", 1L, "{\"f\":\"10\"}"), doc("d2", 2L, "{\"f\":\"\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testLongField_stringColumn_emptyStringUsesNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").field("null_value", 7).endObject()),
+            columnarSettings(),
+            batch("long empty string null_value", 1L, doc("d1", 1L, "{\"f\":\"10\"}"), doc("d2", 2L, "{\"f\":\"\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    public void testLongField_stringColumn_coerceFalseRejectsNumericString() throws IOException {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "long").field("coerce", false).endObject()),
+                columnarSettings(),
+                batch("long coerce false string", 1L, doc("d1", 1L, "{\"f\":\"42\"}"))
+            )
+        );
+        assertTrue("expected coerce message but got: " + ex.getMessage(), ex.getMessage().contains("Long value passed as String"));
+    }
+
+    public void testLongField_stringColumn_coerceFalseRejectsEmptyString() throws IOException {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "long").field("coerce", false).endObject()),
+                columnarSettings(),
+                batch("long coerce false empty string", 1L, doc("d1", 1L, "{\"f\":\"\"}"))
+            )
+        );
+        assertTrue("expected coerce message but got: " + ex.getMessage(), ex.getMessage().contains("Long value passed as String"));
+    }
+
+    public void testDoubleField_bigIntegerNumberTokenStoredAsStringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
+            columnarSettings(),
+            batch("double big integer token", 1L, doc("d1", 1L, "{\"f\":9223372036854775808}"))
+        );
+    }
+
+    public void testDoubleField_bigDecimalNumberTokenStoredAsStringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
+            columnarSettings(),
+            batch("double big decimal token", 1L, doc("d1", 1L, "{\"f\":1.2345678901234567890123456789}"))
+        );
+    }
+
     public void testIntegerField_stringColumn() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
             columnarSettings(),
             batch("integer string", 1L, doc("d1", 1L, "{\"f\":\"100\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-50\"}"))
+        );
+    }
+
+    public void testIntegerField_stringColumn_decimalTruncated() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
+            columnarSettings(),
+            batch("integer string decimal coerce", 1L, doc("d1", 1L, "{\"f\":\"123.9\"}"), doc("d2", 2L, "{\"f\":\"-123.9\"}"))
         );
     }
 

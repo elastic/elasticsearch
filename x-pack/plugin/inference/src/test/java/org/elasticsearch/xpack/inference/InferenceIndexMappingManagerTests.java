@@ -58,7 +58,6 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        // Client is mocked — see class Javadoc for the rationale.
         mockClient = mock(Client.class);
         ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockClient.threadPool()).thenReturn(mockThreadPool);

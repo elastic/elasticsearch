@@ -1158,6 +1158,11 @@ public class SharedBlobCacheWarmingService {
                 // readReferencedCompoundCommitsUsingCache had fully populated it; header-sized reads can leave gaps in that region,
                 // so searches can miss until the full range is forced into cache (see RecoveryWarmer#shouldSkipLocationWarming for SEARCH).
                 final WarmTarget target = targetToWarm.getValue();
+                // On a time-based search shard with timestamp backfill enabled, producers must hand us fully resolved timestamps.
+                assert !(directory instanceof SearchDirectory sd)
+                    || !sd.timestampBackfillEnabled()
+                    || target.timestampMillis() >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP
+                    : "time-based warm target must be resolved, got " + target.timestampMillis() + " for " + targetToWarm.getKey();
                 if (target.endOffset() > 0) {
                     warmBlobByteRange(
                         Type.SEARCH,
@@ -1354,7 +1359,7 @@ public class SharedBlobCacheWarmingService {
             final int endRegion = cacheService.getEndingRegion(end);
             // There is a race here with searchDirectory which could have been updated midway through warming. This could result in
             // no timestamp for a previously known file.
-            final long timestampMillis = directory.getTimestampMillis(fileName);
+            final long timestampMillis = directory.resolveRegionTimestampMillis(directory.getTimestampMillis(fileName));
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);

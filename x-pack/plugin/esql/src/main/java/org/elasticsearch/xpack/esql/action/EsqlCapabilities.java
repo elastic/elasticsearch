@@ -2128,7 +2128,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V3(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2858,8 +2858,8 @@ public class EsqlCapabilities {
         REGISTER_FEDERATION_FEATURE,
 
         /**
-         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so
-         * federation is off unless a deployment opts in. Nodes that only have the operator kill switch report
+         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
+         * deployment can turn federation on or off per node. Nodes that only have the operator kill switch report
          * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
          * per node, so a test that drives the setting has to skip against them.
          */
@@ -3579,6 +3579,16 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>
          */
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
+
+        /**
+         * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
+         * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
+         * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride}. Without this, the rewrite
+         * emits {@code Project[[alias, grouping]]} with duplicate names and post-optimization verification fails.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/153507">#153507</a>.
+         */
+        FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

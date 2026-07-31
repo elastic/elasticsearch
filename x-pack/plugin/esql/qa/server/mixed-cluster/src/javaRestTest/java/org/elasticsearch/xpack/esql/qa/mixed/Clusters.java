@@ -68,7 +68,7 @@ public class Clusters {
 
     /**
      * Configures a current-version node with the settings that do not exist on every version in the mixed cluster: a node
-     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation opt-in
+     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation gate
      * are set per node rather than cluster-wide.
      */
     private static void currentVersionNode(LocalNodeSpecBuilder node, Path csvDataPath) {

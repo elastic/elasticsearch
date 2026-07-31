@@ -197,6 +197,18 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return rewrittenSortField;
         }
 
+        if (nested != null) {
+            // A nested sort must keep the nested-aware comparator source. Rewriting to a plain
+            // SortedNumericSortField(LONG) sorts on the parent's own doc values, but the integer
+            // lives only in the nested children, so every parent would sort by the LONG missing
+            // sentinel (see #155243). longSource already carries the nested context, sort mode
+            // and missing value.
+            SortField rewrittenSortField = new SortField(sortField.getField(), longSource, reverse);
+            // we don't optimize sorting on int field for old indices
+            rewrittenSortField.setOptimizeSortWithPoints(false);
+            return rewrittenSortField;
+        }
+
         SortField rewrittenSortField = new SortedNumericSortField(sortField.getField(), SortField.Type.LONG, reverse);
         rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
         // we don't optimize sorting on int field for old indices

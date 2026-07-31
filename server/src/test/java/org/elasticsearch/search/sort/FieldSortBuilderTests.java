@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -68,6 +69,7 @@ import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSort
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
@@ -861,6 +863,30 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             SortField.Type.INT
         );
         assertIntegerSortRewrite(IndexVersion.current(), SortField.Type.INT);
+    }
+
+    /**
+     * Nested sorts on integer fields in old (pre-8.19 / 9.0.x) indices must keep the nested-aware
+     * {@link LongValuesComparatorSource} after the BWC int-to-long rewrite. A plain
+     * {@code SortedNumericSortField(LONG)} only reads the parent doc's own values; since the integer
+     * lives only in the nested children the parent appears "missing" and sorts by {@code Long.MAX_VALUE}.
+     */
+    public void testNestedIntegerSortOnOldIndexKeepsNestedComparator() throws IOException {
+        // versions subject to the int->long BWC rewrite: pre-8.19, or the 9.0.x range
+        IndexVersion oldVersion = randomBoolean()
+            ? IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            );
+        SearchExecutionContext context = createMockSearchExecutionContext(oldVersion);
+        FieldSortBuilder builder = new FieldSortBuilder("custom-integer").setNestedSort(new NestedSortBuilder("path"));
+        SortField sortField = builder.build(context).field();
+        // Must NOT be a SortedNumericSortField: that construction discards the nested-aware
+        // comparator source and returns Long.MAX_VALUE (the LONG missing sentinel) for every parent.
+        assertThat(sortField, not(instanceOf(SortedNumericSortField.class)));
+        assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
+        assertNotNull(((XFieldComparatorSource) sortField.getComparatorSource()).nested());
     }
 
     private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {

@@ -1,0 +1,6 @@
+pr: 155243
+summary: Fix nested integer sort returning missing sentinel on pre-8.19/9.0.x indices
+area: Search
+type: bug
+issues:
+ - 155243

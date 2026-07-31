@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155510
+summary: "Fix spurious WARN for incomplete batches in BidirectionalBatchExchangeClient on failure/cancellation path"
+type: bug

@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.NodeCacheCommitmentMetrics;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -175,7 +176,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
-import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
@@ -260,6 +260,7 @@ import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -873,6 +874,7 @@ class NodeConstruction {
         );
 
         clusterInfoService.addListener(new WriteLoadMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
+        clusterInfoService.addListener(new NodeCacheCommitmentMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),
@@ -1206,6 +1208,9 @@ class NodeConstruction {
             clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders = pluginsService.loadServiceProviders(
+            TransportMessageListener.Provider.class
+        );
         final TransportService transportService = serviceProvider.newTransportService(
             pluginsService,
             settings,
@@ -1219,7 +1224,8 @@ class NodeConstruction {
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            transportMessageListenerProviders
         );
         transportServiceRef.set(transportService);
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
@@ -1316,7 +1322,7 @@ class NodeConstruction {
             compatibilityVersions
         );
 
-        final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
+        final TimeValue metricsInterval = TelemetryProvider.getMetricsInterval(settings);
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
         final IndicesMetrics indicesMetrics = new IndicesMetrics(
             telemetryProvider.getMeterRegistry(),
@@ -1326,8 +1332,6 @@ class NodeConstruction {
             systemIndices
         );
         final AnalyzerMetrics analyzerMetrics = new AnalyzerMetrics(telemetryProvider.getMeterRegistry(), analysisRegistry);
-        boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
-        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
@@ -1466,7 +1470,6 @@ class NodeConstruction {
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
             b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
-            b.bind(SystemMetrics.class).toInstance(systemMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

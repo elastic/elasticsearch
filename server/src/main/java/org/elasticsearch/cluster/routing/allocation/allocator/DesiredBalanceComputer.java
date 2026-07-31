@@ -236,8 +236,9 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, targetNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        // Use arbitrary recovery priority here, it does not make any difference to the calculation:
-                        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATE_REBALANCING;
+                        // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will
+                        // not be added to the cluster state:
+                        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
                         final var targetShard = routingNodes.relocateShard(
                             shardRouting,
                             targetNodeId,

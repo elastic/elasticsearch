@@ -56,7 +56,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         RELOCATION_CAN_REMAIN_NOT_PREFERRED(true),
 
         /// A shard which is assigned, and is being relocated for rebalancing.
-        RELOCATE_REBALANCING(true);
+        RELOCATE_REBALANCING(true),
+
+        /// Placeholder value for unknown priorities. This can be used in a short-lived `ShardRouting` (for example, for use in a balancing
+        /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`. For the purposes of
+        /// `ShardRouting` validation, it is classified as a relocation.
+        UNKNOWN(true);
 
         private final boolean isRelocation;
 

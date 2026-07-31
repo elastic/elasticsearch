@@ -251,8 +251,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 .getTargetRelocatingShard();
         } else {
             assert shardRouting.started();
-            // Use an arbitrary recovery priority, it makes no difference to the recovery source type:
-            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+            // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be
+            // added to the cluster state:
+            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
             initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority)
                 .getTargetRelocatingShard();
         }

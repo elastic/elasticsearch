@@ -851,7 +851,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 label
             );
         }
-        return;
     }
 
     /**

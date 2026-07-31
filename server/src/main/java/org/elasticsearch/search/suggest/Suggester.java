@@ -44,13 +44,10 @@ public abstract class Suggester<T extends SuggestionSearchContext.SuggestionCont
         return innerExecute(name, suggestion, searcher, spare);
     }
 
-    /**
-     * Estimates the heap used by a Lucene {@link org.apache.lucene.util.PriorityQueue} (or {@code SuggestWordQueue})
-     * of the given size, which pre-allocates an {@code Object[size + 1]} backing array.
-     */
-    public static long priorityQueueRamBytesUsed(int size) {
+    protected static long priorityQueueRamBytesUsed(int size) {
         return RamUsageEstimator.alignObjectSize(
             (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
         );
     }
+
 }

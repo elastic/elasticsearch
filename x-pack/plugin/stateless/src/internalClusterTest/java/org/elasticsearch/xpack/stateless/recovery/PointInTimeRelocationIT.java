@@ -293,6 +293,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         });
 
         assertBusy(
+            // six shards per PIT, we have 2000 for the stress test and 2 pits from the test data setup, so adding 12 for that
             () -> assertEquals("Expected all PIT contexts to be relocated.", lotsOfPits * 6 + 12, searchService2.getActivePITContexts()),
             15,
             TimeUnit.SECONDS

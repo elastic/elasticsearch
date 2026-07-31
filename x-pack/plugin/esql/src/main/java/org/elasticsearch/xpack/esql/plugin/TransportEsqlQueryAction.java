@@ -465,7 +465,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                     qp.splitDiscoveryNanos(),
                     QueryMetricsListener.BYTES_READ,
-                    ci.bytesRead() + qp.bytesScanned()
+                    ci.bytesRead()
                 )
             );
         } catch (Exception ex) {

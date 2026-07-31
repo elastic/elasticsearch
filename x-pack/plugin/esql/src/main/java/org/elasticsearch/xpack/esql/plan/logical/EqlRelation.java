@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.List;
@@ -45,7 +45,7 @@ import java.util.Objects;
  * name) would collide by name with a synthetic or metadata column (the converter dispatches by attribute
  * class, so values stay correct).
  */
-public class EqlRelation extends LeafPlan implements TelemetryAware {
+public class EqlRelation extends LeafPlan {
 
     /** EQL result mode, determined by a shallow parse of the query string at plan time. */
     public enum Mode {
@@ -67,12 +67,13 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
      */
     private final Integer pushedLimit;
     /**
-     * Coordinator-local carrier for the merged field-caps ES|QL already resolved for this pattern, so the delegated EQL
-     * search reuses it instead of re-resolving (see {@code EqlRequests}). {@link PreResolvedFieldCaps#NONE} when nothing
-     * was retained. Never serialized, and excluded from {@link #equals}/{@link #hashCode} (execution metadata, not plan
-     * semantics).
+     * The merged field-caps ES|QL already resolved for this pattern, so the delegated EQL search reuses it instead of
+     * re-resolving (see {@code EqlRequests}), or {@code null} when nothing was retained. Coordinator-local: never
+     * serialized, and excluded from {@link #equals}/{@link #hashCode} — it is a resolution ES|QL happens to have in hand,
+     * redundant with the EQL engine re-resolving it, not part of the plan's meaning.
      */
-    private final PreResolvedFieldCaps preResolvedFieldCaps;
+    @Nullable
+    private final FieldCapabilitiesResponse preResolvedFieldCaps;
 
     public EqlRelation(
         Source source,
@@ -82,7 +83,7 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         Mode mode,
         List<Attribute> output
     ) {
-        this(source, indexPattern, query, options, mode, output, null, PreResolvedFieldCaps.NONE);
+        this(source, indexPattern, query, options, mode, output, null, null);
     }
 
     public EqlRelation(
@@ -93,7 +94,7 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         Mode mode,
         List<Attribute> output,
         Integer pushedLimit,
-        PreResolvedFieldCaps preResolvedFieldCaps
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
     ) {
         super(source);
         this.indexPattern = indexPattern;
@@ -116,11 +117,6 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
      */
     public EqlRelation withAttributes(List<Attribute> newOutput) {
         return new EqlRelation(source(), indexPattern, query, options, mode, newOutput, pushedLimit, preResolvedFieldCaps);
-    }
-
-    /** Returns a copy carrying the coordinator-resolved field-caps for reuse by the EQL delegate. */
-    public EqlRelation withPreResolvedFieldCaps(PreResolvedFieldCaps preResolvedFieldCaps) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
     }
 
     @Override
@@ -148,7 +144,8 @@ public class EqlRelation extends LeafPlan implements TelemetryAware {
         return pushedLimit;
     }
 
-    public PreResolvedFieldCaps preResolvedFieldCaps() {
+    @Nullable
+    public FieldCapabilitiesResponse preResolvedFieldCaps() {
         return preResolvedFieldCaps;
     }
 

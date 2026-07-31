@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
-import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -927,8 +926,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // still yields real metadata columns (mirror FROM, which always has at least one column).
             List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
             // Attach the coordinator-resolved field-caps (if any was retained for this pattern) so the EQL delegate
-            // reuses it; an absent entry yields an empty carrier (PreResolvedFieldCaps.NONE) → the EQL engine self-resolves.
-            PreResolvedFieldCaps preResolvedFieldCaps = new PreResolvedFieldCaps(context.eqlFieldCaps().get(plan.indexPattern()));
+            // reuses it; a null entry means none was retained and the EQL engine self-resolves.
             return new EqlRelation(
                 plan.source(),
                 plan.indexPattern(),
@@ -937,7 +935,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 mode,
                 finalOutput,
                 null,
-                preResolvedFieldCaps
+                context.eqlFieldCaps().get(plan.indexPattern())
             );
         }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
 import java.io.IOException;
@@ -33,7 +32,7 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
         EqlRelation.Mode mode = randomFrom(EqlRelation.Mode.values());
         List<Attribute> attributes = randomList(1, 10, EqlSourceExecSerializationTests::randomEqlAttribute);
         Integer pushedLimit = randomBoolean() ? null : between(0, 10_000);
-        return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit, PreResolvedFieldCaps.NONE);
+        return new EqlSourceExec(source, query, indices, options, mode, attributes, pushedLimit, null);
     }
 
     /**
@@ -92,7 +91,7 @@ public class EqlSourceExecSerializationTests extends AbstractPhysicalPlanSeriali
             case 5 -> pushedLimit = randomValueOtherThan(pushedLimit, () -> randomBoolean() ? null : between(0, 10_000));
             default -> throw new IllegalStateException();
         }
-        return new EqlSourceExec(instance.source(), query, indices, options, mode, attributes, pushedLimit, PreResolvedFieldCaps.NONE);
+        return new EqlSourceExec(instance.source(), query, indices, options, mode, attributes, pushedLimit, null);
     }
 
     @Override

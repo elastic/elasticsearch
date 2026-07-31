@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -38,7 +39,7 @@ import java.util.Objects;
  *
  * @see EqlRelation the resolved counterpart carrying the typed output schema.
  */
-public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvable {
+public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
     private final IndexPattern indexPattern;
     private final Expression query;
@@ -121,6 +122,12 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
     @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
+    }
+
+    /** Telemetry walks the pre-analysis plan, where this node (not {@link EqlRelation}) represents the command. */
+    @Override
+    public String telemetryLabel() {
+        return "EQL";
     }
 
     @Override

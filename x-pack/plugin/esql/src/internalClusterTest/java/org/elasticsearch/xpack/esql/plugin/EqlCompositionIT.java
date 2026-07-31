@@ -160,9 +160,8 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
 
     public void testEqlUpstreamOfFork() {
         // EQL as the FORK upstream: the coordinator-side EQL leaf is replicated into each branch subplan (so the
-        // delegated EQL search runs once per branch); the merged result is typed and correct. Sibling branches share
-        // a single consume-once PreResolvedFieldCaps carrier, so at most one branch reuses it and the others
-        // re-resolve field-caps engine-side — a sound degradation that this correct-result assertion exercises.
+        // delegated EQL search runs once per branch); the merged result is typed and correct. Every branch reads the
+        // same retained field-caps (a read, not a consume), so all branches reuse the coordinator's resolution.
         String query = "EQL "
             + INDEX
             + " \"process where true\""

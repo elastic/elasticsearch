@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.eql.PreResolvedFieldCaps;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
@@ -41,10 +42,12 @@ public class EqlSourceExec extends LeafExec {
     private final EqlRelation.Mode mode;
     private final List<Attribute> attributes;
     private final Integer pushedLimit;
-    // Coordinator-local carrier for the merged field-caps ES|QL already resolved for this pattern; the planner injects
-    // it into the EQL request so the EQL engine skips its own resolution. Never serialized (a deserialized copy carries
-    // PreResolvedFieldCaps.NONE and simply falls back); excluded from equals/hashCode (execution metadata).
-    private final PreResolvedFieldCaps preResolvedFieldCaps;
+    // The merged field-caps ES|QL already resolved for this pattern; the planner injects it into the EQL request so the
+    // EQL engine skips its own resolution, or null when none was retained. Never serialized (a deserialized copy is null
+    // and simply falls back to the engine re-resolving); excluded from equals/hashCode (a redundant resolution, not plan
+    // semantics).
+    @Nullable
+    private final FieldCapabilitiesResponse preResolvedFieldCaps;
 
     public EqlSourceExec(
         Source source,
@@ -54,7 +57,7 @@ public class EqlSourceExec extends LeafExec {
         EqlRelation.Mode mode,
         List<Attribute> attributes,
         Integer pushedLimit,
-        PreResolvedFieldCaps preResolvedFieldCaps
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
     ) {
         super(source);
         this.query = query;
@@ -76,7 +79,7 @@ public class EqlSourceExec extends LeafExec {
             in.readEnum(EqlRelation.Mode.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalVInt(),
-            PreResolvedFieldCaps.NONE
+            null
         );
     }
 
@@ -115,8 +118,9 @@ public class EqlSourceExec extends LeafExec {
         return pushedLimit;
     }
 
-    /** The coordinator-resolved field-caps to reuse for the EQL delegate; {@link PreResolvedFieldCaps#NONE} if none. */
-    public PreResolvedFieldCaps preResolvedFieldCaps() {
+    /** The coordinator-resolved field-caps to reuse for the EQL delegate, or {@code null} if none was retained. */
+    @Nullable
+    public FieldCapabilitiesResponse preResolvedFieldCaps() {
         return preResolvedFieldCaps;
     }
 

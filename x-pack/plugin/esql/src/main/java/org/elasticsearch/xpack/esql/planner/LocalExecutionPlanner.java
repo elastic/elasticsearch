@@ -2062,10 +2062,11 @@ public class LocalExecutionPlanner {
                 null
             )
         );
-        // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution. take() severs
-        // the plan-side reference; only when the request adds no runtime mappings (which would change the mapping the
-        // EQL engine sees). Any doubt (empty carrier, runtime mappings) falls back to EQL resolving field-caps itself.
-        FieldCapabilitiesResponse preResolved = eqlSource.preResolvedFieldCaps().take();
+        // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution — but only when
+        // the request adds no runtime mappings, which would change the mapping the EQL engine sees. A null carrier (none
+        // retained) or runtime mappings fall back to the EQL engine resolving field-caps itself. This is a read, not a
+        // consume, so every branch of a FORK that re-runs this source reuses the same resolution.
+        FieldCapabilitiesResponse preResolved = eqlSource.preResolvedFieldCaps();
         if (preResolved != null && request.runtimeMappings().isEmpty()) {
             request.preResolvedFieldCaps(preResolved);
         }

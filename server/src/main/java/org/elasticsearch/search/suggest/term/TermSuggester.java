@@ -77,7 +77,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             return response;
         } finally {
             if (circuitBreaker != null) {
-                circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
+                circuitBreaker.addWithoutBreaking(-collectorBytes);
             }
         }
     }

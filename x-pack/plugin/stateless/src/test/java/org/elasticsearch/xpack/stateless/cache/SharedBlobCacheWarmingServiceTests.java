@@ -1363,8 +1363,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             safeGet(refillCacheCompletionListener);
 
-            // assert that whole bcc is cached which implies absence of cache holes
-            assertThat(cacheFile.tryRead(testBuffer.clear(), 0), equalTo(true));
+            // Assert that whole bcc is cached which implies absence of cache holes.
+            // `warmCache` above can actually complete before the entire region is filled
+            // because we don't wait for cache gaps to be filled during warming,
+            // only for them to be claimed.
+            // So, in scope of search shard prewarming (we use `SEARCH` type here)
+            // gaps for the entire region will be claimed.
+            // `ShardWarmer` then will do nothing given that all gaps are claimed.
+            // But again that doesn't mean that they are all filled since the search shard prewarming
+            // only waits for commit headers to be available (see `CacheFile#populate`) and not the full region.
+            assertBusy(() -> assertThat(cacheFile.tryRead(testBuffer.clear(), 0), equalTo(true)));
             // check that position and length were set only once
             assertThat(actualRangeInputStreamPosition.get(), equalTo(0L));
             assertThat(actualRangeInputStreamLength.get(), equalTo(fakeNode.sharedCacheService.getRegionSize()));

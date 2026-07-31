@@ -293,6 +293,11 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
 
         // Double range cases
         if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+            List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = TestCaseSupplier.doubleRangeCases()
+                .stream()
+                .map(c -> c.withAppliesTo(doubleRangeAppliesTo))
+                .toList();
             suppliers.addAll(
                 TestCaseSupplier.forBinaryNotCasting(
                     "NotEqualsDoubleRangeEvaluator",
@@ -300,8 +305,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                     "rhs",
                     (l, r) -> false == l.equals(r),
                     DataType.BOOLEAN,
-                    TestCaseSupplier.doubleRangeCases(),
-                    TestCaseSupplier.doubleRangeCases(),
+                    doubleRangeCases,
+                    doubleRangeCases,
                     List.of(),
                     false
                 )

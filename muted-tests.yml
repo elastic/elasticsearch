@@ -736,9 +736,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testPitRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/155284
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCompletesWithMultipleHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/153747
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124

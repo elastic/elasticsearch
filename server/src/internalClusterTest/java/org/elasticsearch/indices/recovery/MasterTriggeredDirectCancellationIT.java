@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -506,13 +505,13 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var repoName = randomIndexName();
         final var snapshotName = randomIndexName();
 
-        // Two shards: one STARTED (snapshot INIT, see [SnapshotInProgressAllocationDecider]) while the other relocates (WAITING).
-        createIndex(indexName, indexSettings(2, 0).put("index.routing.allocation.include._name", sourceNode + "," + targetNode).build());
+        // Single-shard index, snapshot will be WAITING while the primary relocation is queued.
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", sourceNode).build());
         ensureGreen(indexName);
 
         assertAcked(
             clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
-                .setType("mock")
+                .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
 
@@ -552,9 +551,6 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 handler.messageReceived(request, channel, task);
             });
 
-        // Pin the STARTED shard in snapshot INIT on targetNode.
-        AbstractSnapshotIntegTestCase.blockNodeOnAnyFiles(repoName, targetNode);
-
         // Start the snapshot, the primary is relocating so the snapshot shard enters WAITING state
         final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
@@ -562,83 +558,11 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             .execute();
 
         safeAwait(cancellationSent);
-        // Keep INIT pinned until the cancelled relocation is gone and the primary is STARTED again on sourceNode.
-        // Unblocking earlier would let INIT finish and drop the SnapshotInProgressAllocationDecider throttle.
         awaitPrimaryReassigned(indexName, shard.id(), getNodeId(sourceNode));
-        AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
 
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         ensureGreen(indexName, blockingIndexName);
-    }
-
-    // See [RecoveryDirectCancellationService#clusterChanged]
-    public void testSnapshotCancellationDoesNotCancelWaitingOnlySnapshot() throws Exception {
-        final var sourceNode = internalCluster().startNode();
-        final var indexName = randomIndexName();
-        final var blockingIndexName = randomIndexName();
-        final var repoName = randomIndexName();
-        final var snapshotName = randomIndexName();
-
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        assertAcked(
-            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
-
-        // Fill targetNode's only recovery slot
-        final var targetNode = internalCluster().startDataOnlyNode();
-        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
-        assertAcked(
-            prepareCreate(blockingIndexName).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", targetNode))
-                .setWaitForActiveShards(ActiveShardCount.NONE)
-        );
-        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
-        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
-
-        // Direct the single primary shard to targetNode, the relocation recovery queues behind blockingIndex
-        updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", targetNode));
-        awaitRecoveryCountStats(Map.of(targetNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
-
-        final var unexpectedCancellation = new AtomicBoolean(false);
-        for (var node : List.of(sourceNode, targetNode)) {
-            MockTransportService.getInstance(node)
-                .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                    if (request instanceof CancelRecoveriesAction.Request) {
-                        unexpectedCancellation.set(true);
-                    }
-                    handler.messageReceived(request, channel, task);
-                });
-        }
-        waitNoPendingTasksOnAll();
-
-        // Start the snapshot, the single snapshot shard will enter WAITING state
-        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .execute();
-
-        awaitClusterState(clusterState -> {
-            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
-            if (snapshotsInProgress.isEmpty()) {
-                return false;
-            }
-            assertThat("unexpected number of snapshots in cluster state", snapshotsInProgress.count(), equalTo(1));
-            return snapshotsInProgress.asStream()
-                .findFirst()
-                .map(entry -> entry.hasShardsInInitState() == false && entry.hasShardsInWaitingState())
-                .orElse(false);
-        });
-        waitNoPendingTasksOnAll();
-        assertFalse("only-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
-
-        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
-        assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-        ensureGreen(indexName, blockingIndexName);
-        assertFalse("only-WAITING snapshot should not send recovery cancellations", unexpectedCancellation.get());
     }
 
     public void testSnapshotCancellationDoesNotCancelNonRelocatingShards() throws Exception {

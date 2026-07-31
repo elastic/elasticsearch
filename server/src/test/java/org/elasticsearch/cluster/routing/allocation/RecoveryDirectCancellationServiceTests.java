@@ -1012,6 +1012,36 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         }
     }
 
+    public void testSnapshotBlockingCancellationCancelsWaitingSnapshot() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var waitingShardId = new ShardId(index, 0);
+        final var sourceAllocationId = AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-")));
+        final var targetAllocationId = AllocationId.newTargetRelocation(sourceAllocationId);
+
+        final var snapshot = snapshotWithShards(
+            Map.of(waitingShardId, new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null))
+        );
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(waitingShardId, "node-0", true, RELOCATING)
+                    .withAllocationId(sourceAllocationId)
+                    .withRelocatingNodeId("node-1")
+                    .build()
+            );
+        final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
+
+        final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        assertThat(
+            request.cancellations().getFirst(),
+            equalTo(new ShardRecoveryCancellation(waitingShardId, targetAllocationId.getId(), false))
+        );
+    }
+
     public void testSnapshotBlockingCancellationPicksRelocatingShardTargetForWaitingShard() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 3, 0)).build();
         final var index = indexMetadata.getIndex();
@@ -1076,29 +1106,6 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .addShard(TestShardRouting.newShardRouting(startedShardId, "node-2", true, STARTED));
         final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
 
-        final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
-        assertThat(requests.entrySet(), hasSize(0));
-    }
-
-    public void testSnapshotBlockingCancellationDiscardsAllWaitingSnapshotWithoutInit() {
-        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        final var index = indexMetadata.getIndex();
-        final var waitingShardId = new ShardId(index, 0);
-
-        final var snapshot = snapshotWithShards(
-            Map.of(waitingShardId, new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null))
-        );
-        final var indexRoutingTable = IndexRoutingTable.builder(index)
-            .addShard(
-                TestShardRouting.shardRoutingBuilder(waitingShardId, "node-0", true, RELOCATING)
-                    .withAllocationId(AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-"))))
-                    .withRelocatingNodeId("node-1")
-                    .build()
-            );
-        final var clusterState = clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot);
-
-        // Only-WAITING snapshots are skipped for now so we do end up racing and fighting back and forth against reroute
-        // (the decider will not throttle based on snapshots with only WAITING shards).
         final var requests = RecoveryDirectCancellationService.computeCancellationCandidatesForSnapshots(clusterState);
         assertThat(requests.entrySet(), hasSize(0));
     }

@@ -136,10 +136,14 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
     }
 
     public void testRecoverySucceedAgainstTransientCSPError() throws Exception {
-        final var settings = Settings.builder()
+        var settings = Settings.builder()
             .put("gcs.client.test.max_retries", 0) // disable sdk client retries
-            .put("gcs.client.test.tenacious_retries.enabled", true)
             .build();
+
+        if (randomBoolean()) {
+            settings = Settings.builder().put(settings).put("gcs.client.test.tenacious_retries.enabled", true).build();
+        }
+
         final var node0 = startMasterAndIndexNode(settings);
         final var node1 = startIndexNode(settings);
         ensureStableCluster(2);

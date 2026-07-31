@@ -40,7 +40,14 @@ if [ "${1:-}" = "--local-only" ]; then
   LOCAL_ONLY=true
 fi
 
-if [ $(docker buildx inspect --bootstrap | grep -c 'Platforms:.*linux/arm64') -ne 1 ]; then
+for cmd in zip unzip curl jq; do
+  if ! command -v $cmd &>/dev/null; then
+    echo "Error: $cmd is not installed or not on PATH"
+    exit 1;
+  fi
+done
+
+if ! docker buildx inspect 2>/dev/null | grep -q 'linux/arm64'; then
   echo 'Error: No Docker support for linux/arm64 detected'
   echo 'For more information see https://docs.docker.com/build/building/multi-platform'
   exit 1;
@@ -82,7 +89,7 @@ build_darwin_jar() {
   ARTIFACT="$TEMP/zstd-$ARTIFACT_VERSION-darwin-$2.jar"
   TAR_DIR="$TEMP/darwin-$2"
   mkdir $TAR_DIR
-  tar zxf $1 --strip-components=2 --include="*/LICENSE" --include="*/libzstd.$VERSION.dylib" -C $TAR_DIR && rm $1
+  tar zxf $1 --strip-components=2 -C $TAR_DIR "zstd/$VERSION/LICENSE" "zstd/$VERSION/lib/libzstd.$VERSION.dylib" && rm $1
   mv $TAR_DIR/lib/libzstd.$VERSION.dylib $TAR_DIR/libzstd.dylib && rm -rf $TAR_DIR/lib
   FILE_COUNT=$(ls -1 $TAR_DIR | wc -l | xargs)
   if [ "$FILE_COUNT" -ne 2 ]; then

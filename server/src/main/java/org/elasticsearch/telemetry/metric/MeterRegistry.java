@@ -103,9 +103,7 @@ public interface MeterRegistry {
      * @param bucketBoundaries explicit upper-inclusive bucket boundaries, in ascending order
      * @return the registered meter.
      */
-    default DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
-        return registerDoubleHistogram(name, description, unit);
-    }
+    DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries);
 
     /**
      * Retrieved a previously registered {@link DoubleHistogram}.
@@ -265,9 +263,7 @@ public interface MeterRegistry {
      * @param bucketBoundaries explicit upper-inclusive bucket boundaries, in ascending order
      * @return the registered meter.
      */
-    default LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
-        return registerLongHistogram(name, description, unit);
-    }
+    LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries);
 
     /**
      * Retrieved a previously registered {@link LongHistogram}.

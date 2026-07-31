@@ -6,7 +6,7 @@ RUN git clone --depth 1 --branch v${ZSTD_VERSION} https://github.com/facebook/zs
 WORKDIR zstd
 RUN source /opt/rh/gcc-toolset-14/enable && \
     CC=gcc CFLAGS="-O3 -flto" LDFLAGS="-flto" \
-    make lib-release && \
+    make -C lib lib-release-nomt && \
     strip --strip-unneeded lib/libzstd.so.${ZSTD_VERSION}
 
 ENV ZSTD_VERSION=${ZSTD_VERSION}

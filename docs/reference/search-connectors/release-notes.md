@@ -21,6 +21,7 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 
 ### Fixes [connectors-9.5.0-fixes]
 * Fixed the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled, naming the affected site and explaining how to grant `Sites.FullControl.All` or disable DLS. [#4266](https://github.com/elastic/connectors/pull/4266), [#3293](https://github.com/elastic/connectors/issues/3293)
+* Fixed the Outlook connector aborting an entire sync when Exchange returned an unrecognised EWS element (for example a stray `EndTimeZone` alongside a calendar item). Such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4287](https://github.com/elastic/connectors/pull/4287)
 
 ## 9.4.4 [connectors-9.4.4-release-notes]
 

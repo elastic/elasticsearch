@@ -43,12 +43,20 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
      * How often this component will sample. A value of {@link TimeValue#MINUS_ONE} disables sampling.
      * Enabled intervals must be at least {@link #MIN_METRICS_INTERVAL}.
      * <p>
+     * Defaults to 3 minutes when
+     * {@link StatelessSharedBlobCacheService#STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING}
+     * resolves to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW}, otherwise {@link TimeValue#MINUS_ONE}
+     * (disabled), so sampling is on by default only when the pinned-window policy these metrics primarily
+     * illuminate is selected.
+     * <p>
      * Minutes frequency is cheap even at large cache sizes: a full sample walks occupied regions once without holding the
      * cache monitor. At a 2TiB cache with 16MiB regions that is at most ~131k entries of field reads and map lookups.
      */
     public static final Setting<TimeValue> METRICS_INTERVAL_SETTING = Setting.timeSetting(
         METRICS_INTERVAL_SETTING_KEY,
-        TimeValue.timeValueMinutes(3),
+        settings -> StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(
+            settings
+        ) == StatelessCacheEvictionPolicyType.PINNED_WINDOW ? TimeValue.timeValueMinutes(3) : TimeValue.MINUS_ONE,
         value -> {
             if (TimeValue.MINUS_ONE.equals(value) == false && value.compareTo(MIN_METRICS_INTERVAL) < 0) {
                 throw new IllegalArgumentException(
@@ -77,8 +85,16 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     public static final String PROTECTED_METRIC = "es.blob_cache.protected.current";
     public static final String PROTECTED_FREQ_0_METRIC = "es.blob_cache.protected.freq_0.current";
     public static final String PROTECTED_FREQ_POSITIVE_METRIC = "es.blob_cache.protected.freq_positive.current";
-    public static final String PROTECTED_BACKFILL_METRIC = "es.blob_cache.protected.backfill.current";
-    public static final String PROTECTED_UNKNOWN_METRIC = "es.blob_cache.protected.unknown.current";
+    /**
+     * Counts occupied regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP}, independent of
+     * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
+     */
+    public static final String BACKFILL_METRIC = "es.blob_cache.regions.backfill_timestamp.current";
+    /**
+     * Counts occupied regions with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}, independent of
+     * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
+     */
+    public static final String UNKNOWN_METRIC = "es.blob_cache.regions.unknown_timestamp.current";
     /**
      * Counts occupied regions with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP}, independent of
      * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
@@ -97,8 +113,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
     private final SetOnce<ConsumingLongGaugeMetric> protectedMetric = new SetOnce<>();
     private final SetOnce<ConsumingLongGaugeMetric> protectedFreq0Metric = new SetOnce<>();
     private final SetOnce<ConsumingLongGaugeMetric> protectedFreqPositiveMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> protectedBackfillMetric = new SetOnce<>();
-    private final SetOnce<ConsumingLongGaugeMetric> protectedUnknownMetric = new SetOnce<>();
+    private final SetOnce<ConsumingLongGaugeMetric> backfillMetric = new SetOnce<>();
+    private final SetOnce<ConsumingLongGaugeMetric> unknownMetric = new SetOnce<>();
     private final SetOnce<ConsumingLongGaugeMetric> minimalMetric = new SetOnce<>();
 
     public StatelessSharedBlobCachePeriodicMetrics(
@@ -187,19 +203,19 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 "regions"
             )
         );
-        protectedBackfillMetric.set(
+        backfillMetric.set(
             ConsumingLongGaugeMetric.create(
                 meterRegistry,
-                PROTECTED_BACKFILL_METRIC,
-                "Number of protected regions with a backfill-in-progress timestamp",
+                BACKFILL_METRIC,
+                "Number of occupied regions with a backfill-in-progress timestamp",
                 "regions"
             )
         );
-        protectedUnknownMetric.set(
+        unknownMetric.set(
             ConsumingLongGaugeMetric.create(
                 meterRegistry,
-                PROTECTED_UNKNOWN_METRIC,
-                "Number of protected regions with an unknown timestamp",
+                UNKNOWN_METRIC,
+                "Number of occupied regions with an unknown timestamp",
                 "regions"
             )
         );
@@ -223,28 +239,19 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final ConsumingLongGaugeMetric protectedRegions = protectedMetric.get();
         final ConsumingLongGaugeMetric protectedFreq0 = protectedFreq0Metric.get();
         final ConsumingLongGaugeMetric protectedFreqPositive = protectedFreqPositiveMetric.get();
-        final ConsumingLongGaugeMetric protectedBackfill = protectedBackfillMetric.get();
-        final ConsumingLongGaugeMetric protectedUnknown = protectedUnknownMetric.get();
+        final ConsumingLongGaugeMetric backfill = backfillMetric.get();
+        final ConsumingLongGaugeMetric unknown = unknownMetric.get();
         final ConsumingLongGaugeMetric minimal = minimalMetric.get();
         assert filled != null;
         assert total != null;
         assert protectedRegions != null;
         assert protectedFreq0 != null;
         assert protectedFreqPositive != null;
-        assert protectedBackfill != null;
-        assert protectedUnknown != null;
+        assert backfill != null;
+        assert unknown != null;
         assert minimal != null;
         total.set(cacheService.getStats().numberOfRegions());
-        sampleRegions(
-            cacheService,
-            filled,
-            protectedRegions,
-            protectedFreq0,
-            protectedFreqPositive,
-            protectedBackfill,
-            protectedUnknown,
-            minimal
-        );
+        sampleRegions(cacheService, filled, protectedRegions, protectedFreq0, protectedFreqPositive, backfill, unknown, minimal);
     }
 
     /**
@@ -256,8 +263,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         ConsumingLongGaugeMetric protectedMetric,
         ConsumingLongGaugeMetric protectedFreq0Metric,
         ConsumingLongGaugeMetric protectedFreqPositiveMetric,
-        ConsumingLongGaugeMetric protectedBackfillMetric,
-        ConsumingLongGaugeMetric protectedUnknownMetric,
+        ConsumingLongGaugeMetric backfillMetric,
+        ConsumingLongGaugeMetric unknownMetric,
         ConsumingLongGaugeMetric minimalMetric
     ) {
         final EvictionPolicy<KeyType> policy = cacheService.getEvictionPolicy();
@@ -265,14 +272,18 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         final long[] protectedCount = new long[1];
         final long[] protectedFreq0 = new long[1];
         final long[] protectedFreqPositive = new long[1];
-        final long[] protectedBackfill = new long[1];
-        final long[] protectedUnknown = new long[1];
+        final long[] backfill = new long[1];
+        final long[] unknown = new long[1];
         final long[] minimalTimestamp = new long[1];
         cacheService.iterateCachedRegions((CacheRegion<KeyType> region, Integer freq) -> {
             filled[0]++;
             final long timestampMillis = region.timestampMillis();
             if (timestampMillis == SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP) {
                 minimalTimestamp[0]++;
+            } else if (timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP) {
+                backfill[0]++;
+            } else if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+                unknown[0]++;
             }
             if (policy.isProtected(region) == false) {
                 return;
@@ -284,18 +295,13 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 assert freq > 0 : freq;
                 protectedFreqPositive[0]++;
             }
-            if (timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP) {
-                protectedBackfill[0]++;
-            } else if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
-                protectedUnknown[0]++;
-            }
         });
         filledMetric.set(filled[0]);
         protectedMetric.set(protectedCount[0]);
         protectedFreq0Metric.set(protectedFreq0[0]);
         protectedFreqPositiveMetric.set(protectedFreqPositive[0]);
-        protectedBackfillMetric.set(protectedBackfill[0]);
-        protectedUnknownMetric.set(protectedUnknown[0]);
+        backfillMetric.set(backfill[0]);
+        unknownMetric.set(unknown[0]);
         minimalMetric.set(minimalTimestamp[0]);
     }
 
@@ -329,8 +335,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         closeGauge.accept(protectedMetric.get());
         closeGauge.accept(protectedFreq0Metric.get());
         closeGauge.accept(protectedFreqPositiveMetric.get());
-        closeGauge.accept(protectedBackfillMetric.get());
-        closeGauge.accept(protectedUnknownMetric.get());
+        closeGauge.accept(backfillMetric.get());
+        closeGauge.accept(unknownMetric.get());
         closeGauge.accept(minimalMetric.get());
     }
 }

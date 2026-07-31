@@ -214,8 +214,54 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
         }
     }
 
-    public void testDefaultIntervalIsThreeMinutes() {
-        assertThat(METRICS_INTERVAL_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(3)));
+    public void testDefaultIntervalDependsOnPinnedWindowPolicy() {
+        assertThat(METRICS_INTERVAL_SETTING.get(Settings.EMPTY), equalTo(TimeValue.MINUS_ONE));
+        assertThat(
+            METRICS_INTERVAL_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.ALWAYS
+                    )
+                    .build()
+            ),
+            equalTo(TimeValue.MINUS_ONE)
+        );
+        assertThat(
+            METRICS_INTERVAL_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.INDEX_AGE
+                    )
+                    .build()
+            ),
+            equalTo(TimeValue.MINUS_ONE)
+        );
+        assertThat(
+            METRICS_INTERVAL_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.PINNED_WINDOW
+                    )
+                    .build()
+            ),
+            equalTo(TimeValue.timeValueMinutes(3))
+        );
+        // Explicit metrics interval wins over the pinned-window-dependent default.
+        assertThat(
+            METRICS_INTERVAL_SETTING.get(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.PINNED_WINDOW
+                    )
+                    .put(METRICS_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .build()
+            ),
+            equalTo(TimeValue.MINUS_ONE)
+        );
         assertThat(METRICS_INTERVAL_SETTING.getKey(), equalTo("stateless.cache.metrics_interval"));
         assertTrue(METRICS_INTERVAL_SETTING.isDynamic());
     }
@@ -335,8 +381,8 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             // Fresh LFU entries start at frequency 1, so all protected regions land in the positive-freq bucket.
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 4L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_UNKNOWN_METRIC, 1L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_BACKFILL_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.UNKNOWN_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BACKFILL_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
 
             protectAll.set(false);
@@ -346,9 +392,9 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 0L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 0L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_UNKNOWN_METRIC, 0L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_BACKFILL_METRIC, 0L);
-            // Minimal-timestamp occupancy is independent of protection.
+            // Timestamp-special occupancy is independent of protection.
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.UNKNOWN_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BACKFILL_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
         }
     }

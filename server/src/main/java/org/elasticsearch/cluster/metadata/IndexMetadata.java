@@ -171,6 +171,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     private static final long COMPRESSED_XCONTENT_BASE = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
     private static final long MAPPING_METADATA_BASE = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
+    private static final long ROLLOVER_INFO_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RolloverInfo.class);
 
     private volatile long ramBytesUsed = -1;
 
@@ -202,7 +203,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         size += RamUsageEstimator.sizeOfObject(aliases);
         size += RamUsageEstimator.sizeOfMap(customData);
         size += RamUsageEstimator.sizeOfObject(inferenceFields);
-        size += RamUsageEstimator.sizeOfObject(rolloverInfos);
+        size += estimateRolloverInfosHeap(rolloverInfos);
         size += sizeOfTransportVersion(transportVersion);
         size += RamUsageEstimator.shallowSizeOf(state);
         size += RamUsageEstimator.sizeOfCollection(routingPaths);
@@ -260,6 +261,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public static long estimateMappingMetadataHeap(MappingMetadata mapping) {
         return MAPPING_METADATA_BASE + RamUsageEstimator.sizeOf(mapping.type()) + estimateCompressedXContentHeap(mapping.source());
+    }
+
+    private static long estimateRolloverInfosHeap(ImmutableOpenMap<String, RolloverInfo> rolloverInfos) {
+        long size = RamUsageEstimator.sizeOfObject(rolloverInfos);
+        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
+            size += estimateRolloverInfoHeap(rolloverInfo);
+        }
+        return size;
+    }
+
+    private static long estimateRolloverInfoHeap(RolloverInfo rolloverInfo) {
+        return ROLLOVER_INFO_BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(rolloverInfo.getAlias()) + RamUsageEstimator.sizeOfObject(
+            rolloverInfo.getMetConditions()
+        );
     }
 
     private static long sizeOfTransportVersion(@Nullable TransportVersion version) {

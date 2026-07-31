@@ -2673,8 +2673,8 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
                     + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
-                    + "exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, "
-                    + "ip, keyword, long, tdigest, text, unsigned_long or version], "
+                    + "double_range, exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, "
+                    + "integer, ip, keyword, long, tdigest, text, unsigned_long or version], "
                     + "found value [\"3 days\"::date_period] type [date_period]"
             )
         );

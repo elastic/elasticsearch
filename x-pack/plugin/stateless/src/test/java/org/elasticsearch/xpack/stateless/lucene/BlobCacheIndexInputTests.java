@@ -1724,18 +1724,23 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             byte[] actual = new byte[16];
             indexInput.readBytes(actual, 0, actual.length);
             abortMergeReads.set(true);
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> {
-                try (
-                    BlobCacheIndexInput abortedInput = newAbortableBlobCacheIndexInput(
-                        sharedBlobCacheService,
-                        input,
-                        abortMergeReads,
-                        IOContext.merge(new MergeInfo(100, 1024L, false, -1))
-                    )
-                ) {
-                    abortedInput.readByte();
-                }
-            });
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> {
+                    try (
+                        BlobCacheIndexInput abortedInput = newAbortableBlobCacheIndexInput(
+                            sharedBlobCacheService,
+                            input,
+                            abortMergeReads,
+                            IOContext.merge(new MergeInfo(100, 1024L, false, -1))
+                        )
+                    ) {
+                        abortedInput.readByte();
+                    }
+                });
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1755,7 +1760,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             )
         ) {
             byte[] actual = new byte[16];
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.readBytes(actual, 0, actual.length));
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.readBytes(actual, 0, actual.length));
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1800,9 +1810,14 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             populateCache(indexInput, input);
             abortMergeReads.set(true);
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
-                throw new AssertionError("should not run");
-            }));
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+                    throw new AssertionError("should not run");
+                }));
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1828,9 +1843,14 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             populateCache(indexInput, input);
             abortMergeReads.set(true);
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
-                throw new AssertionError("should not run");
-            }));
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
+                    throw new AssertionError("should not run");
+                }));
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1881,12 +1901,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
             abortMergeReads.set(true);
             MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
-            expectThrows(
-                MergePolicy.MergeAbortedException.class,
-                () -> indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
-                    throw new AssertionError("should not run");
-                })
-            );
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(
+                    MergePolicy.MergeAbortedException.class,
+                    () -> indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
+                        throw new AssertionError("should not run");
+                    })
+                );
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1915,12 +1940,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
             abortMergeReads.set(true);
             MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
-            expectThrows(
-                MergePolicy.MergeAbortedException.class,
-                () -> indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
-                    throw new AssertionError("should not run");
-                })
-            );
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(
+                    MergePolicy.MergeAbortedException.class,
+                    () -> indexInput.withSliceAddresses(offsets, sliceLen, 3, addrsOut, addrs -> {
+                        throw new AssertionError("should not run");
+                    })
+                );
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 
@@ -1952,7 +1982,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 BlobCacheIndexInput.class,
                 indexInput.doSlice("sub-file", 0, sliceLength, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))
             );
-            expectThrows(MergePolicy.MergeAbortedException.class, slice::readByte);
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, slice::readByte);
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         }
     }
 

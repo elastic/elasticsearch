@@ -112,6 +112,28 @@ public class IndexDirectory extends ByteSizeDirectory {
     private final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
     private volatile Runnable mergeReadCallback;
 
+    /**
+     * Thread-local flag set to {@code true} while a merge is executing on the current thread.
+     * {@link BlobCacheIndexInput#checkMergeReadAborted()} consults this to ensure abort signals
+     * only interrupt merge reads, not snapshot or search reads that happen to race with engine close.
+     */
+    private static final ThreadLocal<Boolean> MERGE_THREAD = ThreadLocal.withInitial(() -> false);
+
+    /** Marks the calling thread as a merge thread. Called from merge-task infrastructure before {@code doMerge}. */
+    public static void enterMergeThread() {
+        MERGE_THREAD.set(true);
+    }
+
+    /** Clears the merge-thread mark. Called from merge-task infrastructure after {@code doMerge} completes or fails. */
+    public static void exitMergeThread() {
+        MERGE_THREAD.remove();
+    }
+
+    /** Returns {@code true} if the calling thread is currently executing a merge. */
+    static boolean isOnMergeThread() {
+        return MERGE_THREAD.get();
+    }
+
     private final SetOnce<String> recoveryCommitMetadataNodeEphemeralId = new SetOnce<>();
     private final SetOnce<Long> recoveryCommitTranslogRecoveryStartFile = new SetOnce<>();
 
@@ -489,11 +511,13 @@ public class IndexDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * One-way latch set when the shard is closing. All reads on {@link BlobCacheIndexInput}
-     * wired through this directory throw {@link org.apache.lucene.index.MergePolicy.MergeAbortedException}
-     * once set, regardless of {@link IOContext}. Reads on {@link ReopeningIndexInput} are also
-     * aborted, but only when the read carries an explicit {@link IOContext.Context#MERGE} context
-     * (unuploaded segments always receive the real merge context via {@code openInput}).
+     * One-way latch set when the shard is closing. Reads on {@link BlobCacheIndexInput} wired
+     * through this directory throw {@link org.apache.lucene.index.MergePolicy.MergeAbortedException}
+     * once set, but <em>only</em> on threads that have been marked via {@link #enterMergeThread()}.
+     * This scoping prevents snapshot and search reads that race with engine close from receiving
+     * a spurious abort exception. Reads on {@link ReopeningIndexInput} are also aborted, but only
+     * when the read carries an explicit {@link IOContext.Context#MERGE} context (unuploaded segments
+     * always receive the real merge context via {@code openInput}).
      * <p>
      * The flag is set during engine close, after all engine operations have been drained.
      */

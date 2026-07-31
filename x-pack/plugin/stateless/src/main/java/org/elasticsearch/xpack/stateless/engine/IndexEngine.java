@@ -1178,6 +1178,7 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected void beforeMerge(OnGoingMerge merge) {
+            IndexDirectory.enterMergeThread();
             if (prewarm) {
                 cacheWarmingService.warmCacheForMerge(merge.getId(), shardId, store, merge.getMerge(), fileName -> {
                     BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
@@ -1196,6 +1197,7 @@ public class IndexEngine extends InternalEngine {
 
         @Override
         protected void afterMerge(OnGoingMerge merge) {
+            IndexDirectory.exitMergeThread();
             onAfterMerge(merge);
         }
 

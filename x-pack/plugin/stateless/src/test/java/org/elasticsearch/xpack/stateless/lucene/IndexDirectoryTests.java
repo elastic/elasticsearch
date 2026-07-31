@@ -514,11 +514,16 @@ public class IndexDirectoryTests extends ESTestCase {
                 input.readBytes(new byte[16], 0, 16);
             }
             directory.abortMergeReads();
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> {
-                try (IndexInput input = directory.openInput(fileName, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))) {
-                    input.readByte();
-                }
-            });
+            IndexDirectory.enterMergeThread();
+            try {
+                expectThrows(MergePolicy.MergeAbortedException.class, () -> {
+                    try (IndexInput input = directory.openInput(fileName, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))) {
+                        input.readByte();
+                    }
+                });
+            } finally {
+                IndexDirectory.exitMergeThread();
+            }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
@@ -573,7 +578,12 @@ public class IndexDirectoryTests extends ESTestCase {
             directory.abortMergeReads();
             try (IndexInput input = directory.openInput(fileName, IOContext.DEFAULT)) {
                 assertThat(input, instanceOf(BlobCacheIndexInput.class));
-                expectThrows(MergePolicy.MergeAbortedException.class, () -> input.readBytes(new byte[16], 0, 16));
+                IndexDirectory.enterMergeThread();
+                try {
+                    expectThrows(MergePolicy.MergeAbortedException.class, () -> input.readBytes(new byte[16], 0, 16));
+                } finally {
+                    IndexDirectory.exitMergeThread();
+                }
             }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));

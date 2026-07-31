@@ -1289,11 +1289,10 @@ public final class DateFieldMapper extends FieldMapper {
             && docValuesParameters.multiValue() == false
             && indexed == false
             && store == false
+            && ignoreMalformed == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && ignoreMalformed == false
-            && isDataStreamTimestampField == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

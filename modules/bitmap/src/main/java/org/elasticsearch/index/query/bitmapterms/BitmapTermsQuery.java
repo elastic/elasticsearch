@@ -37,13 +37,13 @@ import java.util.Objects;
  * use the {@code index_terms} inverted-index path (see {@code NumberFieldMapper}).
  * <p>
  * Terms are sortable bytes, so the terms dictionary and the bitmap ascend in the same direction for
- * non-negative values. A merge-scan advances both cursors without re-seeking, giving
+ * non-negative values. A merge-scan advances both iterators without re-seeking, giving
  * O(N_terms_in_range + M_bitmap_values) work per segment.
  * <p>
  * The field's width lives entirely in the {@link BitmapValues}, so this handles {@code integer} and
  * {@code long} fields with one implementation. Terms are decoded to {@code long} rather than compared
  * as bytes, which keeps the merge working on values that cannot be invalidated by moving either
- * cursor &mdash; the {@link BytesRef} from {@link TermsEnum#term()} is only valid until the enum next
+ * iterator &mdash; the {@link BytesRef} from {@link TermsEnum#term()} is only valid until the enum next
  * moves.
  * <p>
  * Only non-negative values are supported; the caller must validate this before constructing the
@@ -105,12 +105,12 @@ public class BitmapTermsQuery extends Query implements Accountable {
 
     /**
      * Merge-scans the terms dictionary and the bitmap together, collecting docs for every term that is
-     * present in both. Both sides are sorted in the same order for non-negative values, so each cursor
+     * present in both. Both sides are sorted in the same order for non-negative values, so each iterator
      * advances monotonically.
      */
     private void collectDocs(DocIdSetBuilder result, TermsEnum termsEnum) throws IOException {
-        BitmapValues.Cursor cursor = values.cursor();
-        if (cursor.hasNext() == false) {
+        BitmapValues.PeekableIterator iterator = values.iterator();
+        if (iterator.hasNext() == false) {
             return;
         }
 
@@ -119,8 +119,8 @@ public class BitmapTermsQuery extends Query implements Accountable {
         byte[] encoded = new byte[values.bytesPerValue()];
         BytesRef seekTarget = new BytesRef(encoded);
 
-        cursor.encodePeek(encoded);
-        long bitmapValue = cursor.next();
+        iterator.encodePeek(encoded);
+        long bitmapValue = iterator.next();
 
         // Seek terms enum to the first relevant term
         if (termsEnum.seekCeil(seekTarget) == TermsEnum.SeekStatus.END) {
@@ -136,11 +136,11 @@ public class BitmapTermsQuery extends Query implements Accountable {
                 DocIdSetBuilder.BulkAdder adder = result.grow(termsEnum.docFreq());
                 adder.add(postings);
 
-                if (cursor.hasNext() == false) {
+                if (iterator.hasNext() == false) {
                     break;
                 }
-                cursor.encodePeek(encoded);
-                bitmapValue = cursor.next();
+                iterator.encodePeek(encoded);
+                bitmapValue = iterator.next();
 
                 BytesRef next = termsEnum.next();
                 if (next == null) {
@@ -155,12 +155,12 @@ public class BitmapTermsQuery extends Query implements Accountable {
                 termValue = decodeTerm(termsEnum.term());
             } else {
                 // Bitmap is behind: advance it to at least termValue
-                cursor.advanceTo(termValue);
-                if (cursor.hasNext() == false) {
+                iterator.advanceTo(termValue);
+                if (iterator.hasNext() == false) {
                     break;
                 }
-                cursor.encodePeek(encoded);
-                bitmapValue = cursor.next();
+                iterator.encodePeek(encoded);
+                bitmapValue = iterator.next();
             }
         }
     }

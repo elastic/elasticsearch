@@ -155,28 +155,28 @@ public final class LongBitmap implements BitmapValues {
         return isEmpty() == false && last < 0;
     }
 
-    /** @return a cursor over the values, in ascending unsigned order */
+    /** @return a iterator over the values, in ascending unsigned order */
     @Override
-    public Cursor cursor() {
-        return new LongCursor(bitmap.getLongIterator());
+    public PeekableIterator iterator() {
+        return new LongValuesIterator(bitmap.getLongIterator());
     }
 
     /**
-     * A forward-only cursor over a {@link LongBitmap}'s values in ascending unsigned order.
+     * A forward-only iterator over a {@link LongBitmap}'s values in ascending unsigned order.
      * <p>
-     * A cursor never rewinds, so total work stays bounded by the cardinality. What it costs is the
+     * A iterator never rewinds, so total work stays bounded by the cardinality. What it costs is the
      * per-seek complexity: {@link #advanceTo} is O(values skipped) where a bucket-indexed
      * representation would be O(log buckets). That shows up when a large bitmap is matched against a
      * segment holding a narrow, high slice of the value space — the shape monotonically increasing
      * ids produce.
      */
-    private static final class LongCursor implements Cursor {
+    private static final class LongValuesIterator implements PeekableIterator {
 
         private final LongIterator values;
         private long next;
         private boolean hasNext;
 
-        LongCursor(LongIterator values) {
+        LongValuesIterator(LongIterator values) {
             this.values = values;
             fetch();
         }
@@ -219,7 +219,7 @@ public final class LongBitmap implements BitmapValues {
          * <p>
          * <b>If a future RoaringBitmap release gives {@link Roaring64NavigableMap} a peekable iterator
          * or a {@code getLongIteratorFrom(long)}, or exposes its buckets, rewrite this method to use
-         * it</b> — everything else here can stay as it is, and {@link IntBitmap}'s cursor shows the
+         * it</b> — everything else here can stay as it is, and {@link IntBitmap}'s iterator shows the
          * shape to copy.
          */
         @Override

@@ -309,7 +309,7 @@ public class BitmapBKDQueryTests extends ESTestCase {
     }
 
     /**
-     * Long-only: values above 2^32 land in different high-32-bit buckets of the bitmap, so the cursor
+     * Long-only: values above 2^32 land in different high-32-bit buckets of the bitmap, so the iterator
      * must cross bucket boundaries while staying in step with the BKD tree's ordering.
      */
     public void testLongValuesBeyondIntRange() throws IOException {

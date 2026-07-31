@@ -58,10 +58,10 @@ public class LongBitmapTests extends ESTestCase {
         return bytes.toByteArray();
     }
 
-    private static List<Long> drain(LongBitmap.Cursor cursor) {
+    private static List<Long> drain(LongBitmap.PeekableIterator iterator) {
         List<Long> values = new ArrayList<>();
-        while (cursor.hasNext()) {
-            values.add(cursor.next());
+        while (iterator.hasNext()) {
+            values.add(iterator.next());
         }
         return values;
     }
@@ -76,7 +76,7 @@ public class LongBitmapTests extends ESTestCase {
         assertThat(bitmap.first(), equalTo(0L));
         assertThat(bitmap.last(), equalTo(Long.MAX_VALUE));
         assertThat(bitmap.hasNegativeValues(), equalTo(false));
-        assertThat(drain(bitmap.cursor()), equalTo(Arrays.stream(values).boxed().toList()));
+        assertThat(drain(bitmap.iterator()), equalTo(Arrays.stream(values).boxed().toList()));
     }
 
     public void testDeserializeEmpty() throws IOException {
@@ -84,7 +84,7 @@ public class LongBitmapTests extends ESTestCase {
         assertThat(bitmap.isEmpty(), equalTo(true));
         assertThat(bitmap.cardinality(), equalTo(0L));
         assertThat(bitmap.hasNegativeValues(), equalTo(false));
-        assertThat(bitmap.cursor().hasNext(), equalTo(false));
+        assertThat(bitmap.iterator().hasNext(), equalTo(false));
     }
 
     public void testDeserializeRandomValues() throws IOException {
@@ -92,7 +92,7 @@ public class LongBitmapTests extends ESTestCase {
         LongBitmap bitmap = LongBitmap.deserializePortable(serializePortable(values));
         long[] expected = Arrays.stream(values).distinct().sorted().toArray();
         assertThat(bitmap.cardinality(), equalTo((long) expected.length));
-        assertThat(drain(bitmap.cursor()), equalTo(Arrays.stream(expected).boxed().toList()));
+        assertThat(drain(bitmap.iterator()), equalTo(Arrays.stream(expected).boxed().toList()));
     }
 
     private static long[] randomLongsOfLength(int length) {
@@ -132,55 +132,55 @@ public class LongBitmapTests extends ESTestCase {
         assertThat(nonNegative.hasNegativeValues(), equalTo(false));
     }
 
-    public void testCursorPeekDoesNotConsume() {
-        LongBitmap.Cursor cursor = LongBitmap.bitmapOf(7L, 9L).cursor();
-        assertThat(cursor.peek(), equalTo(7L));
-        assertThat(cursor.peek(), equalTo(7L));
-        assertThat(cursor.next(), equalTo(7L));
-        assertThat(cursor.peek(), equalTo(9L));
-        assertThat(cursor.next(), equalTo(9L));
-        assertThat(cursor.hasNext(), equalTo(false));
+    public void testIteratorPeekDoesNotConsume() {
+        LongBitmap.PeekableIterator iterator = LongBitmap.bitmapOf(7L, 9L).iterator();
+        assertThat(iterator.peek(), equalTo(7L));
+        assertThat(iterator.peek(), equalTo(7L));
+        assertThat(iterator.next(), equalTo(7L));
+        assertThat(iterator.peek(), equalTo(9L));
+        assertThat(iterator.next(), equalTo(9L));
+        assertThat(iterator.hasNext(), equalTo(false));
     }
 
-    public void testCursorAdvanceTo() {
+    public void testIteratorAdvanceTo() {
         // Deliberately straddles bucket boundaries so advanceTo has to cross them
         LongBitmap bitmap = LongBitmap.bitmapOf(1L, 5L, 1L << 32, (1L << 32) + 10, 1L << 34);
 
-        LongBitmap.Cursor cursor = bitmap.cursor();
-        cursor.advanceTo(5L);
-        assertThat(cursor.next(), equalTo(5L));
+        LongBitmap.PeekableIterator iterator = bitmap.iterator();
+        iterator.advanceTo(5L);
+        assertThat(iterator.next(), equalTo(5L));
 
-        cursor = bitmap.cursor();
-        cursor.advanceTo(1L << 32);
-        assertThat(cursor.next(), equalTo(1L << 32));
+        iterator = bitmap.iterator();
+        iterator.advanceTo(1L << 32);
+        assertThat(iterator.next(), equalTo(1L << 32));
 
         // Target between two values lands on the next one up
-        cursor = bitmap.cursor();
-        cursor.advanceTo((1L << 32) + 1);
-        assertThat(cursor.next(), equalTo((1L << 32) + 10));
+        iterator = bitmap.iterator();
+        iterator.advanceTo((1L << 32) + 1);
+        assertThat(iterator.next(), equalTo((1L << 32) + 10));
 
-        // Target past the last value exhausts the cursor
-        cursor = bitmap.cursor();
-        cursor.advanceTo((1L << 34) + 1);
-        assertThat(cursor.hasNext(), equalTo(false));
+        // Target past the last value exhausts the iterator
+        iterator = bitmap.iterator();
+        iterator.advanceTo((1L << 34) + 1);
+        assertThat(iterator.hasNext(), equalTo(false));
     }
 
     /** advanceTo must never rewind, and must be a no-op for a target at or below the current value. */
-    public void testCursorAdvanceToIsMonotonic() {
-        LongBitmap.Cursor cursor = LongBitmap.bitmapOf(10L, 20L, 30L).cursor();
-        cursor.advanceTo(20L);
-        assertThat(cursor.peek(), equalTo(20L));
-        cursor.advanceTo(5L);
-        assertThat(cursor.peek(), equalTo(20L));
-        cursor.advanceTo(Long.MIN_VALUE);
-        assertThat(cursor.peek(), equalTo(20L));
-        assertThat(cursor.next(), equalTo(20L));
+    public void testIteratorAdvanceToIsMonotonic() {
+        LongBitmap.PeekableIterator iterator = LongBitmap.bitmapOf(10L, 20L, 30L).iterator();
+        iterator.advanceTo(20L);
+        assertThat(iterator.peek(), equalTo(20L));
+        iterator.advanceTo(5L);
+        assertThat(iterator.peek(), equalTo(20L));
+        iterator.advanceTo(Long.MIN_VALUE);
+        assertThat(iterator.peek(), equalTo(20L));
+        assertThat(iterator.next(), equalTo(20L));
     }
 
-    public void testCursorsAreIndependent() {
+    public void testIteratorsAreIndependent() {
         LongBitmap bitmap = LongBitmap.bitmapOf(1L, 2L, 3L);
-        LongBitmap.Cursor first = bitmap.cursor();
-        LongBitmap.Cursor second = bitmap.cursor();
+        LongBitmap.PeekableIterator first = bitmap.iterator();
+        LongBitmap.PeekableIterator second = bitmap.iterator();
         assertThat(first.next(), equalTo(1L));
         assertThat(second.next(), equalTo(1L));
         first.advanceTo(3L);
@@ -189,7 +189,7 @@ public class LongBitmapTests extends ESTestCase {
 
     /**
      * {@code Roaring64NavigableMap#getLongCardinality} is a documented mutator, so the wrapper reads
-     * it once during construction. Repeated reads of the derived values must stay stable, and cursors
+     * it once during construction. Repeated reads of the derived values must stay stable, and iterators
      * taken after them must still see every value.
      */
     public void testDerivedValuesAreStable() throws IOException {
@@ -200,7 +200,7 @@ public class LongBitmapTests extends ESTestCase {
             assertThat(bitmap.last(), equalTo(Long.MAX_VALUE));
             assertThat(bitmap.ramBytesUsed(), greaterThan(0L));
         }
-        assertThat(drain(bitmap.cursor()), equalTo(List.of(3L, 1L << 32, Long.MAX_VALUE)));
+        assertThat(drain(bitmap.iterator()), equalTo(List.of(3L, 1L << 32, Long.MAX_VALUE)));
     }
 
     /**
@@ -218,7 +218,7 @@ public class LongBitmapTests extends ESTestCase {
         assertThat(bitmap.isEmpty(), equalTo(false));
         assertThat(bitmap.first(), equalTo(expected));
         assertThat(bitmap.last(), equalTo(expected));
-        assertThat(drain(bitmap.cursor()), equalTo(List.of(expected)));
+        assertThat(drain(bitmap.iterator()), equalTo(List.of(expected)));
     }
 
     public void testEqualsAndHashCode() {

@@ -139,7 +139,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
      */
     private class MergePointVisitor implements IntersectVisitor {
         private final DocIdSetBuilder result;
-        private final BitmapValues.Cursor cursor;
+        private final BitmapValues.PeekableIterator iterator;
         private final ArrayUtil.ByteArrayComparator comparator;
         /** The bitmap value being merged, encoded. Owned here, so nothing else can recycle it. */
         private final byte[] queryPoint;
@@ -149,27 +149,27 @@ public class BitmapBKDQuery extends Query implements Accountable {
         MergePointVisitor(DocIdSetBuilder result) {
             this.result = result;
             this.comparator = ArrayUtil.getUnsignedComparator(values.bytesPerValue());
-            this.cursor = values.cursor();
+            this.iterator = values.iterator();
             this.queryPoint = new byte[values.bytesPerValue()];
             takeQueryPoint();
         }
 
-        /** Consumes the cursor's pending value into {@link #queryPoint}, or marks the bitmap exhausted. */
+        /** Consumes the iterator's pending value into {@link #queryPoint}, or marks the bitmap exhausted. */
         private void takeQueryPoint() {
-            hasQueryPoint = cursor.hasNext();
+            hasQueryPoint = iterator.hasNext();
             if (hasQueryPoint) {
-                cursor.encodePeek(queryPoint);
-                cursor.next();
+                iterator.encodePeek(queryPoint);
+                iterator.next();
             }
         }
 
         /**
          * Skips bitmap values below {@code packedValue}. Only reached when {@link #queryPoint} is
          * already below it, and bitmap values are non-negative, so the decoded target is non-negative
-         * too and the cursor's signed comparison matches the bitmap's unsigned iteration order.
+         * too and the iterator's signed comparison matches the bitmap's unsigned iteration order.
          */
         private void skipTo(byte[] packedValue) {
-            cursor.advanceTo(values.decode(packedValue, 0));
+            iterator.advanceTo(values.decode(packedValue, 0));
             takeQueryPoint();
         }
 

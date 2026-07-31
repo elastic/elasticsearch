@@ -23,7 +23,7 @@ import java.nio.ByteOrder;
  * <p>
  * Values are reported as {@code long}, which is lossless and order-preserving for {@code int}. The
  * reverse never happens: {@link #encodeFirst}, {@link #encodeLast} and
- * {@link BitmapValues.Cursor#encodePeek} all encode from the {@code int} the bitmap already holds.
+ * {@link BitmapValues.PeekableIterator#encodePeek} all encode from the {@code int} the bitmap already holds.
  */
 public final class IntBitmap implements BitmapValues {
 
@@ -106,20 +106,20 @@ public final class IntBitmap implements BitmapValues {
     }
 
     @Override
-    public Cursor cursor() {
-        return new IntCursor(bitmap.getIntIterator());
+    public PeekableIterator iterator() {
+        return new IntValuesIterator(bitmap.getIntIterator());
     }
 
     /**
      * Delegates straight to {@link PeekableIntIterator}, which is natively peekable and whose
      * {@code advanceIfNeeded} skips whole containers rather than walking values.
      */
-    private static final class IntCursor implements Cursor {
+    private static final class IntValuesIterator implements PeekableIterator {
 
         private final PeekableIntIterator values;
         private boolean exhausted;
 
-        IntCursor(PeekableIntIterator values) {
+        IntValuesIterator(PeekableIntIterator values) {
             this.values = values;
         }
 

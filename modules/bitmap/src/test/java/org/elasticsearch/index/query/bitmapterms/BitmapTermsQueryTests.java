@@ -296,7 +296,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
         return docs;
     }
 
-    /** Long-only: the cursor must cross high-32-bit bucket boundaries in step with the terms order. */
+    /** Long-only: the iterator must cross high-32-bit bucket boundaries in step with the terms order. */
     public void testLongValuesBeyondIntRange() throws IOException {
         long[] indexed = { 0L, 1L, Integer.MAX_VALUE, 1L << 32, (1L << 32) + 1, 1L << 33, BEYOND_INT, Long.MAX_VALUE };
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

@@ -56,17 +56,17 @@ public interface BitmapValues extends Accountable {
     /** Writes {@link #last()} as sortable bytes. Undefined when empty. */
     void encodeLast(byte[] dest);
 
-    Cursor cursor();
+    PeekableIterator iterator();
 
     /**
-     * A forward-only cursor over the values in ascending order. Independent cursors may be taken
+     * A forward-only iterator over the values in ascending order. Independent iterators may be taken
      * concurrently from one {@link BitmapValues}.
      * <p>
-     * The value at the head of the cursor is <em>pending</em> until {@link #next()} consumes it, so a
+     * The value at the head of the iterator is <em>pending</em> until {@link #next()} consumes it, so a
      * caller can inspect it repeatedly without advancing — which the merge against a sorted index
      * needs, since several documents may share one value.
      */
-    interface Cursor {
+    interface PeekableIterator {
 
         /** Whether a pending value remains. */
         boolean hasNext();

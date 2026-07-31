@@ -334,7 +334,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .fetchField(InferenceEmbeddingsMetadataFieldsMapper.NAME)
+            .fetchField(InferenceEmbeddingsMetadataFieldsMapper.NAME + "." + diversificationField)
             .fetchField(diversificationField);
         return super.finalizeSourceBuilder(builder);
     }
@@ -485,52 +485,42 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     private VectorData tryGetVectorFromInferenceEmbeddings(SearchHit hit, ResultDiversificationContext diversificationContext)
         throws IllegalArgumentException, IOException {
-        var inferenceEmbeddings = hit.getFields().getOrDefault(InferenceEmbeddingsMetadataFieldsMapper.NAME, null);
+        var inferenceEmbeddings = hit.getFields()
+            .getOrDefault(InferenceEmbeddingsMetadataFieldsMapper.NAME + "." + diversificationField, null);
         if (inferenceEmbeddings == null) {
             return null;
         }
 
-        var fieldValues = inferenceEmbeddings.getValues();
-        if (fieldValues == null || fieldValues.isEmpty()) {
+        List<?> chunkEmbeddings = inferenceEmbeddings.getValues();
+        if (chunkEmbeddings == null || chunkEmbeddings.isEmpty()) {
             return null;
         }
 
-        if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
-            var fieldValue = mappedValues.get(diversificationField);
-            if (fieldValue instanceof List<?> chunkEmbeddings) {
-                if (diversificationContext.getQueryVector() == null) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "[%s] or [%s] must be supplied when diversifying on inference field [%s].",
-                            QUERY_VECTOR_FIELD.getPreferredName(),
-                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                            diversificationField
-                        )
-                    );
-                }
+        if (diversificationContext.getQueryVector() == null) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] or [%s] must be supplied when diversifying on inference field [%s].",
+                    QUERY_VECTOR_FIELD.getPreferredName(),
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                    diversificationField
+                )
+            );
+        }
 
-                VectorData bestVector = null;
-                float currentHighestScore = Float.NEGATIVE_INFINITY;
-                for (Object embeddingObj : chunkEmbeddings) {
-                    VectorData vector = extractVectorDataFromObject(embeddingObj);
-                    if (vector == null) {
-                        continue;
-                    }
-                    float score = getVectorComparisonScore(
-                        QUERY_VECTOR_SIMILARITY_FUNCTION,
-                        vector,
-                        diversificationContext.getQueryVector()
-                    );
-                    if (score > currentHighestScore) {
-                        bestVector = vector;
-                        currentHighestScore = score;
-                    }
-                }
-
-                return bestVector;
+        VectorData bestVector = null;
+        float currentHighestScore = Float.NEGATIVE_INFINITY;
+        for (Object embeddingObj : chunkEmbeddings) {
+            VectorData vector = extractVectorDataFromObject(embeddingObj);
+            if (vector == null) {
+                continue;
+            }
+            float score = getVectorComparisonScore(QUERY_VECTOR_SIMILARITY_FUNCTION, vector, diversificationContext.getQueryVector());
+            if (score > currentHighestScore) {
+                bestVector = vector;
+                currentHighestScore = score;
             }
         }
 
-        return null;
+        return bestVector;
     }
 }

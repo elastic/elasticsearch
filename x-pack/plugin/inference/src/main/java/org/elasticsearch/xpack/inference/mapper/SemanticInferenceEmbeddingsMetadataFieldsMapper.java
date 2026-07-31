@@ -11,6 +11,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.mapper.DynamicFieldType;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceEmbeddingsMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -31,7 +33,7 @@ public class SemanticInferenceEmbeddingsMetadataFieldsMapper extends InferenceEm
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
-    static class FieldType extends InferenceEmbeddingsMetadataFieldType {
+    static class FieldType extends InferenceEmbeddingsMetadataFieldType implements DynamicFieldType {
         private static final FieldType INSTANCE = new FieldType();
 
         FieldType() {
@@ -78,6 +80,46 @@ public class SemanticInferenceEmbeddingsMetadataFieldsMapper extends InferenceEm
                     return StoredFieldsSpec.NO_REQUIREMENTS;
                 }
             };
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            throw new QueryShardException(
+                context,
+                "[" + name() + "] field which is of type [" + typeName() + "], does not support term queries"
+            );
+        }
+
+        @Override
+        public MappedFieldType getChildFieldType(String path) {
+            return new EmbeddingsFieldType(path);
+        }
+    }
+
+    /**
+     * A child field type for {@code _inference_embeddings.<field>} that fetches chunk embeddings
+     * for a single named inference field.
+     */
+    private static class EmbeddingsFieldType extends MappedFieldType {
+        private final String inferenceFieldName;
+
+        EmbeddingsFieldType(String inferenceFieldName) {
+            super(NAME + "." + inferenceFieldName, IndexType.NONE, false, Map.of());
+            this.inferenceFieldName = inferenceFieldName;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            MappedFieldType ft = context.getMappingLookup().getFieldType(inferenceFieldName);
+            if (ft instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+                return new EmbeddingsSemanticFieldValueFetcher(semanticFieldType, context::bitsetFilter, context.searcher());
+            }
+            return ValueFetcher.EMPTY;
         }
 
         @Override

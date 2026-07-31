@@ -576,9 +576,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         float score,
         List<float[]> embeddings
     ) {
-        Map<String, Object> embeddingsFieldValues = Map.of("dense_vector_field", embeddings);
         SearchHit hit = new SearchHit(docId);
-        hit.setDocumentField(new DocumentField(InferenceEmbeddingsMetadataFieldsMapper.NAME, List.of(embeddingsFieldValues)));
+        hit.setDocumentField(new DocumentField(InferenceEmbeddingsMetadataFieldsMapper.NAME + ".dense_vector_field", List.of(embeddings)));
         DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
         doc.rank = rank;
         return doc;

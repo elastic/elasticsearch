@@ -41,7 +41,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.UNION;
     }
 
@@ -60,6 +60,20 @@ final class EscfUnionColumn extends EscfColumn {
             return false;
         }
         throw new IllegalStateException("Doc " + row + " is not boolean, type=" + SourceValueType.name(t));
+    }
+
+    @Override
+    int getIntValue(int row) {
+        // INT values are stored as 4 bytes in the UNION column, so this reads directly rather than
+        // narrowing getLongValue() as the base class does. Caller must have checked typeByteForPresent.
+        return data.getIntLE(intAt(offsets, row));
+    }
+
+    @Override
+    float getFloatValue(int row) {
+        // FLOAT values are stored as 4 raw bytes (bit-identical IEEE 754), not as a narrowed double.
+        // Caller must have checked typeByteForPresent.
+        return Float.intBitsToFloat(data.getIntLE(intAt(offsets, row)));
     }
 
     @Override

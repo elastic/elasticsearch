@@ -51,6 +51,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             mock(),
             actionName,
             taskManager,
+            null,
             null
         );
         assertThat(completed, is(false));
@@ -84,6 +85,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             mock(),
             actionName,
             taskManager,
+            null,
             null
         );
         assertThat(completed, is(true));
@@ -140,7 +142,8 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             mock(),
             actionName,
             taskManager,
-            notified::add
+            notified::add,
+            null
         );
         assertThat(notified, containsInAnyOrder(task1, task2, task3)); // should notify each task exactly once
     }

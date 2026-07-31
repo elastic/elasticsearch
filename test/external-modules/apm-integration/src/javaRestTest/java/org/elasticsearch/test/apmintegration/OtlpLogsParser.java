@@ -31,15 +31,16 @@ public final class OtlpLogsParser extends OtlpParser {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
             for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                String scopeName = scopeLogs.getScope().getName();
                 for (LogRecord record : scopeLogs.getLogRecordsList()) {
-                    result.add(toReceivedLog(record));
+                    result.add(toReceivedLog(record, scopeName));
                 }
             }
         }
         return result;
     }
 
-    static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
+    static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record, String scopeName) {
         Optional<String> traceId = record.getTraceId().isEmpty()
             ? Optional.empty()
             : Optional.of(HexFormat.of().formatHex(record.getTraceId().toByteArray()));
@@ -49,7 +50,8 @@ public final class OtlpLogsParser extends OtlpParser {
             record.getSeverityText(),
             record.getBody().getStringValue(),
             extractRawAttributes(record.getAttributesList()),
-            traceId
+            traceId,
+            scopeName
         );
     }
 }

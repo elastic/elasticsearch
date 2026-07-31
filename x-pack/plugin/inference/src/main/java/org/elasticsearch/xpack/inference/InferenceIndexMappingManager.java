@@ -41,10 +41,10 @@ import java.util.List;
  * when the version is behind the descriptor's current version, issues a {@code CreateIndex} or
  * {@code PutMapping} request before allowing the write to proceed.
  *
- * <p>Concurrent callers are handled safely: the first caller that detects an update is needed acquires
- * an in-flight guard ({@link #updateInProgress}) and performs the update. Any additional callers that
- * arrive while the update is in progress are added to {@link #pendingListeners} and notified—with the
- * same success or failure outcome—when the in-flight update completes.
+ * <p>Concurrent callers are handled safely: every caller that detects an update is needed is added to
+ * {@link #pendingListeners}; the first of them acquires an in-flight guard ({@link #updateInProgress})
+ * and performs the update. When the in-flight update completes, all queued listeners are notified with
+ * the same success or failure outcome.
  */
 public class InferenceIndexMappingManager {
 
@@ -109,43 +109,33 @@ public class InferenceIndexMappingManager {
     }
 
     /**
-     * Acquires the update guard atomically. If an update is already in progress the listener is
-     * queued and this method returns immediately. Otherwise, the appropriate index-level operation
-     * (create or put-mapping) is issued.
+     * Queues the listener and acquires the update guard atomically. If an update is already in
+     * progress this method returns immediately; the listener is notified when the in-flight update
+     * completes. Otherwise, the appropriate index-level operation (create or put-mapping) is issued
+     * and all queued listeners are notified with its outcome.
      *
      * @param createIndex {@code true} to create the index, {@code false} to update mappings only
      * @param listener    the caller to notify when the update is complete
      */
     private void startUpdateIfNotInProgress(boolean createIndex, ActionListener<Void> listener) {
         synchronized (pendingListeners) {
+            pendingListeners.add(listener);
             if (updateInProgress) {
-                // An update is already in flight – enqueue this caller.
+                // An update is already in flight – the queued listener is notified when it completes.
                 logger.debug("Mapping update for [{}] already in progress; queuing listener", descriptor.getPrimaryIndex());
-                pendingListeners.add(listener);
                 return;
             }
             updateInProgress = true;
         }
 
-        // We are the owner of this update; wrap the listener so pending callers are drained when done.
-        ActionListener<Void> wrappedListener = ActionListener.wrap(v -> {
-            try {
-                listener.onResponse(null);
-            } finally {
-                drainPendingListeners(null);
-            }
-        }, e -> {
-            try {
-                listener.onFailure(e);
-            } finally {
-                drainPendingListeners(e);
-            }
-        });
+        // All callers, including the one that initiated this update, are notified through
+        // drainPendingListeners, which guards against listeners that throw.
+        ActionListener<Void> drainingListener = ActionListener.wrap(v -> drainPendingListeners(null), this::drainPendingListeners);
 
         if (createIndex) {
-            createIndex(wrappedListener);
+            createIndex(drainingListener);
         } else {
-            putMapping(wrappedListener);
+            putMapping(drainingListener);
         }
     }
 

@@ -839,7 +839,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
     }
 
     /// Records the BCC generations whose blobs are read from the blob store by the passed thread pool.
-    private Set<Long> captureGenerationsReadFromBlobStore(String searchNode, String requiredThreadPool) {
+    private Set<Long> captureGenerationsReadFromBlobStore(String searchNode, String trackedThreadPool) {
         Set<Long> prefetchedGenerations = ConcurrentCollections.newConcurrentSet();
         setNodeRepositoryStrategy(searchNode, new StatelessMockRepositoryStrategy() {
             @Override
@@ -850,7 +850,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 long position,
                 long length
             ) throws IOException {
-                if (Thread.currentThread().getName().contains("[" + requiredThreadPool + "]") == false) {
+                if (Thread.currentThread().getName().contains("[" + trackedThreadPool + "]") == false) {
                     return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
                 }
                 return new FilterInputStream(originalSupplier.get()) {

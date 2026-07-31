@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -54,6 +55,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         var originalServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new AnthropicChatCompletionServiceSettings(
             request.model(),
+            originalServiceSettings.url(),
             originalServiceSettings.rateLimitSettings()
         );
 
@@ -102,7 +104,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             modelConfigurations,
             modelSecrets,
             (AnthropicRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
-            AnthropicChatCompletionModel::buildDefaultUri,
+            resolveUri((AnthropicChatCompletionServiceSettings) modelConfigurations.getServiceSettings()),
             (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
@@ -148,6 +150,10 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
     @Override
     public ExecutableAction accept(AnthropicActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    private static CheckedSupplier<URI, URISyntaxException> resolveUri(AnthropicChatCompletionServiceSettings serviceSettings) {
+        return serviceSettings.url() != null ? serviceSettings::url : AnthropicChatCompletionModel::buildDefaultUri;
     }
 
     private static URI buildDefaultUri() throws URISyntaxException {

@@ -16,9 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.roaringbitmap.RoaringBitmap;
@@ -46,7 +45,7 @@ import java.util.Objects;
  * }
  * }</pre>
  */
-public class BitmapTermsQueryBuilder extends AbstractQueryBuilder<BitmapTermsQueryBuilder> {
+public class BitmapTermsQueryBuilder extends LeafQueryBuilder<BitmapTermsQueryBuilder> {
 
     public static final String NAME = "bitmap_terms";
 
@@ -143,7 +142,7 @@ public class BitmapTermsQueryBuilder extends AbstractQueryBuilder<BitmapTermsQue
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (!(fieldType instanceof NumberFieldMapper.NumberFieldType numberFieldType)
             || numberFieldType.numberType() != NumberFieldMapper.NumberType.INTEGER

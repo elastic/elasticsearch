@@ -161,6 +161,41 @@ v:boolean
 null
 ;
 
+mvConstantFoldingBinaryLogic
+required_capability: fix_logical_operators_folding_on_multivalue_constants
+row aa = [true, false] AND true, oo = [true, false] OR false;
+
+aa:boolean | oo:boolean
+null       | null
+;
+
+mvConstantFoldingBinaryLogicShortCircuit
+required_capability: fix_logical_operators_folding_on_multivalue_constants
+row aa = false AND [true, false], oo = true OR [true, false];
+
+aa:boolean | oo:boolean
+null       | null
+;
+
+mvConstantFoldingNot
+required_capability: fix_logical_operators_folding_on_multivalue_constants
+row v = NOT [true, false];
+warningRegex:evaluation of \[NOT \[true, false\]\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+v:boolean
+null
+;
+
+// https://github.com/elastic/elasticsearch/issues/154079
+mvConstantFoldingBinaryLogicInCaseCondition
+required_capability: fix_logical_operators_folding_on_multivalue_constants
+row x = [true, false] | eval y = case(x AND mv_last(x), 1, 2) | keep y;
+
+y:integer
+2
+;
+
 convertFromBoolean
 row tf = [true, false] | eval tt = to_boolean(true), ff = to_boolean(false), ttff = to_boolean(tf);
 

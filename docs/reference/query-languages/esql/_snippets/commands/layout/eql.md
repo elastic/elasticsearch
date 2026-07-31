@@ -8,195 +8,226 @@ The `EQL` command is in technical preview and only available in snapshot builds.
 ::::
 
 The `EQL` source command runs an [EQL (Event Query Language)](docs-content://explore-analyze/query-filter/languages/eql.md)
-query and returns its results as a table, so you can continue processing them with {{esql}}. Rather than
-re-implementing EQL, the command delegates execution to the EQL engine and exposes the results under a
-fixed schema that {{esql}} knows at planning time.
+query and returns its matches as a table, so you can continue processing them with {{esql}}. Rather than
+re-implementing EQL, the command delegates execution to the EQL engine and exposes the matches as typed
+columns that the rest of the query can filter, aggregate and reshape.
 
 ## Syntax
 
 ```esql
-EQL "<eql_query>" WITH { "indices": "<index_pattern>" [, "<option>": <value>]* }
+EQL index_pattern [, index_pattern]* "<eql_query>" [METADATA fields] [WITH { "<option>": <value> [, ...] }]
 ```
 
 ## Parameters
 
+`index_pattern`
+:   The indices, data streams or aliases to query, given as one or more comma-separated patterns
+    directly after the command name — the same leading position `FROM` uses. Supports wildcards, date
+    math and remote-cluster patterns (`<remote_cluster>:<target>`).
+
 `<eql_query>`
-:   The EQL query to run, as a string. Supports event queries, `sequence` queries and `sample`
-    queries. See [EQL syntax reference](/reference/query-languages/eql/eql-syntax.md).
+:   The EQL query to run, as a string. Supports event queries, `sequence` queries and `sample` queries.
+    See the [EQL syntax reference](/reference/query-languages/eql/eql-syntax.md).
+
+`fields`
+:   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md)
+    to retrieve. Only `_index`, `_id` and `_source` are supported (see [Metadata](#metadata)).
 
 `WITH { ... }`
-:   A map of options controlling how the EQL query is executed:
-
-    `indices`
-    :   (Required) A comma-separated index pattern identifying the indices to query.
-
-    `size`
-    :   The maximum number of events (for event queries) or sequences/samples to return. Defaults to `10`.
-
-    `fetch_size`
-    :   The number of events to search at a time when paging through sequence and sample matches. Defaults to `1000`.
-
-    `timestamp_field`
-    :   The field used to sort events by time. Defaults to `@timestamp`.
-
-    `event_category_field`
-    :   The field that classifies events into categories (the value matched by an EQL query's event category,
-        such as `process` in `process where ...`). Defaults to `event.category`.
-
-    `tiebreaker_field`
-    :   The field used to break ties between events with the same timestamp.
-
-    `result_position`
-    :   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Defaults to `tail`.
+:   An optional map of [options](#with-options) controlling how the EQL query is executed.
 
 ## Description
 
-EQL results are document-shaped, so the `EQL` command projects them onto a fixed set of columns that
-depend only on the kind of EQL query. The event payload is returned as an opaque `_source` column (the
-same type as [`METADATA _source`](/reference/query-languages/esql/esql-metadata-fields.md)); use downstream
-{{esql}} commands to reduce, count or reshape the results.
+The `EQL` command runs its query on the coordinating node and turns the matches into an {{esql}} table
+whose columns are resolved from the target index mapping the same way `FROM` resolves its columns: each
+mapped event field becomes a typed column, and a field whose type {{esql}} cannot read surfaces as an
+`unsupported` column, exactly as it would under `FROM`. A field that an event does not contain is `null`
+in that row.
 
-For **event queries**, the command returns one row per matching event:
+For **event queries**, the command returns one row per matching event.
 
-| Column | Type | Description |
-| --- | --- | --- |
-| `_index` | `keyword` | The index the event came from. |
-| `_id` | `keyword` | The event document `_id`. |
-| `_source` | `_source` | The event document source. |
-
-For **sequence** and **sample** queries, the matches are *unnested* to one row per event, so the schema
-is the same regardless of how many stages the query has:
+For **`sequence`** and **`sample`** queries, each match is *unnested* to one row per event, so the shape
+is the same regardless of how many stages the query has. Three synthetic columns are prepended to the
+mapped fields to identify the match each row belongs to:
 
 | Column | Type | Description |
 | --- | --- | --- |
-| `_seq` | `long` | Which match this event belongs to (`0`, `1`, ...). |
-| `_position` | `integer` | The stage index of this event within the match (`0`-based). |
+| `_sequence` | `long` | Which match this event belongs to (`0`, `1`, …). |
+| `_sequence_stage` | `integer` | The stage index of this event within the match (`0`-based). |
 | `join_keys` | `keyword` | The join-key values shared by the match (multivalued). |
+
+Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A field literally named
+`_sequence`, `_sequence_stage` or `join_keys` keeps its own value and does not collide with a synthetic.
+
+### Coordinator-only execution
+
+Unlike `FROM`, an `EQL` source is not distributed to data nodes. The command issues an EQL search from
+the coordinating node and materializes the whole response into a single table there, and the {{esql}}
+pipeline attached to it runs on the coordinator too, without data-node parallelism. Coordinator memory and
+CPU therefore bound the query, sized by the EQL result set. Keep that result set small with `LIMIT` or
+`WITH { "size": … }` (see below).
+
+### Limiting the number of results
+
+`LIMIT` and the `size` option bound different things:
+
+* For an **event query**, a `LIMIT n` placed directly after the command is folded into the EQL request,
+  so only about `n` events are fetched. `WITH { "size": n }` caps the number of events too and takes
+  precedence over `LIMIT`.
+* For a **`sequence`** or **`sample`** query, `LIMIT` is not folded into the request (the rows are
+  unnested per event, so a row count does not map to a number of matches). Use `WITH { "size": n }` to
+  cap the number of whole matches.
+* If neither a pushed `LIMIT` nor `WITH { "size": … }` sets the size, the request falls back to the
+  {{esql}} result-truncation limit. In that case the command warns that the results may be incomplete.
+
+### Partial results
+
+An event query honors the enclosing {{esql}} query's
+[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting, so it behaves like a
+`FROM` source under a shard failure. A `sequence` query is fail-safe by default: a sequence that lost a
+stage on a failed shard is dropped rather than returned as a shorter, corrupt match. Set
+`WITH { "allow_partial_sequence_results": true }` to prefer resilience over completeness.
+
+### Unmapped fields
+
+The command honors [`SET unmapped_fields`](/reference/query-languages/esql/esql-unmapped-fields.md) for
+fields a downstream {{esql}} command references but the mapping does not contain, the same as `FROM`: `nullify`
+adds a `null` column, and `load` adds a `keyword` column read from `_source`. Field references inside the
+EQL query string itself are resolved by the EQL engine, not by this setting.
+
+## Metadata [metadata]
+
+Add a `METADATA` clause — after the query string, before `WITH` — to append provenance columns, populated
+from the EQL response. Only the fields the response carries per event are supported:
+
+| Column | Type | Description |
+| --- | --- | --- |
 | `_index` | `keyword` | The index the event came from. |
 | `_id` | `keyword` | The event document `_id`. |
-| `_source` | `_source` | The event document source. |
+| `_source` | `_source` | The event document source, as an opaque [`_source`](/reference/query-languages/esql/esql-metadata-fields.md) value. |
 
-Use `STATS ... BY _seq` to reconstruct or aggregate whole matches.
+Any other metadata field (for example `_score` or `_version`), an unknown name, or a wildcard is rejected.
 
-::::{note}
-Cross-cluster search is supported. Include a remote cluster in the `indices` option, for example
-`"my_remote:logs-*"`. The option is passed through to the EQL engine, which resolves the remote
-cluster and runs the query there.
-::::
+## `WITH` options [with-options]
+
+The `WITH` map tunes how the EQL query runs. `indices` is **not** an option — the target goes in the
+leading index pattern, and passing it here is rejected. Any unknown option, or an option given a
+wrong-typed value, is rejected when the query is parsed.
+
+`size`
+:   The maximum number of events (event queries) or whole matches (`sequence`/`sample` queries) to return.
+    See [Limiting the number of results](#limiting-the-number-of-results) for how it interacts with `LIMIT`.
+
+`fetch_size`
+:   The number of events to search at a time when paging through `sequence` and `sample` matches. Defaults to `1000`.
+
+`timestamp_field`
+:   The field used to sort events by time. Defaults to `@timestamp`.
+
+`tiebreaker_field`
+:   The field used to break ties between events with the same timestamp.
+
+`event_category_field`
+:   The field that classifies events into categories (the value an EQL query matches on, such as `process`
+    in `process where …`). Defaults to `event.category`.
+
+`result_position`
+:   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Defaults to `tail`.
+
+`allow_partial_sequence_results`
+:   Whether a `sequence` that spanned a failed shard may still be returned. Defaults to `false`
+    (see [Partial results](#partial-results)).
+
+`max_samples_per_key`
+:   For `sample` queries, the maximum number of samples returned per set of join-key values.
+
+## Composition
+
+Because the `EQL` command is a first-class source, it can be used wherever `FROM` can:
+
+* As a [subquery](/reference/query-languages/esql/esql-subquery.md) source — `FROM (EQL … | …)` — including
+  alongside `FROM` subqueries in the same clause.
+* On the right-hand side of `IN` — `WHERE x IN (EQL … | KEEP col)`.
+* As the upstream of [`FORK`](/reference/query-languages/esql/commands/fork.md) — `EQL … | FORK (…) (…)`.
+* As the stored body of a [view](/reference/query-languages/esql/esql-views.md), read with `FROM <view>`.
+
+Under `FORK`, the EQL source is run once per branch, so `_sequence` numbers matches *within* a branch.
+Combine it with `_fork` — `… BY _fork, _sequence` — to identify a match across branches.
 
 ## Examples
 
-Count the process events matching an EQL event query:
+Count the process events matching an event query:
 
 ```esql
-EQL "process where process.name == \"cmd.exe\"" WITH { "indices": "logs-*" }
+EQL logs-endpoint "process where process.name == \"cmd.exe\""
 | STATS count = COUNT(*)
 ```
 
-Return the raw matching events and keep just the identifiers:
+Return matching events as typed columns and keep just a few:
 
 ```esql
-EQL "network where destination.port == 443" WITH { "indices": "logs-*", "size": 100 }
-| KEEP _index, _id
+EQL logs-endpoint "network where destination.port == 443"
+| KEEP @timestamp, process.name, destination.port
+| SORT @timestamp
+| LIMIT 100
 ```
 
-Run a sequence query and reconstruct each match with {{esql}} aggregation:
+Run a `sequence` query and count the events and the distinct matches:
 
 ```esql
-EQL "sequence by process.pid [process where true] [network where true]" WITH { "indices": "logs-*" }
-| STATS events = COUNT(*), matches = COUNT_DISTINCT(_seq)
+EQL logs-endpoint "sequence by process.pid [process where true] [network where true]"
+| STATS events = COUNT(*), matches = COUNT_DISTINCT(_sequence)
 ```
 
 Inspect the events of each matched sequence, ordered by stage:
 
 ```esql
-EQL "sequence by process.pid [process where true] [network where true]" WITH { "indices": "logs-*" }
-| KEEP _seq, _position, join_keys, _id
-| SORT _seq, _position
+EQL logs-endpoint "sequence by process.pid [process where true] [network where true]"
+| KEEP _sequence, _sequence_stage, join_keys, process.name
+| SORT _sequence, _sequence_stage
 ```
 
-## Mapping from the EQL search API
-
-To run an existing [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search)
-query with this command, move the request's target index into the `indices` option and pass the query
-string through unchanged. Request parameters such as `size` become `WITH` options. The document-shaped
-EQL response is projected onto the fixed columns described above.
-
-### Event query
-
-An event query's `hits.events` array becomes one row per event.
-
-EQL search API:
-
-```console
-GET /my-data-stream/_eql/search
-{
-  "query": "process where process.name == \"regsvr32.exe\""
-}
-```
-
-Equivalent {{esql}}:
+Add the source index and document id with `METADATA`:
 
 ```esql
-EQL "process where process.name == \"regsvr32.exe\"" WITH { "indices": "my-data-stream" }
+EQL logs-endpoint "process where process.name == \"regsvr32.exe\"" METADATA _index, _id
+| KEEP _index, _id, process.name
 ```
 
-| `_index` | `_id` | `_source` |
-| --- | --- | --- |
-| `.ds-my-data-stream-…` | `OQmfCaduce8zoHT93o4H` | `{"@timestamp":"…","process":{"name":"regsvr32.exe",…}}` |
-| `.ds-my-data-stream-…` | `xLkCaj4EujzdNSxfYLbO` | `{"@timestamp":"…","process":{"name":"regsvr32.exe",…}}` |
-
-### Sequence query with join keys
-
-A sequence's `hits.sequences[].events` are unnested to one row per event; `hits.sequences[].join_keys`
-becomes the `join_keys` column.
-
-EQL search API:
-
-```console
-GET /my-data-stream/_eql/search
-{
-  "query": "sequence by process.pid [process where process.name == \"regsvr32.exe\"] [file where stringContains(file.name, \"scrobj.dll\")]"
-}
-```
-
-Equivalent {{esql}}:
+Use an `EQL` source inside a subquery and feed a value set to `IN`:
 
 ```esql
-EQL "sequence by process.pid [process where process.name == \"regsvr32.exe\"] [file where stringContains(file.name, \"scrobj.dll\")]" WITH { "indices": "my-data-stream" }
+FROM logs-endpoint
+| WHERE process.pid IN (EQL logs-endpoint "process where process.name == \"cmd.exe\"" | KEEP process.pid)
+| STATS count = COUNT(*)
 ```
 
-For a single matched sequence sharing `process.pid` `2012`:
-
-| `_seq` | `_position` | `join_keys` | `_index` | `_id` | `_source` |
-| --- | --- | --- | --- | --- | --- |
-| 0 | 0 | `2012` | `.ds-my-data-stream-…` | `OQmfCaduce8zoHT93o4H` | `{…"process":{"name":"regsvr32.exe",…}}` |
-| 0 | 1 | `2012` | `.ds-my-data-stream-…` | `yDwnGIJouOYGBzP0ZE9n` | `{…"file":{"name":"scrobj.dll",…}}` |
-
-`sample` queries map the same way (each sample is a `_seq`, its matched events the `_position`s). A
-[missing event](/reference/query-languages/eql/eql-syntax.md#eql-missing-events) (`!` in the query,
-`"missing": true` in the EQL response) produces a row whose `_index`, `_id` and `_source` are `null`.
-
-### Cross-cluster search
-
-Because the query is delegated to the EQL engine, a remote-cluster pattern in the `indices` option is
-resolved by EQL's own cross-cluster support:
+Split an event query into two branches with `FORK`:
 
 ```esql
-EQL "process where process.name == \"regsvr32.exe\"" WITH { "indices": "my_remote:my-data-stream" }
+EQL logs-endpoint "process where true"
+| FORK ( WHERE process.pid == 100 ) ( WHERE process.pid == 200 )
+| KEEP process.name, process.pid, _fork
+| SORT process.pid
 ```
 
-### Unsupported EQL search API options
+Query a remote cluster by prefixing the leading pattern with the cluster name:
 
-Some [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search)
-request parameters are not exposed as `WITH` options. Several have {{esql}} equivalents you can use
-instead:
+```esql
+EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
+| STATS count = COUNT(*)
+```
 
-* `filter` (Query DSL) — filter with a downstream `WHERE` command.
-* `fields` — the whole document is available in `_source`; extract from it downstream.
-* async execution (`keep_alive`, `wait_for_completion_timeout`, `keep_on_completion`) — use the
-  {{esql}} [async query API](/reference/query-languages/esql/esql-rest.md).
+## Limitations
 
-The following have no equivalent and are not currently supported: `runtime_mappings`,
-`max_samples_per_key`, `ccs_minimize_roundtrips`, and the partial-results parameters
-(`allow_partial_search_results`, `allow_partial_sequence_results`).
+* **Coordinator-bound compute.** The EQL source and everything downstream of it run on the coordinating
+  node (see [Coordinator-only execution](#coordinator-only-execution)); there is no data-node parallelism.
+  Bound the result set with `LIMIT` or `WITH { "size": … }`.
+* **No runtime fields in the EQL predicate.** The EQL query can reference only fields present in the index
+  mapping. Compute derived columns *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md)
+  rather than inside the EQL predicate.
+* **The request `filter` is not applied.** An enclosing {{esql}} request `filter` is not yet bridged into
+  the EQL source. Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
+* **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
+  view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
+  leading pattern is not expanded.

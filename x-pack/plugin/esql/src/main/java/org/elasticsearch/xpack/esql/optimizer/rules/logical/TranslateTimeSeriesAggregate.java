@@ -294,7 +294,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
                     var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
                     // use different name for bucket in the first pass if conflict
-                    if (firstPassBucket instanceof Alias alias && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
                         firstPassBucket = new Alias(
                             timeBucket.source(),
                             Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),

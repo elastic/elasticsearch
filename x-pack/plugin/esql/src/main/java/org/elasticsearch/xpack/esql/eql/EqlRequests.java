@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -112,13 +114,27 @@ public final class EqlRequests {
         }
     }
 
+    /**
+     * The settings an EQL source inherits from the ES|QL query that hosts it — bridged from the query, not from the
+     * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
+     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, cross-project
+     * routing, and the out-of-band request {@code filter} (which the EQL engine applies to the events it matches over,
+     * not as a post-hoc row filter).
+     */
+    public record EnclosingQuery(
+        int truncationCap,
+        boolean allowPartialSearchResults,
+        @Nullable String projectRouting,
+        @Nullable QueryBuilder filter
+    ) {}
+
     public static EqlSearchRequest build(
         String query,
         String indices,
         List<Attribute> schema,
         Map<String, Object> options,
         Integer pushedLimit,
-        int defaultSize
+        EnclosingQuery enclosing
     ) {
         if (indices == null || indices.isBlank()) {
             throw new EsqlIllegalArgumentException("EQL command requires a non-empty index pattern");
@@ -130,19 +146,24 @@ public final class EqlRequests {
         // prerequisite that makes reusing the resolved field-caps sound.
         request.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
         request.query(query);
-        // Fail loud rather than silently truncate: the cluster default for allow_partial_search_results is true,
-        // so a shard failure would otherwise return a clean, incomplete table. A security detection command must
-        // not present partial results as complete. Pin both to false until ESQL surfaces partial-results warnings.
-        request.allowPartialSearchResults(false);
+        // Honor the enclosing ES|QL query's own partial-results contract: an event source then behaves exactly like a
+        // FROM source under a shard failure. Sequences are a separate axis, defaulted fail-safe just below.
+        request.allowPartialSearchResults(enclosing.allowPartialSearchResults());
         // Fail-safe default: a sequence that lost a stage on a failed shard is a corrupt match, not a shorter one.
-        // A WITH {"allow_partial_sequence_results": true} option opts into resilience-over-completeness.
+        // A WITH {"allow_partial_sequence_results": true} option opts into resilience over completeness.
         request.allowPartialSequenceResults(false);
+        if (enclosing.projectRouting() != null) {
+            request.projectRouting(enclosing.projectRouting());
+        }
+        if (enclosing.filter() != null) {
+            request.filter(enclosing.filter());
+        }
         List<FieldAndFormat> fetchFields = fetchFields(schema);
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
         // Effective size default; a WITH {"size"} option overrides it in applyOptions.
-        request.size(pushedLimit != null ? pushedLimit : defaultSize);
+        request.size(pushedLimit != null ? pushedLimit : enclosing.truncationCap());
         applyOptions(request, options);
         return request;
     }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.benchmark.index.codec.columnar;
 
+import org.apache.lucene.util.NumericUtils;
+
 /**
  * Deterministic numeric data shapes for the ColumNAR benchmarks. A given workload always produces the
  * same values, so every format sees identical input.
@@ -16,8 +18,6 @@ package org.elasticsearch.benchmark.index.codec.columnar;
 final class NumericData {
 
     private NumericData() {}
-
-    static final String[] WORKLOADS = { "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "LOW_CARDINALITY", "SMALL_INTS", "RANDOM_FULL" };
 
     private static final long[] LOW_CARDINALITY_CODES = { 3, 7, 11, 42, 99, 128, 256, 999, 4096, 5000, 65535, 100000, 1, 2, 8, 16 };
 
@@ -37,6 +37,17 @@ final class NumericData {
                 case "LOW_CARDINALITY" -> LOW_CARDINALITY_CODES[rng.nextInt(LOW_CARDINALITY_CODES.length)];
                 case "SMALL_INTS" -> rng.nextInt(256);
                 case "RANDOM_FULL" -> rng.nextLong();
+                case "TSDB_SPLIT" -> {
+                    int runsOf = Math.max(1, count / 4);
+                    int run = i / runsOf;
+                    int posInRun = i % runsOf;
+                    yield 1_700_000_000_000L + (long) run * 100_000L - (long) posInRun * 1_000L;
+                }
+                case "SENSOR_DOUBLES" -> NumericUtils.doubleToSortableLong(20.0 + (i % 1000) * 0.1);
+                case "CONSTANT" -> 1_700_000_000_000L;
+                case "DECREASING" -> 1_700_000_000_000L - (long) i * 1_000L;
+                case "GCD_FRIENDLY" -> ((long) rng.nextInt(1000) + 1) * 1_000_000L;
+                case "NEAR_CONSTANT_OUTLIERS" -> rng.nextInt(20) == 0 ? rng.nextInt(1_000_000_000) : 1_700_000_000_000L;
                 default -> throw new IllegalArgumentException("Unknown workload: " + workload);
             };
         }
@@ -51,6 +62,12 @@ final class NumericData {
             case "LOW_CARDINALITY" -> 4L;
             case "SMALL_INTS" -> 5L;
             case "RANDOM_FULL" -> 6L;
+            case "TSDB_SPLIT" -> 7L;
+            case "SENSOR_DOUBLES" -> 8L;
+            case "CONSTANT" -> 9L;
+            case "DECREASING" -> 10L;
+            case "GCD_FRIENDLY" -> 11L;
+            case "NEAR_CONSTANT_OUTLIERS" -> 12L;
             default -> throw new IllegalArgumentException("Unknown workload: " + workload);
         };
     }

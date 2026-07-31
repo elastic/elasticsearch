@@ -634,4 +634,16 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         assertThat(err, is("1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT"));
     }
+
+    public void testFullTextFunctionAfterHighlightThatCannotBePushedDown() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        var testAnalyzer = analyzer().addIndex("test", "mapping-full_text_search.json");
+
+        var err = error(testAnalyzer.query("""
+            FROM test
+            | HIGHLIGHT "fox" ON title
+            | WHERE MATCH(title, "fox") OR LENGTH(highlight_title) > 0
+            """));
+        assertThat(err, containsString("[MATCH] function cannot be used after HIGHLIGHT"));
+    }
 }

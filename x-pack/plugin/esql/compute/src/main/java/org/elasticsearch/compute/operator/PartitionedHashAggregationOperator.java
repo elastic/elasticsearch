@@ -45,7 +45,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * aggregator state), 500k entries sits in the L3 cache range (~12–16 MB) on typical server
      * hardware, limiting cache thrashing without over-fragmenting output into many small pages.
      */
-    public static final int DEFAULT_EMIT_KEYS_THRESHOLD = 500_000;
+    public static final int DEFAULT_EMIT_KEYS_THRESHOLD = 400_000;
 
     /**
      * Default key-count threshold for deciding whether to partition the final output when no
@@ -53,7 +53,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * which {@link PartitionedHashMergeOperator} handles on its driver thread without spawning
      * workers. Above it the operator partitions just as it would for an intermediate emit.
      */
-    public static final int DEFAULT_PARTITION_THRESHOLD = 100_000;
+    public static final int DEFAULT_PARTITION_THRESHOLD = 1_000;
 
     /**
      * Returns true if the given group specs support output-side partitioning.

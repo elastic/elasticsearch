@@ -191,6 +191,13 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return register(doubleHistograms, new DoubleHistogramAdapter(meter, name, description, unit, bucketBoundaries));
+        }
+    }
+
+    @Override
     public DoubleHistogram getDoubleHistogram(String name) {
         return doubleHistograms.get(name);
     }
@@ -258,6 +265,13 @@ public class APMMeterRegistry implements MeterRegistry {
     public LongHistogram registerLongHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(longHistograms, new LongHistogramAdapter(meter, name, description, unit));
+        }
+    }
+
+    @Override
+    public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return register(longHistograms, new LongHistogramAdapter(meter, name, description, unit, bucketBoundaries));
         }
     }
 

@@ -350,11 +350,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         assert state != null : "resume listener fired without a recorded block";
         try {
             final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceMillis();
-            logger.info(
-                "resuming recoveries held for [{}] by gate [{}]",
-                TimeValue.timeValueMillis(blockedTimeMillis),
-                state.gateName()
-            );
+            logger.info("resuming recoveries held for [{}] by gate [{}]", TimeValue.timeValueMillis(blockedTimeMillis), state.gateName());
             schedulingListener.onRecoveriesUnblocked(state.gateName(), blockedTimeMillis);
         } finally {
             fillSlots();

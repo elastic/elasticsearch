@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureReasonClassifier;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
@@ -25,6 +26,8 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 class OAuth2TokenAuthenticator implements Authenticator {
+
+    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es_security_token_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(OAuth2TokenAuthenticator.class);
 
@@ -40,6 +43,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
             SecurityMetricType.AUTHC_OAUTH2_TOKEN,
             meterRegistry,
             token -> Map.of(),
+            ATTRIBUTE_AUTHC_FAILURE_REASON,
             nanoTimeSupplier
         );
         this.tokenService = tokenService;
@@ -64,7 +68,16 @@ class OAuth2TokenAuthenticator implements Authenticator {
             return;
         }
         final BearerToken bearerToken = (BearerToken) authenticationToken;
-        doAuthenticate(context, bearerToken, InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, bearerToken, listener));
+        doAuthenticate(
+            context,
+            bearerToken,
+            InstrumentedSecurityActionListener.wrapForAuthc(
+                authenticationMetrics,
+                bearerToken,
+                SecurityAuthcFailureReasonClassifier.DEFAULT,
+                listener
+            )
+        );
     }
 
     private void doAuthenticate(Context context, BearerToken bearerToken, ActionListener<AuthenticationResult<Authentication>> listener) {

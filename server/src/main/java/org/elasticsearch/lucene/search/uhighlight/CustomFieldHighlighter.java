@@ -19,14 +19,17 @@ import org.apache.lucene.search.uhighlight.PassageScorer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
- * Custom {@link FieldHighlighter} that creates a single passage bounded to {@code noMatchSize} when
- * no highlights were found.
+ * Custom {@link FieldHighlighter} that creates passages bounded to {@code noMatchSize} for content
+ * that was not highlighted.
  */
 class CustomFieldHighlighter extends FieldHighlighter {
     private static final Passage[] EMPTY_PASSAGE = new Passage[0];
@@ -35,6 +38,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     private final int noMatchSize;
     private String fieldValue;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
+    private final boolean returnNonMatchingWhenMultivalued;
 
     CustomFieldHighlighter(
         String field,
@@ -47,7 +51,8 @@ class CustomFieldHighlighter extends FieldHighlighter {
         PassageFormatter passageFormatter,
         Comparator<Passage> passageSortComparator,
         int noMatchSize,
-        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset,
+        boolean returnNonMatchingWhenMultivalued
     ) {
         super(
             field,
@@ -62,6 +67,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
+        this.returnNonMatchingWhenMultivalued = returnNonMatchingWhenMultivalued;
     }
 
     FieldOffsetStrategy getFieldOffsetStrategy() {
@@ -91,19 +97,10 @@ class CustomFieldHighlighter extends FieldHighlighter {
                 if (end == -1) {
                     end = fieldValue.length();
                 }
-                if (noMatchSize + pos < end) {
-                    BreakIterator bi = BreakIterator.getWordInstance(breakIteratorLocale);
-                    bi.setText(fieldValue);
-                    // Finds the next word boundary **after** noMatchSize.
-                    end = bi.following(noMatchSize + pos);
-                    if (end == BreakIterator.DONE) {
-                        end = fieldValue.length();
-                    }
-                }
                 Passage passage = new Passage();
                 passage.setScore(Float.NaN);
                 passage.setStartOffset(pos);
-                passage.setEndOffset(end);
+                passage.setEndOffset(noMatchEndOffset(pos, end));
                 return new Passage[] { passage };
             }
         }
@@ -115,6 +112,52 @@ class CustomFieldHighlighter extends FieldHighlighter {
         if (queryMaxAnalyzedOffset != null) {
             off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset.getNotNull());
         }
-        return super.highlightOffsetsEnums(off);
+        Passage[] passages = super.highlightOffsetsEnums(off);
+        if (passages.length == 0 || returnNonMatchingWhenMultivalued == false || fieldValue.indexOf(MULTIVAL_SEP_CHAR) == -1) {
+            return passages;
+        }
+
+        Passage[] passagesByPosition = passages.clone();
+        Arrays.sort(passagesByPosition, Comparator.comparingInt(Passage::getStartOffset));
+
+        List<Passage> allPassages = new ArrayList<>();
+        int passageIdx = 0;
+        int pos = 0;
+        while (pos < fieldValue.length()) {
+            if (fieldValue.charAt(pos) == MULTIVAL_SEP_CHAR) {
+                pos++;
+                continue;
+            }
+            int end = fieldValue.indexOf(MULTIVAL_SEP_CHAR, pos);
+            if (end == -1) {
+                end = fieldValue.length();
+            }
+
+            if (passageIdx < passagesByPosition.length
+                && passagesByPosition[passageIdx].getStartOffset() >= pos
+                && passagesByPosition[passageIdx].getStartOffset() < end) {
+                allPassages.add(passagesByPosition[passageIdx++]);
+            } else {
+                Passage passage = new Passage();
+                passage.setScore(0.0f);
+                passage.setStartOffset(pos);
+                passage.setEndOffset(noMatchEndOffset(pos, end));
+                allPassages.add(passage);
+            }
+            pos = end + 1;
+        }
+
+        return allPassages.toArray(new Passage[0]);
+    }
+
+    private int noMatchEndOffset(int start, int valueEnd) {
+        if (noMatchSize >= valueEnd - start) {
+            return valueEnd;
+        }
+        BreakIterator breakIterator = BreakIterator.getWordInstance(breakIteratorLocale);
+        breakIterator.setText(fieldValue);
+        // Find the next word boundary after noMatchSize without crossing into the next value.
+        int end = breakIterator.following(start + noMatchSize);
+        return end == BreakIterator.DONE || end > valueEnd ? valueEnd : end;
     }
 }

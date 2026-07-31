@@ -55,6 +55,8 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
+    private record ExpandedFragment(String text, float score, int position) {}
+
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         SearchHighlightContext.Field field = fieldContext.field;
@@ -119,8 +121,15 @@ public class PlainHighlighter implements Highlighter {
 
         textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
 
+        boolean[] valueHasMatch = null;
+        int noMatchSize = fieldContext.field.fieldOptions().noMatchSize();
+        if (noMatchSize > 0 && field.fieldOptions().numberOfFragments() == 0) {
+            valueHasMatch = new boolean[textsToHighlight.size()];
+        }
+
         int fragNumBase = 0;
-        for (Object textToHighlight : textsToHighlight) {
+        for (int i = 0; i < textsToHighlight.size(); i++) {
+            Object textToHighlight = textsToHighlight.get(i);
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
             if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset.getNotNull() > maxAnalyzedOffset)
@@ -158,6 +167,9 @@ public class PlainHighlighter implements Highlighter {
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
                         fragsList.add(new OrderedTextFragment(bestTextFragment, bestTextFragment.getFragNum() + fragNumBase));
+                        if (valueHasMatch != null) {
+                            valueHasMatch[i] = true;
+                        }
                     }
                 }
                 fragNumBase += bestTextFragments.length;
@@ -183,9 +195,33 @@ public class PlainHighlighter implements Highlighter {
         String[] fragments;
         // number_of_fragments is set to 0 but we have a multivalued field
         if (field.fieldOptions().numberOfFragments() == 0 && textsToHighlight.size() > 1 && fragsList.size() > 0) {
-            fragments = new String[fragsList.size()];
-            for (int i = 0; i < fragsList.size(); i++) {
-                fragments[i] = fragsList.get(i).toString();
+            if (valueHasMatch != null) {
+                // Include bounded non-matching values and first associate every matching fragment with its source value.
+                fragsList.sort(Comparator.comparingInt(OrderedTextFragment::fragNum));
+                List<ExpandedFragment> expandedFragments = new ArrayList<>(textsToHighlight.size());
+                int fragIdx = 0;
+                for (int i = 0; i < textsToHighlight.size(); i++) {
+                    if (valueHasMatch[i]) {
+                        OrderedTextFragment fragment = fragsList.get(fragIdx++);
+                        expandedFragments.add(new ExpandedFragment(fragment.toString(), fragment.score(), i));
+                    } else {
+                        String fieldContents = convertFieldValue(fieldType, textsToHighlight.get(i));
+                        int end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer, fieldType.name(), fieldContents);
+                        end = end > 0 ? end : Math.min(fieldContents.length(), noMatchSize);
+                        expandedFragments.add(new ExpandedFragment(encoder.encodeText(fieldContents.substring(0, end)), 0.0f, i));
+                    }
+                }
+                if (field.fieldOptions().scoreOrdered()) {
+                    expandedFragments.sort(
+                        Comparator.comparingDouble(ExpandedFragment::score).reversed().thenComparingInt(ExpandedFragment::position)
+                    );
+                }
+                fragments = expandedFragments.stream().map(ExpandedFragment::text).toArray(String[]::new);
+            } else {
+                fragments = new String[fragsList.size()];
+                for (int i = 0; i < fragsList.size(); i++) {
+                    fragments[i] = fragsList.get(i).toString();
+                }
             }
         } else {
             // refine numberOfFragments if needed
@@ -200,7 +236,6 @@ public class PlainHighlighter implements Highlighter {
             return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));
         }
 
-        int noMatchSize = fieldContext.field.fieldOptions().noMatchSize();
         if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();

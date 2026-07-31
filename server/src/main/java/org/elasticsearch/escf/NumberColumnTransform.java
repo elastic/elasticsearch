@@ -39,11 +39,21 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler
     ) {
+        return toSortableLongColumn(source, type, coerce, recycler, null);
+    }
+
+    public static EscfColumnData toSortableLongColumn(
+        EscfColumn source,
+        NumberFieldMapper.NumberType type,
+        boolean coerce,
+        Recycler<BytesRef> recycler,
+        Long nullReplacement
+    ) {
         return switch (source.kind()) {
             case EscfColumnKind.LONG -> fromLong(source, type, recycler);
             case EscfColumnKind.DOUBLE -> fromDouble(source, type, coerce, recycler);
-            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler);
-            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler);
+            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
@@ -56,31 +66,42 @@ public final class NumberColumnTransform {
         EscfColumn source,
         NumberFieldMapper.NumberType type,
         boolean coerce,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        Long nullReplacement
     ) {
         // Materialize the array structure: offsets + child data. The child is always dense (all
         // elements present — absent rows are represented by an empty offset range, not a child gap).
         EscfColumnData sourceData = source.toColumnData();
         EscfColumnData childData = sourceData.child();
         EscfColumn child = EscfColumn.from(childData);
-        EscfColumnData transformedChild = switch (child.kind()) {
-            case EscfColumnKind.LONG -> fromLong(child, type, recycler);
-            case EscfColumnKind.DOUBLE -> fromDouble(child, type, coerce, recycler);
-            case EscfColumnKind.STRING -> fromString(child, type, coerce, recycler);
+        return switch (child.kind()) {
+            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
+            case EscfColumnKind.LONG -> EscfColumnData.ofArray(
+                sourceData.docCount(),
+                sourceData.validity(),
+                sourceData.offsets(),
+                fromLong(child, type, recycler)
+            );
+            case EscfColumnKind.DOUBLE -> EscfColumnData.ofArray(
+                sourceData.docCount(),
+                sourceData.validity(),
+                sourceData.offsets(),
+                fromDouble(child, type, coerce, recycler)
+            );
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: ARRAY child kind ["
                     + EscfColumnKind.name(child.kind())
                     + "] is not supported — child must be LONG, DOUBLE, or STRING"
             );
         };
-        return EscfColumnData.ofArray(sourceData.docCount(), sourceData.validity(), sourceData.offsets(), transformedChild);
     }
 
     private static EscfColumnData fromString(
         EscfColumn source,
         NumberFieldMapper.NumberType type,
         boolean coerce,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        Long nullReplacement
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         EscfColumnBuilder builder = newLongBuilder(recycler);
@@ -89,7 +110,14 @@ public final class NumberColumnTransform {
         final long max = integerMaxForType(type);
         final long[] scratch = new long[1];
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            builder.setLong(doc, stringToSortableLong(cursor.value(), type, min, max, scratch));
+            BytesRef value = cursor.value();
+            if (coerce && value.length == 0) {
+                if (nullReplacement != null) {
+                    builder.setLong(doc, nullReplacement);
+                }
+                continue;
+            }
+            builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
         }
         return builder.finish(source.docCount());
     }

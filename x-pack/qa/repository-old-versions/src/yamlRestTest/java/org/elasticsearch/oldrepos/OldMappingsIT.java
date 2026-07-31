@@ -7,7 +7,6 @@
 
 package org.elasticsearch.oldrepos;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.TestMethodAndParams;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -77,8 +75,8 @@ public class OldMappingsIT extends ESRestTestCase {
         }
     }
 
-    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer();
-    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster();
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer(OldMappingsIT.class);
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster(OldMappingsIT.class);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
@@ -113,9 +111,7 @@ public class OldMappingsIT extends ESRestTestCase {
 
         setupDone = true;
 
-        String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
-            .resolve(RandomizedTest.getContext().getTargetClass().getName())
-            .toString();
+        String repoLocation = OldEsTestCluster.repoLocation(OldMappingsIT.class);
 
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";

@@ -748,3 +748,6 @@ tests:
 - class: org.elasticsearch.index.reindex.BulkByPaginatedSearchResponseWireSerializingTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/155457
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:ip.conditional}
+  issue: https://github.com/elastic/elasticsearch/issues/155566

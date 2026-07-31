@@ -532,9 +532,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
   method: testValidateIndexOptionsWithBasicLicense
   issue: https://github.com/elastic/elasticsearch/issues/155026
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=downsample/100_downsample_histograms/Downsample tdigest with last value}
-  issue: https://github.com/elastic/elasticsearch/issues/155028
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586
@@ -553,9 +550,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155155
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/add time series mappings}
-  issue: https://github.com/elastic/elasticsearch/issues/155331
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782

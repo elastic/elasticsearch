@@ -1,0 +1,5 @@
+area: Data Management
+issues: [150259]
+pr: 150272
+summary: Configure failure store indices with auto-expand replicas
+type: bug

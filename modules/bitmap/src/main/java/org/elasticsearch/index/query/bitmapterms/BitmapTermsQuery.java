@@ -21,39 +21,44 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A query that matches documents whose integer field value is present in a {@link RoaringBitmap},
- * for fields that use the {@code index_terms} inverted-index path (see {@code NumberFieldMapper}).
+ * A query that matches documents whose numeric field value is present in a bitmap, for fields that
+ * use the {@code index_terms} inverted-index path (see {@code NumberFieldMapper}).
  * <p>
- * Values are encoded as sortable bytes (via {@link NumericUtils#intToSortableBytes}), so the
- * terms dictionary and the bitmap's unsigned iteration order both ascend in the same direction
- * for non-negative integers. A merge-scan advances both cursors without re-seeking, giving
+ * Terms are sortable bytes, so the terms dictionary and the bitmap ascend in the same direction for
+ * non-negative values. A merge-scan advances both cursors without re-seeking, giving
  * O(N_terms_in_range + M_bitmap_values) work per segment.
  * <p>
- * Only non-negative integer values are supported; the caller must validate this before
- * constructing the query.
+ * The field's width lives entirely in the {@link BitmapValues}, so this handles {@code integer} and
+ * {@code long} fields with one implementation. Terms are decoded to {@code long} rather than compared
+ * as bytes, which keeps the merge working on values that cannot be invalidated by moving either
+ * cursor &mdash; the {@link BytesRef} from {@link TermsEnum#term()} is only valid until the enum next
+ * moves.
+ * <p>
+ * Only non-negative values are supported; the caller must validate this before constructing the
+ * query.
  */
-public class IntBitmapIndexTermsQuery extends Query implements Accountable {
+public class BitmapTermsQuery extends Query implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitmapTermsQuery.class);
 
     private final String field;
-    private final RoaringBitmap bitmap;
+    private final BitmapValues values;
 
-    public IntBitmapIndexTermsQuery(String field, RoaringBitmap bitmap) {
+    public BitmapTermsQuery(String field, BitmapValues values) {
         this.field = Objects.requireNonNull(field);
-        this.bitmap = Objects.requireNonNull(bitmap);
+        this.values = Objects.requireNonNull(values);
     }
 
     @Override
@@ -61,7 +66,7 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                if (bitmap.isEmpty()) {
+                if (values.isEmpty()) {
                     return null;
                 }
                 LeafReader reader = context.reader();
@@ -74,10 +79,9 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
                     long cost = -1;
 
                     @Override
-                    public org.apache.lucene.search.Scorer get(long leadCost) throws IOException {
+                    public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), terms);
-                        TermsEnum termsEnum = terms.iterator();
-                        collectDocs(result, termsEnum);
+                        collectDocs(result, terms.iterator());
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
@@ -85,7 +89,7 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
                     public long cost() {
                         if (cost == -1) {
                             // Upper bound: assume each bitmap value matches at least one doc
-                            cost = bitmap.getCardinality();
+                            cost = values.cardinality();
                         }
                         return cost;
                     }
@@ -100,25 +104,29 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
     }
 
     /**
-     * Merge-scans the terms dictionary and the bitmap together, collecting docs for every term
-     * that is present in both. Both sides are sorted in the same order for non-negative integers,
-     * so each cursor advances monotonically.
+     * Merge-scans the terms dictionary and the bitmap together, collecting docs for every term that is
+     * present in both. Both sides are sorted in the same order for non-negative values, so each cursor
+     * advances monotonically.
      */
     private void collectDocs(DocIdSetBuilder result, TermsEnum termsEnum) throws IOException {
-        PeekableIntIterator bitmapIter = bitmap.getIntIterator();
-        if (bitmapIter.hasNext() == false) {
+        BitmapValues.Cursor cursor = values.cursor();
+        if (cursor.hasNext() == false) {
             return;
         }
 
-        int bitmapValue = bitmapIter.next();
+        // Reused across seeks: `encoded` always holds the encoding of `bitmapValue`, refreshed
+        // wherever that is reassigned, and `seekTarget` is a fixed view onto it.
+        byte[] encoded = new byte[values.bytesPerValue()];
+        BytesRef seekTarget = new BytesRef(encoded);
+
+        cursor.encodePeek(encoded);
+        long bitmapValue = cursor.next();
 
         // Seek terms enum to the first relevant term
-        TermsEnum.SeekStatus status = termsEnum.seekCeil(encodeValue(bitmapValue));
-        if (status == TermsEnum.SeekStatus.END) {
+        if (termsEnum.seekCeil(seekTarget) == TermsEnum.SeekStatus.END) {
             return;
         }
-
-        int termValue = decodeValue(termsEnum.term());
+        long termValue = decodeTerm(termsEnum.term());
         PostingsEnum postings = null;
 
         while (true) {
@@ -128,42 +136,38 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
                 DocIdSetBuilder.BulkAdder adder = result.grow(termsEnum.docFreq());
                 adder.add(postings);
 
-                if (bitmapIter.hasNext() == false) {
+                if (cursor.hasNext() == false) {
                     break;
                 }
-                bitmapValue = bitmapIter.next();
+                cursor.encodePeek(encoded);
+                bitmapValue = cursor.next();
 
                 BytesRef next = termsEnum.next();
                 if (next == null) {
                     break;
                 }
-                termValue = decodeValue(next);
+                termValue = decodeTerm(next);
             } else if (bitmapValue > termValue) {
                 // Terms enum is behind: seek it forward to the current bitmap value
-                status = termsEnum.seekCeil(encodeValue(bitmapValue));
-                if (status == TermsEnum.SeekStatus.END) {
+                if (termsEnum.seekCeil(seekTarget) == TermsEnum.SeekStatus.END) {
                     break;
                 }
-                termValue = decodeValue(termsEnum.term());
+                termValue = decodeTerm(termsEnum.term());
             } else {
                 // Bitmap is behind: advance it to at least termValue
-                bitmapIter.advanceIfNeeded(termValue);
-                if (bitmapIter.hasNext() == false) {
+                cursor.advanceTo(termValue);
+                if (cursor.hasNext() == false) {
                     break;
                 }
-                bitmapValue = bitmapIter.next();
+                cursor.encodePeek(encoded);
+                bitmapValue = cursor.next();
             }
         }
     }
 
-    private static BytesRef encodeValue(int value) {
-        byte[] bytes = new byte[Integer.BYTES];
-        NumericUtils.intToSortableBytes(value, bytes, 0);
-        return new BytesRef(bytes);
-    }
-
-    private static int decodeValue(BytesRef term) {
-        return NumericUtils.sortableBytesToInt(term.bytes, term.offset);
+    /** Decodes immediately, so nothing holds a {@link BytesRef} across a move of the terms enum. */
+    private long decodeTerm(BytesRef term) {
+        return values.decode(term.bytes, term.offset);
     }
 
     @Override
@@ -175,18 +179,7 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
 
     @Override
     public String toString(String defaultField) {
-        if (bitmap.isEmpty()) {
-            return "IntBitmapIndexTermsQuery(field=" + field + ", cardinality=0)";
-        }
-        return "IntBitmapIndexTermsQuery(field="
-            + field
-            + ", cardinality="
-            + bitmap.getCardinality()
-            + ", first="
-            + bitmap.first()
-            + ", last="
-            + bitmap.last()
-            + ")";
+        return "BitmapTermsQuery(field=" + field + ", " + values + ")";
     }
 
     @Override
@@ -194,18 +187,18 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
         if (sameClassAs(other) == false) {
             return false;
         }
-        IntBitmapIndexTermsQuery that = (IntBitmapIndexTermsQuery) other;
-        return field.equals(that.field) && bitmap.equals(that.bitmap);
+        BitmapTermsQuery that = (BitmapTermsQuery) other;
+        return field.equals(that.field) && values.equals(that.values);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, bitmap);
+        return Objects.hash(classHash(), field, values);
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (bitmap.isEmpty()) {
+        if (values.isEmpty()) {
             return new MatchNoDocsQuery("empty bitmap");
         }
         return super.rewrite(indexSearcher);
@@ -217,7 +210,6 @@ public class IntBitmapIndexTermsQuery extends Query implements Accountable {
      */
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(IntBitmapIndexTermsQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
-            .getLongSizeInBytes();
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(field) + values.ramBytesUsed();
     }
 }

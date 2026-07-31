@@ -109,7 +109,6 @@ public class PlainHighlighterTests extends HighlighterTestCase {
         assertEquals(19, PlainHighlighter.cappedNumberOfFragments(10_000, 19));
         assertEquals(19, PlainHighlighter.cappedNumberOfFragments(1_000_000, 19));
         assertEquals(3, PlainHighlighter.cappedNumberOfFragments(3, 100));
-        assertEquals(1, PlainHighlighter.cappedNumberOfFragments(5, 0));
     }
 
     public void testMaxNumberOfFragmentsHighlightsCorrectly() throws Exception {

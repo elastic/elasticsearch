@@ -12,7 +12,9 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -40,6 +42,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -51,6 +54,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -91,6 +95,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -136,7 +141,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -230,7 +234,9 @@ public class InternalEngine extends Engine {
     private final String historyUUID;
 
     /**
-     * UUID value that is updated every time the engine is force merged.
+     * UUID value that is updated on force merge and on other Lucene-only content changes
+     * that do not advance max seqno (e.g. reshard cleanup via {@link #onShardContentChanged()}).
+     * Included in snapshot shard-state identity via {@link Engine#FORCE_MERGE_UUID_KEY}.
      */
     @Nullable
     private volatile String forceMergeUUID;
@@ -289,7 +295,7 @@ public class InternalEngine extends Engine {
                     engineConfig,
                     translogDeletionPolicy,
                     engineConfig.getGlobalCheckpointSupplier(),
-                    translogPersistedSeqNoConsumer()
+                    translogPersistedSeqNosConsumer()
                 );
                 assert translog.getGeneration() != null;
                 this.translog = translog;
@@ -380,12 +386,12 @@ public class InternalEngine extends Engine {
         return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
     }
 
-    protected LongConsumer translogPersistedSeqNoConsumer() {
-        return seqNo -> {
+    protected Consumer<LongsRef> translogPersistedSeqNosConsumer() {
+        return seqNos -> {
             final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
             assert tracker != null || getTranslog().isOpen() == false;
             if (tracker != null) {
-                tracker.markSeqNoAsPersisted(seqNo);
+                tracker.markSeqNosAsPersisted(seqNos);
             }
         };
     }
@@ -707,7 +713,7 @@ public class InternalEngine extends Engine {
         EngineConfig engineConfig,
         TranslogDeletionPolicy translogDeletionPolicy,
         LongSupplier globalCheckpointSupplier,
-        LongConsumer persistedSequenceNumberConsumer
+        Consumer<LongsRef> persistedSequenceNumbersConsumer
     ) throws IOException {
 
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
@@ -720,7 +726,7 @@ public class InternalEngine extends Engine {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer,
+            persistedSequenceNumbersConsumer,
             TranslogOperationAsserter.withEngineConfig(engineConfig)
         );
     }
@@ -814,6 +820,14 @@ public class InternalEngine extends Engine {
     @Nullable
     public String getForceMergeUUID() {
         return forceMergeUUID;
+    }
+
+    /**
+     * Records a Lucene-only content change (e.g. reshard cleanup) so the next Lucene commit
+     * includes a new {@link Engine#FORCE_MERGE_UUID_KEY} and snapshot shard-state identity changes.
+     */
+    protected final void onShardContentChanged() {
+        this.forceMergeUUID = UUIDs.randomBase64UUID();
     }
 
     /** Returns how many bytes we are currently moving from indexing buffer to segments on disk */
@@ -994,9 +1008,11 @@ public class InternalEngine extends Engine {
                     );
                 }
                 if (get.isReadFromTranslog()) {
-                    if (versionValue.getLocation() != null) {
+                    final Translog.OperationLocation opLoc = versionValue.getOperationLocation();
+                    if (opLoc != null) {
                         try {
-                            final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                            // rowIndex >= 0 resolves a single row within a batch record; -1 reads a whole record
+                            final Translog.Operation operation = translog.readOperation(opLoc.location(), opLoc.rowIndex());
                             if (operation != null) {
                                 return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
                             }
@@ -1337,7 +1353,12 @@ public class InternalEngine extends Engine {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(
+                            translogLocation == null ? null : new Translog.OperationLocation(translogLocation),
+                            plan.versionForIndexing,
+                            index.seqNo(),
+                            index.primaryTerm()
+                        )
                     );
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
@@ -1367,7 +1388,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        final List<Index> operations = engineBatch.operations();
+        final SourceBatch batch = engineBatch.sourceBatch();
         assert operations.size() == batch.docCount()
             : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
@@ -1631,14 +1654,13 @@ public class InternalEngine extends Engine {
                 }
 
                 if (plan.indexIntoLucene && isSuccess) {
-                    // Store a null translog location: the result's location points at a Translog.IndexBatch record,
-                    // which Translog.readOperation(Location) cannot read as a single operation (it throws on BATCH).
-                    // A null location forces realtime GET to fall back to a refresh + Lucene read for batched docs.
-                    // TODO: record a row index alongside the batch location to support realtime GET from the batch.
-                    // final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
+                    // batchLocation is the whole-record Location; the row index lives in the OperationLocation wrapper
+                    final Translog.OperationLocation operationLocation = (trackTranslogLocation.get() && batchLocation != null)
+                        ? new Translog.OperationLocation(batchLocation, i)
+                        : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(null, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(operationLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
                 }
                 // TODO: Batch Optimize the processed seqNo
@@ -3352,7 +3374,7 @@ public class InternalEngine extends Engine {
             // to enable it.
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
-        iwc.setMergePolicy(mergePolicy);
+        iwc.setMergePolicy(wrapMergePolicy(mergePolicy));
         // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -3385,6 +3407,15 @@ public class InternalEngine extends Engine {
             iwc.setLeafSorter(engineConfig.getLeafSorter());
         }
         return iwc;
+    }
+
+    /**
+     * Allows subclasses to wrap the {@link MergePolicy} before it is installed on the writer. It is applied last, so the
+     * returned policy is the outermost one and the {@code OneMerge}s it produces are the instances the {@link IndexWriter}
+     * actually executes. The default implementation returns the policy unchanged.
+     */
+    protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
+        return mergePolicy;
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */
@@ -3514,6 +3545,11 @@ public class InternalEngine extends Engine {
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
+    }
+
+    // for testing
+    protected ElasticsearchMergeScheduler getMergeScheduler() {
+        return mergeScheduler;
     }
 
     private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
@@ -4082,6 +4118,7 @@ public class InternalEngine extends Engine {
      */
     private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, IndexVersion indexVersionCreated, IdLoader idLoader)
         throws IOException {
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
@@ -4096,6 +4133,7 @@ public class InternalEngine extends Engine {
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
+        final boolean columnar = engineConfig.getMapperService().mappingLookup().isColumnarId();
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
@@ -4105,6 +4143,11 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
+            // For columnar, the BinaryDocValues bytes ARE the compound uid (deep-copied so the buffer can advance).
+            // For stored, leafStoredFieldLoader.id() decodes via Uid.decodeId to "id#slice" which we re-encode.
+            final BinaryDocValues sliceColumnarIdDV = (sliceEnabled && columnar)
+                ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
+                : null;
 
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -4112,16 +4155,34 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 leafStoredFieldLoader.advanceTo(docId);
-                String id = leafIdLoader.getId(docId);
-                if (id == null) {
-                    assert dv.isTombstone(docId);
-                    continue;
+                final boolean isTombstone = dv.isTombstone(docId);
+
+                final String id;
+                final BytesRef uid;
+                if (sliceEnabled) {
+                    if (columnar) {
+                        uid = sliceColumnarIdDV.advanceExact(docId) ? BytesRef.deepCopyOf(sliceColumnarIdDV.binaryValue()) : null;
+                    } else {
+                        final String compoundIdStr = leafStoredFieldLoader.id();
+                        uid = compoundIdStr != null ? Uid.encodeId(compoundIdStr) : null;
+                    }
+                    if (uid == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    id = SliceIdFieldMapper.decodeCompoundId(uid);
+                } else {
+                    id = leafIdLoader.getId(docId);
+                    if (id == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    uid = Uid.encodeId(id);
                 }
-                final BytesRef uid = Uid.encodeId(id);
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
-                        if (dv.isTombstone(docId)) {
+                        if (isTombstone) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
                             // when the local checkpoint advances (i.e., after a recovery completed).
                             final long startTime = 0L;

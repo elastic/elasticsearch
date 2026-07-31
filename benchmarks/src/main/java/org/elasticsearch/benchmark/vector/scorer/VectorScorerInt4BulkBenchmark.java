@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
@@ -76,7 +77,7 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
             centroid = generateCentroid(dims);
             centroidDp = dotProduct(centroid, centroid);
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override

@@ -259,18 +259,12 @@ public final class DateFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                true,
-                DocValuesParameter.Values.Cardinality.LOW,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
+            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
     }
 
@@ -1232,6 +1226,11 @@ public final class DateFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

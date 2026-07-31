@@ -47,16 +47,12 @@ public class WildcardQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, query, caseInsensitive, forceStringMatch);
+        return Objects.hash(super.hashCode(), field, query, caseInsensitive, forceStringMatch);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
 

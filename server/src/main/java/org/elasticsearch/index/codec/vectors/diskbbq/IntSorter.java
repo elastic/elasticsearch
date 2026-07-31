@@ -10,31 +10,32 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.util.IntroSorter;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+
+import java.util.function.IntUnaryOperator;
 
 public class IntSorter extends IntroSorter {
     int pivot = -1;
     private final int[] arr;
-    private final IntToIntFunction func;
+    private final IntUnaryOperator func;
 
-    public IntSorter(int[] arr, IntToIntFunction func) {
+    public IntSorter(int[] arr, IntUnaryOperator func) {
         this.arr = arr;
         this.func = func;
     }
 
     @Override
     protected void setPivot(int i) {
-        pivot = func.apply(arr[i]);
+        pivot = func.applyAsInt(arr[i]);
     }
 
     @Override
     protected int comparePivot(int j) {
-        return Integer.compare(pivot, func.apply(arr[j]));
+        return Integer.compare(pivot, func.applyAsInt(arr[j]));
     }
 
     @Override
     protected int compare(int a, int b) {
-        return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
+        return Integer.compare(func.applyAsInt(arr[a]), func.applyAsInt(arr[b]));
     }
 
     @Override

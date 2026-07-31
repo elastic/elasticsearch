@@ -12,9 +12,11 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -148,6 +150,17 @@ public interface SecurityExtension {
      * @param settings The configured settings for the node
      */
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
+        return null;
+    }
+
+    /**
+     * Returns an {@link AuditLogCustomizer} used to suppress or enrich file-based audit events, or
+     * {@code null} to leave audit behavior unchanged.
+     *
+     * @param components    Access to components that may be used by the customizer
+     * @param systemIndices The system indices descriptors, so the customizer can reason about system-index access
+     */
+    default AuditLogCustomizer getAuditLogCustomizer(SecurityComponents components, SystemIndices systemIndices) {
         return null;
     }
 

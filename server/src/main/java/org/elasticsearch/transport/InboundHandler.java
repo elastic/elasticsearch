@@ -177,7 +177,8 @@ public class InboundHandler {
         }
         final TransportResponseHandler<? extends TransportResponse> theHandler = responseHandlers.onResponseReceived(
             header.getRequestId(),
-            messageListener
+            messageListener,
+            header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE
         );
         if (theHandler == null && header.isError()) {
             return handshaker.removeHandlerForHandshake(header.getRequestId());

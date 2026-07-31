@@ -49,6 +49,7 @@ public final class CsvSpecReader {
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
         private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesLocalCluster = new ArrayList<>();
         private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
@@ -85,6 +86,7 @@ public final class CsvSpecReader {
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesLocalCluster = List.copyOf(missingCapabilitiesLocalCluster);
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
@@ -94,6 +96,7 @@ public final class CsvSpecReader {
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesLocalCluster.clear();
                 missingCapabilitiesRemoteCluster.clear();
                 datasetSources.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
@@ -133,6 +136,10 @@ public final class CsvSpecReader {
             }
             if (lower.startsWith("required_capability_coordinator:")) {
                 state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_coordinator:")) {
+                state.missingCapabilitiesLocalCluster.add(line.substring("missing_capability_coordinator:".length()).trim());
                 return Boolean.TRUE;
             }
             if (lower.startsWith("missing_capability_data_node:")) {
@@ -475,6 +482,11 @@ public final class CsvSpecReader {
          * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
          */
         public List<String> requiredCapabilitiesLocalCluster = List.of();
+        /**
+         * Capabilities that must be missing on the local (coordinating) cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesLocalCluster = List.of();
         /**
          * Capabilities that must be missing on the remote cluster.
          * (not supported for single-cluster tests)

@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -123,7 +124,7 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
                 offsets[v] = random.nextFloat();
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override

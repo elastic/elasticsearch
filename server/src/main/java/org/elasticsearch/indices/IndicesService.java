@@ -146,7 +146,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
@@ -298,7 +297,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
-    private final RecoverySchedulingListener recoverySchedulingListener;
 
     @Override
     protected void doStart() {
@@ -425,7 +423,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
         this.throttlingRecoveryService = builder.throttlingRecoveryService;
-        this.recoverySchedulingListener = builder.recoverySchedulingListener;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -712,7 +709,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     // we finish loading analyzers from resources here
                                     // during shard recovery in the generic thread pool,
                                     // as this may require longer running operations and blocking calls
-                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false);
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false, null);
                                 }
                                 reloaded = true;
                             }
@@ -1006,12 +1003,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(
-            shardRouting,
-            globalCheckpointSyncer,
-            retentionLeaseSyncer,
-            recoverySchedulingListener
-        );
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
             projectId,
@@ -2082,26 +2074,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return assertThread(buildDirectoryMetricsDelta());
     }
 
-    /**
-     * Like {@link #directoryMetricsDelta()}, but without the same-thread assertion on the returned supplier.
-     *
-     * <p>The delta supplier closes over the calling thread's thread-local metric
-     * instances and snapshots their values, then subtracts that snapshot from those same instances when invoked. It
-     * therefore always measures the reads performed on the thread that called this method, no matter which thread later
-     * invokes the supplier; the only requirement is a happens-before edge between those reads and the invocation. The
-     * thread-local is read once, on the calling thread, at capture time, so there is no racy thread-local access when
-     * the supplier is later invoked.
-     *
-     * <p>This is needed only by the chunked/streaming fetch path, where the baseline is captured on the search thread before
-     * {@code fetchPhase.execute(...)} forks, while the delta is read in the fetch-completion callback, which may run on
-     * a different thread.
-     *
-     * Use directoryMetricsDelta() whenever the supplier is consumed on the capturing thread, which should be the default.
-     */
-    public Supplier<DirectoryMetrics> captureDirectoryMetrics() {
-        return buildDirectoryMetricsDelta();
-    }
-
     private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta() {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
         directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
@@ -2132,10 +2104,4 @@ public class IndicesService extends AbstractLifecycleComponent
         return Tuple.tuple(result, delta.get());
     }
 
-    /**
-     * Returns the store-level metrics instance for the current thread.
-     */
-    public StoreMetrics currentThreadStoreMetrics() {
-        return storeMetricHolder.instance();
-    }
 }

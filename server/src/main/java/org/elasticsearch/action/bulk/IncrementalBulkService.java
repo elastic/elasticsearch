@@ -48,8 +48,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
-    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
-    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk";
+    public static final String BULK_SESSION_ACTION = "internal:bulk";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -488,6 +488,11 @@ public class IncrementalBulkService {
                 bulkRequest.setRefreshPolicy(refresh);
             }
             bulkRequest.requestParamsUsed(paramsUsed);
+        }
+
+        // Visible for testing
+        protected Task getBulkSessionTask() {
+            return bulkSessionTask;
         }
     }
 }

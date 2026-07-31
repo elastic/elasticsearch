@@ -1086,7 +1086,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         -1L,
                         StripeColumnScope.PROJECTED,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
-                        admission
+                        admission,
+                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")
                     )
                 );
             }

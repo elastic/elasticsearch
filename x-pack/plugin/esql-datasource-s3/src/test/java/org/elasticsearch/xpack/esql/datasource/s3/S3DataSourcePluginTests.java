@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,9 +42,8 @@ public class S3DataSourcePluginTests extends ESTestCase {
 
     private Environment environment;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEnvironment() {
         assumeTrue(
             "EKS IRSA env var must be unset for this test",
             System.getenv(AWS_WEB_IDENTITY_TOKEN_FILE.environmentVariable()) == null

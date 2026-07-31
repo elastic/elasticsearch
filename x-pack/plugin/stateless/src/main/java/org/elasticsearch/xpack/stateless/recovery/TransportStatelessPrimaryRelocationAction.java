@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 
 import java.io.IOException;
@@ -84,6 +85,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.TYPE;
@@ -115,6 +117,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    static final int MAX_SLOW_OPERATION_THREAD_DUMPS = 5;
 
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
@@ -210,6 +214,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         try (var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId())) {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final var indexShard = indexService.getShard(request.shardId().id());
+            indexShard.ensureRecoveryNotCancelled();
             indexShard.prepareForIndexRecovery();
 
             transportService.sendChildRequest(
@@ -245,7 +250,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             recoveryExecutor,
             threadContext,
             listener.delegateResponse((l, e) -> {
-                logger.warn(format("%s: primary relocation failed", request.shardId()), e);
+                logger.warn(format("%s recovery [%s]: primary relocation failed", request.shardId(), request.targetAllocationId()), e);
                 l.onFailure(e);
             }),
             new Consumer<>() {
@@ -360,7 +365,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
 
-        final var threadDumpListener = slowShardOperationListener(indexShard, slowRelocationWarningThreshold, "flush and acquire permits");
+        final var threadDumpListener = slowShardOperationListener(
+            indexShard,
+            request.targetAllocationId(),
+            slowRelocationWarningThreshold,
+            "flush and acquire permits",
+            indexShard::getActiveOperationsCount
+        );
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
         if (hollowShardsService.isHollowShard(indexShard.shardId())) {
@@ -371,10 +382,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateResponse((l, e) -> {
+        preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
             recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
@@ -433,6 +443,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     );
                 }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
+                final boolean relocatedAsHollow = engine instanceof HollowIndexEngine;
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
 
                 final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
@@ -456,6 +467,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 }
 
                 final var beforeSendingContext = new AtomicLong();
+                final var latestBccBlobLength = new AtomicLong(-1L);
+                final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
@@ -481,13 +494,34 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
                             final var indexingStats = indexShard.indexingStats().getTotal();
+                            final boolean shuttingDown = isShuttingDown();
+                            final var fields = new HashMap<String, Object>();
+                            fields.put("elasticsearch.primary.relocation.shard", request.shardId().toString());
+                            fields.put("elasticsearch.primary.relocation.target_allocation_id", request.targetAllocationId());
+                            fields.put("elasticsearch.primary.relocation.source_node", clusterService.localNode().getName());
+                            fields.put("elasticsearch.primary.relocation.target_node", request.targetNode().getName());
+                            fields.put("elasticsearch.primary.relocation.shutting_down", shuttingDown);
+                            fields.put("elasticsearch.primary.relocation.hollow", relocatedAsHollow);
+                            fields.put("elasticsearch.primary.relocation.duration", relocationDuration.millis());
+                            fields.put("elasticsearch.primary.relocation.initial_flush_duration", initialFlushDuration.millis());
+                            fields.put("elasticsearch.primary.relocation.acquire_permits_duration", acquirePermitsDuration.millis());
+                            fields.put("elasticsearch.primary.relocation.second_flush_duration", secondFlushDuration.millis());
+                            fields.put("elasticsearch.primary.relocation.handoff_duration", handOffDuration.millis());
+                            fields.put("elasticsearch.primary.relocation.has_recent_id_lookup", hasRecentIdLookup);
+                            fields.put("elasticsearch.primary.write_load", indexingStats.getWriteLoad());
+                            fields.put("elasticsearch.primary.recent_write_load", indexingStats.getRecentWriteLoad());
+                            fields.put("elasticsearch.primary.peak_write_load", indexingStats.getPeakWriteLoad());
+                            if (latestBccBlobLength.get() >= 0) {
+                                fields.put("elasticsearch.primary.relocation.bcc_blob_length_in_bytes", latestBccBlobLength.get());
+                                fields.put("elasticsearch.primary.relocation.other_blobs_count", otherBlobFilesCount.get());
+                            }
                             final var message = new ESLogMessage(
                                 "[{}] primary shard relocation took [{}] (shutting down={}, has recent id lookup={}) "
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
                                     + "which is {} the warn threshold of [{}]",
                                 request.shardId(),
                                 relocationDuration,
-                                isShuttingDown(),
+                                shuttingDown,
                                 hasRecentIdLookup,
                                 initialFlushDuration,
                                 acquirePermitsDuration,
@@ -495,37 +529,12 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                 handOffDuration,
                                 aboveThreshold ? "above" : "below",
                                 slowRelocationWarningThreshold
-                            ).withFields(
-                                Map.of(
-                                    "elasticsearch.primary.relocation.shard",
-                                    request.shardId().toString(),
-                                    "elasticsearch.primary.relocation.duration",
-                                    relocationDuration.millis(),
-                                    "elasticsearch.primary.relocation.initial_flush_duration",
-                                    initialFlushDuration.millis(),
-                                    "elasticsearch.primary.relocation.acquire_permits_duration",
-                                    acquirePermitsDuration.millis(),
-                                    "elasticsearch.primary.relocation.second_flush_duration",
-                                    secondFlushDuration.millis(),
-                                    "elasticsearch.primary.relocation.handoff_duration",
-                                    handOffDuration.millis(),
-                                    "elasticsearch.primary.relocation.has_recent_id_lookup",
-                                    hasRecentIdLookup,
-                                    "elasticsearch.primary.write_load",
-                                    indexingStats.getWriteLoad(),
-                                    "elasticsearch.primary.recent_write_load",
-                                    indexingStats.getRecentWriteLoad(),
-                                    "elasticsearch.primary.peak_write_load",
-                                    indexingStats.getPeakWriteLoad()
-                                )
-                            );
+                            ).withFields(fields);
                             logger.log(Level.INFO, message);
                         }
 
                         try {
                             handoffCompleteListener.onResponse(null);
-                            indexShard.recoveryStats().sourceRecoveryCompleted();
-                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }
@@ -562,6 +571,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         latestBcc.primaryTermAndGeneration().generation()
                     );
                     otherBlobFiles.remove(latestBccBlob);
+                    latestBccBlobLength.set(blobLength);
+                    otherBlobFilesCount.set(otherBlobFiles.size());
 
                     transportService.sendChildRequest(
                         request.targetNode(),
@@ -631,7 +642,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final var indexShard = indexService.getShard(request.shardId().id());
         statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), request.searchNodesPerCommit());
 
-        final var threadDumpListener = slowShardOperationListener(indexShard, slowRelocationWarningThreshold, "starting");
+        final var targetAllocationId = indexShard.routingEntry().allocationId().getId();
+        final var threadDumpListener = slowShardOperationListener(
+            indexShard,
+            targetAllocationId,
+            slowRelocationWarningThreshold,
+            "starting"
+        );
 
         final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
         final Releasable cleanUpStatelessCommitService = () -> {
@@ -648,6 +665,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             statelessCommitService.putRecoveryInfoFromSourceEntry(request.shardId(), recoveryHintsFromSource);
         }
 
+        final var blobCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
+        final long bytesReadBeforeHandoff = blobCacheDirectory.totalBytesReadFromObjectStore();
+        final long bytesWarmedBeforeHandoff = blobCacheDirectory.totalBytesWarmedFromObjectStore();
         final long preRecoveryStartMillis = threadPool.relativeTimeInMillis();
         ActionListener.run(
             ActionListener.releaseAfter(listener, Releasables.wrap(cleanUpStatelessCommitService, recoveryRef)),
@@ -674,9 +694,44 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                 indexShard.activateWithPrimaryContext(request.primaryContext());
 
-                recoveryMetricsCollector.recordRelocationTargetOpenEngineDuration(threadPool.relativeTimeInMillis() - preRecoveryEndMillis);
+                final long openEngineDuration = threadPool.relativeTimeInMillis() - preRecoveryEndMillis;
+                recoveryMetricsCollector.recordRelocationTargetOpenEngineDuration(openEngineDuration);
 
                 threadDumpListener.onResponse(null);
+
+                final long targetHandoffDuration = preRecoveryDuration + openEngineDuration;
+                boolean aboveThreshold = targetHandoffDuration >= slowRelocationWarningThreshold.getMillis();
+                if (aboveThreshold || logger.isDebugEnabled()) {
+                    final var fields = new HashMap<String, Object>();
+                    fields.put("elasticsearch.primary.relocation.shard", request.shardId().toString());
+                    fields.put("elasticsearch.primary.relocation.target_allocation_id", targetAllocationId);
+                    fields.put("elasticsearch.primary.relocation.source_node", recoveryRef.target().sourceNode().getName());
+                    fields.put("elasticsearch.primary.relocation.target_node", clusterService.localNode().getName());
+                    fields.put("elasticsearch.primary.relocation.target_handoff_duration", targetHandoffDuration);
+                    fields.put("elasticsearch.primary.relocation.target_pre_recovery_duration", preRecoveryDuration);
+                    fields.put("elasticsearch.primary.relocation.target_open_engine_duration", openEngineDuration);
+                    fields.put(
+                        "elasticsearch.primary.relocation.target_object_store_bytes_read",
+                        blobCacheDirectory.totalBytesReadFromObjectStore() - bytesReadBeforeHandoff
+                    );
+                    fields.put(
+                        "elasticsearch.primary.relocation.target_object_store_bytes_warmed",
+                        blobCacheDirectory.totalBytesWarmedFromObjectStore() - bytesWarmedBeforeHandoff
+                    );
+                    final var message = new ESLogMessage(
+                        "[{}] recovery [{}]: primary context handoff on target took [{}] "
+                            + "(including [{}] in pre-recovery and [{}] opening the engine) "
+                            + "which is {} the warn threshold of [{}]",
+                        request.shardId(),
+                        targetAllocationId,
+                        TimeValue.timeValueMillis(targetHandoffDuration),
+                        TimeValue.timeValueMillis(preRecoveryDuration),
+                        TimeValue.timeValueMillis(openEngineDuration),
+                        aboveThreshold ? "above" : "below",
+                        slowRelocationWarningThreshold
+                    ).withFields(fields);
+                    logger.log(Level.INFO, message);
+                }
                 return null;
             }))
         );
@@ -900,21 +955,81 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             .contains(clusterService.localNode().getId(), SingleNodeShutdownMetadata.Type.SIGTERM);
     }
 
-    private ActionListener<Void> slowShardOperationListener(IndexShard indexShard, TimeValue timeout, String label) {
+    private ActionListener<Void> slowShardOperationListener(
+        IndexShard indexShard,
+        String targetAllocationId,
+        TimeValue timeout,
+        String label
+    ) {
+        return slowShardOperationListener(indexShard, targetAllocationId, timeout, label, null);
+    }
+
+    private ActionListener<Void> slowShardOperationListener(
+        IndexShard indexShard,
+        String targetAllocationId,
+        TimeValue timeout,
+        String label,
+        @Nullable IntSupplier activeOperationsCount
+    ) {
         final var threadDumpListener = new SubscribableListener<Void>();
         if (logger.isInfoEnabled()) {
-            final var threadPool = indexShard.getThreadPool();
-            threadDumpListener.addTimeout(timeout, threadPool, threadPool.generic());
-            threadDumpListener.addListener(new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    HotThreads.logLocalHotThreads(logger, Level.INFO, indexShard.shardId() + ": " + label, ReferenceDocs.LOGGING);
-                }
-            });
+            scheduleSlowShardOperationThreadDump(
+                indexShard,
+                targetAllocationId,
+                timeout,
+                label,
+                activeOperationsCount,
+                threadDumpListener,
+                1
+            );
         }
         return threadDumpListener;
+    }
+
+    private void scheduleSlowShardOperationThreadDump(
+        IndexShard indexShard,
+        String targetAllocationId,
+        TimeValue delay,
+        String label,
+        @Nullable IntSupplier activeOperationsCount,
+        SubscribableListener<Void> threadDumpListener,
+        int sample
+    ) {
+        final var threadPool = indexShard.getThreadPool();
+        try {
+            threadPool.schedule(() -> {
+                if (threadDumpListener.isDone()) {
+                    return;
+                }
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    indexShard.shardId()
+                        + " recovery ["
+                        + targetAllocationId
+                        + "]: "
+                        + label
+                        + " #"
+                        + sample
+                        + (activeOperationsCount == null
+                            ? ""
+                            : " with [" + activeOperationsCount.getAsInt() + "] operations holding permits"),
+                    ReferenceDocs.LOGGING
+                );
+                if (sample < MAX_SLOW_OPERATION_THREAD_DUMPS) {
+                    scheduleSlowShardOperationThreadDump(
+                        indexShard,
+                        targetAllocationId,
+                        TimeValue.timeValueMillis(delay.millis() * 2),
+                        label,
+                        activeOperationsCount,
+                        threadDumpListener,
+                        sample + 1
+                    );
+                }
+            }, delay, threadPool.generic());
+        } catch (Exception e) {
+            logger.debug(() -> format("%s failed to schedule slow operation thread dump", indexShard.shardId()), e);
+        }
     }
 }

@@ -36,6 +36,7 @@ public class EqualsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     private static final String TYPE_ERROR =
-        "boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, geo_point, "
-            + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, long, text, unsigned_long or version";
+        "boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, exponential_histogram, "
+            + "flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, ip, keyword, long, tdigest, text, "
+            + "unsigned_long or version";
 }

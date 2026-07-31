@@ -5,16 +5,12 @@
  * 2.0.
  */
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
 }
-
-final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo")
 
 restResources {
   restApi {
@@ -22,18 +18,6 @@ restResources {
   }
 }
 
-tasks.withType(Test).configureEach {
-  doFirst {
-    delete(repoDir)
-  }
-  nonInputProperties.systemProperty 'tests.path.repo', repoDir
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
-  setting 'xpack.security.enabled', 'false'
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("requires DEFAULT distribution for trial license and snapshot-based recovery")
 }

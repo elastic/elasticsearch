@@ -11,6 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -26,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtra
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -35,7 +37,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NotEquals",
@@ -63,7 +65,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.VERSION, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.IP, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
-        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new)
+        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TDIGEST, NotEqualsTDigestEvaluator.Factory::new),
+        Map.entry(DataType.EXPONENTIAL_HISTOGRAM, NotEqualsExponentialHistogramEvaluator.Factory::new),
+        Map.entry(DataType.HISTOGRAM, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -87,16 +92,19 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -113,16 +121,19 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -203,6 +214,16 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         return false == lhs.equals(rhs);
     }
 
+    @Evaluator(extraName = "TDigest")
+    static boolean processTDigest(TDigestHolder lhs, TDigestHolder rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "ExponentialHistogram")
+    static boolean processExponentialHistogram(ExponentialHistogram lhs, ExponentialHistogram rhs) {
+        return false == ExponentialHistogram.equals(lhs, rhs);
+    }
+
     @Override
     public EsqlBinaryComparison reverse() {
         return this;
@@ -239,8 +260,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                         value = br.utf8ToString();
                     }
                     TermQuery termQuery = new TermQuery(source(), kn, value);
-
-                    return new SingleValueQuery(new NotQuery(source(), termQuery), kn, false);
+                    // Candidate query: documents not carrying this key/value are a superset of the true
+                    // "!=" matches. The optimizer marks this RECHECK so the FilterOperator restores exact
+                    // single-value semantics (multi-valued and missing-key documents null out).
+                    return new NotQuery(source(), termQuery);
                 }).orElseThrow();
             }
         }

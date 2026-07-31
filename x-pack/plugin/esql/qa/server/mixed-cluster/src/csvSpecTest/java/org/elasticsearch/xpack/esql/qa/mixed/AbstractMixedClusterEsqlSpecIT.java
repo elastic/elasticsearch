@@ -17,6 +17,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
@@ -78,15 +79,44 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         oldNodeClient = null;
     }
 
+    // Slice indexing is unreleased and renamed its request parameter (`_slice` -> `slice`), so the older bwc node
+    // cannot ingest data via the current parameter. Treat slice as unsupported whenever an older node is present.
+    private static boolean slicesSupportedOnBwcNode() {
+        return bwcVersion == null || bwcVersion.before(Version.CURRENT) == false;
+    }
+
+    @Override
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        // Skip loading the slice dataset in a mixed-version cluster: the older node cannot ingest it.
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedOnBwcNode() == false) {
+            return false;
+        }
+        return super.clusterHasCapability(capability);
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        // Slice tests need the slice dataset, which is not loaded against an older node (see clusterHasCapability).
+        CsvTestUtils.assumeTrueLogging(
+            "Slice indexing is unreleased and unsupported on the older mixed-cluster node",
+            slicesSupportedOnBwcNode()
+                || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName()) == false
+        );
         CsvTestUtils.assumeTrueLogging(
             "Old mixed-cluster node does not support required capabilities for " + testName,
             testCase.requiredCapabilities.isEmpty() || hasCapabilities(oldNodeClient(), testCase.requiredCapabilities)
         );
-        // The request is sent to a random node, so at this stage it's
-        // undetermined which node is the coordinator or data node.
+        // The request is sent to a random node, so at this stage it's undetermined which node is the coordinator or
+        // data node. This means a real capability check here (asserting the capability is genuinely absent, the way
+        // the other suites do) would be unsafe rather than just unnecessary: a real 2-old+2-new cluster would pass
+        // such a check, but the query itself could still land on either an old or a new coordinator at random, so a
+        // test asserting deterministic old-coordinator behavior would only be correct about half the time. Supporting
+        // this properly needs the query itself pinned to a specific-version node, not just the capability gate.
+        CsvTestUtils.assumeTrueLogging(
+            "Mixed-cluster tests don't support local cluster capability requirements",
+            testCase.missingCapabilitiesLocalCluster.isEmpty()
+        );
         CsvTestUtils.assumeTrueLogging(
             "Mixed-cluster tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()

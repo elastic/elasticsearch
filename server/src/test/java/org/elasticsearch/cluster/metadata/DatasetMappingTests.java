@@ -59,11 +59,13 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
             "DatasetMapping.Dynamic " + ourValues + " must be a subset of ObjectMapper.Dynamic " + esValues,
             esValues.containsAll(ourValues)
         );
-        // The index-mapper values we deliberately exclude are exactly STRICT and RUNTIME. If this set changes, the
+        // The index-mapper values we deliberately exclude are STRICT, RUNTIME, and FLATTENED. If this set changes, the
         // index mapper grew/renamed a dynamic value and we must consciously decide how external datasets treat it.
+        // FLATTENED is an internal unmapped-fields sink policy (see ObjectMapper.Dynamic.getRootDynamic), not a
+        // user-declarable dataset policy, so external datasets treat it the same as STRICT/RUNTIME: unsupported.
         Set<String> excluded = new HashSet<>(esValues);
         excluded.removeAll(ourValues);
-        assertEquals(Set.of("STRICT", "RUNTIME"), excluded);
+        assertEquals(Set.of("STRICT", "RUNTIME", "FLATTENED"), excluded);
 
         // Parse vocabulary stays aligned: we accept our values case-insensitively and reject the excluded ones.
         assertEquals(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.fromString("true"));
@@ -85,27 +87,6 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
                 Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
                 assertThat("core mappings key [" + key + "] must be rejected", e.getMessage(), containsString(key));
             }
-        }
-    }
-
-    public void testSourceEnabledParsesAndDefaults() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_source\":{\"enabled\":false}}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertEquals(Boolean.FALSE, m.sourceEnabled());
-            assertFalse(m.sourceAvailable());
-        }
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertNull("absent _source leaves the knob unset", m.sourceEnabled());
-            assertTrue("unset means available by default", m.sourceAvailable());
-        }
-        // Only [enabled] is supported under _source; other core _source knobs (mode, includes, ...) are rejected.
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_source\":{\"mode\":\"synthetic\"}}")) {
-            parser.nextToken();
-            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-            assertThat(e.getMessage(), containsString("_source"));
         }
     }
 

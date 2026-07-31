@@ -567,7 +567,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             @SuppressWarnings("rawtypes")
-            public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+            public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
                 if (context.action().equals(ACTION)) {
                     responseReceived.incrementAndGet();
                 }

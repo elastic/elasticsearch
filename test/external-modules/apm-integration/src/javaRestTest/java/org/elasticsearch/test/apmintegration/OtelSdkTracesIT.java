@@ -13,6 +13,17 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Runs the shared {@link AbstractTracesIT} test suite against the OTel SDK export path.
  *
@@ -62,6 +73,45 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     @Override
     protected int telemetryTimeout() {
         return 15;
+    }
+
+    /**
+     * Extends the base required keys with the OTel HTTP semantic convention attributes
+     * produced by {@code APMHttpServerInstrumentation} on the SDK export path.
+     */
+    @Override
+    protected Set<String> requiredNodeStatsSpanKeys() {
+        var keys = new HashSet<>(super.requiredNodeStatsSpanKeys());
+        keys.addAll(
+            Set.of(
+                "otel.attributes.http.request.method",
+                "otel.attributes.http.response.status_code",
+                "otel.attributes.http.route",
+                "otel.attributes.network.protocol.version",
+                "otel.attributes.url.path"
+            )
+        );
+        return Collections.unmodifiableSet(keys);
+    }
+
+    @Override
+    protected void assertNodeStatsRootSpanAttributes(ReceivedTelemetry.ReceivedSpan span) {
+        super.assertNodeStatsRootSpanAttributes(span);
+        Map<String, Object> attrs = span.attributes();
+        assertThat("OTel HTTP request method", attrs.get("otel.attributes.http.request.method"), is("GET"));
+        assertThat("OTel HTTP route", attrs.get("otel.attributes.http.route").toString(), is("/_nodes/stats"));
+        assertThat("OTel URL path", attrs.get("otel.attributes.url.path").toString(), is("/_nodes/stats"));
+        assertThat("OTel HTTP response status code", attrs.get("otel.attributes.http.response.status_code"), instanceOf(Number.class));
+        assertThat(
+            "OTel HTTP response status code value",
+            ((Number) attrs.get("otel.attributes.http.response.status_code")).intValue(),
+            greaterThanOrEqualTo(200)
+        );
+        assertThat(
+            "OTel network protocol version",
+            attrs.get("otel.attributes.network.protocol.version").toString(),
+            not(emptyOrNullString())
+        );
     }
 
     public void testResourceCarriesAffix() throws Exception {

@@ -49,7 +49,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore256Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> quantizeScore256Impl(q, segment, length));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -129,7 +129,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore128Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, scratch::get, segment -> quantizeScore128Impl(q, segment, length));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -200,7 +200,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
             quantizeScore128BulkImpl(q, segment, length, count, scores);
             return null;
         });
@@ -262,7 +262,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, scratch::get, segment -> {
             quantizeScore256BulkImpl(q, segment, length, count, scores);
             return null;
         });
@@ -403,7 +403,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
-            this::getScratch,
+            scratch::get,
             seg -> applyCorrections128BulkImpl(
                 seg,
                 queryAdditionalCorrection,
@@ -436,23 +436,23 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                4L * bulkSize + i * Float.BYTES,
+                4L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_128,
                 memorySegment,
-                8L * bulkSize + i * Integer.BYTES,
+                8L * bulkSize + (long) i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                12L * bulkSize + i * Float.BYTES,
+                12L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
@@ -520,7 +520,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
-            this::getScratch,
+            scratch::get,
             memorySegment -> applyCorrections256BulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,
@@ -553,23 +553,23 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                4L * bulkSize + i * Float.BYTES,
+                4L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_256,
                 memorySegment,
-                8L * bulkSize + i * Integer.BYTES,
+                8L * bulkSize + (long) i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                12L * bulkSize + i * Float.BYTES,
+                12L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);

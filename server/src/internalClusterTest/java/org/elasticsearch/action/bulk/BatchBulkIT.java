@@ -10,11 +10,14 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -163,8 +166,9 @@ public class BatchBulkIT extends ESIntegTestCase {
             );
         }
 
-        // Assert that the trace log fires at least once, proving the columnar path was taken.
-        // MockLog.capture enables TRACE-level capture for ShardBatchIndexer for the duration of the block.
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
         try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -180,6 +184,8 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems().length, equalTo(numDocs));
 
             mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
         }
 
         refresh(index);

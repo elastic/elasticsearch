@@ -118,8 +118,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
 
-                if (shardSnapshotStatus.isActive() == false || shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED) {
-                    // shard snapshot is complete, QUEUED, or ABORTED, we'll let the move proceed
+                if (shardSnapshotStatus.isActive() == false) {
+                    // shard snapshot is complete or QUEUED, we'll let the move proceed
                     continue;
                 }
 

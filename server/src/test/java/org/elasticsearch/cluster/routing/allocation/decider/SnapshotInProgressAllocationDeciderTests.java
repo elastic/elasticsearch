@@ -160,6 +160,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         final var shardState = randomFrom(
             SnapshotsInProgress.ShardState.INIT,
             SnapshotsInProgress.ShardState.WAITING,
+            SnapshotsInProgress.ShardState.ABORTED,
             SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
         );
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(makeClusterState(shardId, shardState))

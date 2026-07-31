@@ -43,7 +43,6 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
      * migrated (the staleness test enforces this).
      */
     private static final Set<String> KNOWN_INTERNAL_API_USAGES = [
-        "org.elasticsearch.gradle.internal.AntFixtureStop",
         "org.elasticsearch.gradle.internal.DependenciesInfoTask",
         "org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin",

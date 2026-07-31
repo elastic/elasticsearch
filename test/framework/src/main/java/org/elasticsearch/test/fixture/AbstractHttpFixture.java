@@ -108,7 +108,6 @@ public abstract class AbstractHttpFixture extends ExternalResource {
             try {
                 Response response;
 
-                // Check if this is a request made by the AntFixture
                 final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                 if (userAgent != null
                     && userAgent.startsWith("Apache Ant")

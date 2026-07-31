@@ -16,13 +16,13 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.reindex.AbstractReindexIT;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -49,7 +49,7 @@ public class ReindexFromRemote7xIT extends AbstractReindexIT {
      * {@code entrypoint.sh}), so each version gets its own scratch subdirectory.
      */
     private static String repoLocation(String version) {
-        return Path.of(System.getProperty("java.io.tmpdir"), "reindex-old-es-repo", version).toString();
+        return PathUtils.get(System.getProperty("java.io.tmpdir"), "reindex-old-es-repo", version).toString();
     }
 
     private void reindexFromRemote7x(OldElasticsearchContainer container, String remoteIndex, String destIndex) throws IOException {

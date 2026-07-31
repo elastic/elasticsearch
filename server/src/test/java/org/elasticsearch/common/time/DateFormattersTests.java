@@ -1527,4 +1527,51 @@ public class DateFormattersTests extends ESTestCase {
         assertEquals("2025-09-12T08:12:12.123Z", Instant.ofEpochMilli(1757664732123L).toString());
         assertEquals("2025-09-12T08:12:00Z", Instant.ofEpochMilli(1757664720000L).toString());
     }
+
+    public void testFebruary30thEdgeCaseDateParsing() {
+        final Instant marchSecond = parseToInstant(DateFormatter.forPattern("date"), "2026-03-02");
+
+        {
+            final var formatter = DateFormatter.forPattern("date");
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseToInstant(formatter, "2026-02-30"));
+            assertThat(e.getMessage(), equalTo("failed to parse date field [2026-02-30] with format [date]"));
+        }
+
+        {
+            final var formatter = DateFormatter.forPattern("strict_date");
+            final var result = parseToInstant(formatter, "2026-02-30");
+            assertThat(result, equalTo(marchSecond));
+            assertThat(formatter.format(result), equalTo("2026-03-02"));
+        }
+
+        {
+            var formatter = DateFormatter.forPattern("yyyy-MM-dd");
+            DateTimeException e = expectThrows(DateTimeException.class, () -> parseToInstant(formatter, "2026-02-30"));
+            assertThat(e.getMessage(), equalTo("Invalid date 'FEBRUARY 30'"));
+        }
+
+        {
+            var formatter = DateFormatter.forPattern("MM-dd-yyyy");
+            DateTimeException e = expectThrows(DateTimeException.class, () -> parseToInstant(formatter, "02-30-2026"));
+            assertThat(e.getMessage(), equalTo("Invalid date 'FEBRUARY 30'"));
+        }
+    }
+
+    /**
+     * Parse a date string with a formatter, then coerce it into an Instant -- this is very much in the
+     * same style as the code in {@link DateFieldMapper.DateFieldType#parse(String)}, albeit without the
+     * final conversion to long.
+     * <p>
+     * Some formatters are happy to parse a date like '2026-02-30', and some throw an exception, but
+     * {@link DateFormatters#from(TemporalAccessor, Locale)} ends up re-routing through
+     * {@link DateFormatters#LOCAL_DATE_QUERY} and the {@link java.time.LocalDate#of(int, int, int)}
+     * call there rejects such dates.
+     * <p>
+     * Long story short, this method is meant to capture (approximately) the notion of "will
+     * Elasticsearch accept this date string in an incoming document using a mapping with the specified
+     * date format string?".
+     */
+    private static Instant parseToInstant(final DateFormatter formatter, final String input) {
+        return DateFormatters.from(formatter.parse(input), formatter.locale()).toInstant();
+    }
 }

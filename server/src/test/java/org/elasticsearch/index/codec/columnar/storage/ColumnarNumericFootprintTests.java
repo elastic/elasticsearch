@@ -98,7 +98,7 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
     }
 
     public void testFootprintDoubleCounter() throws IOException {
-        runFootprintTest("DOUBLE_COUNTER", (f, bs) -> NumericPipeline.doubleCounterPipeline(bs), 260313);
+        runFootprintTest("DOUBLE_COUNTER", (f, bs) -> NumericPipeline.doubleCounterPipeline(bs), 48913);
     }
 
     public void testFootprintRandomFull() throws IOException {
@@ -318,7 +318,7 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
         final Random rng = new Random(42L);
         final long[] values = new long[count];
         long timestamp = 1_700_000_000_000L;
-        double counterValue = 0.0;
+        long counterMillis = 0L;
         for (int i = 0; i < count; i++) {
             values[i] = switch (workload) {
                 case "MONOTONIC_TIMESTAMPS" -> {
@@ -334,8 +334,8 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
                 case "SENSOR_DOUBLES" -> NumericUtils.doubleToSortableLong(20.0 + (i % 1000) * 0.1);
                 case "DOUBLE_GAUGE" -> NumericUtils.doubleToSortableLong(50.0 + (rng.nextInt(201) - 100) * 0.01);
                 case "DOUBLE_COUNTER" -> {
-                    counterValue += 1.5 + rng.nextInt(100) * 0.001;
-                    yield NumericUtils.doubleToSortableLong(counterValue);
+                    counterMillis += 1500 + rng.nextInt(100);
+                    yield NumericUtils.doubleToSortableLong(counterMillis * 1e-3);
                 }
                 case "RANDOM_FULL" -> rng.nextLong();
                 default -> throw new IllegalArgumentException("Unknown workload: " + workload);

@@ -66,6 +66,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
@@ -109,6 +110,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -2211,6 +2213,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.fetchFields() != null) {
             FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
+        }
+        if (source.embeddingsFields().isEmpty() == false) {
+            List<FieldAndFormat> fields = new ArrayList<>();
+            for (String field : source.embeddingsFields()) {
+                MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
+                if (fieldType == null) {
+                    // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
+                    continue;
+                }
+                FieldAndFormat embeddings = fieldType.embeddingsFieldAndFormat();
+                if (embeddings != null) {
+                    fields.add(embeddings);
+                }
+            }
+
+            if (fields.isEmpty() == false) {
+                FetchFieldsContext existingFetchFieldsContext = context.fetchFieldsContext();
+                if (existingFetchFieldsContext != null && existingFetchFieldsContext.fields() != null) {
+                    fields.addAll(existingFetchFieldsContext.fields());
+                }
+                context.fetchFieldsContext(new FetchFieldsContext(fields));
+            }
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

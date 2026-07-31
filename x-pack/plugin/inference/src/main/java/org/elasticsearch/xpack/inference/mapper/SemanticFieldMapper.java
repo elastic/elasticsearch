@@ -65,6 +65,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -1090,6 +1091,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                         + "] are supported."
                 );
             };
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat() {
+            return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
         }
 
         @Override

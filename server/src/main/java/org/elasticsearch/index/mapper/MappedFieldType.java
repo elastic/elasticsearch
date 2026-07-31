@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -203,6 +204,17 @@ public abstract class MappedFieldType {
      */
     public boolean isVectorEmbedding() {
         return false;
+    }
+
+    /**
+     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API, or {@code null} if this
+     * field does not expose embeddings.
+     *
+     * @return the embeddings field-and-format, or {@code null} if this field does not support embedding retrieval.
+     */
+    @Nullable
+    public FieldAndFormat embeddingsFieldAndFormat() {
+        return null;
     }
 
     /**

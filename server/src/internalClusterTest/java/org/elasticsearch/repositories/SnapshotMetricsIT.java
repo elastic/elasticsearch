@@ -60,6 +60,13 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
+    /**
+     * OpenTelemetry double histograms may report bucket values rounded slightly above the wall-clock
+     * interval measured here with {@link TimeValue#secondsFrac()}, causing strict {@code lessThan}
+     * comparisons to flake (e.g. 0.108 vs 0.107915...).
+     */
+    private static final double DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC = 1e-4;
+
     private static final String REQUIRE_NODE_NAME_SETTING = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name";
 
     @Override
@@ -125,6 +132,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot to finish to test the other metrics
         safeGet(snapshotFuture);
         final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
+        final double maxHistogramDurationSeconds = snapshotElapsedTime.secondsFrac() + DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC;
         collectMetrics();
 
         // sanity check blobs, bytes and throttling metrics
@@ -136,11 +144,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Sanity check shard duration observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);

@@ -3583,7 +3583,7 @@ public class VerifierTests extends ESTestCase {
         sampleData().error(
             "from test | stats max(event_duration) by tbucket()",
             ParsingException.class,
-            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
+            equalTo("1:42: error building [tbucket]: expects between one and four arguments")
         );
         sampleData().error(
             "from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)",
@@ -3645,6 +3645,28 @@ public class VerifierTests extends ESTestCase {
                     + " or a `@timestamp` range in the query filter"
             )
         );
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_nestedBucketRejected() {
+        defaultAnalyzer().error("""
+            FROM test | STATS c = COUNT(*) BY b = SIN(BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true}))
+            """, containsString("[include_empty_buckets] is only supported when [BUCKET] is used directly as a grouping key"));
+
+        tsdb().error("""
+            TS test | STATS SUM(RATE(network.bytes_in))
+                      BY b = TO_LONG(TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true}))
+            """, containsString("[include_empty_buckets] is only supported when [TBUCKET] is used directly as a grouping key"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_inlineStatsRejected() {
+        defaultAnalyzer().error("""
+            FROM test | INLINE STATS c = COUNT(*) BY b = BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true})
+            """, containsString("[include_empty_buckets] is not supported with [INLINE STATS]"));
+
+        tsdb().error("""
+            TS test | INLINE STATS c = COUNT(*)
+                      BY b = TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})
+            """, containsString("[include_empty_buckets] is not supported with [INLINE STATS]"));
     }
 
     public void testFuse() {

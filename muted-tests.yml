@@ -592,3 +592,6 @@ tests:
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testMultiValueViolationRestoredIdenticallyAcrossSourceModes
   issue: https://github.com/elastic/elasticsearch/issues/155610
+- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
+  method: testCurrentlyRunningSnapshotNotRecordedAsFailure
+  issue: https://github.com/elastic/elasticsearch/issues/155621

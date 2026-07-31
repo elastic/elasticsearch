@@ -89,7 +89,7 @@ public class InferenceIndexMappingManager {
         if (indexMetadata == null) {
             // Index does not exist yet – create it with the latest mappings.
             logger.debug("Index [{}] does not exist; creating it with up-to-date mappings", descriptor.getPrimaryIndex());
-            startUpdateIfNotInProgress(listener, true);
+            startUpdateIfNotInProgress(true, listener);
             return;
         }
 
@@ -105,7 +105,7 @@ public class InferenceIndexMappingManager {
             descriptor.getPrimaryIndex(),
             descriptor.getMappingsVersion().version()
         );
-        startUpdateIfNotInProgress(listener, false);
+        startUpdateIfNotInProgress(false, listener);
     }
 
     /**
@@ -113,10 +113,10 @@ public class InferenceIndexMappingManager {
      * queued and this method returns immediately. Otherwise, the appropriate index-level operation
      * (create or put-mapping) is issued.
      *
-     * @param listener    the caller to notify when the update is complete
      * @param createIndex {@code true} to create the index, {@code false} to update mappings only
+     * @param listener    the caller to notify when the update is complete
      */
-    private void startUpdateIfNotInProgress(ActionListener<Void> listener, boolean createIndex) {
+    private void startUpdateIfNotInProgress(boolean createIndex, ActionListener<Void> listener) {
         synchronized (pendingListeners) {
             if (updateInProgress) {
                 // An update is already in flight – enqueue this caller.

@@ -652,7 +652,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 .hasEvent(XContentHelper.stripWhitespace("""
                     {
                         "id": null,
-                        "choices": [{"delta": {}, "finish_reason": "end_turn", "index": 0}],
+                        "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}],
                         "model": null,
                         "object": null,
                         "usage": {"completion_tokens": 5, "prompt_tokens": 0, "total_tokens": 5}

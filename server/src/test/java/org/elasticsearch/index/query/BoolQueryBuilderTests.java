@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +46,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
@@ -526,6 +529,71 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "duplicate filter clauses must be deduplicated by the bool query and charge the breaker exactly once",
                 singleClauseDelta,
                 duplicateDelta
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    public void testBoolFilterWildcardClausesChargedOncePerAutomaton() throws IOException {
+        assertDedupWildcardClausesChargedOnce(true);
+    }
+
+    public void testBoolMustNotWildcardClausesChargedOncePerAutomaton() throws IOException {
+        assertDedupWildcardClausesChargedOnce(false);
+    }
+
+    private void assertDedupWildcardClausesChargedOnce(boolean filter) throws IOException {
+        String patternOne = "test*pattern*one*here*";
+        String patternTwo = "another*completely*different*pattern*two*";
+
+        long automatonOne;
+        long automatonTwo;
+        CircuitBreaker measureBreaker = createCircuitBreakerService();
+        SearchExecutionContext measureContext = new SearchExecutionContext(createSearchExecutionContext(), measureBreaker);
+        try {
+            Query first = new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne).toQuery(measureContext);
+            Query second = new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo).toQuery(measureContext);
+            assertThat("wildcard automaton query must be Accountable", first, instanceOf(Accountable.class));
+            assertThat("wildcard automaton query must be Accountable", second, instanceOf(Accountable.class));
+            automatonOne = ((Accountable) first).ramBytesUsed();
+            automatonTwo = ((Accountable) second).ramBytesUsed();
+        } finally {
+            measureContext.releaseQueryConstructionMemory();
+        }
+        long expected = automatonOne + automatonTwo;
+        long smallerAutomaton = Math.min(automatonOne, automatonTwo);
+        assertTrue("precondition: distinct wildcard automata must retain bytes", smallerAutomaton > 0);
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            if (filter) {
+                boolQuery.filter(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne))
+                    .filter(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo));
+            } else {
+                boolQuery.mustNot(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne))
+                    .mustNot(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo));
+            }
+
+            long before = cb.getUsed();
+            boolQuery.toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            String clause = filter ? "filter" : "must_not";
+            assertThat(
+                "bool " + clause + " wildcard clauses must charge both automata at least once",
+                delta,
+                greaterThanOrEqualTo(expected)
+            );
+            assertThat(
+                "bool "
+                    + clause
+                    + " wildcard clauses must charge each automaton exactly once; the dedup clause visitor must honor the "
+                    + "pre-charged predicate so construction-time bytes are not counted again under CATEGORY_QUERY",
+                delta,
+                lessThan(expected + smallerAutomaton)
             );
         } finally {
             context.releaseQueryConstructionMemory();

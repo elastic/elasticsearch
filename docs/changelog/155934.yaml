@@ -1,0 +1,6 @@
+area: SLM
+issues:
+ - 155621
+pr: 155934
+summary: Do not record concurrent SLM snapshots as failures when SnapshotInfo was not fetched
+type: bug

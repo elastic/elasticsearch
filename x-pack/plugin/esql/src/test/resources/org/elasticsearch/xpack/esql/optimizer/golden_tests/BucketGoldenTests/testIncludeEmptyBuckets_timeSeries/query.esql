@@ -1,0 +1,2 @@
+TS k8s | STATS SUM(RATE(network.total_bytes_in))
+         BY TBUCKET(6, "2024-05-10T00:00:00Z", "2024-05-10T00:30:00Z", {"include_empty_buckets": true})

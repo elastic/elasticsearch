@@ -160,7 +160,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            shardIdPredicate -> shardIdPredicate.equals(shardId)
+            candidate -> candidate.equals(shardId)
         );
         final var region = region(shardId, timestampMillis);
 
@@ -258,7 +258,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
-        return policy.createPredicate(region).test(region);
+        final boolean canEvict = policy.createPredicate(region).test(region);
+        assertThat(
+            "createPredicate must be the negation of isProtected for the same region/cutoff",
+            canEvict,
+            equalTo(policy.isProtected(region) == false)
+        );
+        return canEvict;
     }
 
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {

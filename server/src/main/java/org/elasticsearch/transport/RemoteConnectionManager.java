@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -39,13 +40,24 @@ public class RemoteConnectionManager implements ConnectionManager {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
     private final String clusterAlias;
+    private final ProjectId linkedProjectId;
     private final RemoteClusterCredentialsManager credentialsManager;
     private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
     private volatile List<DiscoveryNode> connectedNodes = Collections.emptyList();
 
     RemoteConnectionManager(String clusterAlias, RemoteClusterCredentialsManager credentialsManager, ConnectionManager delegate) {
+        this(clusterAlias, ProjectId.DEFAULT, credentialsManager, delegate);
+    }
+
+    RemoteConnectionManager(
+        String clusterAlias,
+        ProjectId linkedProjectId,
+        RemoteClusterCredentialsManager credentialsManager,
+        ConnectionManager delegate
+    ) {
         this.clusterAlias = clusterAlias;
+        this.linkedProjectId = linkedProjectId;
         this.credentialsManager = credentialsManager;
         this.delegate = delegate;
         this.delegate.addListener(new TransportConnectionListener() {
@@ -54,7 +66,9 @@ public class RemoteConnectionManager implements ConnectionManager {
                 addConnectedNode(node);
                 try {
                     // called when a node is successfully connected through a proxy connection
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager));
+                    maybeLogDeprecationWarning(
+                        wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, linkedProjectId, credentialsManager)
+                    );
                 } catch (Exception e) {
                     logger.warn("Failed to log deprecation warning.", e);
                 }
@@ -69,6 +83,10 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     public RemoteClusterCredentialsManager getCredentialsManager() {
         return credentialsManager;
+    }
+
+    ProjectId getLinkedProjectId() {
+        return linkedProjectId;
     }
 
     /**
@@ -116,7 +134,9 @@ public class RemoteConnectionManager implements ConnectionManager {
             profile,
             listener.delegateFailureAndWrap(
                 (l, connection) -> l.onResponse(
-                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager))
+                    maybeLogDeprecationWarning(
+                        wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, linkedProjectId, credentialsManager)
+                    )
                 )
             )
         );
@@ -239,9 +259,29 @@ public class RemoteConnectionManager implements ConnectionManager {
         return Optional.empty();
     }
 
+    /**
+     * Resolves the linked project ID for a remote cluster connection.
+     * <p>
+     * Returns an empty {@link Optional} when the connection does not target a node in a remote cluster, or when there is no meaningful
+     * linked project ID associated with the connection. The latter is the case for remote connections that are not cross-project search
+     * (CPS) connections, where the linked project ID defaults to {@link ProjectId#DEFAULT}: this method deliberately never surfaces
+     * {@link ProjectId#DEFAULT} as a stand-in for a real linked project, since a caller cannot distinguish that sentinel from an actual
+     * target project. A present value is therefore always a genuine CPS linked project ID.
+     *
+     * @param connection the transport connection for which to resolve a linked project ID
+     * @return the linked project ID if the connection targets a node in a CPS linked project, otherwise an empty result
+     */
+    public static Optional<ProjectId> resolveLinkedProjectId(Transport.Connection connection) {
+        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
+        if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
+            return remoteConnection.getLinkedProjectId();
+        }
+        return Optional.empty();
+    }
+
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager);
+        return wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, linkedProjectId, credentialsManager);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -347,20 +387,34 @@ public class RemoteConnectionManager implements ConnectionManager {
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
+        private final Optional<ProjectId> linkedProjectId;
         @Nullable
         private final SecureString clusterCredentials;
 
-        private InternalRemoteConnection(Transport.Connection connection, String clusterAlias, @Nullable SecureString clusterCredentials) {
+        private InternalRemoteConnection(
+            Transport.Connection connection,
+            String clusterAlias,
+            ProjectId linkedProjectId,
+            @Nullable SecureString clusterCredentials
+        ) {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.connection = Objects.requireNonNull(connection);
             this.clusterAlias = Objects.requireNonNull(clusterAlias);
+            Objects.requireNonNull(linkedProjectId);
+            // Store the linked project ID as an Optional that never surfaces ProjectId.DEFAULT (see resolveLinkedProjectId), so the
+            // Optional is computed once per connection rather than on every resolveLinkedProjectId call.
+            this.linkedProjectId = ProjectId.DEFAULT.equals(linkedProjectId) ? Optional.empty() : Optional.of(linkedProjectId);
             this.clusterCredentials = clusterCredentials;
         }
 
         public String getClusterAlias() {
             return clusterAlias;
+        }
+
+        public Optional<ProjectId> getLinkedProjectId() {
+            return linkedProjectId;
         }
 
         @Nullable
@@ -445,8 +499,9 @@ public class RemoteConnectionManager implements ConnectionManager {
     static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
         Transport.Connection connection,
         String clusterAlias,
+        ProjectId linkedProjectId,
         RemoteClusterCredentialsManager credentialsManager
     ) {
-        return new InternalRemoteConnection(connection, clusterAlias, credentialsManager.resolveCredentials(clusterAlias));
+        return new InternalRemoteConnection(connection, clusterAlias, linkedProjectId, credentialsManager.resolveCredentials(clusterAlias));
     }
 }

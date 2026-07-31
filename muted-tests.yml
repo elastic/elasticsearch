@@ -550,9 +550,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT
   method: testDisabledRemoteResolvesDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155382
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testConsecutiveRotations
-  issue: https://github.com/elastic/elasticsearch/issues/155419
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=downsample/100_downsample_histograms/Downsample histogram with last value}
   issue: https://github.com/elastic/elasticsearch/issues/155453
@@ -586,3 +583,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.ccr.RestartIT
+  method: testRestart {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/155609

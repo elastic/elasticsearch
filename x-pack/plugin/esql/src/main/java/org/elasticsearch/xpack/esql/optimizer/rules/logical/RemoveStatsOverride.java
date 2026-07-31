@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 
@@ -30,19 +32,31 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * becomes
  * {@code INLINE STATS BY x = c + 10}
  * This is "last one wins", with groups having priority over aggregates.
- * Separately, it replaces expressions used as group keys inside the aggregates with references:
- * {@code STATS max(a + b + 1) BY a + b}
- * becomes
- * {@code STATS max($x + 1) BY $x = a + b}
+ * <p>
+ * {@link TranslateTimeSeriesAggregate} reuses {@link #keepLastNamedExpression} on the PackDims
+ * path so a {@code TS} aggregate alias that collides with a grouping key is dropped before the
+ * rewrite emits {@code Project[[alias, grouping]]}.
  */
 public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        return aggregate.with(removeDuplicateNames(aggregate.groupings()), removeDuplicateNames(aggregate.aggregates()));
+        return aggregate.with(keepLastNamedExpression(aggregate.groupings()), keepLastNamedExpression(aggregate.aggregates()));
     }
 
-    private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
+    /**
+     * Drops earlier expressions that share a name with a later one (last wins) and emits a shadow
+     * {@link org.elasticsearch.common.logging.HeaderWarning}.
+     */
+    static <T extends Expression> List<T> keepLastNamedExpression(List<T> list) {
+        return keepLastNamedExpression(list, warning -> addWarning("{}", warning));
+    }
+
+    /**
+     * Same as {@link #keepLastNamedExpression(List)} but reports shadow messages via {@code warn}
+     * (e.g. deferred analysis warnings in {@link TranslateTimeSeriesAggregate}).
+     */
+    static <T extends Expression> List<T> keepLastNamedExpression(List<T> list, Consumer<String> warn) {
         var newList = new ArrayList<>(list);
         var expressionsByName = Maps.<String, T>newMapWithExpectedSize(list.size());
 
@@ -54,13 +68,15 @@ public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggr
             if (previousExpression != null) {
                 var source = element.source().source();
                 var previousSource = previousExpression.source().source();
-                addWarning(
-                    "Line {}:{}: Field '{}' shadowed by field at line {}:{}",
-                    source.getLineNumber(),
-                    source.getColumnNumber(),
-                    name,
-                    previousSource.getLineNumber(),
-                    previousSource.getColumnNumber()
+                warn.accept(
+                    Strings.format(
+                        "Line %s:%s: Field '%s' shadowed by field at line %s:%s",
+                        source.getLineNumber(),
+                        source.getColumnNumber(),
+                        name,
+                        previousSource.getLineNumber(),
+                        previousSource.getColumnNumber()
+                    )
                 );
                 newList.remove(i);
             }

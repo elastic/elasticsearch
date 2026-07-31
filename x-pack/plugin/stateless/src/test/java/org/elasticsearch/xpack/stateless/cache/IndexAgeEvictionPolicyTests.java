@@ -154,7 +154,10 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             taskQueue.getThreadPool(),
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING)
+            Set.of(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING
+            )
         );
         final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
         ClusterServiceUtils.setState(

@@ -95,7 +95,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
             // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            // Time-based caching (BACKFILL_IN_PROGRESS stamping + backfill) is only enabled when cache boost preference is on.
+            // Time-based caching (BACKFILL_IN_PROGRESS stamping + backfill) is controlled by the timestamp backfill setting.
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))

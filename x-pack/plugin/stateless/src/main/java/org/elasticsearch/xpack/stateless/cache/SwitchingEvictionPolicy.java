@@ -54,10 +54,6 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
         return delegate;
     }
 
-    boolean isPinnedWindow() {
-        return delegate instanceof PinnedWindowEvictionPolicy;
-    }
-
     @Override
     public Predicate<CacheRegion<FileCacheKey>> createPredicate(CacheRegion<FileCacheKey> incoming) {
         return delegate.createPredicate(incoming);

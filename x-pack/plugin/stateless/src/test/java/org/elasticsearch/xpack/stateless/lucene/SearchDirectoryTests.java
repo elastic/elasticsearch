@@ -38,7 +38,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
-import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -101,17 +100,7 @@ public class SearchDirectoryTests extends ESTestCase {
         ByteSizeValue regionSize,
         ByteSizeValue cacheSize,
         boolean hasTimestampField,
-        boolean cacheBoostEnabled
-    ) throws IOException {
-        return createFakeStatelessNode(regionSize, cacheSize, hasTimestampField, cacheBoostEnabled, null);
-    }
-
-    private FakeStatelessNode createFakeStatelessNode(
-        ByteSizeValue regionSize,
-        ByteSizeValue cacheSize,
-        boolean hasTimestampField,
-        boolean cacheBoostEnabled,
-        @Nullable StatelessCacheEvictionPolicyType explicitEvictionPolicy
+        boolean timestampBackfillEnabled
     ) throws IOException {
         return createFakeStatelessNode(regionSize, cacheSize, originalCacheBlobReader -> new CacheBlobReader() {
             @Override
@@ -125,7 +114,7 @@ public class SearchDirectoryTests extends ESTestCase {
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 originalCacheBlobReader.getRangeInputStream(position, length, listener);
             }
-        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, cacheBoostEnabled, explicitEvictionPolicy);
+        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, timestampBackfillEnabled);
     }
 
     private FakeStatelessNode createFakeStatelessNode(
@@ -134,8 +123,7 @@ public class SearchDirectoryTests extends ESTestCase {
         Function<CacheBlobReader, CacheBlobReader> objectStoreCacheBlobReaderWrapper,
         Function<BlobContainer, BlobContainer> blobContainerWrapper,
         boolean hasTimestampField,
-        boolean cacheBoostEnabled,
-        @Nullable StatelessCacheEvictionPolicyType explicitEvictionPolicy
+        boolean timestampBackfillEnabled
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
 
@@ -145,17 +133,11 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(super.nodeSettings())
                     .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize);
-                if (cacheBoostEnabled) {
-                    settings.put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-                        .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
-                }
-                if (explicitEvictionPolicy != null) {
-                    settings.put(
-                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
-                        explicitEvictionPolicy
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(),
+                        timestampBackfillEnabled
                     );
-                }
                 return settings.build();
             }
 
@@ -506,8 +488,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 },
                 originalBlobContainer -> FakeStatelessNode.syntheticBytesContainer(originalBlobContainer),
                 false,
-                false,
-                null
+                false
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
@@ -625,7 +606,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -763,9 +744,10 @@ public class SearchDirectoryTests extends ESTestCase {
                 directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
+            assertThat("backfill is disabled when the setting is off", directory.timestampBackfillEnabled(), equalTo(false));
         }
 
-        try (var node = createFakeStatelessNode(regionSize, cacheSize, false, randomBoolean())) {
+        try (var node = createFakeStatelessNode(regionSize, cacheSize, false, false)) {
             var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertThat(
                 "non-time-based terminal fallback is UNKNOWN",
@@ -788,21 +770,10 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat("backfill is disabled on non-time-based shards", directory.timestampBackfillEnabled(), equalTo(false));
         }
 
-        // Time-based shard with pinned-window policy: timestamp backfill is enabled.
-        try (
-            var node = createFakeStatelessNode(regionSize, cacheSize, true, randomBoolean(), StatelessCacheEvictionPolicyType.PINNED_WINDOW)
-        ) {
+        // Time-based shard with timestamp backfill enabled.
+        try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "pinned-window enables backfill",
-                SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
-                equalTo(true)
-            );
-        }
-
-        // Time-based shard with cache-boost enabled: timestamp backfill is enabled.
-        try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true, null)) {
-            assertThat(
-                "cache-boost enables backfill",
+                "timestamp backfill setting enables backfill",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );
@@ -825,7 +796,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -862,7 +833,7 @@ public class SearchDirectoryTests extends ESTestCase {
         }) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertTrue(
-                "test requires metadata-read backfill (time-based caching + cache boost preference) to be enabled",
+                "test requires metadata-read backfill (time-based caching + timestamp backfill setting) to be enabled",
                 searchDirectory.timestampBackfillEnabled()
             );
 

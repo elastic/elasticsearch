@@ -88,6 +88,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
+     * Whether time-based search shards should stamp metadata-read cache regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP}
+     * and run completion backfill. Defaults to {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} so existing deployments keep
+     * current behavior, but can be toggled independently for rollout or as a kill switch.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.timestamp_backfill.enabled",
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * On search nodes, an explicit value takes precedence even when boost preference is disabled. When unset, defaults to
      * {@link StatelessCacheEvictionPolicyType#ALWAYS} when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled,
      * and to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} when enabled.
@@ -151,7 +163,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
-    private final EvictionPolicy<FileCacheKey> installedEvictionPolicy;
+    private volatile boolean metadataTimestampBackfillEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
 
     private final int evictionDegradationThreshold;
@@ -195,7 +207,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
         this.shardReadThreadPoolExecutor = shardReadThreadPoolExecutor;
         this.metricsHolder = metricsHolder;
-        this.installedEvictionPolicy = evictionPolicy;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
         this.evictionDegradationThreshold = (int) (numRegions * STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.get(settings)
@@ -204,6 +215,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         assert evictionDegradationThreshold >= 0 && evictionDegradationThreshold <= numRegions
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
         assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            enabled -> this.metadataTimestampBackfillEnabled = enabled
+        );
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
@@ -398,20 +413,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     /**
-     * Whether the active eviction policy is {@link PinnedWindowEvictionPolicy}.
-     */
-    public boolean isPinnedWindowEvictionPolicy() {
-        if (installedEvictionPolicy instanceof SwitchingEvictionPolicy switchingEvictionPolicy) {
-            return switchingEvictionPolicy.isPinnedWindow();
-        }
-        return installedEvictionPolicy instanceof PinnedWindowEvictionPolicy;
-    }
-
-    /**
      * Whether time-based shards should use metadata-read timestamp backfill (sentinel stamping followed by completion backfill).
      */
-    public boolean metadataTimestampBackfillRequired() {
-        return cacheBoostPreferenceEnabled || isPinnedWindowEvictionPolicy();
+    public boolean isMetadataTimestampBackfillEnabled() {
+        return metadataTimestampBackfillEnabled;
     }
 
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.

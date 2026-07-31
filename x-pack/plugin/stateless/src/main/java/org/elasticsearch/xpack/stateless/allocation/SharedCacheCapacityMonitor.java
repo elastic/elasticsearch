@@ -155,10 +155,11 @@ public class SharedCacheCapacityMonitor {
 
     /**
      * Compares each search node's current cache commitment against its commitment on the previous call and decides whether a reroute
-     * is warranted. A node present in only one of the two maps, because it joined or left the cluster between calls, is not compared
-     * at all. Its absence from one side is not evidence that its commitment changed. An over-subscribed node, one that newly crosses
-     * the high watermark, is the more urgent condition, so it is checked first. The low watermark is checked only when the high
-     * watermark gives no reason to reroute.
+     * is warranted. Nodes that have no prior commitment to compare against (for example, newly observed nodes) are treated as having
+     * been below both watermarks, so they can still be reported as newly exceeding the high watermark. Nodes that leave the cluster
+     * between calls are naturally absent from the comparison and are never treated as having "dropped". An over-subscribed node, one
+     * that newly crosses the high watermark, is the more urgent condition, so it is checked first. The low watermark is checked only
+     * when the high watermark gives no reason to reroute.
      */
     RerouteDecision decideReroute(
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> currentSearchNodeCommitments,

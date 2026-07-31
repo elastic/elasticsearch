@@ -124,7 +124,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     /**
      * Rate-limits how often {@link SharedCacheCapacityMonitor} calls {@link org.elasticsearch.cluster.routing.RerouteService#reroute}
-     * for an unchanged set of over-subscribed nodes.
+     * by enforcing a minimum interval between reroute requests.
      */
     public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.shared_cache_capacity.reroute_interval",

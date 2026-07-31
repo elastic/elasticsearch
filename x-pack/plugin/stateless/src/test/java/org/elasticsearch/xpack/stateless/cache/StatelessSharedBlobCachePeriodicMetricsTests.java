@@ -73,7 +73,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             metrics.start();
             assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED), notNullValue());
             assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL), notNullValue());
-            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.PINNED_METRIC), notNullValue());
+            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC), notNullValue());
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             final var firstFilled = recording.getRecorder()
@@ -133,7 +133,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             metrics.start();
             assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED), nullValue());
             assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL), nullValue());
-            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.PINNED_METRIC), nullValue());
+            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC), nullValue());
         }
     }
 
@@ -331,16 +331,24 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 4L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PINNED_METRIC, 4L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 4L);
+            // Fresh LFU entries start at frequency 1, so all protected regions land in the positive-freq bucket.
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 4L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_UNKNOWN_METRIC, 1L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_BACKFILL_METRIC, 1L);
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
 
             protectAll.set(false);
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 4L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PINNED_METRIC, 0L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PINNED_UNKNOWN_METRIC, 0L);
-            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PINNED_BACKFILL_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_0_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_FREQ_POSITIVE_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_UNKNOWN_METRIC, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_BACKFILL_METRIC, 0L);
+            // Minimal-timestamp occupancy is independent of protection.
             assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.MINIMAL_METRIC, 1L);
         }
     }

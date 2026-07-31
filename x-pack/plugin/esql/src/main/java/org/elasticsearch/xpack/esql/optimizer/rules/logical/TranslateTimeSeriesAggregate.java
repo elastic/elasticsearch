@@ -291,7 +291,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    addBucket(
+                        g instanceof Attribute ? timeBucket.toAttribute() : renameIfShadowingTimestamp(timeBucket, aggregate.timestamp()),
+                        g,
+                        firstPassGroupings,
+                        secondPassGroupings
+                    );
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -404,6 +409,26 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
     ) {
         firstPassGroupings.add(timeBucket);
         secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
+    }
+
+    /**
+     * A time bucket written inline in the groupings is extracted into an {@link org.elasticsearch.xpack.esql.plan.logical.Eval} below the
+     * first pass by {@link ReplaceAggregateNestedExpressionWithEval}. When the user names it after the timestamp field, as in
+     * {@code TS k8s | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, that Eval shadows the very field the first pass still
+     * reads - to compute the bucket and as the timestamp of the per-time-series aggregations - leaving those references dangling. Giving
+     * the internal alias a synthetic name keeps the field visible; the second pass aliases the bucket back to the user-provided name, so
+     * the output is unaffected.
+     */
+    private static NamedExpression renameIfShadowingTimestamp(NamedExpression timeBucket, Expression timestamp) {
+        if (timestamp instanceof Attribute ts && ts.name().equals(timeBucket.name())) {
+            return new Alias(
+                timeBucket.source(),
+                Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                Alias.unwrap(timeBucket),
+                timeBucket.id()
+            );
+        }
+        return timeBucket;
     }
 
     private void addAttribute(

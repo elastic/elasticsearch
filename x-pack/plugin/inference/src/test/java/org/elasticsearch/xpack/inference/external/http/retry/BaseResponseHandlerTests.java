@@ -49,8 +49,8 @@ public class BaseResponseHandlerTests extends ESTestCase {
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
-                throw new RetryException(false, new RuntimeException("should not be called"));
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("should not be called"));
             }
         };
 
@@ -58,7 +58,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
-        // 200 → handleFailureStatusCode must not be called
+        // 200 → buildFailureStatusCodeException must not be called
         handler.validateResponse(
             mock(ThrottlerManager.class),
             mock(Logger.class),
@@ -67,7 +67,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testValidateResponse_CallsHandleFailureStatusCode_WhenResponseIsNotSuccessful() {
+    public void testValidateResponse_CallsBuildFailureStatusCodeException_WhenResponseIsNotSuccessful() {
         var handlerCalled = new AtomicBoolean(false);
         var handler = new BaseResponseHandler(
             "test",
@@ -75,9 +75,9 @@ public class BaseResponseHandlerTests extends ESTestCase {
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
                 handlerCalled.set(true);
-                throw new RetryException(false, new RuntimeException("failure"));
+                return new RetryException(false, new RuntimeException("failure"));
             }
         };
 
@@ -214,7 +214,9 @@ public class BaseResponseHandlerTests extends ESTestCase {
             ErrorMessageResponseEntity::fromResponse
         ) {
             @Override
-            protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {}
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure"));
+            }
         };
     }
 }

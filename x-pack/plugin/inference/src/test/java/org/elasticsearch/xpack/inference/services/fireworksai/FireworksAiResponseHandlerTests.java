@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 public class FireworksAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
+        var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -41,7 +41,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor503_WithShouldRetryFalse() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
+        var exception = callHandleFailureStatusCode(503, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -51,7 +51,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
+        var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -61,7 +61,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor401_WithShouldRetryFalse() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(401, "inferenceEntityId"));
+        var exception = callHandleFailureStatusCode(401, "inferenceEntityId");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -73,7 +73,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor400_WithShouldRetryFalse() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(400, "id"));
+        var exception = callHandleFailureStatusCode(400, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -83,7 +83,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor300_WithShouldRetryFalse() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, "id"));
+        var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -92,11 +92,11 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
-        callHandleFailureStatusCode(statusCode, null, modelId);
+    private static RetryException callHandleFailureStatusCode(int statusCode, String modelId) {
+        return callHandleFailureStatusCode(statusCode, null, modelId);
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
         when(statusLine.toString()).thenReturn("HTTP/1.1 " + statusCode + " Error");
@@ -112,6 +112,6 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : errorMessage.getBytes(StandardCharsets.UTF_8));
         var handler = new FireworksAiResponseHandler("", (request, result) -> null, false);
 
-        handler.handleFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 }

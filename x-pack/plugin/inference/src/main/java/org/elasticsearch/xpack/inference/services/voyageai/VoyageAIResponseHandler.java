@@ -27,33 +27,33 @@ public class VoyageAIResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Handles failure status codes by throwing a RetryException.
+     * Handles failure status codes by returning a RetryException.
      * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * @param outboundRequest The http request
      * @param result  The http response and body
-     * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
+     * @return a RetryException describing the failure
      */
     @Override
-    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 400 || statusCode == 422) {
-            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode == 402) {
-            throw new RetryException(false, buildError(PAYMENT_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(PAYMENT_ERROR_MESSAGE, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

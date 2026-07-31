@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 public class AnthropicResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_ThrowsFor500_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
+        var exception = callHandleFailureStatusCode(500, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -38,7 +38,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor529_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(529, "id"));
+        var exception = callHandleFailureStatusCode(529, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -50,7 +50,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor505_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(505, "id"));
+        var exception = callHandleFailureStatusCode(505, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -60,7 +60,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor429_ShouldRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
+        var exception = callHandleFailureStatusCode(429, "id");
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -114,7 +114,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor403_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(403, "id"));
+        var exception = callHandleFailureStatusCode(403, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -124,7 +124,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor300_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, "id"));
+        var exception = callHandleFailureStatusCode(300, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -134,7 +134,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
     }
 
     public void testHandleFailureStatusCode_ThrowsFor425_ShouldNotRetry() {
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(425, "id"));
+        var exception = callHandleFailureStatusCode(425, "id");
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -143,7 +143,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, String inferenceEntityId) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, String inferenceEntityId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -158,7 +158,7 @@ public class AnthropicResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, new byte[] {});
         var handler = new AnthropicResponseHandler("", (request, result) -> null, false);
 
-        handler.handleFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 
 }

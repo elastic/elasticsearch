@@ -94,8 +94,6 @@ public class RetryingHttpSender implements RequestSender {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
-        private static final String EXPECTED_EXCEPTION_MESSAGE = "Expected response validation to throw an exception";
-
         private OutboundRequest outboundRequest;
         private final ResponseHandler responseHandler;
         private final Logger logger;
@@ -210,21 +208,17 @@ public class RetryingHttpSender implements RequestSender {
         }
 
         /**
-         * This method should only be called if {@link HttpResult#isSuccessfulResponse()} returns false. It is used to determine the
-         * appropriate error message and whether to retry the request.
-         * <p>
-         * If this method is called when {@link HttpResult#isSuccessfulResponse()} returns true, it will throw an
-         * {@link IllegalStateException}.
+         * Only called when {@link HttpResult#isSuccessfulResponse()} returns false, to determine the appropriate
+         * error message and whether to retry the request.
          */
         private void handleInitialStreamFailure(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {
+            Exception failure;
             try {
-                responseHandler.validateResponse(throttlerManager, logger, outboundRequest, httpResult);
-
-                assert false : EXPECTED_EXCEPTION_MESSAGE;
-                listener.onFailure(new SenderException(httpResult, new IllegalStateException(EXPECTED_EXCEPTION_MESSAGE)));
+                failure = responseHandler.buildFailureStatusCodeException(outboundRequest, httpResult);
             } catch (Exception e) {
-                listener.onFailure(new SenderException(httpResult, e));
+                failure = e;
             }
+            listener.onFailure(new SenderException(httpResult, failure));
         }
 
         private void validateAndParseInferenceResults(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {

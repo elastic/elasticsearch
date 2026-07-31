@@ -83,17 +83,9 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     @Override
     public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result) {
         if (result.isSuccessfulResponse() == false) {
-            handleFailureStatusCode(outboundRequest, result);
+            throw buildFailureStatusCodeException(outboundRequest, result);
         }
         checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
-    }
-
-    /**
-     * By default, we'll return a generic failure that won't be retried.
-     * Child classes should override this to provide more specific handling of failure status codes.
-     */
-    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {
-        throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
     }
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {

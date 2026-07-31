@@ -13,7 +13,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
 import java.io.ByteArrayInputStream;
@@ -53,7 +52,7 @@ public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());
         var handler = new OpenAiChatCompletionResponseHandler("", (request, result) -> null);
 
-        var retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
+        var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
 
         assertFalse(retryException.shouldRetry());
         assertThat(

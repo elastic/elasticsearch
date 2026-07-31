@@ -33,7 +33,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode500_ThrowsRetryableServerError() {
         var errorBody = "Internal server error: service unavailable";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, errorBody));
+        var exception = callHandleFailureStatusCode(500, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -50,7 +50,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode503_ThrowsRetryableServerError() {
         var errorBody = "Service temporarily unavailable";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, errorBody));
+        var exception = callHandleFailureStatusCode(503, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -67,7 +67,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode429_ThrowsRetryableRateLimitError() {
         var errorBody = "Rate limit exceeded, please retry later";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, errorBody));
+        var exception = callHandleFailureStatusCode(429, errorBody);
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -84,7 +84,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode401_ThrowsAuthenticationError() {
         var errorBody = "Invalid API key provided";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(401, errorBody));
+        var exception = callHandleFailureStatusCode(401, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -101,7 +101,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode400_ThrowsUnsuccessfulError() {
         var errorBody = "Invalid request: missing required field";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(400, errorBody));
+        var exception = callHandleFailureStatusCode(400, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -118,7 +118,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
 
     public void testHandleFailureStatusCode_StatusCode300_ThrowsRedirectionError() {
         var errorBody = "Resource has been moved";
-        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, errorBody));
+        var exception = callHandleFailureStatusCode(300, errorBody);
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -130,7 +130,7 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    private static void callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage) {
+    private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -145,6 +145,6 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : errorMessage.getBytes(StandardCharsets.UTF_8));
         var handler = new ContextualAiResponseHandler("", (request, result) -> null, false);
 
-        handler.handleFailureStatusCode(mockRequest, httpResult);
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
     }
 }

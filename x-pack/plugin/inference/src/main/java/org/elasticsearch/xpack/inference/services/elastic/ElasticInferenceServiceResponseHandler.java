@@ -30,22 +30,18 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
     }
 
     @Override
-    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        throw buildRetryException(outboundRequest, result);
-    }
-
-    private RetryException buildRetryException(OutboundRequest outboundRequest, HttpResult result) {
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500 || statusCode == 503) {
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {
-            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
+            return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 405) {
-            throw new RetryException(false, buildError(METHOD_NOT_ALLOWED, outboundRequest, result));
+            return new RetryException(false, buildError(METHOD_NOT_ALLOWED, outboundRequest, result));
         } else if (statusCode == 413) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
+            return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         }
 
         return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));

@@ -70,4 +70,11 @@ public interface ResponseHandler {
         assert canHandleStreamingResponses() == false : "This must be implemented when canHandleStreamingResponses() == true";
         throw new UnsupportedOperationException("This must be implemented when canHandleStreamingResponses() == true");
     }
+
+    /**
+     * Builds the exception describing a response whose status code indicates failure. Only invoked when
+     * {@link HttpResult#isSuccessfulResponse()} returns {@code false}, on both the streaming and
+     * non-streaming paths, so implementations must always return an exception and never {@code null}.
+     */
+    RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result);
 }

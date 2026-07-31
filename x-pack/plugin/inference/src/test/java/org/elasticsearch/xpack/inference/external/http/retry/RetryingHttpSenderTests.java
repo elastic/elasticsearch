@@ -711,7 +711,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         var inferenceResults = mock(InferenceServiceResults.class);
         var responseHandler = mock(ResponseHandler.class);
         when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
-        doThrow(new RetryException(true, "failed")).when(responseHandler).validateResponse(any(), any(), any(), any());
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenReturn(new RetryException(true, "failed"));
         when(responseHandler.parseResult(any(OutboundRequest.class), ArgumentMatchers.<Flow.Publisher<HttpResult>>any())).thenReturn(
             inferenceResults
         );
@@ -741,7 +741,9 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         var responseHandler = mock(ResponseHandler.class);
         when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
-        doThrow(new IllegalStateException("failed")).when(responseHandler).validateResponse(any(), any(), any(), any());
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenReturn(
+            new RetryException(false, new IllegalStateException("failed"))
+        );
 
         var retrier = createRetrier(httpClient);
 
@@ -780,11 +782,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
             var responseHandler = mock(ResponseHandler.class);
             when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
-            // Use doAnswer (not doThrow) to create a fresh exception on each invocation.
+            // Use doAnswer (not thenReturn) to create a fresh exception on each invocation.
             // RetryableAction stores exceptions in a deque and adds them as suppressed when building the final exception;
             // reusing the same instance causes "Self-suppression not permitted" when the same object appears twice.
-            doAnswer(invocation -> { throw new RetryException(true, new ConnectionClosedException("failed")); }).when(responseHandler)
-                .validateResponse(any(), any(), any(), any());
+            doAnswer(invocation -> new RetryException(true, new ConnectionClosedException("failed"))).when(responseHandler)
+                .buildFailureStatusCodeException(any(), any());
 
             var retrier = new RetryingHttpSender(
                 httpClient,
@@ -808,34 +810,6 @@ public class RetryingHttpSenderTests extends ESTestCase {
         }
     }
 
-    public void testStream_ThrowsAssertionError_WhenValidationDoesNotThrowForFailedStreamResponse() throws IOException {
-        var httpClient = mock(HttpClient.class);
-        doAnswer(ans -> {
-            ActionListener<StreamingHttpResult> listener = ans.getArgument(2);
-            listener.onResponse(new StreamingHttpResult(mockHttpResponse(FAILED_STATUS_CODE, REASON_PHRASE), randomPublisher()));
-            return null;
-        }).when(httpClient).stream(any(), any(), any());
-
-        var responseHandler = mock(ResponseHandler.class);
-        when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
-        // validateResponse intentionally does NOT throw — this violates the invariant that
-        // handleInitialStreamFailure is only called for non-successful responses.
-        // With assertions enabled (the ES test default), assert false throws AssertionError.
-
-        var retrier = createRetrier(httpClient);
-
-        var request = mockRequest();
-        when(request.isStreaming()).thenReturn(true);
-
-        var e = expectThrows(
-            AssertionError.class,
-            () -> executeTasks(() -> retrier.send(mock(Logger.class), request, () -> false, responseHandler, new PlainActionFuture<>()), 0)
-        );
-        assertThat(e.getMessage(), is("Expected response validation to throw an exception"));
-        // The non-streaming parseResult must never be called — the failure path skips parsing entirely
-        verify(responseHandler, never()).parseResult(any(OutboundRequest.class), any(HttpResult.class));
-    }
-
     public void testStream_LogsFailedStatusCode_WhenInitialStreamResponseFails() throws IOException {
         var httpClient = mock(HttpClient.class);
         doAnswer(ans -> {
@@ -846,7 +820,9 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         var responseHandler = mock(ResponseHandler.class);
         when(responseHandler.canHandleStreamingResponses()).thenReturn(true);
-        doThrow(new IllegalStateException("failed")).when(responseHandler).validateResponse(any(), any(), any(), any());
+        when(responseHandler.buildFailureStatusCodeException(any(), any())).thenReturn(
+            new RetryException(false, new IllegalStateException("failed"))
+        );
 
         var throttlerManager = mock(ThrottlerManager.class);
         var retrier = createRetrier(httpClient, throttlerManager);
@@ -949,6 +925,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
             @Override
             public boolean canHandleStreamingResponses() {
                 return false;
+            }
+
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(true, new IOException("response handler build failure as designed"));
             }
         };
     }

@@ -14,15 +14,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -57,21 +53,6 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
         Match match = new Match(Source.EMPTY, field, query, options);
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
-    }
-
-    /**
-     * Builds a {@link MapExpression} from alternating key/value string pairs. All values are keyword literals,
-     * which {@code Options.populateMap} converts to the option's declared type (BOOLEAN, INTEGER, etc.) via
-     * {@code DataTypeConverter.convert}.
-     */
-    private static MapExpression mapOptions(String... kvs) {
-        assert kvs.length % 2 == 0;
-        List<Expression> entries = new ArrayList<>(kvs.length);
-        for (int i = 0; i < kvs.length; i += 2) {
-            entries.add(Literal.keyword(Source.EMPTY, kvs[i]));
-            entries.add(Literal.keyword(Source.EMPTY, kvs[i + 1]));
-        }
-        return new MapExpression(Source.EMPTY, entries);
     }
 
     // ---- text: analyzed full-text matching (the to_text case) ----

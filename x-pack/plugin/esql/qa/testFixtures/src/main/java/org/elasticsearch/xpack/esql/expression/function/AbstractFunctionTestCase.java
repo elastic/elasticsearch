@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -814,7 +815,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<String> returnTypes = Arrays.stream(description.returnType())
             .filter(t -> DataType.UNDER_CONSTRUCTION.contains(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
-        assertEquals(returnFromSignature, returnTypes);
+        if (Build.current().isSnapshot() == false) {
+            /*
+             * Release builds may omit test cases for types that are only available in snapshot builds. Functions whose return type depends
+             * on such an argument can therefore declare more return types than the test cases exercise in a release build.
+             */
+            assertTrue(
+                "declared return types " + returnTypes + " do not include tested types " + returnFromSignature,
+                returnTypes.containsAll(returnFromSignature)
+            );
+        } else {
+            assertEquals(returnFromSignature, returnTypes);
+        }
     }
 
     /**

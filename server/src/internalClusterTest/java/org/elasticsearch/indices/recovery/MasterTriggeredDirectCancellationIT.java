@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -69,7 +70,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class, MockRepository.Plugin.class));
+        plugins.addAll(List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class));
         return plugins;
     }
 
@@ -566,8 +567,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     }
 
     public void testSnapshotCancellationDoesNotCancelNonRelocatingShards() throws Exception {
-        final var blockedNode = internalCluster().startNode();
-        final var freeNode = internalCluster().startDataOnlyNode();
+        final var node = internalCluster().startNode();
         final var indexName = randomIndexName();
         final var blockingIndexName = randomIndexName();
         final var repoName = randomIndexName();
@@ -579,57 +579,44 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
 
-        // Only hold beforeIndexShardRecovery for the blocking index so freeNode can still finish its shard
+        // Hold the only recovery slot with blockingIndex, indexName queues as a non-relocating INITIALIZING primary.
         TestRecoveryBlockerPlugin.shouldBlock = indexShard -> indexShard.shardId().getIndexName().equals(blockingIndexName);
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
         assertAcked(
-            prepareCreate(blockingIndexName).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", blockedNode))
+            prepareCreate(blockingIndexName).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", node))
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
-        // Two shards, one per node: one queues behind the blocked recovery, the other finishes on freeNode
         assertAcked(
-            prepareCreate(indexName).setSettings(
-                indexSettings(2, 0).put("index.routing.allocation.total_shards_per_node", 1)
-                    .put("index.routing.allocation.include._name", blockedNode + "," + freeNode)
-            ).setWaitForActiveShards(ActiveShardCount.NONE)
+            prepareCreate(indexName).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", node))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
         );
-        awaitRecoveryCountStats(
-            Map.of(
-                blockedNode,
-                stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1,
-                freeNode,
-                stats -> stats.currentFromStore() == 0
-            )
-        );
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
         awaitClusterState(state -> {
             final var indexRoutingTable = state.routingTable().index(indexName);
             return indexRoutingTable != null
-                && indexRoutingTable.shardsWithState(ShardRoutingState.STARTED).size() == 1
-                && indexRoutingTable.shardsWithState(ShardRoutingState.INITIALIZING).size() == 1;
+                && indexRoutingTable.shardsWithState(ShardRoutingState.INITIALIZING).size() == 1
+                && indexRoutingTable.shardsWithState(ShardRoutingState.RELOCATING).isEmpty();
         });
 
         final var unexpectedCancellation = new AtomicBoolean(false);
-        for (var node : List.of(blockedNode, freeNode)) {
-            MockTransportService.getInstance(node)
-                .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                    if (request instanceof CancelRecoveriesAction.Request) {
-                        unexpectedCancellation.set(true);
-                    }
-                    handler.messageReceived(request, channel, task);
-                });
-        }
+        MockTransportService.getInstance(node)
+            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
+                if (request instanceof CancelRecoveriesAction.Request) {
+                    unexpectedCancellation.set(true);
+                }
+                handler.messageReceived(request, channel, task);
+            });
         waitNoPendingTasksOnAll();
 
-        // Snapshot: started shard is `INIT`, initializing (non-relocating) shard is `WAITING`. Must not cancel.
+        // Snapshot shard is WAITING on a non-relocating initializing primary. Should not be cancelled.
         final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
-
-        awaitSnapshotWithInitAndWaitingShards();
+        awaitSingleSnapshotMatching(SnapshotsInProgress.Entry::hasShardsInWaitingState);
         waitNoPendingTasksOnAll();
         assertFalse("waiting snapshot should not send cancellations for non relocating shards", unexpectedCancellation.get());
 
@@ -637,6 +624,119 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
         ensureGreen(indexName, blockingIndexName);
         assertFalse("waiting snapshot should not send cancellations for non relocating shards", unexpectedCancellation.get());
+    }
+
+    public void testSnapshotCancellationWhenMixedShardStates() throws Exception {
+        final var startedNode = internalCluster().startNode();
+        final var targetNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        final var blockingIndex = randomIndexName();
+        final var repoName = randomIndexName();
+        final var snapshotName = randomIndexName();
+
+        createIndex(indexName, indexSettings(3, 0).put("index.routing.allocation.include._name", startedNode).build());
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+
+        // Fill targetNode's only recovery slot
+        TestRecoveryBlockerPlugin.shouldBlock = indexShard -> indexShard.shardId().getIndexName().equals(blockingIndex);
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+        assertAcked(
+            prepareCreate(blockingIndex).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", targetNode))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        // Disable automatic allocation so changing the include filter does not relocate shard 0.
+        // Point the filter at targetNode only so desired-balance does not cancel the empty primary we force-allocate there.
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
+        updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", targetNode));
+
+        // Shard 0 stays STARTED on startedNode (allocation disabled).
+        // Shard 1: force a fresh empty primary on targetNode (non-relocating INITIALIZING, queued).
+        // Shard 2: relocate to targetNode (RELOCATING, target queued).
+        ClusterRerouteUtils.reroute(
+            client(),
+            new CancelAllocationCommand(indexName, 1, startedNode, true),
+            new AllocateEmptyPrimaryAllocationCommand(indexName, 1, targetNode, true),
+            new MoveAllocationCommand(indexName, 2, startedNode, targetNode)
+        );
+        awaitRecoveryCountStats(
+            Map.of(
+                targetNode,
+                stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1 && stats.currentAsTargetQueued() == 1
+            )
+        );
+        waitNoPendingTasksOnAll();
+
+        final var startedShardId = new ShardId(resolveIndex(indexName), 0);
+        final var initializingShardId = new ShardId(resolveIndex(indexName), 1);
+        final var relocatingShardId = new ShardId(resolveIndex(indexName), 2);
+        final var indexRoutingTable = clusterService().state().routingTable().index(indexName);
+        assertThat(indexRoutingTable.shard(0).primaryShard().state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(indexRoutingTable.shard(1).primaryShard().state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertFalse(indexRoutingTable.shard(1).primaryShard().isRelocationTarget());
+        assertTrue(indexRoutingTable.shard(2).primaryShard().relocating());
+
+        final var cancellationSent = new CountDownLatch(1);
+        final var unexpectedCancellation = new AtomicBoolean(false);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
+                if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
+                    for (var cancellation : cancelRequest.cancellations()) {
+                        if (cancellation.shardId().equals(relocatingShardId)) {
+                            assertFalse(cancellation.cancelIfStarted());
+                            cancellationSent.countDown();
+                        } else {
+                            unexpectedCancellation.set(true);
+                        }
+                    }
+                }
+                handler.messageReceived(request, channel, task);
+            });
+        MockTransportService.getInstance(startedNode)
+            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
+                if (request instanceof CancelRecoveriesAction.Request) {
+                    unexpectedCancellation.set(true);
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        awaitSingleSnapshotMatching(snapshot -> {
+            final var shards = snapshot.shards();
+            final var startedShard = shards.get(startedShardId);
+            final var initializingShard = shards.get(initializingShardId);
+            final var relocatingShard = shards.get(relocatingShardId);
+            return startedShard != null
+                && (startedShard.state() == SnapshotsInProgress.ShardState.INIT || startedShard.state().completed())
+                && initializingShard != null
+                && initializingShard.state() == SnapshotsInProgress.ShardState.WAITING
+                && relocatingShard != null
+                && relocatingShard.state() == SnapshotsInProgress.ShardState.WAITING
+                || relocatingShard.state() == SnapshotsInProgress.ShardState.INIT
+                || relocatingShard.state().completed();
+        });
+
+        safeAwait(cancellationSent);
+        assertFalse("only the relocating shard should be cancelled", unexpectedCancellation.get());
+
+        awaitPrimaryReassigned(indexName, 2, getNodeId(startedNode));
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+        assertThat(safeGet(snapshotFuture).getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertFalse("only the relocating shard should be cancelled", unexpectedCancellation.get());
+        ensureGreen(indexName, blockingIndex);
     }
 
     public void testSnapshotCancellationDoesNotCancelWhenSourceNodeMarkedForRemoval() throws Exception {
@@ -648,7 +748,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var repoName = randomIndexName();
         final var snapshotName = randomIndexName();
 
-        createIndex(indexName, indexSettings(2, 0).build());
+        createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
         assertAcked(
@@ -691,7 +791,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             .setWaitForCompletion(true)
             .execute();
 
-        awaitSnapshotWithInitAndWaitingShards();
+        awaitSingleSnapshotMatching(SnapshotsInProgress.Entry::hasShardsInWaitingState);
         waitNoPendingTasksOnAll();
         assertFalse("waiting snapshot should not send cancellations for a node marked for removal", unexpectedCancellation.get());
 
@@ -701,17 +801,14 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         assertFalse("waiting snapshot should not send cancellations for a node marked for removal", unexpectedCancellation.get());
     }
 
-    private void awaitSnapshotWithInitAndWaitingShards() {
+    private void awaitSingleSnapshotMatching(Predicate<SnapshotsInProgress.Entry> requirement) {
         awaitClusterState(clusterState -> {
             final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
             if (snapshotsInProgress.isEmpty()) {
                 return false;
             }
             assertThat("unexpected number of snapshots in cluster state", snapshotsInProgress.count(), equalTo(1));
-            return snapshotsInProgress.asStream()
-                .findFirst()
-                .map(entry -> entry.hasShardsInInitState() && entry.hasShardsInWaitingState())
-                .orElse(false);
+            return snapshotsInProgress.asStream().findFirst().map(requirement::test).orElse(false);
         });
     }
 

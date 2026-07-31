@@ -309,13 +309,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
         final Map<DiscoveryNode, List<ShardRecoveryCancellation>> nodeToBlockingShards = new HashMap<>();
         for (ShardId shardId : waitingSnapshotShards) {
-            // activePrimary is the relocating source
             final ShardRouting primary = routingNodes.activePrimary(shardId);
             if (primary == null || primary.relocating() == false) {
+                // only cancel relocations, let new initializing primaries finish their recovery
                 continue;
             }
-            // Leave removal-driven moves alone to avoid delaying evacuation.
             if (nodesShutdownMetadata.isNodeMarkedForRemoval(primary.currentNodeId())) {
+                // Leave removal-driven moves alone to avoid delaying evacuation.
                 continue;
             }
             final ShardRouting target = primary.getTargetRelocatingShard();
@@ -324,6 +324,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             nodeToBlockingShards.computeIfAbsent(targetNode, n -> new ArrayList<>())
                 .add(new ShardRecoveryCancellation(primary.shardId(), target.allocationId().getId(), false));
         }
+
         final Map<DiscoveryNode, CancelRecoveriesAction.Request> cancellationRequests = new HashMap<>();
         nodeToBlockingShards.forEach(
             (node, cancellations) -> cancellationRequests.put(node, new CancelRecoveriesAction.Request(term, version, cancellations))
@@ -412,6 +413,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
                         new SentCancellation(request.term(), cancellation.cancelIfStarted())
                     );
                 }
+                // TODO: Retry cancellations on transport failure, and have the data node re-report
+                // recoveries it already cancelled-in-queue so the master can still fail those shards
+                // if the original response was lost.
                 logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e);
             }), CancelRecoveriesAction.Response::new, genericExecutor)
         );

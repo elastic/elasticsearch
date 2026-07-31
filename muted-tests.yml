@@ -592,3 +592,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
   method: testBulkScore {p0=SNAP p1=EUCLIDEAN}
   issue: https://github.com/elastic/elasticsearch/issues/155568
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=EUCLIDEAN}
+  issue: https://github.com/elastic/elasticsearch/issues/155569

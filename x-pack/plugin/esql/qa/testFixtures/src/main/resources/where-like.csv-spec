@@ -1551,10 +1551,15 @@ emp_no:integer | first_name:keyword
 
 rlikeConstantExpressionConcat
 required_capability: like_rlike_constant_expression
-from employees | where first_name rlike concat("Eber", ".*") | keep emp_no, first_name;
+// tag::rlikeConstExprConcat[]
+from employees | where first_name rlike concat("Eber", ".*") | keep emp_no, first_name
+// end::rlikeConstExprConcat[]
+;
 
+// tag::rlikeConstExprConcat-result[]
 emp_no:integer | first_name:keyword
 10013          | Eberhardt
+// end::rlikeConstExprConcat-result[]
 ;
 
 

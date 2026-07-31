@@ -206,6 +206,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         return textSearchInfo;
     }
 
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
+    }
+
     private static KeywordFieldMapper toType(FieldMapper in) {
         return (KeywordFieldMapper) in;
     }
@@ -302,11 +313,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
 
             this.docValuesParameters = DocValuesParameter.of(
-                DocValuesParameter.defaultValues(
-                    indexSettings,
-                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                    DocValuesParameter.Values.Cardinality.HIGH
-                ),
+                defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -384,23 +391,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues
-                    ? DocValuesParameter.defaultValues(
-                        indexSettings,
-                        DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                        DocValuesParameter.Values.Cardinality.HIGH
-                    )
-                    : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
-            var defaultDocValues = DocValuesParameter.defaultValues(
-                indexSettings,
-                DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                DocValuesParameter.Values.Cardinality.HIGH
-            );
+            var defaultDocValues = defaultDocValuesParameters(indexSettings);
             this.docValuesParameters.setValue(
                 new DocValuesParameter.Values(
                     true,

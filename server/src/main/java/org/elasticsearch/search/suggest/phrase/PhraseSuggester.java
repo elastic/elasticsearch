@@ -132,7 +132,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                 // These queues are local to getCorrections: CandidateScorer drains its queue into the result and
                 // DirectSpellChecker does not retain its candidate queues.
                 if (circuitBreaker != null) {
-                    circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
+                    circuitBreaker.addWithoutBreaking(-collectorBytes);
                 }
             }
 

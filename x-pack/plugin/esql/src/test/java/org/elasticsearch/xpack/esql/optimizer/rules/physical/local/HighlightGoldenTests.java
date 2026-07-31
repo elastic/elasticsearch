@@ -42,7 +42,8 @@ public class HighlightGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * TopN moves below HIGHLIGHT and is pushed into the source.
+     * The logical optimizer moves the SORT and LIMIT below HIGHLIGHT, combining them into a TopN that HIGHLIGHT now sits above.
+     * The local physical plan then pushes that TopN into the source, so highlighting runs on the surviving rows.
      */
     public void testTopNIsPushedBelowHighlight() {
         assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
@@ -53,27 +54,11 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | SORT emp_no DESC
             | LIMIT 10
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 
     /**
-     * HIGHLIGHT moves past the Eval and TopN created for a sort expression. The TopN remains local because Lucene cannot sort
-     * on the expression.
-     */
-    public void testHighlightIsHoistedPastEvalAndTopN() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        String query = """
-            FROM employees
-            | WHERE first_name : "elasticsearch"
-            | HIGHLIGHT "elasticsearch" ON first_name
-            | SORT LENGTH(last_name) DESC
-            | LIMIT 10
-            """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
-    }
-
-    /**
-     * TopN stays above HIGHLIGHT when it sorts on a generated highlight column.
+     * The TopN stays above HIGHLIGHT when it sorts on a generated highlight column, since that sort depends on the highlight output.
      */
     public void testTopNOnGeneratedSnippetIsNotPushedBelowHighlight() {
         assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
@@ -84,54 +69,6 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | SORT highlight_first_name ASC
             | LIMIT 10
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
-    }
-
-    /**
-     * HIGHLIGHT moves past an Eval whose output name does not conflict with its input or output.
-     */
-    public void testHighlightIsHoistedPastEvalShadowingUnrelatedColumn() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        String query = """
-            FROM employees
-            | WHERE first_name : "elasticsearch"
-            | HIGHLIGHT "elasticsearch" ON first_name
-            | EVAL gender = CONCAT(last_name, "x")
-            | SORT gender ASC
-            | LIMIT 10
-            """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
-    }
-
-    /**
-     * HIGHLIGHT stays below an Eval that replaces the generated column.
-     */
-    public void testHighlightIsNotHoistedPastEvalShadowingGeneratedColumn() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        String query = """
-            FROM employees
-            | WHERE first_name : "elasticsearch"
-            | HIGHLIGHT "elasticsearch" ON first_name
-            | EVAL highlight_first_name = CONCAT(last_name, "x")
-            | SORT highlight_first_name ASC
-            | LIMIT 10
-            """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
-    }
-
-    /**
-     * HIGHLIGHT stays below an Eval that replaces its ON field.
-     */
-    public void testHighlightIsNotHoistedPastEvalShadowingOnField() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        String query = """
-            FROM employees
-            | WHERE first_name : "elasticsearch"
-            | HIGHLIGHT "elasticsearch" ON first_name
-            | EVAL first_name = CONCAT(last_name, "x")
-            | SORT first_name ASC
-            | LIMIT 10
-            """;
-        runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 }

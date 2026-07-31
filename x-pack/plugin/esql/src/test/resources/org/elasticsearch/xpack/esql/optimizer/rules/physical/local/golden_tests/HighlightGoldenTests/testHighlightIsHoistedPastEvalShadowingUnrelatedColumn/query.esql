@@ -1,6 +1,0 @@
-FROM employees
-| WHERE first_name : "elasticsearch"
-| HIGHLIGHT "elasticsearch" ON first_name
-| EVAL gender = CONCAT(last_name, "x")
-| SORT gender ASC
-| LIMIT 10

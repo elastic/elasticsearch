@@ -85,7 +85,6 @@ public class HollowShardsServiceUnhollowRaceIT extends AbstractStatelessPluginIn
         final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, nodeA);
         assertBusy(() -> assertTrue(hollowShardsServiceA.isHollowableIndexShard(findIndexShard(index, 0))));
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", nodeB), indexName);
-        internalCluster().awaitNodeVacated(indexName, nodeA);
         ensureGreen(indexName);
         final var shardId = findIndexShard(index, 0).shardId();
         final var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, nodeB);
@@ -112,7 +111,6 @@ public class HollowShardsServiceUnhollowRaceIT extends AbstractStatelessPluginIn
                 Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", nodeA),
                 indexName
             );
-            internalCluster().awaitNodeVacated(indexName, nodeB);
             ensureGreen(indexName);
         } finally {
             listenerReleased.countDown();

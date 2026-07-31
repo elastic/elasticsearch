@@ -7,6 +7,27 @@
  # your election, the "Elastic License 2.0", the "GNU Affero General Public
  # License v3.0 only", or the "Server Side Public License, v 1".
 #
+# Builds and publishes prebuilt zstd native libraries to Artifactory.
+# Linux binaries are built via Docker (see zstd.Dockerfile); macOS binaries
+# are sourced from Homebrew; Windows binaries from the official GitHub release.
+#
+# Usage:
+#   ./publish_zstd_binaries.sh                 Build and upload to Artifactory
+#   ./publish_zstd_binaries.sh --local-only    Build and install locally (no upload)
+#
+# Local development:
+#   The --local-only flag builds all platform artifacts and installs them into
+#   libs/native/libraries/build/platform/ so they can be used for tests and
+#   benchmarks without publishing to Artifactory. Requires Docker with
+#   multi-platform support (linux/amd64 + linux/arm64).
+#
+#   Example:
+#     cd dev-tools
+#     ./publish_zstd_binaries.sh --local-only
+#     cd ..
+#     LOCAL_ZSTD_BINARY=1 ./gradlew :libs:native:test
+#     LOCAL_ZSTD_BINARY=1 ./gradlew -p benchmarks run --args "ZstdDecompressBenchmark"
+#
 
 set -e
 
@@ -14,13 +35,18 @@ VERSION="1.5.7"
 BUILD_REVISION="1"
 ARTIFACT_VERSION="${VERSION}-${BUILD_REVISION}"
 
+LOCAL_ONLY=false
+if [ "${1:-}" = "--local-only" ]; then
+  LOCAL_ONLY=true
+fi
+
 if [ $(docker buildx inspect --bootstrap | grep -c 'Platforms:.*linux/arm64') -ne 1 ]; then
   echo 'Error: No Docker support for linux/arm64 detected'
   echo 'For more information see https://docs.docker.com/build/building/multi-platform'
   exit 1;
 fi
 
-if [ -z "$ARTIFACTORY_API_KEY" ]; then
+if [ "$LOCAL_ONLY" = false ] && [ -z "$ARTIFACTORY_API_KEY" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;
 fi
@@ -30,6 +56,9 @@ TEMP=$(mktemp -d)
 
 echo "Source version: $VERSION"
 echo "Artifact version: $ARTIFACT_VERSION"
+if [ "$LOCAL_ONLY" = true ]; then
+  echo "Mode: local-only (build artifacts, skip upload)"
+fi
 
 fetch_homebrew_artifact() {
   DIGEST=$(curl -sS --retry 3 -H "Accept: application/vnd.oci.image.index.v1+json" -H "Authorization: Bearer QQ==" \
@@ -102,11 +131,42 @@ upload_artifact() {
   curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary "@$1" --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/zstd/${ARTIFACT_VERSION}/$(basename $1)"
 }
 
-echo 'Uploading artifacts...'
-upload_artifact ${DARWIN_ARM_JAR}
-upload_artifact ${DARWIN_X86_JAR}
-upload_artifact ${LINUX_ARM_JAR}
-upload_artifact ${LINUX_X86_JAR}
-upload_artifact ${WINDOWS_X86_JAR}
+install_locally() {
+  local platform_dir="$(cd "$(dirname "$0")" && pwd)/../libs/native/libraries/build/platform"
 
-rm -rf $TEMP
+  echo ''
+  echo 'Installing locally built libraries...'
+  for jar in "$TEMP"/*.jar; do
+    unzip -oq "$jar" -d "$platform_dir"
+  done
+  # Match the directory renames that extractLibs applies
+  for src_suffix in "linux-x86-64:linux-x64" "darwin-x86-64:darwin-x64" "win32-x86-64:windows-x86-64"; do
+    local src="${src_suffix%%:*}" dst="${src_suffix##*:}"
+    if [ -d "$platform_dir/$src" ]; then
+      mkdir -p "$platform_dir/$dst"
+      cp -f "$platform_dir/$src"/* "$platform_dir/$dst/"
+      rm -rf "$platform_dir/$src"
+    fi
+  done
+  rm -rf "$TEMP"
+
+  echo ''
+  echo 'Installed to:'
+  find "$platform_dir" -type f -name 'libzstd*' -o -name 'zstd*' | sort | while read f; do
+    echo "  $f ($(du -h "$f" | cut -f1 | xargs))"
+  done
+  echo ''
+  echo 'Run tests/benchmarks with: LOCAL_ZSTD_BINARY=1 ./gradlew ...'
+}
+
+if [ "$LOCAL_ONLY" = true ]; then
+  install_locally
+else
+  echo 'Uploading artifacts...'
+  upload_artifact ${DARWIN_ARM_JAR}
+  upload_artifact ${DARWIN_X86_JAR}
+  upload_artifact ${LINUX_ARM_JAR}
+  upload_artifact ${LINUX_X86_JAR}
+  upload_artifact ${WINDOWS_X86_JAR}
+  rm -rf $TEMP
+fi

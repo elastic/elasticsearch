@@ -295,7 +295,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
      */
     public ThrottleDelay throttleDelay(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
         float requestsPerSecond = getRequestsPerSecond();
-        long targetBatchTime = round((double) perfectlyThrottledBatchTime(lastBatchSize, requestsPerSecond));
+        long targetBatchTime = round(perfectlyThrottledBatchTime(lastBatchSize, requestsPerSecond));
         long elapsedBatchTime = max(0, nowNS - lastBatchStartTimeNS);
         long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, targetBatchTime - elapsedBatchTime));
         return new ThrottleDelay(timeValueNanos(waitTime), requestsPerSecond);
@@ -304,24 +304,24 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
     /**
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
      */
-    float perfectlyThrottledBatchTime(int lastBatchSize) {
+    double perfectlyThrottledBatchTime(int lastBatchSize) {
         return perfectlyThrottledBatchTime(lastBatchSize, getRequestsPerSecond());
     }
 
-    private static float perfectlyThrottledBatchTime(int lastBatchSize, float requestsPerSecond) {
+    private static double perfectlyThrottledBatchTime(int lastBatchSize, float requestsPerSecond) {
         if (requestsPerSecond == Float.POSITIVE_INFINITY) {
             return 0;
         }
         // requests
         // ------------------- == seconds
         // request per seconds
-        float targetBatchTimeInSeconds = lastBatchSize / requestsPerSecond;
+        double targetBatchTimeInSeconds = lastBatchSize / (double) requestsPerSecond;
         // nanoseconds per seconds * seconds == nanoseconds
         return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {
-        if (requestsPerSecond <= 0) {
+        if (requestsPerSecond <= 0 || Float.isNaN(requestsPerSecond)) {
             throw new IllegalArgumentException("requests per second must be more than 0 but was [" + requestsPerSecond + "]");
         }
         this.requestsPerSecond = requestsPerSecond;
@@ -414,7 +414,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
              * is given a runOnce boolean to prevent that. */
             TimeValue newDelay = newDelay(remainingDelay, newRequestsPerSecond);
             logger.debug("[{}]: rescheduling for [{}] in the future", task.getId(), newDelay);
-            return new DelayedPrepareBulkRequest(threadPool, requestsPerSecond, newDelay, command);
+            return new DelayedPrepareBulkRequest(threadPool, newRequestsPerSecond, newDelay, command);
         }
 
         /**
@@ -424,7 +424,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
             if (remainingDelay < 0) {
                 return timeValueNanos(0);
             }
-            return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
+            return timeValueNanos(round((double) remainingDelay * requestsPerSecond / newRequestsPerSecond));
         }
     }
 }

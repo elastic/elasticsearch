@@ -360,6 +360,67 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         assertThat(scheduleAfterRethrottle(throttleDelay, 1f), equalTo(timeValueSeconds(1)));
     }
 
+    public void testRepeatedFasterRethrottlesUseTheLatestScheduledRate() throws IOException {
+        workerState.rethrottle(1f);
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        ThreadPool threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        };
+        try {
+            workerState.delayPrepareBulkRequest(
+                threadPool,
+                new WorkerBulkByPaginatedSearchTaskState.ThrottleDelay(timeValueSeconds(100), 1f),
+                new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail(e);
+                    }
+                }
+            );
+            assertThat(capturedDelay.get(), equalTo(timeValueSeconds(100)));
+
+            workerState.rethrottle(2f);
+            assertThat(capturedDelay.get(), equalTo(timeValueSeconds(50)));
+
+            workerState.rethrottle(4f);
+            assertThat(capturedDelay.get(), equalTo(timeValueSeconds(25)));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testRethrottleRejectsNaN() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> workerState.rethrottle(Float.NaN));
+        assertThat(exception.getMessage(), equalTo("requests per second must be more than 0 but was [NaN]"));
+    }
+
     private TimeValue scheduleAfterRethrottle(WorkerBulkByPaginatedSearchTaskState.ThrottleDelay throttleDelay, float requestsPerSecond)
         throws IOException {
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
@@ -528,13 +589,10 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
 
     public void testPerfectlyThrottledBatchTime() {
         workerState.rethrottle(Float.POSITIVE_INFINITY);
-        assertThat((double) workerState.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
+        assertThat(workerState.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
 
         int total = between(0, 1000000);
         workerState.rethrottle(1);
-        assertThat(
-            (double) workerState.perfectlyThrottledBatchTime(total),
-            closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1))
-        );
+        assertThat(workerState.perfectlyThrottledBatchTime(total), closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
     }
 }

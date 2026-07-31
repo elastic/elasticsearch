@@ -947,7 +947,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         });
 
         // Set the base for the scroll to wait - this is added to the figure we calculate below
-        testRequest.getSearchRequest().scroll(timeValueSeconds(10));
+        TimeValue scrollBase = timeValueSeconds(10);
+        testRequest.getSearchRequest().scroll(scrollBase);
 
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
@@ -980,20 +981,20 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             assertEquals(0, capturedDelay.get().seconds());
             capturedCommand.get().run();
 
-            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            TimeValue composedScroll = client.lastScroll.get().request.scroll();
+            TimeValue keepAliveExtension = TimeValue.timeValueNanos(composedScroll.nanos() - scrollBase.nanos());
+            assertThat(keepAliveExtension.seconds(), either(equalTo(99L)).or(equalTo(100L)));
+            assertThat(composedScroll, equalTo(TimeValue.timeValueNanos(scrollBase.nanos() + keepAliveExtension.nanos())));
 
-            // The action path samples System.nanoTime() when scheduling the delay, so the elapsed time between starting the
-            // batch and receiving this response can floor the seconds value by one.
             if (randomBoolean()) {
                 client.lastScroll.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(99L)).or(equalTo(100L)));
+                assertThat(capturedDelay.get(), equalTo(keepAliveExtension));
             } else {
                 // Let's rethrottle between the starting the scroll and getting the response
                 worker.rethrottle(10f);
                 client.lastScroll.get().listener.onResponse(searchResponse);
-                // The delay uses the new throttle: 100 hits at 10 req/sec = 10 seconds
-                assertThat(capturedDelay.get().seconds(), either(equalTo(9L)).or(equalTo(10L)));
+                long expectedDelayNanos = Math.round(keepAliveExtension.nanos() * 1.0d / 10.0d);
+                assertThat(capturedDelay.get(), equalTo(TimeValue.timeValueNanos(expectedDelayNanos)));
             }
 
             // Running the command ought to increment the delay counter on the task.
@@ -1134,6 +1135,48 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertThat(capturedScheduledDelay.get(), equalTo(capturedKeepAlive.get()));
     }
 
+    public void testPageThrottleUsesTheCurrentBulkSizeAfterIntermediateBulkDelay() {
+        worker.rethrottle(1f);
+        AtomicReference<TimeValue> capturedIntermediateDelay = new AtomicReference<>();
+        AtomicReference<TimeValue> capturedKeepAlive = new AtomicReference<>();
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
+            @Override
+            void onPaginatedSearchResponse(
+                ThrottleDelay throttleDelay,
+                AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse
+            ) {
+                capturedIntermediateDelay.set(throttleDelay.delay());
+            }
+        };
+        List<Hit> hits = List.of(
+            new PaginatedHitSource.BasicHit("index", "first", -1),
+            new PaginatedHitSource.BasicHit("index", "second", -1)
+        );
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), hits.size(), hits, scrollId(), null);
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    capturedKeepAlive.set(extraKeepAlive);
+                }
+            });
+
+        asyncResponse.consumeHits(1);
+        action.notifyDone(System.nanoTime(), asyncResponse, 50);
+        assertThat(capturedIntermediateDelay.get().nanos(), greaterThan(TimeUnit.SECONDS.toNanos(49)));
+        assertThat(capturedIntermediateDelay.get().nanos(), lessThanOrEqualTo(TimeUnit.SECONDS.toNanos(50)));
+
+        asyncResponse.consumeHits(1);
+        action.notifyDone(System.nanoTime(), asyncResponse, 50);
+
+        assertThat(capturedKeepAlive.get().nanos(), greaterThan(TimeUnit.SECONDS.toNanos(49)));
+        assertThat(capturedKeepAlive.get().nanos(), lessThanOrEqualTo(TimeUnit.SECONDS.toNanos(50)));
+    }
+
     /**
      * Verifies that the delay scheduled between PIT search batches is correctly calculated from the throttle rate.
      * The initial delay should be zero; subsequent delays should reflect the throttling (e.g. ~100s at 1f, ~10s at 10f).
@@ -1198,18 +1241,20 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             capturedCommand.get().run();
 
             assertNotNull("PIT next search should use SearchRequest", client.lastSearch.get());
-            assertThat(
-                client.lastSearch.get().request.source().pointInTimeBuilder().getKeepAlive().seconds(),
-                either(equalTo(399L)).or(equalTo(400L))
-            );
+            TimeValue pitBase = TimeValue.timeValueMinutes(5);
+            TimeValue composedKeepAlive = client.lastSearch.get().request.source().pointInTimeBuilder().getKeepAlive();
+            TimeValue keepAliveExtension = TimeValue.timeValueNanos(composedKeepAlive.nanos() - pitBase.nanos());
+            assertThat(keepAliveExtension.seconds(), either(equalTo(99L)).or(equalTo(100L)));
+            assertThat(composedKeepAlive, equalTo(TimeValue.timeValueNanos(pitBase.nanos() + keepAliveExtension.nanos())));
 
             if (randomBoolean()) {
                 client.lastSearch.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(99L)).or(equalTo(100L)));
+                assertThat(capturedDelay.get(), equalTo(keepAliveExtension));
             } else {
                 worker.rethrottle(10f);
                 client.lastSearch.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(9L)).or(equalTo(10L)));
+                long expectedDelayNanos = Math.round(keepAliveExtension.nanos() * 1.0d / 10.0d);
+                assertThat(capturedDelay.get(), equalTo(TimeValue.timeValueNanos(expectedDelayNanos)));
             }
 
             capturedCommand.get().run();

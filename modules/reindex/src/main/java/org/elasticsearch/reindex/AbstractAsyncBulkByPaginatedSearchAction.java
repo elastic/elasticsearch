@@ -73,7 +73,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -136,14 +135,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * (before the ref is restored when {@code maxDocs} leaves a partial batch).
      */
     private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
-    /**
-     * Keeps track of the total number of bulk operations performed
-     * from a single paginated search response. It is possible that
-     * multiple bulk requests are performed from a single paginated search
-     * response, meaning that we have to take into account the total
-     * in order to compute a correct search context keep-alive time.
-     */
-    private final AtomicInteger totalBatchSizeInSinglePaginatedSearchResponse = new AtomicInteger();
     /**
      * The remaining throttle delay calculated when the previous page finished. It is consumed by the next paginated search response so
      * time spent waiting for that response neither shortens the delay nor causes it to be calculated twice.
@@ -760,8 +751,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             finishHim(null);
             return;
         }
-        this.totalBatchSizeInSinglePaginatedSearchResponse.addAndGet(batchSize);
-
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
             onPaginatedSearchResponse(worker.throttleDelay(thisBatchStartTimeNS, System.nanoTime(), batchSize), asyncResponse);
@@ -832,8 +821,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             // if we can't relocate, continue. we could still finish gracefully, or eventually meet the conditions for relocation.
         }
 
-        int totalBatchSize = totalBatchSizeInSinglePaginatedSearchResponse.getAndSet(0);
-        ThrottleDelay throttleDelay = worker.throttleDelay(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize);
+        ThrottleDelay throttleDelay = worker.throttleDelay(thisBatchStartTimeNS, System.nanoTime(), batchSize);
         pendingThrottleDelay.set(throttleDelay);
         asyncResponse.done(throttleDelay.delay());
     }

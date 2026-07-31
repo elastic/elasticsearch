@@ -171,7 +171,7 @@ public abstract class AbstractBaseReindexRestHandler<
         if (requestsPerSecond == -1) {
             return Float.POSITIVE_INFINITY;
         }
-        if (requestsPerSecond <= 0) {
+        if (requestsPerSecond <= 0 || Float.isNaN(requestsPerSecond)) {
             // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of -1
             throw new IllegalArgumentException("[requests_per_second] must be a float greater than 0. Use -1 to disable throttling.");
         }

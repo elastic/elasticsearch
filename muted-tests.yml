@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: testEvaluateBlockWithNulls
-  issue: https://github.com/elastic/elasticsearch/issues/147773
 
 # Examples:
 #
@@ -247,9 +244,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
-  issue: https://github.com/elastic/elasticsearch/issues/151992
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/152005

@@ -1857,7 +1857,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or flattened or geo_point "
+                + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -4619,6 +4619,28 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("hire_date", fa.name());
         literal = as(bucket.buckets(), Literal.class);
         assertEquals(oneYear, literal);
+    }
+
+    public void testBucketInvalidNumberOfArguments() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, {"include_empty_buckets": true})
+            """, containsString("expects between two and four positional arguments"));
+    }
+
+    public void testBucketInvalidOption() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+        basic().error("""
+            FROM test | STATS c = COUNT(*)
+                        BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_twoPositionalArgs() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
+            """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
     }
 
     public void testProjectionForUnionTypeResolution() {

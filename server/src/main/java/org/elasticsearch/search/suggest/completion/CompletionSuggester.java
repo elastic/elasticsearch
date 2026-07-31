@@ -55,10 +55,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             // which extends PriorityQueue and allocates a heap array of length shardSize + 1. This is the
             // dominant cost so we make sure here we have enough heap to allocate it
             long collectorBytes = priorityQueueRamBytesUsed(shardSize);
-            var circuitBreaker = searchExecutionContext.getCircuitBreaker();
-            if (circuitBreaker != null) {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(collectorBytes, COLLECTOR_MEMORY_LABEL);
-            }
+            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             try {
                 TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
                 suggest(searcher, suggestionContext.toQuery(), collector);
@@ -86,9 +83,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
                 return completionSuggestion;
             } finally {
-                if (circuitBreaker != null) {
-                    circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
-                }
+                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes);
             }
         }
         return null;

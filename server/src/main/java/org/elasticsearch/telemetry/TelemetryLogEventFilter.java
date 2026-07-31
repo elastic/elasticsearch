@@ -14,14 +14,11 @@ import org.elasticsearch.core.Nullable;
 import java.util.Map;
 
 /**
- * Filter for OTel log appenders. Implementations can inspect, rewrite, or drop a log event
- * before it is exported via OTLP.
- *
- * <p>Filters are applied in registration order. The event returned by one filter is passed to
- * the next. A null return drops the event — no subsequent filters in the chain are called.
+ * Filter for telemetry log appenders. Implementations can inspect, rewrite, or drop a log event
+ * before it is exported.
  */
 @FunctionalInterface
-public interface OtelLogEventFilter {
+public interface TelemetryLogEventFilter {
     /**
      * @param event the log event to inspect
      * @return the event to forward (possibly rewritten), or {@code null} to drop it

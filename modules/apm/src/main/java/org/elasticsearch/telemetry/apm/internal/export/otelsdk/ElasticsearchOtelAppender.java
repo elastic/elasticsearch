@@ -29,10 +29,10 @@ import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.time.Instant;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.telemetry.OtelLogEventFilter;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.telemetry.TelemetryLogEventFilter;
 
 import java.lang.reflect.Array;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -60,7 +60,8 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     private static final String TRACE_ID_KEY = "trace.id";
 
     private volatile OpenTelemetry openTelemetry;
-    private volatile List<OtelLogEventFilter> otelFilters = List.of();
+    @Nullable
+    private final TelemetryLogEventFilter filter;
 
     private static final int KEY_CACHE_MAX_SIZE = 100;
 
@@ -85,13 +86,15 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     }
 
     /**
-     * @param name         appender name used by the log4j configuration graph
+     * @param name          appender name used by the log4j configuration graph
      * @param openTelemetry initial OTel instance; may be updated atomically via {@link #setOpenTelemetry}
+     * @param filter        optional filter applied before emitting each event; {@code null} means no filtering
      */
-    public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry) {
+    public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry, @Nullable TelemetryLogEventFilter filter) {
         super(name, null, null, true, Property.EMPTY_ARRAY);
         Objects.requireNonNull(openTelemetry, "openTelemetry is null");
         this.openTelemetry = openTelemetry;
+        this.filter = filter;
     }
 
     /**
@@ -100,13 +103,6 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     public void setOpenTelemetry(OpenTelemetry openTelemetry) {
         Objects.requireNonNull(openTelemetry, "openTelemetry is null");
         this.openTelemetry = openTelemetry;
-    }
-
-    /** Add a filter to the end of the filter chain for this appender. */
-    public synchronized void addFilter(OtelLogEventFilter filter) {
-        List<OtelLogEventFilter> next = new ArrayList<>(otelFilters);
-        next.add(filter);
-        otelFilters = List.copyOf(next);
     }
 
     @Override
@@ -185,8 +181,8 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         }
 
         Map<String, Object> data = (Map<String, Object>) mapMessage.getData();
-        for (OtelLogEventFilter f : otelFilters) {
-            data = f.filter(data);
+        if (filter != null) {
+            data = filter.filter(data);
             if (data == null) return false;
         }
 

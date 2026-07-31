@@ -12,7 +12,7 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.OtelLogEventFilter;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
@@ -22,6 +22,7 @@ import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -31,10 +32,15 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMLoggingService loggingService;
     private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
 
-    public APMTelemetryProvider(Settings settings, Path diskBufferPath, Path configDir) {
+    public APMTelemetryProvider(
+        Settings settings,
+        Path diskBufferPath,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders
+    ) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
-        loggingService = new APMLoggingService(settings, configDir);
+        loggingService = new APMLoggingService(settings, configDir, filterProviders);
         apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 
@@ -72,11 +78,6 @@ public class APMTelemetryProvider implements TelemetryProvider {
         CompletableResultCode logs = loggingService.forceFlush();
         CompletableResultCode.ofAll(List.of(metrics, traces, logs))
             .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    @Override
-    public void addLoggingFilter(String appenderName, OtelLogEventFilter filter) {
-        loggingService.addFilter(appenderName, filter);
     }
 
     public void initCertReload(ResourceWatcherService resourceWatcher) {

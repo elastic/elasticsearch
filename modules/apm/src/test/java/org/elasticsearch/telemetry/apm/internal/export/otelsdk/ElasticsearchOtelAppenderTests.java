@@ -50,7 +50,7 @@ public class ElasticsearchOtelAppenderTests extends ESTestCase {
         exporter = InMemoryLogRecordExporter.create();
         provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
-        appender = new ElasticsearchOtelAppender("test", sdk);
+        appender = new ElasticsearchOtelAppender("test", sdk, null);
         appender.start();
     }
 

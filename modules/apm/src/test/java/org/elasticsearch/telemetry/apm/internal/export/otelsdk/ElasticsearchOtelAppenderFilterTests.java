@@ -21,13 +21,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.telemetry.TelemetryLogEventFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,58 +37,66 @@ public class ElasticsearchOtelAppenderFilterTests extends ESTestCase {
 
     private InMemoryLogRecordExporter exporter;
     private SdkLoggerProvider provider;
-    private ElasticsearchOtelAppender appender;
 
     @Before
     public void setup() {
         exporter = InMemoryLogRecordExporter.create();
         provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
-        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
-        appender = new ElasticsearchOtelAppender("test-filter", sdk);
-        appender.start();
     }
 
     @After
     public void teardown() {
-        appender.stop();
         provider.close();
     }
 
-    private void emit(String text) {
+    private ElasticsearchOtelAppender makeAppender(TelemetryLogEventFilter filter) {
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
+        ElasticsearchOtelAppender appender = new ElasticsearchOtelAppender("test-filter", sdk, filter);
+        appender.start();
+        return appender;
+    }
+
+    private void emit(ElasticsearchOtelAppender appender, String text) {
         appender.append(
             Log4jLogEvent.newBuilder().setLoggerName("test").setLevel(Level.INFO).setMessage(new ESLogMessage().field("data", text)).build()
         );
     }
 
     public void testFilterDropsEvents() {
-        appender.addFilter(event -> null);
-        emit("dropped");
-        assertThat(exporter.getFinishedLogRecordItems(), hasSize(0));
+        ElasticsearchOtelAppender appender = makeAppender(event -> null);
+        try {
+            emit(appender, "dropped");
+            assertThat(exporter.getFinishedLogRecordItems(), hasSize(0));
+        } finally {
+            appender.stop();
+        }
+    }
+
+    public void testNoFilterPassesEvents() {
+        ElasticsearchOtelAppender appender = makeAppender(null);
+        try {
+            emit(appender, "pass");
+            assertThat(exporter.getFinishedLogRecordItems(), hasSize(1));
+        } finally {
+            appender.stop();
+        }
     }
 
     public void testFilterRewritesAttribute() {
-        appender.addFilter(data -> Map.of("k", "filtered-value"));
-        appender.append(
-            Log4jLogEvent.newBuilder()
-                .setLoggerName("test")
-                .setLevel(Level.INFO)
-                .setMessage(new ESLogMessage().field("k", "original-value"))
-                .build()
-        );
-        List<LogRecordData> records = exporter.getFinishedLogRecordItems();
-        assertThat(records, hasSize(1));
-        assertThat(records.getFirst().getAttributes().get(AttributeKey.stringKey("k")), equalTo("filtered-value"));
-    }
-
-    public void testFilterChainShortCircuits() {
-        AtomicInteger secondFilterCalls = new AtomicInteger(0);
-        appender.addFilter(event -> null);
-        appender.addFilter(event -> {
-            secondFilterCalls.incrementAndGet();
-            return event;
-        });
-        emit("any");
-        assertThat(exporter.getFinishedLogRecordItems(), hasSize(0));
-        assertThat(secondFilterCalls.get(), equalTo(0));
+        ElasticsearchOtelAppender appender = makeAppender(data -> Map.of("k", "filtered-value"));
+        try {
+            appender.append(
+                Log4jLogEvent.newBuilder()
+                    .setLoggerName("test")
+                    .setLevel(Level.INFO)
+                    .setMessage(new ESLogMessage().field("k", "original-value"))
+                    .build()
+            );
+            List<LogRecordData> records = exporter.getFinishedLogRecordItems();
+            assertThat(records, hasSize(1));
+            assertThat(records.getFirst().getAttributes().get(AttributeKey.stringKey("k")), equalTo("filtered-value"));
+        } finally {
+            appender.stop();
+        }
     }
 }

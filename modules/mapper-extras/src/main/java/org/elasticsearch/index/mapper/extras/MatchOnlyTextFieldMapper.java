@@ -126,6 +126,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
+    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that mode.
+        return indexMode.isStrictColumnar()
+            ? FieldMapper.DocValuesParameter.Values.ENABLED_HIGH_CARDINALITY
+            : FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY;
+    }
+
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -152,7 +159,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final boolean storedFieldInBinaryFormat;
         private final boolean usesBinaryDocValuesForFallbackFields;
         private final IndexMode indexMode;
-        private final IndexSettings indexSettings;
 
         private Builder(
             String name,
@@ -161,7 +167,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean storedFieldInBinaryFormat,
             boolean isWithinMultiField,
             boolean usesBinaryDocValuesForFallbackFields,
-            IndexSettings indexSettings
+            IndexMode indexMode
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
 
@@ -175,16 +181,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
-            this.indexSettings = indexSettings;
-            this.indexMode = indexSettings.getMode();
+            this.indexMode = indexMode;
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                FieldMapper.DocValuesParameter.defaultValues(
-                    indexSettings,
-                    FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
-                ),
+                () -> defaultDocValuesParameters(indexMode),
+                defaultDocValuesParameters(indexMode),
                 m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
-                indexSettings.getMode().isStrictColumnar()
+                indexMode.isStrictColumnar()
             );
         }
 
@@ -196,7 +198,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
                 context.isWithinMultiField(),
                 usesBinaryDocValuesForFallbackFields(context.getIndexSettings()),
-                context.getIndexSettings()
+                context.getIndexSettings().getMode()
             );
         }
 
@@ -1127,7 +1129,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final boolean indexed;
     private final IndexMode indexMode;
-    private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
 
@@ -1154,7 +1155,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
         this.indexed = builder.indexed.get();
         this.indexMode = builder.indexMode;
-        this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
     }
 
@@ -1182,7 +1182,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             storedFieldInBinaryFormat,
             fieldType().isWithinMultiField(),
             usesBinaryDocValuesForFallbackFields,
-            indexSettings
+            indexMode
         ).init(this);
     }
 

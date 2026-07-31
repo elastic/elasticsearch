@@ -7361,6 +7361,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    /**
+     * Regression for https://github.com/elastic/elasticsearch/issues/153507:
+     * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
+     * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
+     */
+    public void testMetricsAggregateAliasCollidesWithGroupingKey() {
+        assumeTrue(
+            "Requires fix for TS STATS alias/grouping shadowing",
+            EsqlCapabilities.Cap.FIX_TS_STATS_ALIAS_GROUPING_SHADOW.isEnabled()
+        );
+        var plan = planMetrics("TS k8s | STATS pod = FIRST(events_received, @timestamp) BY pod");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
+        assertWarnings("Line 1:16: Field 'pod' shadowed by field at line 1:60");
+    }
+
     public void testTranslateMetricsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = planMetrics(query);

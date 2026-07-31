@@ -218,6 +218,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -251,9 +252,8 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedRolesStoreTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initReservedRolesStore() {
         // Initialize the reserved roles store so that static fields are populated.
         // In production code, this is guaranteed by how components are initialized by the Security plugin
         new ReservedRolesStore();

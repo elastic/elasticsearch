@@ -30,7 +30,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.SimilarityFunction function, int size) {
         super(function, size);
     }
 
@@ -38,7 +38,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
         // cosine is not used on float vectors, and quantization is only used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.SimilarityFunction.COSINE);
         return baseParams;
     }
 
@@ -380,9 +380,14 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     public void testBulkSparseIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         int count = 3;
-        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         var query = arena.allocate(size);
         var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate(size);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
 
         var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
         Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, size, count, scores));
@@ -403,7 +408,8 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         // null (zero) address in the addresses segment
-        ex = expectThrows(IAE, () -> similarityBulkSparse(addresses, query, size, count, scores));
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
         assertThat(ex.getMessage(), containsString("null"));
     }
 

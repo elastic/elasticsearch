@@ -14,7 +14,6 @@ import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -39,7 +38,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+        this.vectorDistance = vectorSimilarityFunctionsOrNull();
         this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
@@ -70,13 +69,15 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
-        if (isNativeVectorLibSupported()) {
-            var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-            return lib;
+    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull() {
+        if (isNativeVectorLibSupported() == false) {
+            return null;
         }
-        return null;
+        var lib = VectorSimilarityFunctions.tryLoad().orElse(null);
+        if (lib != null) {
+            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+        }
+        return lib;
     }
 
     static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
@@ -230,7 +231,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+        return Runtime.version().feature() >= 22 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
     }
 
     static boolean isNativeRustLibSupported() {

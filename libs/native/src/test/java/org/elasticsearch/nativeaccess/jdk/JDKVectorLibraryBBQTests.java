@@ -33,7 +33,11 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
     private final byte maxQueryValue;
     private final byte maxIndexValue;
 
-    public JDKVectorLibraryBBQTests(VectorSimilarityFunctions.BBQType type, VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryBBQTests(
+        VectorSimilarityFunctions.BBQType type,
+        VectorSimilarityFunctions.SimilarityFunction function,
+        int size
+    ) {
         super(function, size);
         this.type = type;
         this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
@@ -46,9 +50,9 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         // BBQ only with dimensions a multiple of 8
         baseParams.removeIf(os -> (Integer) os[1] % 8 != 0);
         // cosine is not a thing on BBQ
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.SimilarityFunction.COSINE);
         // remove all square distance (not implemented yet)
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.SimilarityFunction.SQUARE_DISTANCE);
 
         return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
             .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))

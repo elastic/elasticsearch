@@ -38,7 +38,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
 
     public JDKVectorLibraryBFloat16Tests(
         VectorSimilarityFunctions.BFloat16QueryType queryType,
-        VectorSimilarityFunctions.Function function,
+        VectorSimilarityFunctions.SimilarityFunction function,
         int size
     ) {
         super(function, size);
@@ -50,7 +50,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
         // cosine is not used on bfloat16
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.SimilarityFunction.COSINE);
         return Arrays.stream(VectorSimilarityFunctions.BFloat16QueryType.values())
             .flatMap(q -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(q), Arrays.asList(os)).toArray()))
             .toList();

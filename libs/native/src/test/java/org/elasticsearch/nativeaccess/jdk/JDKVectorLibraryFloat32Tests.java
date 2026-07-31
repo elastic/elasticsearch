@@ -32,7 +32,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     final float delta;
 
-    public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.SimilarityFunction function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
@@ -41,7 +41,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
         // cosine is not used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.SimilarityFunction.COSINE);
         return baseParams;
     }
 

@@ -38,7 +38,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.SimilarityFunction function, int size) {
         super(function, size);
     }
 
@@ -46,7 +46,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
         // Int4 only supports dot product
-        baseParams.removeIf(os -> os[0] != VectorSimilarityFunctions.Function.DOT_PRODUCT);
+        baseParams.removeIf(os -> os[0] != VectorSimilarityFunctions.SimilarityFunction.DOT_PRODUCT);
         // Int4 requires even dimensions (two nibbles per packed byte)
         baseParams.removeIf(os -> (Integer) os[1] % 2 != 0);
         return baseParams;

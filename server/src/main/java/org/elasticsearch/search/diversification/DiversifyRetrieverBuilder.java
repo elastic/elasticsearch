@@ -20,7 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.InferenceEmbeddingsMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -326,20 +326,15 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(InferenceMetadataFieldsMapper.NAME, diversificationField));
-        FetchSourceContext fsCtx = FetchSourceContext.of(
-            false,
-            false,
-            new String[] { InferenceMetadataFieldsMapper.NAME, diversificationField },
-            null
-        );
+        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(diversificationField));
+        FetchSourceContext fsCtx = FetchSourceContext.of(false, false, new String[] { diversificationField }, null);
 
         SearchSourceBuilder builder = sourceBuilder.from(0)
             .excludeVectors(false)
             .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .fetchField(InferenceMetadataFieldsMapper.NAME)
+            .fetchField(InferenceEmbeddingsMetadataFieldsMapper.NAME)
             .fetchField(diversificationField);
         return super.finalizeSourceBuilder(builder);
     }
@@ -479,7 +474,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         throws IllegalArgumentException, IOException {
 
         // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceField(doc.hit, diversificationContext);
+        VectorData vector = tryGetVectorFromInferenceEmbeddings(doc.hit, diversificationContext);
         if (vector != null) {
             return vector;
         }
@@ -488,41 +483,36 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         return field == null ? null : extractVectorDataFromObject(field.getValues());
     }
 
-    private VectorData tryGetVectorFromInferenceField(SearchHit hit, ResultDiversificationContext diversificationContext)
+    private VectorData tryGetVectorFromInferenceEmbeddings(SearchHit hit, ResultDiversificationContext diversificationContext)
         throws IllegalArgumentException, IOException {
-        var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
-        if (inferenceFields == null) {
+        var inferenceEmbeddings = hit.getFields().getOrDefault(InferenceEmbeddingsMetadataFieldsMapper.NAME, null);
+        if (inferenceEmbeddings == null) {
             return null;
         }
 
-        var fieldValues = inferenceFields.getValues();
+        var fieldValues = inferenceEmbeddings.getValues();
         if (fieldValues == null || fieldValues.isEmpty()) {
             return null;
         }
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.get(diversificationField);
-            if (fieldValue instanceof DenseVectorSupplier vectorSupplier) {
+            if (fieldValue instanceof List<?> chunkEmbeddings) {
                 if (diversificationContext.getQueryVector() == null) {
                     throw new IllegalArgumentException(
                         Strings.format(
-                            "[%s] or [%s] must be supplied when diversifying on a [%s] field.",
+                            "[%s] or [%s] must be supplied when diversifying on inference field [%s].",
                             QUERY_VECTOR_FIELD.getPreferredName(),
                             QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                            vectorSupplier.getSupplierContentType()
+                            diversificationField
                         )
                     );
                 }
 
-                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorData();
-                if (fieldVectors == null || fieldVectors.isEmpty()) {
-                    return null;
-                }
-
-                int bestScoringVectorIndex = 0;
+                VectorData bestVector = null;
                 float currentHighestScore = Float.NEGATIVE_INFINITY;
-                for (int i = 0; i < fieldVectors.size(); i++) {
-                    VectorData vector = fieldVectors.get(i);
+                for (Object embeddingObj : chunkEmbeddings) {
+                    VectorData vector = extractVectorDataFromObject(embeddingObj);
                     if (vector == null) {
                         continue;
                     }
@@ -532,12 +522,12 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                         diversificationContext.getQueryVector()
                     );
                     if (score > currentHighestScore) {
-                        bestScoringVectorIndex = i;
+                        bestVector = vector;
                         currentHighestScore = score;
                     }
                 }
 
-                return fieldVectors.get(bestScoringVectorIndex);
+                return bestVector;
             }
         }
 

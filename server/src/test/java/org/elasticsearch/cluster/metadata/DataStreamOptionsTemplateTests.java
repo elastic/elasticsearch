@@ -11,10 +11,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -155,39 +157,38 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             null,
             null,
             null,
-            java.util.List.of("http.request.method")
+            List.of("http.request.method"),
+            null
         );
+        DataStreamDerivedMetrics.Destination tenSeconds = new DataStreamDerivedMetrics.Destination(TimeValue.timeValueSeconds(10), null);
+        DataStreamDerivedMetrics.Destination oneMinute = new DataStreamDerivedMetrics.Destination(TimeValue.timeValueMinutes(1), null);
         DataStreamOptions.Template derivedBase = new DataStreamOptions.Template(
             new DataStreamDerivedMetrics.Template(
                 true,
-                java.util.List.of("ingest.docs.rate"),
-                java.util.List.of(org.elasticsearch.core.TimeValue.timeValueSeconds(10)),
-                java.util.List.of("service.name"),
-                java.util.List.of(requests)
+                List.of("ingest.docs.rate"),
+                TimeValue.timeValueSeconds(10),
+                List.of(tenSeconds),
+                List.of("service.name"),
+                List.of(requests)
             )
         );
         DataStreamOptions.Template derivedExtra = new DataStreamOptions.Template(
             new DataStreamDerivedMetrics.Template(
                 null,
-                java.util.List.of("ingest.failures.rate"),
-                java.util.List.of(org.elasticsearch.core.TimeValue.timeValueMinutes(1)),
-                java.util.List.of("host.name"),
-                java.util.List.of()
+                List.of("ingest.failures.rate"),
+                null,
+                List.of(oneMinute),
+                List.of("host.name"),
+                List.of()
             )
         );
         result = DataStreamOptions.builder(derivedBase).composeTemplate(derivedExtra).buildTemplate();
-        assertThat(result.derivedMetrics().get().builtin(), equalTo(java.util.List.of("ingest.docs.rate", "ingest.failures.rate")));
-        assertThat(
-            result.derivedMetrics().get().intervals(),
-            equalTo(
-                java.util.List.of(
-                    org.elasticsearch.core.TimeValue.timeValueSeconds(10),
-                    org.elasticsearch.core.TimeValue.timeValueMinutes(1)
-                )
-            )
-        );
-        assertThat(result.derivedMetrics().get().dimensions(), equalTo(java.util.List.of("service.name", "host.name")));
-        assertThat(result.derivedMetrics().get().metrics(), equalTo(java.util.List.of(requests)));
+        assertThat(result.derivedMetrics().get().builtin(), equalTo(List.of("ingest.docs.rate", "ingest.failures.rate")));
+        // A more specific template does not redefine the default interval, so the base one stands.
+        assertThat(result.derivedMetrics().get().defaultInterval(), equalTo(TimeValue.timeValueSeconds(10)));
+        assertThat(result.derivedMetrics().get().destinations(), equalTo(List.of(tenSeconds, oneMinute)));
+        assertThat(result.derivedMetrics().get().dimensions(), equalTo(List.of("service.name", "host.name")));
+        assertThat(result.derivedMetrics().get().metrics(), equalTo(List.of(requests)));
 
         // Reset
         result = DataStreamOptions.builder(fullyConfigured).composeTemplate(RESET).buildTemplate();

@@ -30,7 +30,6 @@ import java.util.Set;
  * without walking the metric list.
  */
 public record CompiledDerivedMetrics(
-    List<Interval> intervals,
     List<CompiledMetric> metrics,
     Set<String> requiredPaths,
     List<String> unsupportedMetrics,
@@ -86,13 +85,18 @@ public record CompiledDerivedMetrics(
         FAILURE
     }
 
+    /**
+     * A metric is accumulated at exactly one interval: its own override, or the stream's default. The interval determines which
+     * destination data stream the metric is written to.
+     */
     public record CompiledMetric(
         String name,
         Trigger trigger,
         Reduction reduction,
         DerivedMetricsPredicate predicate,
         Source source,
-        List<String> dimensions
+        List<String> dimensions,
+        Interval interval
     ) {}
 
     private static final String INGEST_DOCS_COUNT = "ingest.docs.count";
@@ -112,15 +116,12 @@ public record CompiledDerivedMetrics(
     );
 
     public static CompiledDerivedMetrics compile(DataStreamDerivedMetrics config) {
-        List<Interval> intervals = new ArrayList<>(config.intervals().size());
-        for (TimeValue interval : config.intervals()) {
-            intervals.add(new Interval(interval.getStringRep(), interval.millis()));
-        }
+        Interval defaultInterval = intervalOf(config.defaultInterval());
 
         Set<String> requiredPaths = new LinkedHashSet<>(config.dimensions());
         List<CompiledMetric> metrics = new ArrayList<>();
         for (String builtin : expandBuiltins(config.builtin())) {
-            metrics.add(compileBuiltin(builtin, config.dimensions()));
+            metrics.add(compileBuiltin(builtin, config.dimensions(), defaultInterval));
         }
 
         List<String> unsupported = new ArrayList<>();
@@ -147,7 +148,8 @@ public record CompiledDerivedMetrics(
                     reductionFor(metric),
                     DerivedMetricsPredicate.compile(metric.when()),
                     source,
-                    dimensions
+                    dimensions,
+                    intervalOf(config.intervalOf(metric))
                 )
             );
         }
@@ -157,13 +159,7 @@ public record CompiledDerivedMetrics(
             triggers.add(metric.trigger());
         }
 
-        return new CompiledDerivedMetrics(
-            List.copyOf(intervals),
-            List.copyOf(metrics),
-            Set.copyOf(requiredPaths),
-            List.copyOf(unsupported),
-            triggers
-        );
+        return new CompiledDerivedMetrics(List.copyOf(metrics), Set.copyOf(requiredPaths), List.copyOf(unsupported), triggers);
     }
 
     private static List<String> expandBuiltins(List<String> builtin) {
@@ -178,20 +174,31 @@ public record CompiledDerivedMetrics(
         return List.copyOf(expanded);
     }
 
-    private static CompiledMetric compileBuiltin(String name, List<String> dimensions) {
+    private static Interval intervalOf(TimeValue interval) {
+        return new Interval(interval.getStringRep(), interval.millis());
+    }
+
+    private static CompiledMetric compileBuiltin(String name, List<String> dimensions, Interval interval) {
         return switch (name) {
-            case INGEST_DOCS_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.Constant(1.0), dimensions);
-            case INGEST_DOCS_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.Constant(1.0), dimensions);
-            case INGEST_BYTES_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.DocumentSize(), dimensions);
-            case INGEST_BYTES_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.DocumentSize(), dimensions);
-            case INGEST_FAILURES_COUNT -> builtin(name, Trigger.FAILURE, Reduction.SUM, new Source.Constant(1.0), dimensions);
-            case INGEST_FAILURES_RATE -> builtin(name, Trigger.FAILURE, Reduction.RATE, new Source.Constant(1.0), dimensions);
+            case INGEST_DOCS_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.Constant(1.0), dimensions, interval);
+            case INGEST_DOCS_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.Constant(1.0), dimensions, interval);
+            case INGEST_BYTES_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.DocumentSize(), dimensions, interval);
+            case INGEST_BYTES_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.DocumentSize(), dimensions, interval);
+            case INGEST_FAILURES_COUNT -> builtin(name, Trigger.FAILURE, Reduction.SUM, new Source.Constant(1.0), dimensions, interval);
+            case INGEST_FAILURES_RATE -> builtin(name, Trigger.FAILURE, Reduction.RATE, new Source.Constant(1.0), dimensions, interval);
             default -> throw new IllegalArgumentException("unsupported derived metrics builtin [" + name + "]");
         };
     }
 
-    private static CompiledMetric builtin(String name, Trigger trigger, Reduction reduction, Source source, List<String> dimensions) {
-        return new CompiledMetric(name, trigger, reduction, DerivedMetricsPredicate.MATCH_ALL, source, List.copyOf(dimensions));
+    private static CompiledMetric builtin(
+        String name,
+        Trigger trigger,
+        Reduction reduction,
+        Source source,
+        List<String> dimensions,
+        Interval interval
+    ) {
+        return new CompiledMetric(name, trigger, reduction, DerivedMetricsPredicate.MATCH_ALL, source, List.copyOf(dimensions), interval);
     }
 
     private static Reduction reductionFor(DataStreamDerivedMetrics.Metric metric) {

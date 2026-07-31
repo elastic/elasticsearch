@@ -86,6 +86,49 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         assertTrue(buffer.record(key(Reduction.SUM, 0L, 10_000L, "a"), 1.0));
     }
 
+    /**
+     * Without a per-stream ceiling the node budget is first-come-first-served, so a stream that churns through dimension values can
+     * consume all of it and silently starve every other stream on the node.
+     */
+    public void testOneStreamCannotConsumeAnotherStreamsBudget() {
+        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(100, 2);
+
+        assertTrue(buffer.record(keyFor("logs-noisy-default", "a"), 1.0));
+        assertTrue(buffer.record(keyFor("logs-noisy-default", "b"), 1.0));
+        // the noisy stream has spent its share
+        assertFalse(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+
+        // a quiet stream is unaffected, even though the node as a whole has plenty of room left
+        assertTrue(buffer.record(keyFor("logs-quiet-default", "a"), 1.0));
+        assertTrue(buffer.record(keyFor("logs-quiet-default", "b"), 1.0));
+        assertEquals(2, buffer.seriesFor("logs-noisy-default"));
+        assertEquals(2, buffer.seriesFor("logs-quiet-default"));
+    }
+
+    public void testDrainingReturnsBudgetToTheStream() {
+        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(100, 2);
+        assertTrue(buffer.record(keyFor("logs-noisy-default", "a"), 1.0));
+        assertTrue(buffer.record(keyFor("logs-noisy-default", "b"), 1.0));
+        assertFalse(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+
+        buffer.drainAll();
+        assertEquals(0, buffer.seriesFor("logs-noisy-default"));
+        assertTrue(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+    }
+
+    private static BucketKey keyFor(String sourceDataStream, String dimensionValue) {
+        SeriesKey series = new SeriesKey(
+            ProjectId.DEFAULT,
+            sourceDataStream,
+            "ingest.docs.count",
+            "10s",
+            Reduction.SUM,
+            List.of("service.name"),
+            List.of(dimensionValue)
+        );
+        return new BucketKey(series, 0L, 10_000L);
+    }
+
     private static BucketKey key(Reduction reduction, long bucketStart, long intervalMillis) {
         return key(reduction, bucketStart, intervalMillis, "checkout");
     }

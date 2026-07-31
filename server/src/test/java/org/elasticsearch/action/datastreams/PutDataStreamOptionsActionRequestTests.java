@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataStreamDerivedMetricsTests;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamOptionsTests;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -88,12 +89,16 @@ public class PutDataStreamOptionsActionRequestTests extends AbstractWireSerializ
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
             {
               "derived_metrics": {
-                "intervals": ["10s", "1m"],
+                "default_interval": "10s",
+                "destinations": {
+                  "1m": { "lifecycle": { "data_retention": "90d" } }
+                },
                 "metrics": [
                   {
                     "name": "http.requests",
                     "type": "counter",
-                    "dimensions": ["service.name"]
+                    "dimensions": ["service.name"],
+                    "interval": "1m"
                   }
                 ]
               }
@@ -113,6 +118,9 @@ public class PutDataStreamOptionsActionRequestTests extends AbstractWireSerializ
             assertThat(request.getOptions().failureStore(), nullValue());
             assertThat(request.getOptions().derivedMetrics().builtin(), equalTo(List.of("ingest.*")));
             assertThat(request.getOptions().derivedMetrics().metrics().get(0).name(), equalTo("http.requests"));
+            assertThat(request.getOptions().derivedMetrics().defaultInterval(), equalTo(TimeValue.timeValueSeconds(10)));
+            // the metric overrides the interval, so it is written to the 1m destination declared above
+            assertThat(request.getOptions().derivedMetrics().metrics().get(0).interval(), equalTo(TimeValue.timeValueMinutes(1)));
         }
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreation
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestinationLifecycle;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsIndexingListener;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsTemplateRegistry;
@@ -159,6 +160,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<DerivedMetricsService> derivedMetricsService = new SetOnce<>();
     private final SetOnce<DerivedMetricsTemplateRegistry> derivedMetricsTemplateRegistry = new SetOnce<>();
+    private final SetOnce<DerivedMetricsDestinationLifecycle> derivedMetricsDestinationLifecycle = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
@@ -216,6 +218,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DerivedMetricsService.FLUSH_GRACE_PERIOD);
         pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_NODE);
         pluginSettings.add(DerivedMetricsService.BULK_SIZE);
+        pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_STREAM);
+        pluginSettings.add(DerivedMetricsService.MAX_IN_FLIGHT_BULKS);
         return pluginSettings;
     }
 
@@ -266,8 +270,17 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         derivedMetricsService.get().init();
         derivedMetricsTemplateRegistry.set(new DerivedMetricsTemplateRegistry(services.client(), services.clusterService()));
         derivedMetricsTemplateRegistry.get().init();
+        derivedMetricsDestinationLifecycle.set(
+            new DerivedMetricsDestinationLifecycle(
+                services.client(),
+                services.clusterService(),
+                services.dataStreamGlobalRetentionSettings()
+            )
+        );
+        derivedMetricsDestinationLifecycle.get().init();
         components.add(derivedMetricsService.get());
         components.add(derivedMetricsTemplateRegistry.get());
+        components.add(derivedMetricsDestinationLifecycle.get());
         return components;
     }
 
@@ -350,6 +363,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         DerivedMetricsTemplateRegistry templateRegistry = derivedMetricsTemplateRegistry.get();
         if (templateRegistry != null) {
             templateRegistry.close();
+        }
+        DerivedMetricsDestinationLifecycle destinationLifecycle = derivedMetricsDestinationLifecycle.get();
+        if (destinationLifecycle != null) {
+            destinationLifecycle.close();
         }
         try {
             IOUtils.close(dataLifecycleInitialisationService.get(), derivedMetricsService.get());

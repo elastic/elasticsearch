@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.empty;
 public class CompiledDerivedMetricsTests extends ESTestCase {
 
     public void testBuiltinWildcardExpandsToEveryIngestMetric() {
-        CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.*"), null, null, null));
+        CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.*"), null, null, null, null));
         assertThat(
             compiled.metrics().stream().map(CompiledMetric::name).toList(),
             contains(
@@ -49,14 +50,14 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
      * A stream that only wants the built-in ingest metrics must not force the write path to read {@code _source} at all.
      */
     public void testBuiltinOnlyConfigurationNeedsNoSource() {
-        CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.*"), null, null, null));
+        CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.*"), null, null, null, null));
         assertThat(compiled.requiredPaths(), empty());
         assertFalse(compiled.needsSource());
     }
 
     public void testGlobalDimensionsApplyToBuiltins() {
         CompiledDerivedMetrics compiled = compile(
-            new DataStreamDerivedMetrics(true, List.of("ingest.docs.count"), null, List.of("service.name"), null)
+            new DataStreamDerivedMetrics(true, List.of("ingest.docs.count"), null, null, List.of("service.name"), null)
         );
         assertThat(compiled.requiredPaths(), contains("service.name"));
         assertTrue(compiled.needsSource());
@@ -69,6 +70,7 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 true,
                 List.of(),
                 null,
+                null,
                 List.of("service.name"),
                 List.of(
                     new Metric(
@@ -77,9 +79,10 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                         Map.of("exists", Map.of("field", "http.request.method")),
                         null,
                         null,
-                        List.of("http.response.status_code")
+                        List.of("http.response.status_code"),
+                        null
                     ),
-                    new Metric("queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), GaugeAggregation.MAX, null)
+                    new Metric("queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), GaugeAggregation.MAX, null, null)
                 )
             )
         );
@@ -95,8 +98,9 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 true,
                 List.of(),
                 null,
+                null,
                 List.of("service.name"),
-                List.of(new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of("http.request.method")))
+                List.of(new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of("http.request.method"), null))
             )
         );
         assertThat(compiled.metrics().get(0).dimensions(), contains("service.name", "http.request.method"));
@@ -118,7 +122,8 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 List.of(),
                 null,
                 null,
-                List.of(new Metric("http.requests", MetricType.COUNTER, null, null, null, null))
+                null,
+                List.of(new Metric("http.requests", MetricType.COUNTER, null, null, null, null, null))
             )
         );
         CompiledMetric metric = compiled.metrics().get(0);
@@ -128,7 +133,9 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
     }
 
     public void testFailureBuiltinsAreTriggeredByFailures() {
-        CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.failures.count"), null, null, null));
+        CompiledDerivedMetrics compiled = compile(
+            new DataStreamDerivedMetrics(true, List.of("ingest.failures.count"), null, null, null, null)
+        );
         assertEquals(Trigger.FAILURE, compiled.metrics().get(0).trigger());
         assertEquals(Set.of(Trigger.FAILURE), Set.copyOf(compiled.triggers()));
     }
@@ -144,9 +151,10 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 List.of(),
                 null,
                 null,
+                null,
                 List.of(
-                    new Metric("http.request.duration", MetricType.HISTOGRAM, null, MetricValue.field("event.duration"), null, null),
-                    new Metric("http.requests", MetricType.COUNTER, null, null, null, null)
+                    new Metric("http.request.duration", MetricType.HISTOGRAM, null, MetricValue.field("event.duration"), null, null, null),
+                    new Metric("http.requests", MetricType.COUNTER, null, null, null, null, null)
                 )
             )
         );
@@ -154,19 +162,36 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
         assertThat(compiled.metrics().stream().map(CompiledMetric::name).toList(), contains("http.requests"));
     }
 
-    public void testIntervalsKeepTheirConfiguredRendering() {
+    public void testMetricsUseTheDefaultIntervalUnlessTheyOverrideIt() {
+        DataStreamDerivedMetrics.Destination oneMinute = new DataStreamDerivedMetrics.Destination(TimeValue.timeValueMinutes(1), null);
         CompiledDerivedMetrics compiled = compile(
             new DataStreamDerivedMetrics(
                 true,
-                List.of(),
-                List.of(TimeValue.timeValueSeconds(10), TimeValue.timeValueMinutes(1)),
+                List.of("ingest.docs.count"),
+                TimeValue.timeValueSeconds(10),
+                List.of(oneMinute),
                 null,
-                null
+                List.of(
+                    new Metric("http.requests", MetricType.COUNTER, null, null, null, null, null),
+                    new Metric(
+                        "queue.depth",
+                        MetricType.GAUGE,
+                        null,
+                        MetricValue.field("queue.depth"),
+                        null,
+                        null,
+                        TimeValue.timeValueMinutes(1)
+                    )
+                )
             )
         );
-        assertThat(compiled.intervals().stream().map(CompiledDerivedMetrics.Interval::name).toList(), contains("10s", "1m"));
-        assertEquals(10_000L, compiled.intervals().get(0).millis());
-        assertEquals(60_000L, compiled.intervals().get(1).millis());
+        Map<String, CompiledDerivedMetrics.Interval> byName = compiled.metrics()
+            .stream()
+            .collect(Collectors.toMap(CompiledMetric::name, CompiledMetric::interval));
+        assertEquals("10s", byName.get("ingest.docs.count").name());
+        assertEquals("10s", byName.get("http.requests").name());
+        assertEquals("1m", byName.get("queue.depth").name());
+        assertEquals(60_000L, byName.get("queue.depth").millis());
     }
 
     private static Reduction reductionOfGauge(GaugeAggregation aggregation) {
@@ -176,7 +201,8 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 List.of(),
                 null,
                 null,
-                List.of(new Metric("queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), aggregation, null))
+                null,
+                List.of(new Metric("queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), aggregation, null, null))
             )
         );
         return compiled.metrics().get(0).reduction();

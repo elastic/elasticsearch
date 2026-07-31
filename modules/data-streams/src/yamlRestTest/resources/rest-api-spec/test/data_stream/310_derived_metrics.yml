@@ -23,7 +23,7 @@ setup:
               derived_metrics:
                 enabled: true
                 builtin: [ "ingest.*" ]
-                intervals: [ "10s", "1m" ]
+                default_interval: "10s"
                 dimensions: [ "service.name" ]
 
   - do:
@@ -51,7 +51,7 @@ teardown:
   - match: { data_streams.0.name: source-derived-metrics-ds }
   - match: { data_streams.0.options.derived_metrics.enabled: true }
   - match: { data_streams.0.options.derived_metrics.builtin: [ "ingest.*" ] }
-  - match: { data_streams.0.options.derived_metrics.intervals: [ "10s", "1m" ] }
+  - match: { data_streams.0.options.derived_metrics.default_interval: "10s" }
   - match: { data_streams.0.options.derived_metrics.dimensions: [ "service.name" ] }
 
 ---
@@ -61,7 +61,11 @@ teardown:
         name: "source-derived-metrics-ds"
         body:
           derived_metrics:
-            intervals: [ "30s" ]
+            default_interval: "30s"
+            destinations:
+              1m:
+                lifecycle:
+                  data_retention: "90d"
             dimensions: [ "service.name", "cloud.region" ]
             metrics:
               - name: "http.errors"
@@ -76,12 +80,14 @@ teardown:
                 value:
                   field: "queue.depth"
                 aggregation: max
+                interval: "1m"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream_options:
         name: "source-derived-metrics-ds"
-  - match: { data_streams.0.options.derived_metrics.intervals: [ "30s" ] }
+  - match: { data_streams.0.options.derived_metrics.default_interval: "30s" }
+  - match: { data_streams.0.options.derived_metrics.destinations.1m.lifecycle.data_retention: "90d" }
   - match: { data_streams.0.options.derived_metrics.dimensions: [ "service.name", "cloud.region" ] }
   - length: { data_streams.0.options.derived_metrics.metrics: 2 }
   - match: { data_streams.0.options.derived_metrics.metrics.0.name: "http.errors" }
@@ -89,6 +95,7 @@ teardown:
   - match: { data_streams.0.options.derived_metrics.metrics.0.value: 1.0 }
   - match: { data_streams.0.options.derived_metrics.metrics.1.name: "queue.depth" }
   - match: { data_streams.0.options.derived_metrics.metrics.1.aggregation: max }
+  - match: { data_streams.0.options.derived_metrics.metrics.1.interval: "1m" }
 
 ---
 "Derived metrics can be disabled":
@@ -129,6 +136,17 @@ teardown:
                 when:
                   wildcard:
                     http.request.method: "GE*"
+
+  - do:
+      catch: /which is not declared in \[destinations\]/
+      indices.put_data_stream_options:
+        name: "source-derived-metrics-ds"
+        body:
+          derived_metrics:
+            metrics:
+              - name: "http.requests"
+                type: counter
+                interval: "5m"
 
   - do:
       catch: /only supports \[aggregation\] for gauge metrics/

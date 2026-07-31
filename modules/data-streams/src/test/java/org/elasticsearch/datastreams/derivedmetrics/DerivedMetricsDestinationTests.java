@@ -23,8 +23,9 @@ import static org.hamcrest.Matchers.hasKey;
 public class DerivedMetricsDestinationTests extends ESTestCase {
 
     public void testDestinationNaming() {
-        assertEquals("derived-metrics-logs-my_app-default", DerivedMetricsDestination.destinationFor("logs-my_app-default"));
-        assertTrue(DerivedMetricsDestination.isDestination("derived-metrics-logs-my_app-default"));
+        assertEquals("derived-metrics-logs-my_app-default-10s", DerivedMetricsDestination.destinationFor("logs-my_app-default", "10s"));
+        assertEquals("derived-metrics-logs-my_app-default-1m", DerivedMetricsDestination.destinationFor("logs-my_app-default", "1m"));
+        assertTrue(DerivedMetricsDestination.isDestination("derived-metrics-logs-my_app-default-10s"));
         assertFalse(DerivedMetricsDestination.isDestination("logs-my_app-default"));
     }
 

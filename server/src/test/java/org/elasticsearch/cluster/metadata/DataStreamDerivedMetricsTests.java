@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics.Destination;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics.GaugeAggregation;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics.Metric;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics.MetricType;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,26 +42,56 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
     }
 
     public static DataStreamDerivedMetrics randomDerivedMetrics() {
+        List<Destination> destinations = randomDestinations();
         return new DataStreamDerivedMetrics(
             randomBoolean(),
             randomSubsetOf(randomIntBetween(1, 3), "ingest.*", "ingest.docs.count", "ingest.failures.rate"),
-            randomList(1, 3, () -> TimeValue.timeValueSeconds(randomIntBetween(1, 3600))),
+            randomInterval(),
+            destinations,
             randomList(0, 3, DataStreamDerivedMetricsTests::randomFieldName),
-            randomList(0, 3, DataStreamDerivedMetricsTests::randomMetric)
+            randomList(0, 3, () -> randomMetric(destinations))
         );
     }
 
     public static DataStreamDerivedMetrics.Template randomTemplate() {
+        List<Destination> destinations = randomDestinations();
         return new DataStreamDerivedMetrics.Template(
             randomBoolean() ? randomBoolean() : null,
             randomBoolean() ? randomSubsetOf(randomIntBetween(1, 3), "ingest.*", "ingest.docs.rate", "ingest.bytes.rate") : null,
-            randomBoolean() ? randomList(1, 3, () -> TimeValue.timeValueSeconds(randomIntBetween(1, 3600))) : null,
+            randomBoolean() ? randomInterval() : null,
+            randomBoolean() ? destinations : null,
             randomBoolean() ? randomList(0, 3, DataStreamDerivedMetricsTests::randomFieldName) : null,
-            randomBoolean() ? randomList(0, 3, DataStreamDerivedMetricsTests::randomMetric) : null
+            randomBoolean() ? randomList(0, 3, () -> randomMetric(destinations)) : null
         );
     }
 
-    private static Metric randomMetric() {
+    private static TimeValue randomInterval() {
+        return TimeValue.timeValueSeconds(randomIntBetween(1, 3600));
+    }
+
+    /**
+     * Destinations are keyed by interval, so the generated intervals have to be distinct.
+     */
+    private static List<Destination> randomDestinations() {
+        Map<Long, Destination> byMillis = new LinkedHashMap<>();
+        for (int i = 0; i < randomIntBetween(0, 3); i++) {
+            TimeValue interval = randomInterval();
+            byMillis.putIfAbsent(
+                interval.millis(),
+                new Destination(interval, randomBoolean() ? null : DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate())
+            );
+        }
+        return List.copyOf(byMillis.values());
+    }
+
+    /**
+     * An interval override is only valid when that interval has a declared destination, so overrides are drawn from those.
+     */
+    private static TimeValue randomOverride(List<Destination> destinations) {
+        return destinations.isEmpty() || randomBoolean() ? null : randomFrom(destinations).interval();
+    }
+
+    private static Metric randomMetric(List<Destination> destinations) {
         MetricType type = randomFrom(MetricType.values());
         return switch (type) {
             case COUNTER -> new Metric(
@@ -68,7 +100,8 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
                 randomPredicate(),
                 randomBoolean() ? MetricValue.constant(randomDoubleBetween(0.0, 1000.0, true)) : MetricValue.field(randomFieldName()),
                 null,
-                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName)
+                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName),
+                randomOverride(destinations)
             );
             case GAUGE -> new Metric(
                 "metric." + randomAlphaOfLength(8),
@@ -76,7 +109,8 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
                 randomPredicate(),
                 MetricValue.field(randomFieldName()),
                 randomFrom(GaugeAggregation.values()),
-                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName)
+                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName),
+                randomOverride(destinations)
             );
             case HISTOGRAM -> new Metric(
                 "metric." + randomAlphaOfLength(8),
@@ -84,7 +118,8 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
                 randomPredicate(),
                 MetricValue.field(randomFieldName()),
                 null,
-                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName)
+                randomList(0, 2, DataStreamDerivedMetricsTests::randomFieldName),
+                randomOverride(destinations)
             );
         };
     }
@@ -103,37 +138,42 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
             case 0 -> new DataStreamDerivedMetrics(
                 instance.enabled() == false,
                 instance.builtin(),
-                instance.intervals(),
+                instance.defaultInterval(),
+                instance.destinations(),
                 instance.dimensions(),
                 instance.metrics()
             );
             case 1 -> new DataStreamDerivedMetrics(
                 instance.enabled(),
                 List.of("ingest.bytes.rate"),
-                instance.intervals(),
+                instance.defaultInterval(),
+                instance.destinations(),
                 instance.dimensions(),
                 instance.metrics()
             );
             case 2 -> new DataStreamDerivedMetrics(
                 instance.enabled(),
                 instance.builtin(),
-                List.of(TimeValue.timeValueMinutes(5)),
+                TimeValue.timeValueMinutes(5),
+                instance.destinations(),
                 instance.dimensions(),
                 instance.metrics()
             );
             case 3 -> new DataStreamDerivedMetrics(
                 instance.enabled(),
                 instance.builtin(),
-                instance.intervals(),
+                instance.defaultInterval(),
+                instance.destinations(),
                 List.of("service.name"),
                 instance.metrics()
             );
             case 4 -> new DataStreamDerivedMetrics(
                 instance.enabled(),
                 instance.builtin(),
-                instance.intervals(),
+                instance.defaultInterval(),
+                instance.destinations(),
                 instance.dimensions(),
-                List.of(new Metric("metric.mutated", MetricType.COUNTER, null, MetricValue.constant(1), null, List.of()))
+                List.of(new Metric("metric.mutated", MetricType.COUNTER, null, MetricValue.constant(1), null, List.of(), null))
             );
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
@@ -146,26 +186,35 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
 
     public void testDefaults() {
         DataStreamDerivedMetrics metrics = DataStreamDerivedMetrics.fromTemplate(
-            new DataStreamDerivedMetrics.Template(null, null, null, null, null)
+            new DataStreamDerivedMetrics.Template(null, null, null, null, null, null)
         );
         assertThat(metrics.enabled(), equalTo(true));
         assertThat(metrics.builtin(), equalTo(List.of("ingest.*")));
-        assertThat(metrics.intervals(), equalTo(List.of(TimeValue.timeValueSeconds(10))));
+        assertThat(metrics.defaultInterval(), equalTo(TimeValue.timeValueSeconds(10)));
+        assertThat(metrics.destinations(), equalTo(List.of()));
         assertThat(metrics.dimensions(), equalTo(List.of()));
         assertThat(metrics.metrics(), equalTo(List.of()));
     }
 
     public void testGaugeAggregationModes() {
         for (GaugeAggregation aggregation : GaugeAggregation.values()) {
-            Metric metric = new Metric("app.queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), aggregation, List.of());
+            Metric metric = new Metric(
+                "app.queue.depth",
+                MetricType.GAUGE,
+                null,
+                MetricValue.field("queue.depth"),
+                aggregation,
+                List.of(),
+                null
+            );
             assertThat(metric.aggregation(), equalTo(aggregation));
         }
-        Metric defaulted = new Metric("app.queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), null, List.of());
+        Metric defaulted = new Metric("app.queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), null, List.of(), null);
         assertThat(defaulted.aggregation(), equalTo(GaugeAggregation.LAST_VALUE));
     }
 
     public void testCounterDefaultsValueToOne() {
-        Metric metric = new Metric("app.events", MetricType.COUNTER, null, null, null, List.of());
+        Metric metric = new Metric("app.events", MetricType.COUNTER, null, null, null, List.of(), null);
         assertThat(metric.value(), equalTo(MetricValue.constant(1.0)));
     }
 
@@ -183,7 +232,15 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
             Map.of("not", Map.of("term", Map.of("event.outcome", "success")))
         );
         for (Map<String, Object> predicate : predicates) {
-            Metric metric = new Metric("app.metric." + predicates.indexOf(predicate), MetricType.COUNTER, predicate, null, null, List.of());
+            Metric metric = new Metric(
+                "app.metric." + predicates.indexOf(predicate),
+                MetricType.COUNTER,
+                predicate,
+                null,
+                null,
+                List.of(),
+                null
+            );
             assertThat(metric.when(), equalTo(predicate));
         }
     }
@@ -191,7 +248,7 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
     public void testRejectsReservedUserMetricNames() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new Metric("ingest.docs.count", MetricType.COUNTER, null, null, null, List.of())
+            () -> new Metric("ingest.docs.count", MetricType.COUNTER, null, null, null, List.of(), null)
         );
         assertThat(e.getMessage(), containsString("uses reserved [ingest.*] namespace"));
     }
@@ -199,7 +256,7 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
     public void testRejectsAggregationOnNonGauge() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new Metric("app.events", MetricType.COUNTER, null, MetricValue.constant(1), GaugeAggregation.SUM, List.of())
+            () -> new Metric("app.events", MetricType.COUNTER, null, MetricValue.constant(1), GaugeAggregation.SUM, List.of(), null)
         );
         assertThat(e.getMessage(), containsString("only supports [aggregation] for gauge metrics"));
     }
@@ -219,52 +276,71 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
     }
 
     public void testTemplateCompositionIsAdditive() {
-        Metric requests = new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of("http.request.method"));
+        Metric requests = new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of("http.request.method"), null);
         Metric errors = new Metric(
             "http.errors",
             MetricType.COUNTER,
             Map.of("range", Map.of("http.response.status_code", Map.of("gte", 500))),
             null,
             null,
-            List.of()
+            List.of(),
+            null
         );
         DataStreamDerivedMetrics.Template base = new DataStreamDerivedMetrics.Template(
             true,
             List.of("ingest.docs.rate"),
-            List.of(TimeValue.timeValueSeconds(10)),
+            TimeValue.timeValueSeconds(10),
+            null,
             List.of("service.name"),
             List.of(requests)
         );
         DataStreamDerivedMetrics.Template extra = new DataStreamDerivedMetrics.Template(
             null,
             List.of("ingest.failures.rate"),
-            List.of(TimeValue.timeValueMinutes(1)),
+            TimeValue.timeValueMinutes(1),
+            null,
             List.of("host.name"),
             List.of(errors)
         );
 
         DataStreamDerivedMetrics result = new DataStreamDerivedMetrics.Builder(base).composeTemplate(extra).build();
         assertThat(result.builtin(), equalTo(List.of("ingest.docs.rate", "ingest.failures.rate")));
-        assertThat(result.intervals(), equalTo(List.of(TimeValue.timeValueSeconds(10), TimeValue.timeValueMinutes(1))));
+        assertThat(result.defaultInterval(), equalTo(TimeValue.timeValueMinutes(1)));
         assertThat(result.dimensions(), equalTo(List.of("service.name", "host.name")));
         assertThat(result.metrics(), equalTo(List.of(requests, errors)));
     }
 
     public void testTemplateCompositionRejectsConflictingMetricNames() {
-        Metric count = new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of());
-        Metric duration = new Metric("http.requests", MetricType.HISTOGRAM, null, MetricValue.field("event.duration"), null, List.of());
+        Metric count = new Metric("http.requests", MetricType.COUNTER, null, null, null, List.of(), null);
+        Metric duration = new Metric(
+            "http.requests",
+            MetricType.HISTOGRAM,
+            null,
+            MetricValue.field("event.duration"),
+            null,
+            List.of(),
+            null
+        );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataStreamDerivedMetrics.Builder(new DataStreamDerivedMetrics.Template(null, null, null, null, List.of(count)))
-                .composeTemplate(new DataStreamDerivedMetrics.Template(null, null, null, null, List.of(duration)))
+            () -> new DataStreamDerivedMetrics.Builder(new DataStreamDerivedMetrics.Template(null, null, null, null, null, List.of(count)))
+                .composeTemplate(new DataStreamDerivedMetrics.Template(null, null, null, null, null, List.of(duration)))
         );
         assertThat(e.getMessage(), containsString("is defined more than once"));
     }
 
     public void testTemplateKeepsOmittedFieldsUndefined() {
-        DataStreamDerivedMetrics.Template template = new DataStreamDerivedMetrics.Template(null, List.of("ingest.*"), null, null, null);
+        DataStreamDerivedMetrics.Template template = new DataStreamDerivedMetrics.Template(
+            null,
+            List.of("ingest.*"),
+            null,
+            null,
+            null,
+            null
+        );
         assertThat(template.enabled(), nullValue());
         assertThat(template.builtin(), equalTo(List.of("ingest.*")));
-        assertThat(template.intervals(), nullValue());
+        assertThat(template.defaultInterval(), nullValue());
+        assertThat(template.destinations(), nullValue());
     }
 }

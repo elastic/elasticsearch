@@ -8,7 +8,7 @@ The V1 metadata model supports:
 
 - `data_stream_options.derived_metrics`
 - built-in ingest metrics with default `["ingest.*"]`
-- variadic intervals
+- one default interval, overridable per metric, each writing to its own destination
 - additive global and per-metric dimensions
 - user-defined `counter`, `gauge`, and `histogram` metrics
 - gauge aggregations including `first_value` and `last_value`
@@ -24,7 +24,10 @@ Counter and gauge metrics, along with the built-in ingest metrics, are collected
     "derived_metrics": {
       "enabled": true,
       "builtin": ["ingest.*"],
-      "intervals": ["10s", "1m"],
+      "default_interval": "10s",
+      "destinations": {
+        "1m": { "lifecycle": { "data_retention": "90d" } }
+      },
       "dimensions": ["service.name", "cloud.region"],
       "metrics": [
         {
@@ -48,11 +51,13 @@ Omitted fields use defaults when the concrete data stream option is built:
 
 - `enabled`: `true`
 - `builtin`: `["ingest.*"]`
-- `intervals`: `["10s"]`
+- `default_interval`: `10s`
+- `destinations`: `{}`
 - `dimensions`: `[]`
 - `metrics`: `[]`
 
-Template composition is additive for `builtin`, `intervals`, `dimensions`, and `metrics`. `enabled` is overwritten by the most specific template that defines it. A duplicate user metric name is allowed only when the full metric definition is identical.
+Template composition is additive for `builtin`, `dimensions`, and `metrics`. `default_interval` and each entry of `destinations` are
+overwritten by the most specific template that defines them. `enabled` is overwritten by the most specific template that defines it. A duplicate user metric name is allowed only when the full metric definition is identical.
 
 ## User Metric Fields
 
@@ -63,6 +68,8 @@ Every user metric has:
 - `when`: optional predicate.
 - `value`: numeric constant or field reference.
 - `dimensions`: optional extra dimensions added to global dimensions.
+- `interval`: optional override of `default_interval`. The metric is accumulated separately and written to that interval's own
+  destination, so the interval must have an entry in `destinations`.
 
 Counters default `value` to `1` when omitted.
 
@@ -129,11 +136,25 @@ Nothing is coordinated across nodes. Each node emits partial series carrying its
 across that dimension to get stream-wide values. This is what avoids a cluster-wide hot counter on the write path.
 
 Series count is the one thing that grows with the data, because dimension values come from documents. It is capped per node by
-`data_streams.derived_metrics.max_series_per_node`; once the cap is reached, observations that would create a new series are dropped and
-a warning names the setting.
+`data_streams.derived_metrics.max_series_per_node` and per source stream by `max_series_per_stream`; once a cap is reached, observations
+that would create a new series are dropped and a warning names the setting. The per-stream cap exists because the node budget would
+otherwise be first-come-first-served, letting one high-cardinality stream starve every other stream on the node.
+
+Emission is bounded too. A flush converts and sends in bulk-sized chunks rather than materialising every closed bucket first, and no
+more than `max_in_flight_bulks` requests are outstanding at once. Without that ceiling a destination that cannot keep up would let every
+flush add to a queue with nothing bounding it; documents shed for this reason are logged.
 
 Histogram metrics are accepted and validated by the configuration model but are not emitted yet. Compilation reports them and the runtime
 logs them once per data stream. Emitting them needs a histogram representation this module cannot map today.
+
+### Retention
+
+Each destination is given a lifecycle once, when it is first created, from the `destinations` entry for its interval. Without one it
+falls back to the cluster-wide `data_streams.lifecycle.retention.default`, and to 30 days when that is unset, so a destination is never
+unbounded by accident.
+
+The lifecycle is applied once and never reconciled: changing `destinations` does not alter destinations that already exist, and a
+lifecycle edited by hand on a destination is left alone. See `docs/internal/DerivedMetricsLifecycleDesign.md`.
 
 ### Settings
 
@@ -142,11 +163,15 @@ logs them once per data stream. Emitting them needs a histogram representation t
 | `data_streams.derived_metrics.flush_interval` | `1s` | how often closed buckets are emitted |
 | `data_streams.derived_metrics.flush_grace_period` | `5s` | how long a bucket stays open past the end of its interval |
 | `data_streams.derived_metrics.max_series_per_node` | `10000` | per-node series cap |
+| `data_streams.derived_metrics.max_series_per_stream` | the node cap | per-source-stream cap, so one stream cannot spend the whole node budget |
 | `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
+| `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on bulk requests outstanding at once |
 
 ## Managed Destination
 
-Each source data stream writes to its own hidden time series data stream, `derived-metrics-<source data stream>`. It is created on demand
+Each source data stream writes to one hidden time series data stream per interval it uses,
+`derived-metrics-<source data stream>-<interval>`. Splitting per interval is what makes retention resolution-dependent, and it means a
+query over one destination never has to filter by interval. It is created on demand
 by the first metric document written to it, backed by the managed `derived-metrics@template` index template that Elasticsearch installs
 in every project. `derived-metrics-*` is therefore a reserved namespace: a user data stream with that prefix would be captured by the
 managed template.
@@ -161,7 +186,7 @@ Emitted documents look like this:
 | `metric.name` | keyword dimension | the metric name |
 | `metric.value` | `double`, gauge | this node's partial value for the interval |
 | `derived_metrics.source` | keyword dimension | the source data stream |
-| `derived_metrics.interval` | keyword dimension | the configured interval, for example `10s` |
+| `derived_metrics.interval` | keyword dimension | the interval, matching the destination's suffix |
 | `derived_metrics.node` | keyword dimension | the emitting node |
 | `dimensions.*` | keyword dimensions | user dimensions, dynamically mapped |
 

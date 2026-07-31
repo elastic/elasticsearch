@@ -40,7 +40,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public record DataStreamDerivedMetrics(
     boolean enabled,
     List<String> builtin,
-    List<TimeValue> intervals,
+    TimeValue defaultInterval,
+    List<Destination> destinations,
     List<String> dimensions,
     List<Metric> metrics
 ) implements Writeable, ToXContentObject {
@@ -53,13 +54,16 @@ public record DataStreamDerivedMetrics(
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField BUILTIN_FIELD = new ParseField("builtin");
-    public static final ParseField INTERVALS_FIELD = new ParseField("intervals");
+    public static final ParseField DEFAULT_INTERVAL_FIELD = new ParseField("default_interval");
+    public static final ParseField DESTINATIONS_FIELD = new ParseField("destinations");
+    public static final ParseField INTERVAL_FIELD = new ParseField("interval");
+    public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
     public static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     public static final ParseField METRICS_FIELD = new ParseField("metrics");
     public static final TimeValue DEFAULT_INTERVAL = TimeValue.timeValueSeconds(10);
     public static final List<String> DEFAULT_BUILTIN = List.of("ingest.*");
 
-    private static final int MAX_INTERVALS = 8;
+    private static final int MAX_DESTINATIONS = 8;
     private static final int MAX_DIMENSIONS = 16;
     private static final int MAX_METRIC_DIMENSIONS = 16;
     private static final int MAX_USER_METRICS = 64;
@@ -82,37 +86,51 @@ public record DataStreamDerivedMetrics(
             new Template(
                 (Boolean) args[0],
                 (List<String>) args[1],
-                parseIntervals((List<String>) args[2]),
-                (List<String>) args[3],
-                (List<Metric>) args[4]
+                parseInterval((String) args[2], DEFAULT_INTERVAL_FIELD.getPreferredName()),
+                (List<Destination>) args[3],
+                (List<String>) args[4],
+                (List<Metric>) args[5]
             )
         )
     );
 
     static {
-        PARSER.declareBoolean(optionalConstructorArg(), ENABLED_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), BUILTIN_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), INTERVALS_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Metric.fromXContent(p), METRICS_FIELD);
+        declareFields(PARSER);
+    }
+
+    private static <T> void declareFields(ConstructingObjectParser<T, Void> parser) {
+        parser.declareBoolean(optionalConstructorArg(), ENABLED_FIELD);
+        parser.declareStringArray(optionalConstructorArg(), BUILTIN_FIELD);
+        parser.declareString(optionalConstructorArg(), DEFAULT_INTERVAL_FIELD);
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Destination.listFromXContent(p),
+            DESTINATIONS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        parser.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> Metric.fromXContent(p), METRICS_FIELD);
     }
 
     public DataStreamDerivedMetrics {
         builtin = builtin == null ? DEFAULT_BUILTIN : List.copyOf(builtin);
-        intervals = intervals == null ? List.of(DEFAULT_INTERVAL) : List.copyOf(intervals);
+        defaultInterval = defaultInterval == null ? DEFAULT_INTERVAL : defaultInterval;
+        destinations = sortedByInterval(destinations == null ? List.of() : destinations);
         dimensions = dimensions == null ? List.of() : List.copyOf(dimensions);
         metrics = metrics == null ? List.of() : List.copyOf(metrics);
         validateBuiltin(builtin);
-        validateIntervals(intervals);
+        validateInterval(defaultInterval, DEFAULT_INTERVAL_FIELD.getPreferredName());
+        validateDestinations(destinations);
         validateDimensions(dimensions, MAX_DIMENSIONS, DIMENSIONS_FIELD.getPreferredName());
-        validateMetrics(metrics);
+        validateMetrics(metrics, destinations);
     }
 
     public DataStreamDerivedMetrics(StreamInput in) throws IOException {
         this(
             in.readBoolean(),
             in.readStringCollectionAsList(),
-            in.readCollectionAsList(StreamInput::readTimeValue),
+            in.readTimeValue(),
+            in.readCollectionAsList(Destination::new),
             in.readStringCollectionAsList(),
             in.readCollectionAsList(Metric::new)
         );
@@ -126,7 +144,8 @@ public record DataStreamDerivedMetrics(
         return new DataStreamDerivedMetrics(
             template.enabled == null ? true : template.enabled,
             template.builtin,
-            template.intervals,
+            template.defaultInterval,
+            template.destinations,
             template.dimensions,
             template.metrics
         );
@@ -136,18 +155,58 @@ public record DataStreamDerivedMetrics(
         return PARSER.parse(parser, null);
     }
 
-    private static List<TimeValue> parseIntervals(@Nullable List<String> intervals) {
-        if (intervals == null) {
-            return null;
+    /**
+     * Destinations are rendered as an object, whose key order carries no meaning. Sorting them by interval gives the record a stable
+     * identity regardless of the order they were written in.
+     */
+    private static List<Destination> sortedByInterval(List<Destination> destinations) {
+        return destinations.stream().sorted(java.util.Comparator.comparingLong(d -> d.interval().millis())).toList();
+    }
+
+    private static TimeValue parseInterval(@Nullable String interval, String context) {
+        return interval == null ? null : TimeValue.parseTimeValue(interval, context);
+    }
+
+    /**
+     * The interval a metric is accumulated at: its own override when it has one, otherwise the stream's default.
+     */
+    public TimeValue intervalOf(Metric metric) {
+        return metric.interval() == null ? defaultInterval : metric.interval();
+    }
+
+    /**
+     * Every interval this configuration writes to, which is one destination data stream each.
+     */
+    public List<TimeValue> activeIntervals() {
+        List<TimeValue> active = new ArrayList<>();
+        active.add(defaultInterval);
+        for (Metric metric : metrics) {
+            if (metric.interval() != null && active.stream().noneMatch(i -> i.millis() == metric.interval().millis())) {
+                active.add(metric.interval());
+            }
         }
-        return intervals.stream().map(value -> TimeValue.parseTimeValue(value, INTERVALS_FIELD.getPreferredName())).toList();
+        return List.copyOf(active);
+    }
+
+    /**
+     * The configured settings for an interval's destination, or null when the interval was not declared.
+     */
+    @Nullable
+    public Destination destinationFor(TimeValue interval) {
+        for (Destination destination : destinations) {
+            if (destination.interval().millis() == interval.millis()) {
+                return destination;
+            }
+        }
+        return null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(enabled);
         out.writeStringCollection(builtin);
-        out.writeCollection(intervals, StreamOutput::writeTimeValue);
+        out.writeTimeValue(defaultInterval);
+        out.writeCollection(destinations);
         out.writeStringCollection(dimensions);
         out.writeCollection(metrics);
     }
@@ -157,11 +216,10 @@ public record DataStreamDerivedMetrics(
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         builder.stringListField(BUILTIN_FIELD.getPreferredName(), builtin);
-        builder.startArray(INTERVALS_FIELD.getPreferredName());
-        for (TimeValue interval : intervals) {
-            builder.value(interval.getStringRep());
+        builder.field(DEFAULT_INTERVAL_FIELD.getPreferredName(), defaultInterval.getStringRep());
+        if (destinations.isEmpty() == false) {
+            Destination.listToXContent(builder, destinations);
         }
-        builder.endArray();
         if (dimensions.isEmpty() == false) {
             builder.stringListField(DIMENSIONS_FIELD.getPreferredName(), dimensions);
         }
@@ -187,16 +245,27 @@ public record DataStreamDerivedMetrics(
         }
     }
 
-    private static void validateIntervals(List<TimeValue> intervals) {
-        if (intervals.isEmpty()) {
-            throw new IllegalArgumentException("derived metrics requires at least one interval");
+    private static void validateInterval(TimeValue interval, String context) {
+        if (interval.compareTo(MIN_INTERVAL) < 0) {
+            throw new IllegalArgumentException(
+                "derived metrics [" + context + "] of [" + interval + "] must be at least [" + MIN_INTERVAL + "]"
+            );
         }
-        if (intervals.size() > MAX_INTERVALS) {
-            throw new IllegalArgumentException("derived metrics supports at most [" + MAX_INTERVALS + "] intervals");
+    }
+
+    private static void validateDestinations(List<Destination> destinations) {
+        if (destinations.size() > MAX_DESTINATIONS) {
+            throw new IllegalArgumentException(
+                "derived metrics supports at most [" + MAX_DESTINATIONS + "] destinations, one data stream each"
+            );
         }
-        for (TimeValue interval : intervals) {
-            if (interval.compareTo(MIN_INTERVAL) < 0) {
-                throw new IllegalArgumentException("derived metrics interval [" + interval + "] must be at least [" + MIN_INTERVAL + "]");
+        Set<Long> seen = new java.util.HashSet<>();
+        for (Destination destination : destinations) {
+            validateInterval(destination.interval(), DESTINATIONS_FIELD.getPreferredName());
+            if (seen.add(destination.interval().millis()) == false) {
+                throw new IllegalArgumentException(
+                    "derived metrics destination [" + destination.interval().getStringRep() + "] is defined more than once"
+                );
             }
         }
     }
@@ -213,7 +282,7 @@ public record DataStreamDerivedMetrics(
         }
     }
 
-    private static void validateMetrics(List<Metric> metrics) {
+    private static void validateMetrics(List<Metric> metrics, List<Destination> destinations) {
         if (metrics.size() > MAX_USER_METRICS) {
             throw new IllegalArgumentException("derived metrics supports at most [" + MAX_USER_METRICS + "] user metrics");
         }
@@ -223,12 +292,98 @@ public record DataStreamDerivedMetrics(
             if (existing != null && existing.equals(metric) == false) {
                 throw new IllegalArgumentException("derived metric [" + metric.name() + "] is defined more than once");
             }
+            // An override creates a destination of its own, so its retention has to have been decided deliberately.
+            if (metric.interval() != null && destinations.stream().noneMatch(d -> d.interval().millis() == metric.interval().millis())) {
+                throw new IllegalArgumentException(
+                    "derived metric ["
+                        + metric.name()
+                        + "] uses interval ["
+                        + metric.interval().getStringRep()
+                        + "] which is not declared in ["
+                        + DESTINATIONS_FIELD.getPreferredName()
+                        + "]"
+                );
+            }
         }
     }
 
     private static void validateFieldName(String field, String context) {
         if (Strings.hasText(field) == false) {
             throw new IllegalArgumentException("derived metrics [" + context + "] must not contain empty field names");
+        }
+    }
+
+    /**
+     * Settings for one destination data stream. Each distinct interval a configuration uses is written to its own destination, so
+     * retention can differ per resolution: a 10s series is usually worth keeping for days, a 1m series for months.
+     */
+    public record Destination(TimeValue interval, @Nullable DataStreamLifecycle.Template lifecycle) implements Writeable, ToXContentObject {
+
+        public Destination(StreamInput in) throws IOException {
+            this(in.readTimeValue(), in.readOptionalWriteable(DataStreamLifecycle.Template::read));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeTimeValue(interval);
+            out.writeOptionalWriteable(lifecycle);
+        }
+
+        /**
+         * Destinations are rendered as an object keyed by interval, so the interval is the key rather than a field of the value.
+         */
+        static List<Destination> listFromXContent(XContentParser parser) throws IOException {
+            List<Destination> destinations = new ArrayList<>();
+            XContentParser.Token token = parser.currentToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("derived metrics [" + DESTINATIONS_FIELD.getPreferredName() + "] must be an object");
+            }
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String interval = parser.currentName();
+                parser.nextToken();
+                destinations.add(fromXContent(TimeValue.parseTimeValue(interval, DESTINATIONS_FIELD.getPreferredName()), parser));
+            }
+            return destinations;
+        }
+
+        private static Destination fromXContent(TimeValue interval, XContentParser parser) throws IOException {
+            DataStreamLifecycle.Template lifecycle = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String field = parser.currentName();
+                parser.nextToken();
+                if (LIFECYCLE_FIELD.getPreferredName().equals(field)) {
+                    lifecycle = DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(parser);
+                } else {
+                    throw new IllegalArgumentException(
+                        "unsupported derived metrics destination setting ["
+                            + field
+                            + "], only ["
+                            + LIFECYCLE_FIELD.getPreferredName()
+                            + "] is supported"
+                    );
+                }
+            }
+            return new Destination(interval, lifecycle);
+        }
+
+        static void listToXContent(XContentBuilder builder, List<Destination> destinations) throws IOException {
+            builder.startObject(DESTINATIONS_FIELD.getPreferredName());
+            for (Destination destination : destinations) {
+                builder.field(destination.interval().getStringRep());
+                destination.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+            builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (lifecycle != null) {
+                builder.field(LIFECYCLE_FIELD.getPreferredName());
+                lifecycle.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -271,7 +426,8 @@ public record DataStreamDerivedMetrics(
         @Nullable Map<String, Object> when,
         MetricValue value,
         @Nullable GaugeAggregation aggregation,
-        List<String> dimensions
+        List<String> dimensions,
+        @Nullable TimeValue interval
     ) implements Writeable, ToXContentObject {
 
         public static final ParseField NAME_FIELD = new ParseField("name");
@@ -290,7 +446,8 @@ public record DataStreamDerivedMetrics(
                 copyMap((Map<String, Object>) args[2]),
                 (MetricValue) args[3],
                 args[4] == null ? null : GaugeAggregation.fromString((String) args[4]),
-                (List<String>) args[5]
+                (List<String>) args[5],
+                parseInterval((String) args[6], INTERVAL_FIELD.getPreferredName())
             )
         );
 
@@ -306,6 +463,7 @@ public record DataStreamDerivedMetrics(
             );
             PARSER.declareString(optionalConstructorArg(), AGGREGATION_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
+            PARSER.declareString(optionalConstructorArg(), INTERVAL_FIELD);
         }
 
         public Metric {
@@ -329,6 +487,9 @@ public record DataStreamDerivedMetrics(
             } else if (aggregation != null) {
                 throw new IllegalArgumentException("derived metric [" + name + "] only supports [aggregation] for gauge metrics");
             }
+            if (interval != null) {
+                validateInterval(interval, INTERVAL_FIELD.getPreferredName());
+            }
         }
 
         public Metric(StreamInput in) throws IOException {
@@ -338,7 +499,8 @@ public record DataStreamDerivedMetrics(
                 copyMap(in.readGenericMap()),
                 new MetricValue(in),
                 in.readOptionalEnum(GaugeAggregation.class),
-                in.readStringCollectionAsList()
+                in.readStringCollectionAsList(),
+                in.readOptionalTimeValue()
             );
         }
 
@@ -354,6 +516,7 @@ public record DataStreamDerivedMetrics(
             value.writeTo(out);
             out.writeOptionalEnum(aggregation);
             out.writeStringCollection(dimensions);
+            out.writeOptionalTimeValue(interval);
         }
 
         @Override
@@ -370,6 +533,9 @@ public record DataStreamDerivedMetrics(
             }
             if (dimensions.isEmpty() == false) {
                 builder.stringListField(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+            }
+            if (interval != null) {
+                builder.field(INTERVAL_FIELD.getPreferredName(), interval.getStringRep());
             }
             builder.endObject();
             return builder;
@@ -438,7 +604,8 @@ public record DataStreamDerivedMetrics(
     public record Template(
         @Nullable Boolean enabled,
         @Nullable List<String> builtin,
-        @Nullable List<TimeValue> intervals,
+        @Nullable TimeValue defaultInterval,
+        @Nullable List<Destination> destinations,
         @Nullable List<String> dimensions,
         @Nullable List<Metric> metrics
     ) implements Writeable, ToXContentObject {
@@ -450,44 +617,44 @@ public record DataStreamDerivedMetrics(
             args -> new Template(
                 (Boolean) args[0],
                 (List<String>) args[1],
-                parseIntervals((List<String>) args[2]),
-                (List<String>) args[3],
-                (List<Metric>) args[4]
+                parseInterval((String) args[2], DEFAULT_INTERVAL_FIELD.getPreferredName()),
+                (List<Destination>) args[3],
+                (List<String>) args[4],
+                (List<Metric>) args[5]
             )
         );
 
         static {
-            PARSER.declareBoolean(optionalConstructorArg(), ENABLED_FIELD);
-            PARSER.declareStringArray(optionalConstructorArg(), BUILTIN_FIELD);
-            PARSER.declareStringArray(optionalConstructorArg(), INTERVALS_FIELD);
-            PARSER.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
-            PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Metric.fromXContent(p), METRICS_FIELD);
+            declareFields(PARSER);
         }
 
         public Template {
             builtin = builtin == null ? null : List.copyOf(builtin);
-            intervals = intervals == null ? null : List.copyOf(intervals);
+            destinations = destinations == null ? null : sortedByInterval(destinations);
             dimensions = dimensions == null ? null : List.copyOf(dimensions);
             metrics = metrics == null ? null : List.copyOf(metrics);
             if (builtin != null) {
                 validateBuiltin(builtin);
             }
-            if (intervals != null) {
-                validateIntervals(intervals);
+            if (defaultInterval != null) {
+                validateInterval(defaultInterval, DEFAULT_INTERVAL_FIELD.getPreferredName());
+            }
+            if (destinations != null) {
+                validateDestinations(destinations);
             }
             if (dimensions != null) {
                 validateDimensions(dimensions, MAX_DIMENSIONS, DIMENSIONS_FIELD.getPreferredName());
             }
-            if (metrics != null) {
-                validateMetrics(metrics);
-            }
+            // A template is only a fragment, so a metric's interval override cannot be checked against the destinations until the
+            // templates have been composed. That check lives in the canonical constructor.
         }
 
         public Template(StreamInput in) throws IOException {
             this(
                 in.readOptionalBoolean(),
                 in.readOptionalStringCollectionAsList(),
-                in.readOptionalCollectionAsList(StreamInput::readTimeValue),
+                in.readOptionalTimeValue(),
+                in.readOptionalCollectionAsList(Destination::new),
                 in.readOptionalStringCollectionAsList(),
                 in.readOptionalCollectionAsList(Metric::new)
             );
@@ -505,7 +672,8 @@ public record DataStreamDerivedMetrics(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalBoolean(enabled);
             out.writeOptionalStringCollection(builtin);
-            out.writeOptionalCollection(intervals, StreamOutput::writeTimeValue);
+            out.writeOptionalTimeValue(defaultInterval);
+            out.writeOptionalCollection(destinations, StreamOutput::writeWriteable);
             out.writeOptionalStringCollection(dimensions);
             out.writeOptionalCollection(metrics, StreamOutput::writeWriteable);
         }
@@ -519,12 +687,11 @@ public record DataStreamDerivedMetrics(
             if (builtin != null) {
                 builder.stringListField(BUILTIN_FIELD.getPreferredName(), builtin);
             }
-            if (intervals != null) {
-                builder.startArray(INTERVALS_FIELD.getPreferredName());
-                for (TimeValue interval : intervals) {
-                    builder.value(interval.getStringRep());
-                }
-                builder.endArray();
+            if (defaultInterval != null) {
+                builder.field(DEFAULT_INTERVAL_FIELD.getPreferredName(), defaultInterval.getStringRep());
+            }
+            if (destinations != null) {
+                Destination.listToXContent(builder, destinations);
             }
             if (dimensions != null) {
                 builder.stringListField(DIMENSIONS_FIELD.getPreferredName(), dimensions);
@@ -540,7 +707,8 @@ public record DataStreamDerivedMetrics(
     public static class Builder {
         private Boolean enabled;
         private List<String> builtin;
-        private List<TimeValue> intervals;
+        private TimeValue defaultInterval;
+        private List<Destination> destinations;
         private List<String> dimensions;
         private List<Metric> metrics;
 
@@ -548,7 +716,8 @@ public record DataStreamDerivedMetrics(
             if (template != null) {
                 enabled = template.enabled();
                 builtin = template.builtin() == null ? null : new ArrayList<>(template.builtin());
-                intervals = template.intervals() == null ? null : new ArrayList<>(template.intervals());
+                defaultInterval = template.defaultInterval();
+                destinations = template.destinations() == null ? null : new ArrayList<>(template.destinations());
                 dimensions = template.dimensions() == null ? null : new ArrayList<>(template.dimensions());
                 metrics = template.metrics() == null ? null : new ArrayList<>(template.metrics());
             }
@@ -557,7 +726,8 @@ public record DataStreamDerivedMetrics(
         public Builder(DataStreamDerivedMetrics derivedMetrics) {
             enabled = derivedMetrics.enabled();
             builtin = new ArrayList<>(derivedMetrics.builtin());
-            intervals = new ArrayList<>(derivedMetrics.intervals());
+            defaultInterval = derivedMetrics.defaultInterval();
+            destinations = new ArrayList<>(derivedMetrics.destinations());
             dimensions = new ArrayList<>(derivedMetrics.dimensions());
             metrics = new ArrayList<>(derivedMetrics.metrics());
         }
@@ -569,15 +739,18 @@ public record DataStreamDerivedMetrics(
             if (template.enabled() != null) {
                 enabled = template.enabled();
             }
+            if (template.defaultInterval() != null) {
+                defaultInterval = template.defaultInterval();
+            }
             builtin = append(builtin, template.builtin());
-            intervals = append(intervals, template.intervals());
+            destinations = mergeDestinations(destinations, template.destinations());
             dimensions = append(dimensions, template.dimensions());
             metrics = mergeMetrics(metrics, template.metrics());
             return this;
         }
 
         public Template buildTemplate() {
-            return new Template(enabled, builtin, intervals, dimensions, metrics);
+            return new Template(enabled, builtin, defaultInterval, destinations, dimensions, metrics);
         }
 
         public DataStreamDerivedMetrics build() {
@@ -593,6 +766,21 @@ public record DataStreamDerivedMetrics(
                 if (merged.contains(item) == false) {
                     merged.add(item);
                 }
+            }
+            return merged;
+        }
+
+        /**
+         * A more specific template replaces the settings of a destination it redefines, rather than merging into them.
+         */
+        private static List<Destination> mergeDestinations(@Nullable List<Destination> existing, @Nullable List<Destination> additional) {
+            if (additional == null) {
+                return existing;
+            }
+            List<Destination> merged = existing == null ? new ArrayList<>() : new ArrayList<>(existing);
+            for (Destination destination : additional) {
+                merged.removeIf(current -> current.interval().millis() == destination.interval().millis());
+                merged.add(destination);
             }
             return merged;
         }

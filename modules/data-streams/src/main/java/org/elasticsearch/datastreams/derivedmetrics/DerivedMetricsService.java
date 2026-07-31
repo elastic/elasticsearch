@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
@@ -38,6 +37,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Owns the node-local derived metrics state: it observes writes handed to it by {@link DerivedMetricsIndexingListener}, buffers them per
@@ -75,9 +76,31 @@ public class DerivedMetricsService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Ceiling for any single source stream, so the node budget is not first-come-first-served. Defaults to the whole node budget, which
+     * preserves today's behaviour until an operator chooses to divide it.
+     */
+    public static final Setting<Integer> MAX_SERIES_PER_STREAM = Setting.intSetting(
+        "data_streams.derived_metrics.max_series_per_stream",
+        MAX_SERIES_PER_NODE,
+        1,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Integer> BULK_SIZE = Setting.intSetting(
         "data_streams.derived_metrics.bulk_size",
         1_000,
+        1,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Ceiling on bulk requests outstanding at once. Emission is fire and forget, so a destination that cannot keep up would otherwise
+     * let every flush add to a queue with nothing bounding it.
+     */
+    public static final Setting<Integer> MAX_IN_FLIGHT_BULKS = Setting.intSetting(
+        "data_streams.derived_metrics.max_in_flight_bulks",
+        8,
         1,
         Setting.Property.NodeScope
     );
@@ -88,7 +111,10 @@ public class DerivedMetricsService implements Closeable {
     private final TimeValue flushInterval;
     private final long graceMillis;
     private final int bulkSize;
+    private final int maxInFlightBulks;
     private final String nodeName;
+    private final AtomicInteger inFlightBulks = new AtomicInteger();
+    private final AtomicLong droppedForBackpressure = new AtomicLong();
 
     private volatile Scheduler.Cancellable scheduled;
     private volatile boolean closed;
@@ -97,10 +123,11 @@ public class DerivedMetricsService implements Closeable {
     public DerivedMetricsService(Settings settings, Client client, ThreadPool threadPool, String nodeName) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
         this.threadPool = threadPool;
-        this.buffer = new DerivedMetricsBuffer(MAX_SERIES_PER_NODE.get(settings));
+        this.buffer = new DerivedMetricsBuffer(MAX_SERIES_PER_NODE.get(settings), MAX_SERIES_PER_STREAM.get(settings));
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
         this.bulkSize = BULK_SIZE.get(settings);
+        this.maxInFlightBulks = MAX_IN_FLIGHT_BULKS.get(settings);
         this.nodeName = nodeName;
     }
 
@@ -150,19 +177,18 @@ public class DerivedMetricsService implements Closeable {
             List<String> dimensionNames = new ArrayList<>(metric.dimensions().size());
             List<String> dimensionValues = new ArrayList<>(metric.dimensions().size());
             resolveDimensions(metric.dimensions(), source, dimensionNames, dimensionValues);
-            for (Interval interval : compiled.intervals()) {
-                SeriesKey series = new SeriesKey(
-                    project,
-                    sourceDataStream,
-                    metric.name(),
-                    interval.name(),
-                    metric.reduction(),
-                    List.copyOf(dimensionNames),
-                    List.copyOf(dimensionValues)
-                );
-                long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
-                buffer.record(new BucketKey(series, bucketStart, interval.millis()), value);
-            }
+            Interval interval = metric.interval();
+            SeriesKey series = new SeriesKey(
+                project,
+                sourceDataStream,
+                metric.name(),
+                interval.name(),
+                metric.reduction(),
+                List.copyOf(dimensionNames),
+                List.copyOf(dimensionValues)
+            );
+            long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
+            buffer.record(new BucketKey(series, bucketStart, interval.millis()), value);
         }
     }
 
@@ -197,32 +223,42 @@ public class DerivedMetricsService implements Closeable {
         flush(buffer.drainClosed(threadPool.absoluteTimeInMillis(), graceMillis));
     }
 
+    /**
+     * Converts and sends in bulk-sized chunks rather than materialising every closed bucket first, so peak memory during a flush is one
+     * bulk rather than the whole drained set.
+     */
     private void flush(List<Map.Entry<BucketKey, Accumulator>> closed) {
         if (closed.isEmpty()) {
             reportDrops();
             return;
         }
-        Map<ProjectId, List<IndexRequest>> byProject = new HashMap<>();
+        // Group by project only: a bulk request can address any number of destinations, but it is scoped to one project.
+        Map<ProjectId, BulkRequest> pending = new HashMap<>();
         for (Map.Entry<BucketKey, Accumulator> entry : closed) {
-            byProject.computeIfAbsent(entry.getKey().series().project(), unused -> new ArrayList<>())
-                .add(DerivedMetricsEmitter.toIndexRequest(entry.getKey(), entry.getValue(), nodeName));
-        }
-        for (Map.Entry<ProjectId, List<IndexRequest>> entry : byProject.entrySet()) {
-            List<IndexRequest> requests = entry.getValue();
-            for (int from = 0; from < requests.size(); from += bulkSize) {
-                BulkRequest bulk = new BulkRequest();
-                for (IndexRequest request : requests.subList(from, Math.min(from + bulkSize, requests.size()))) {
-                    bulk.add(request);
-                }
-                send(entry.getKey(), bulk);
+            ProjectId project = entry.getKey().series().project();
+            BulkRequest bulk = pending.computeIfAbsent(project, unused -> new BulkRequest());
+            bulk.add(DerivedMetricsEmitter.toIndexRequest(entry.getKey(), entry.getValue(), nodeName));
+            if (bulk.numberOfActions() >= bulkSize) {
+                pending.remove(project);
+                send(project, bulk);
             }
         }
+        pending.forEach(this::send);
         reportDrops();
     }
 
+    /**
+     * Sends one bulk, keeping a ceiling on how many are outstanding. Emission is fire and forget, so without a ceiling a destination
+     * that cannot keep up would let every flush add to an unbounded queue of in-flight requests.
+     */
     private void send(ProjectId project, BulkRequest bulk) {
         int documents = bulk.numberOfActions();
-        client.projectClient(project).bulk(bulk, new ActionListener<>() {
+        if (inFlightBulks.incrementAndGet() > maxInFlightBulks) {
+            inFlightBulks.decrementAndGet();
+            droppedForBackpressure.addAndGet(documents);
+            return;
+        }
+        client.projectClient(project).bulk(bulk, ActionListener.runAfter(new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 if (response.hasFailures() == false) {
@@ -242,10 +278,19 @@ public class DerivedMetricsService implements Closeable {
             public void onFailure(Exception e) {
                 logger.warn(() -> "failed to write [" + documents + "] derived metric documents for project [" + project + "]", e);
             }
-        });
+        }, inFlightBulks::decrementAndGet));
     }
 
     private void reportDrops() {
+        long shed = droppedForBackpressure.getAndSet(0);
+        if (shed > 0) {
+            logger.warn(
+                "derived metrics dropped [{}] documents because [{}] bulk requests were already in flight; "
+                    + "the destination is not keeping up",
+                shed,
+                maxInFlightBulks
+            );
+        }
         long dropped = buffer.droppedSeries();
         if (dropped > lastReportedDrops) {
             logger.warn(

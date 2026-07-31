@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -91,11 +92,24 @@ public class DerivedMetricsBuffer {
     }
 
     private final ConcurrentHashMap<BucketKey, Accumulator> buckets = new ConcurrentHashMap<>();
+    // Series held per source stream, so one stream's cardinality cannot be paid for out of another's budget.
+    private final ConcurrentHashMap<String, AtomicInteger> perStream = new ConcurrentHashMap<>();
     private final LongAdder droppedSeries = new LongAdder();
     private final int maxSeries;
+    private final int maxSeriesPerStream;
 
     public DerivedMetricsBuffer(int maxSeries) {
+        this(maxSeries, maxSeries);
+    }
+
+    /**
+     * @param maxSeries          ceiling for the node as a whole
+     * @param maxSeriesPerStream ceiling for any single source stream. Without it the node budget is first-come-first-served, so one
+     *                           high-cardinality stream can consume all of it and silently starve every other stream's metrics.
+     */
+    public DerivedMetricsBuffer(int maxSeries, int maxSeriesPerStream) {
         this.maxSeries = maxSeries;
+        this.maxSeriesPerStream = maxSeriesPerStream;
     }
 
     /**
@@ -105,11 +119,20 @@ public class DerivedMetricsBuffer {
     public boolean record(BucketKey key, double value) {
         Accumulator accumulator = buckets.get(key);
         if (accumulator == null) {
-            if (buckets.size() >= maxSeries) {
+            String stream = key.series().sourceDataStream();
+            AtomicInteger held = perStream.computeIfAbsent(stream, unused -> new AtomicInteger());
+            if (buckets.size() >= maxSeries || held.get() >= maxSeriesPerStream) {
                 droppedSeries.increment();
                 return false;
             }
-            accumulator = buckets.computeIfAbsent(key, unused -> new Accumulator());
+            boolean[] created = new boolean[1];
+            accumulator = buckets.computeIfAbsent(key, unused -> {
+                created[0] = true;
+                return new Accumulator();
+            });
+            if (created[0]) {
+                held.incrementAndGet();
+            }
         }
         accumulator.add(value);
         return true;
@@ -128,6 +151,7 @@ public class DerivedMetricsBuffer {
             if (key.bucketStartMillis() + key.intervalMillis() + graceMillis <= nowMillis) {
                 closed.add(Map.entry(key, entry.getValue()));
                 iterator.remove();
+                released(key);
             }
         }
         return closed;
@@ -144,12 +168,26 @@ public class DerivedMetricsBuffer {
             Map.Entry<BucketKey, Accumulator> entry = iterator.next();
             drained.add(Map.entry(entry.getKey(), entry.getValue()));
             iterator.remove();
+            released(entry.getKey());
         }
         return drained;
     }
 
+    private void released(BucketKey key) {
+        AtomicInteger held = perStream.get(key.series().sourceDataStream());
+        if (held != null && held.decrementAndGet() <= 0) {
+            perStream.remove(key.series().sourceDataStream(), held);
+        }
+    }
+
     public int size() {
         return buckets.size();
+    }
+
+    // visible for testing
+    int seriesFor(String sourceDataStream) {
+        AtomicInteger held = perStream.get(sourceDataStream);
+        return held == null ? 0 : held.get();
     }
 
     public long droppedSeries() {

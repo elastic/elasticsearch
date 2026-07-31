@@ -14,13 +14,16 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestinationLifecycle;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -34,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -69,9 +73,7 @@ public class DerivedMetricsIT extends ESIntegTestCase {
     }
 
     public void testBuiltinIngestMetricsAreEmitted() throws Exception {
-        String dataStream = createDataStream(
-            new DataStreamDerivedMetrics.Template(null, List.of("ingest.*"), List.of(INTERVAL), null, null)
-        );
+        String dataStream = createDataStream(new DataStreamDerivedMetrics.Template(null, List.of("ingest.*"), INTERVAL, null, null, null));
 
         int documents = randomIntBetween(5, 20);
         for (int i = 0; i < documents; i++) {
@@ -93,13 +95,15 @@ public class DerivedMetricsIT extends ESIntegTestCase {
             new DataStreamDerivedMetrics.Template(
                 null,
                 List.of(),
-                List.of(INTERVAL),
+                INTERVAL,
+                null,
                 List.of("service.name"),
                 List.of(
                     new DataStreamDerivedMetrics.Metric(
                         "http.errors",
                         DataStreamDerivedMetrics.MetricType.COUNTER,
                         Map.of("range", Map.of("http.response.status_code", Map.of("gte", 500))),
+                        null,
                         null,
                         null,
                         null
@@ -110,6 +114,7 @@ public class DerivedMetricsIT extends ESIntegTestCase {
                         null,
                         DataStreamDerivedMetrics.MetricValue.field("queue.depth"),
                         DataStreamDerivedMetrics.GaugeAggregation.MAX,
+                        null,
                         null
                     )
                 )
@@ -130,7 +135,7 @@ public class DerivedMetricsIT extends ESIntegTestCase {
 
     public void testConfiguredDimensionsAreEmitted() throws Exception {
         String dataStream = createDataStream(
-            new DataStreamDerivedMetrics.Template(null, List.of("ingest.docs.count"), List.of(INTERVAL), List.of("service.name"), null)
+            new DataStreamDerivedMetrics.Template(null, List.of("ingest.docs.count"), INTERVAL, null, List.of("service.name"), null)
         );
 
         index(dataStream, Map.of("service.name", "checkout"));
@@ -149,13 +154,128 @@ public class DerivedMetricsIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * A metric that overrides the interval is written to that interval's own destination, leaving the default destination untouched.
+     */
+    public void testIntervalOverrideWritesToItsOwnDestination() throws Exception {
+        TimeValue override = TimeValue.timeValueSeconds(2);
+        String dataStream = createDataStream(
+            new DataStreamDerivedMetrics.Template(
+                null,
+                List.of("ingest.docs.count"),
+                INTERVAL,
+                List.of(new DataStreamDerivedMetrics.Destination(override, null)),
+                null,
+                List.of(
+                    new DataStreamDerivedMetrics.Metric(
+                        "queue.depth",
+                        DataStreamDerivedMetrics.MetricType.GAUGE,
+                        null,
+                        DataStreamDerivedMetrics.MetricValue.field("queue.depth"),
+                        DataStreamDerivedMetrics.GaugeAggregation.MAX,
+                        null,
+                        override
+                    )
+                )
+            )
+        );
+
+        index(dataStream, Map.of("service.name", "checkout", "queue.depth", 7));
+
+        assertBusy(() -> {
+            assertThat(metricNamesIn(destination(dataStream, INTERVAL)), contains("ingest.docs.count"));
+            assertThat(metricNamesIn(destination(dataStream, override)), contains("queue.depth"));
+        });
+    }
+
+    /**
+     * A destination is created by the first document written to it, from a template that carries no lifecycle. The retention configured
+     * on the source has to be applied to the destination afterwards.
+     */
+    public void testDestinationIsGivenTheConfiguredRetention() throws Exception {
+        String dataStream = createDataStream(
+            new DataStreamDerivedMetrics.Template(
+                null,
+                List.of("ingest.docs.count"),
+                INTERVAL,
+                List.of(
+                    new DataStreamDerivedMetrics.Destination(
+                        INTERVAL,
+                        DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(7)).buildTemplate()
+                    )
+                ),
+                null,
+                null
+            )
+        );
+
+        index(dataStream, Map.of("service.name", "checkout"));
+
+        assertBusy(() -> {
+            DataStreamLifecycle lifecycle = lifecycleOf(destination(dataStream, INTERVAL));
+            assertNotNull("the destination has no lifecycle yet", lifecycle);
+            assertThat(lifecycle.dataRetention(), equalTo(TimeValue.timeValueDays(7)));
+        });
+    }
+
+    /**
+     * Without a declared destination the retention falls back to a default, so a destination is never unbounded by accident.
+     */
+    public void testDestinationFallsBackToTheDefaultRetention() throws Exception {
+        String dataStream = createDataStream(
+            new DataStreamDerivedMetrics.Template(null, List.of("ingest.docs.count"), INTERVAL, null, null, null)
+        );
+
+        index(dataStream, Map.of("service.name", "checkout"));
+
+        assertBusy(() -> {
+            DataStreamLifecycle lifecycle = lifecycleOf(destination(dataStream, INTERVAL));
+            assertNotNull("the destination has no lifecycle yet", lifecycle);
+            assertThat(lifecycle.dataRetention(), equalTo(DerivedMetricsDestinationLifecycle.FALLBACK_RETENTION));
+        });
+    }
+
+    private DataStreamLifecycle lifecycleOf(String dataStream) {
+        DataStream found = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .dataStreams()
+            .get(dataStream);
+        assertNotNull("[" + dataStream + "] does not exist yet", found);
+        return found.getDataLifecycle();
+    }
+
+    private String destination(String dataStream, TimeValue interval) {
+        return DerivedMetricsDestination.destinationFor(dataStream, interval.getStringRep());
+    }
+
+    private List<String> metricNamesIn(String destination) {
+        assertTrue("[" + destination + "] does not exist yet", dataStreamExists(destination));
+        refresh(destination);
+        List<String> names = new ArrayList<>();
+        var response = client().prepareSearch(destination).setSize(100).setQuery(QueryBuilders.matchAllQuery()).get();
+        try {
+            for (SearchHit hit : response.getHits()) {
+                String name = (String) field(hit.getSourceAsMap(), "metric.name");
+                if (names.contains(name) == false) {
+                    names.add(name);
+                }
+            }
+        } finally {
+            response.decRef();
+        }
+        return names;
+    }
+
     public void testNoMetricsAreEmittedForAStreamWithoutDerivedMetrics() throws Exception {
         assertNothingIsEmitted(createDataStream(null));
     }
 
     public void testDisabledDerivedMetricsEmitNothing() throws Exception {
         assertNothingIsEmitted(
-            createDataStream(new DataStreamDerivedMetrics.Template(false, List.of("ingest.*"), List.of(INTERVAL), null, null))
+            createDataStream(new DataStreamDerivedMetrics.Template(false, List.of("ingest.*"), INTERVAL, null, null, null))
         );
     }
 
@@ -201,8 +321,11 @@ public class DerivedMetricsIT extends ESIntegTestCase {
     }
 
     private boolean destinationExists(String sourceDataStream) {
-        // the destination is hidden, so it is looked up by name rather than through a wildcard expression
-        String destination = DerivedMetricsDestination.destinationFor(sourceDataStream);
+        return dataStreamExists(destination(sourceDataStream, INTERVAL));
+    }
+
+    // the destinations are hidden, so they are looked up by name rather than through a wildcard expression
+    private boolean dataStreamExists(String destination) {
         return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
@@ -238,9 +361,9 @@ public class DerivedMetricsIT extends ESIntegTestCase {
 
     private List<Map<String, Object>> metricDocuments(String sourceDataStream, String metricName) {
         assertTrue("no derived metrics were emitted for [" + sourceDataStream + "] yet", destinationExists(sourceDataStream));
-        refresh(DerivedMetricsDestination.destinationFor(sourceDataStream));
+        refresh(DerivedMetricsDestination.destinationFor(sourceDataStream, INTERVAL.getStringRep()));
         List<Map<String, Object>> documents = new ArrayList<>();
-        var response = client().prepareSearch(DerivedMetricsDestination.destinationFor(sourceDataStream))
+        var response = client().prepareSearch(DerivedMetricsDestination.destinationFor(sourceDataStream, INTERVAL.getStringRep()))
             .setSize(1000)
             .setQuery(metricName == null ? QueryBuilders.matchAllQuery() : QueryBuilders.termQuery("metric.name", metricName))
             .get();

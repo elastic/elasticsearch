@@ -53,7 +53,7 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
 
     public void testDestinationIsDerivedFromTheSourceDataStream() {
         IndexRequest request = request(Reduction.SUM, List.of(), List.of());
-        assertEquals("derived-metrics-logs-my_app-default", request.index());
+        assertEquals("derived-metrics-logs-my_app-default-10s", request.index());
         assertEquals(DocWriteRequest.OpType.CREATE, request.opType());
     }
 

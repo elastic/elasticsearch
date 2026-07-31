@@ -49,7 +49,8 @@ public final class DerivedMetricsEmitter {
         }
         document.put(DerivedMetricsDestination.METRIC_VALUE_FIELD, accumulator.reduce(series.reduction(), key.intervalMillis()));
 
-        return new IndexRequest(DerivedMetricsDestination.destinationFor(series.sourceDataStream())).opType(DocWriteRequest.OpType.CREATE)
-            .source(document);
+        return new IndexRequest(DerivedMetricsDestination.destinationFor(series.sourceDataStream(), series.interval())).opType(
+            DocWriteRequest.OpType.CREATE
+        ).source(document);
     }
 }

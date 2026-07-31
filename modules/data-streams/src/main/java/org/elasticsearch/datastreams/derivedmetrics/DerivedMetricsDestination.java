@@ -113,10 +113,11 @@ public final class DerivedMetricsDestination {
     private DerivedMetricsDestination() {}
 
     /**
-     * The destination data stream for the given source data stream.
+     * The destination data stream for a source stream at a given interval. Each interval gets its own destination so that retention can
+     * differ per resolution, and so a query over one destination never has to filter by interval.
      */
-    public static String destinationFor(String sourceDataStream) {
-        return DESTINATION_PREFIX + sourceDataStream;
+    public static String destinationFor(String sourceDataStream, String interval) {
+        return DESTINATION_PREFIX + sourceDataStream + "-" + interval;
     }
 
     /**

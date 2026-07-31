@@ -35,7 +35,7 @@ dependencies {
   clusterModules project(':modules:reindex-management')
 
   // Testcontainers-backed old Elasticsearch fixtures for reindex-from-remote (see javaRestTest)
-  javaRestTestImplementation project(':test:fixtures:old-elasticsearch-container')
+  javaRestTestImplementation project(':test:fixtures:old-elasticsearch')
   javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
   javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }

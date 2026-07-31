@@ -30,7 +30,7 @@ import java.util.Map;
 public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final int HTTP_PORT = 9200;
-    // Keep in sync with `def fixtureVersion` in test/fixtures/old-elasticsearch-container/build.gradle.
+    // Keep in sync with `def fixtureVersion` in test/fixtures/old-elasticsearch/build.gradle.
     private static final String FIXTURE_IMAGE_VERSION = "1.3";
     private static final Map<String, String> IMAGES = Map.of(
         "0.90.13",

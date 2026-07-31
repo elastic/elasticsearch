@@ -55,7 +55,12 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
         // Not valid base64 at all → null + warning (decode throws before UTF-8 check)
         helper().expectNullAndWarningsFromString(
             encoded -> List.of("Line 1:1: java.lang.IllegalArgumentException: " + decodeErrorMessage(encoded))
-        ).strings("invalid alphabet", () -> "not!!base64").build(suppliers);
+        )
+            .strings("invalid alphabet", () -> "not!!base64")
+            // Padding / unit errors previously surfaced as uncaught 400s at runtime.
+            .strings("wrong 4-byte ending unit", () -> "YfAAAAAAAAAAAAAAAAAAAAAA=")
+            .strings("insufficient bits in last unit", () -> "YfAAAAAAAAAAAAAAAAAAAAAAA=")
+            .build(suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -76,10 +81,14 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
         return Base64.getDecoder().decode(encoded.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Message from {@link Base64.Decoder} for an input that must not decode successfully. */
+    /**
+     * Message from {@link Base64.Decoder} for an input that must not decode successfully.
+     * Uses the same {@code decode(byte[], byte[])} overload as {@link FromBase64#process}.
+     */
     private static String decodeErrorMessage(String invalidBase64) {
+        byte[] src = invalidBase64.getBytes(StandardCharsets.UTF_8);
         try {
-            decode(invalidBase64);
+            Base64.getDecoder().decode(src, new byte[src.length]);
             throw new AssertionError("expected invalid base64: " + invalidBase64);
         } catch (IllegalArgumentException e) {
             return e.getMessage();

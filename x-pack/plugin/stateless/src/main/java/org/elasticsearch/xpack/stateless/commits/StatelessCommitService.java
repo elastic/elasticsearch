@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -215,6 +216,49 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED = Setting.boolSetting(
+        "stateless.upload.queue_controller.enabled",
+        false, // TODO ??
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How frequently the upload queue controller should check the commit upload backlog and apply throttling if needed.
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL = Setting.positiveTimeSetting(
+        "stateless.upload.queue_controller.interval",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Size of the commit upload backlog when index throttling is applied.
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD = Setting.positiveTimeSetting(
+        "stateless.upload.queue_controller.index_throttle.threshold",
+        TimeValue.timeValueSeconds(90),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Size of the commit upload backlog when index throttling is removed.
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD = Setting.positiveTimeSetting(
+        "stateless.upload.queue_controller.index_throttle.removal_threshold",
+        TimeValue.timeValueSeconds(45),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum amount of time during which the decision to throttle/not throttle indexing can not be changed.
+     * In other words minimum indexing throttle period and period between consecutive throttling applications.
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN = Setting.positiveTimeSetting(
+        "stateless.upload.queue_controller.index_throttle.cooldown",
+        TimeValue.timeValueSeconds(20),
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -244,7 +288,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final TimeValue gcpListenerTranslogSyncTimeout;
+    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
+    private final UploadQueueController uploadQueueController;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
     private final int bccUploadMaxIoRetries;
@@ -320,11 +366,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         this.gcpListenerTranslogSyncTimeout = STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT.get(settings);
+        /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
+        /// to the latest data point.
+        /// We use a slight recency biased value.
+        /// We also use an optimistic initial value of 1 Gb/sec to run unrestricted on a fresh node.
+        /// This based on an assumption that a node provides 15 Gigabit max network throughput (which is about ~1.7 GiB).
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getBytes());
         this.scheduledUploadMonitor = new ScheduledUploadMonitor(
             threadPool,
             threadPool.generic(),
             STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
         );
+        boolean uploadQueueControllerEnabled = STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.get(settings);
+        if (uploadQueueControllerEnabled) {
+            this.uploadQueueController = new UploadQueueController(
+                threadPool,
+                threadPool.generic(),
+                STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL.get(settings),
+                STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.get(settings),
+                STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD.get(settings),
+                STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.get(settings)
+            );
+        } else {
+            this.uploadQueueController = null;
+        }
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
@@ -514,12 +579,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
         scheduledUploadMonitor.rescheduleIfNecessary();
+        if (uploadQueueController != null) {
+            uploadQueueController.rescheduleIfNecessary();
+        }
     }
 
     @Override
     protected void doStop() {
         scheduledShardInactivityMonitorFuture.cancel();
         scheduledUploadMonitor.close();
+        if (uploadQueueController != null) {
+            uploadQueueController.rescheduleIfNecessary();
+        }
     }
 
     @Override
@@ -588,6 +659,105 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
                 }
             });
+        }
+    }
+
+    class UploadQueueController extends AbstractAsyncTask {
+        private final long indexingThrottleThresholdSeconds;
+        private final long indexingThrottleRemovalThresholdSeconds;
+        private final long indexingThrottleCooldownSeconds;
+
+        private volatile Map<ShardId, State> indexThrottleState = Map.of();
+        private volatile Map<ShardId, State> mergeThrottleState = Map.of();
+
+        protected UploadQueueController(
+            ThreadPool threadPool,
+            Executor executor,
+            TimeValue interval,
+            TimeValue indexingThrottleBacklogThreshold,
+            TimeValue indexingThrottleRemovalThreshold,
+            TimeValue indexingThrottleCooldown
+        ) {
+            super(logger, threadPool, executor, interval, true);
+            this.indexingThrottleThresholdSeconds = indexingThrottleBacklogThreshold.seconds();
+            this.indexingThrottleRemovalThresholdSeconds = indexingThrottleRemovalThreshold.seconds();
+            this.indexingThrottleCooldownSeconds = indexingThrottleCooldown.seconds();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        protected void runInternal() {
+            // Rebuilding a map allows us to drop entries for all shards that were closed.
+            // The map is also small.
+            var newIndexThrottleState = new HashMap<ShardId, State>();
+
+            shardsCommitsStates.forEach((shardId, commitState) -> {
+                if (commitState.isClosed()) {
+                    return;
+                }
+
+                State currentState = indexThrottleState.get(shardId);
+                if (currentState != null
+                    && currentState.expired(threadPool.relativeTimeInMillis(), indexingThrottleCooldownSeconds) == false) {
+                    // We are still executing previous decision, keep doing it and not intervene.
+                    newIndexThrottleState.put(shardId, currentState);
+                    return;
+                }
+
+                // Otherwise we can make a new decision.
+
+                long queueInBytes = commitState.pendingUploadBytes;
+                long queueInSeconds = Math.round(ByteSizeUnit.BYTES.toMB(queueInBytes) / commitUploadThroughputMiBSec.getAverage());
+
+                if (queueInSeconds > indexingThrottleThresholdSeconds) {
+                    // This is a throttle condition.
+                    if (currentState != null && currentState.latestDecision == Type.THROTTLED) {
+                        // The throttle is currently applied, it just expired.
+                        // Keep it since we see that it is needed.
+                        // TODO introduce a maximum number of times this happens, don't throttle forever
+                        return;
+                    }
+
+                    // Otherwise we can throttle - the grace period after the latest throttle expired
+                    // or there was no prior decision.
+
+                    IndexShard shard = indicesService.getShardOrNull(shardId);
+                    if (shard != null) {
+                        shard.activateThrottling();
+                        newIndexThrottleState.put(shardId, new State(Type.THROTTLED, threadPool.relativeTimeInMillis()));
+                    }
+                } else if (queueInSeconds < indexingThrottleRemovalThresholdSeconds) {
+                    // This is a "stop throttle" condition.
+                    if (currentState != null && currentState.latestDecision == Type.THROTTLED) {
+                        // We are currently throttling, stop it.
+                        IndexShard shard = indicesService.getShardOrNull(shardId);
+                        if (shard != null) {
+                            shard.deactivateThrottling();
+                            newIndexThrottleState.put(shardId, new State(Type.THROTTLE_REMOVED, threadPool.relativeTimeInMillis()));
+                        }
+                    }
+                }
+            });
+
+            indexThrottleState = newIndexThrottleState;
+        }
+
+        private enum Type {
+            THROTTLED,
+            THROTTLE_REMOVED
+        }
+
+        // Track when a particular decision was applied to be able to hold the decision for
+        // configuration amount of time and avoid constant flapping.
+        private record State(Type latestDecision, long relativeApplicationTimeMs) {
+            boolean expired(long currentRelativeTimeMs, long expirationPeriod) {
+                // TODO hardcoded for indexing for now
+                return currentRelativeTimeMs - relativeApplicationTimeMs > expirationPeriod;
+            }
         }
     }
 
@@ -887,6 +1057,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1367,6 +1538,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // uploaded which is then removed from pendingUploadBccGenerations.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private long pendingUploadBytes = 0; // only updated in synchronized blocks
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1963,6 +2135,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
                 );
+                pendingUploadBytes += expectedVirtualBcc.getTotalSizeInBytes();
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
@@ -2152,6 +2325,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (isUpload) {
                         // Remove the BCC from the pending list regardless just in case
                         pendingUploadBccGenerations.remove(newBccGeneration);
+                        pendingUploadBytes -= uploadedBcc.calculateBccBlobLength();
                     }
                     assert false
                         : "out of order BCC generation ["
@@ -2214,6 +2388,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
+                    // TODO does calculateBccBlobLength match VBCC#getTotalSizeInBytes() ?
+                    pendingUploadBytes -= uploadedBcc.calculateBccBlobLength();
                     assert removed != null : newBccGeneration + "not found";
                 }
                 if (localUploadedGenerationListeners != null) {

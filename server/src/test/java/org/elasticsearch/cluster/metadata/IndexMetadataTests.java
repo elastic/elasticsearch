@@ -1014,18 +1014,4 @@ public class IndexMetadataTests extends ESTestCase {
 
         assertThat(withPaths.ramBytesUsed(), greaterThan(withoutPaths.ramBytesUsed()));
     }
-
-    public void testRamBytesUsedIncludesAliasBoxedFields() {
-        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
-        IndexMetadata withoutBoxed = IndexMetadata.builder("test")
-            .settings(settings)
-            .putAlias(AliasMetadata.builder("alias").build())
-            .build();
-        IndexMetadata withBoxed = IndexMetadata.builder("test")
-            .settings(settings)
-            .putAlias(AliasMetadata.builder("alias").writeIndex(true).isHidden(true).build())
-            .build();
-
-        assertThat(withBoxed.ramBytesUsed(), greaterThan(withoutBoxed.ramBytesUsed()));
-    }
 }

@@ -656,7 +656,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             total += indexMetadata.ramBytesUsed();
             MappingMetadata mapping = indexMetadata.mapping();
             if (mapping != null && seenMappings.add(mapping) == false) {
-                total -= mapping.ramBytesUsed();
+                total -= IndexMetadata.estimateMappingMetadataHeap(mapping);
             }
         }
         return total;

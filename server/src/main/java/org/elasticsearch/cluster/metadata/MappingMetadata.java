@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -31,9 +29,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Accountable {
-
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
+public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -154,11 +150,6 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Account
 
     public String getSha256() {
         return source.getSha256();
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(type) + source.ramBytesUsed();
     }
 
     @Override

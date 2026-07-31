@@ -83,6 +83,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -161,6 +162,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private static final TransportVersion INDEX_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("index_created_transport_version");
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
+    // Settings stores values in a TreeMap; these constants capture entry overhead without needing the map reference.
+    private static final long SETTINGS_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Settings.class);
+    private static final long SETTINGS_TREE_MAP_BYTES = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
+    // TreeMap.Entry: header + 5 refs (key, value, parent, left, right) + 1 byte (color flag)
+    private static final long SETTINGS_TREE_MAP_ENTRY_BYTES = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 1
+    );
+    private static final long COMPRESSED_XCONTENT_BASE = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
+    private static final long MAPPING_METADATA_BASE = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
 
     private volatile long ramBytesUsed = -1;
 
@@ -171,8 +181,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns an estimated heap footprint for this index metadata instance. Counts all reference fields using
-     * {@link RamUsageEstimator} and {@link Accountable} implementations where available. Shared instances may be
-     * counted multiple times when summed across indices.
+     * {@link RamUsageEstimator}. Shared instances (e.g. deduplicated {@link MappingMetadata} in {@link ProjectMetadata})
+     * may be counted multiple times when summed across indices; callers that need accurate cross-index totals should
+     * use {@link #estimateMappingMetadataHeap} to subtract duplicate mapping costs.
      */
     @Override
     public long ramBytesUsed() {
@@ -182,9 +193,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         long size = BASE_RAM_BYTES_USED;
         size += sizeOfIndex(index);
-        size += settings.ramBytesUsed();
+        size += estimateSettingsHeap(settings);
         if (mapping != null) {
-            size += mapping.ramBytesUsed();
+            size += estimateMappingMetadataHeap(mapping);
         }
         size += RamUsageEstimator.sizeOf(primaryTerms);
         size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
@@ -223,9 +234,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     private static long sizeOfIndex(Index index) {
-        return RamUsageEstimator.shallowSizeOf(index)
-            + RamUsageEstimator.sizeOf(index.getName())
-            + RamUsageEstimator.sizeOf(index.getUUID());
+        return RamUsageEstimator.shallowSizeOf(index) + RamUsageEstimator.sizeOf(index.getName()) + RamUsageEstimator.sizeOf(
+            index.getUUID()
+        );
+    }
+
+    private static long estimateSettingsHeap(Settings settings) {
+        if (settings.isEmpty()) {
+            return SETTINGS_BASE_RAM_BYTES_USED;
+        }
+        // Keys and string values are interned via Settings.internKeyOrValue — not counted to avoid 4x over-counting.
+        // List-value overhead is minor and omitted for simplicity.
+        // secureSettings omitted: never populated on index-level Settings.
+        return SETTINGS_BASE_RAM_BYTES_USED + SETTINGS_TREE_MAP_BYTES + (long) settings.size() * SETTINGS_TREE_MAP_ENTRY_BYTES;
+    }
+
+    private static long estimateCompressedXContentHeap(CompressedXContent content) {
+        return COMPRESSED_XCONTENT_BASE + RamUsageEstimator.sizeOf(content.compressed()) + RamUsageEstimator.sizeOf(content.getSha256());
+    }
+
+    /**
+     * Estimates the heap footprint of a {@link MappingMetadata} instance using its public API.
+     * Exposed for callers (e.g. {@code StatelessMemoryMetricsService}) that need to subtract
+     * duplicate mapping costs when summing across indices that share a mapping instance.
+     */
+    public static long estimateMappingMetadataHeap(MappingMetadata mapping) {
+        return MAPPING_METADATA_BASE + RamUsageEstimator.sizeOf(mapping.type()) + estimateCompressedXContentHeap(mapping.source());
     }
 
     private static long sizeOfTransportVersion(@Nullable TransportVersion version) {
@@ -273,9 +307,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (stats == null) {
             return 0L;
         }
-        return RamUsageEstimator.shallowSizeOf(stats)
-            + RamUsageEstimator.shallowSizeOf(stats.writeLoad())
-            + RamUsageEstimator.shallowSizeOf(stats.averageShardSize());
+        return RamUsageEstimator.shallowSizeOf(stats) + RamUsageEstimator.shallowSizeOf(stats.writeLoad()) + RamUsageEstimator
+            .shallowSizeOf(stats.averageShardSize());
     }
 
     public enum State implements Writeable {

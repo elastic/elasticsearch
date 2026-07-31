@@ -1547,13 +1547,7 @@ public class SearchEngine extends Engine {
                     var handle = new PITCommitHandle(existingState);
                     sharedReaderCleanup = handle;
                     var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
-                        new RelocatedPITReader(
-                            handle,
-                            wrapper,
-                            relocatedReshardingMetadata,
-                            relocatedSplitShardCountSummary,
-                            store::decRef
-                        )
+                        new RelocatedPITReader(handle, wrapper, relocatedReshardingMetadata, relocatedSplitShardCountSummary, store::decRef)
                     );
                     storeRef = null;
                     sharedReaderCleanup = null;
@@ -1630,13 +1624,7 @@ public class SearchEngine extends Engine {
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
                 var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
-                    new RelocatedPITReader(
-                        handle,
-                        wrapper,
-                        relocatedReshardingMetadata,
-                        relocatedSplitShardCountSummary,
-                        store::decRef
-                    )
+                    new RelocatedPITReader(handle, wrapper, relocatedReshardingMetadata, relocatedSplitShardCountSummary, store::decRef)
                 );
                 // From now on, the relocated PIT reader is owned by the relocatedPITReaderTracker
                 storeRef = null;

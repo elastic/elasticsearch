@@ -503,9 +503,6 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 for (int i = 0; i <= indexMetadata.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
-                    ShardRouting.RecoveryPriority recoveryPriority = asNew
-                        ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW
-                        : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
                     if (asNew && ignoreShards.contains(shardNumber)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
                         indexShardRoutingBuilder.addShard(
@@ -515,7 +512,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                                 unassignedInfo,
                                 shardRoutingRoleStrategy.newRestoredRole(i),
-                                recoveryPriority
+                                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
                             )
                         );
                     } else {
@@ -526,7 +523,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 primary ? recoverySource : PeerRecoverySource.INSTANCE,
                                 withLastAllocatedNodeId(unassignedInfo, previousNodes, i),
                                 shardRoutingRoleStrategy.newRestoredRole(i),
-                                recoveryPriority
+                                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
                             )
                         );
                     }

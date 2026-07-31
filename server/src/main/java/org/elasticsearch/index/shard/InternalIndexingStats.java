@@ -32,7 +32,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * Internal class that maintains relevant indexing statistics / metrics.
  * @see IndexShard
  */
-final class InternalIndexingStats implements IndexingOperationListener {
+public final class InternalIndexingStats implements IndexingOperationListener {
 
     private static final Logger logger = LogManager.getLogger(InternalIndexingStats.class);
 
@@ -77,8 +77,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
     /**
      * Returns the average thread utilization since the last time this method was called, as a value between 0 and 1 (inclusive).
      */
-    double pollUtilization() {
-        return totalStats.indexingUtilizationTracker.pollUtilization(totalStats.totalExecutionTime);
+    public double pollUtilization() {
+        return totalStats.indexingUtilizationTracker.pollUtilization(totalStats.totalExecutionTimeNanos);
     }
 
     long totalIndexingTimeInNanos() {
@@ -112,7 +112,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                     long took = result.getTook();
                     totalStats.indexMetric.inc(took);
                     totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
-                    totalStats.totalExecutionTime.add(took);
+                    totalStats.totalExecutionTimeNanos.add(took);
                     totalStats.indexCurrent.dec();
                 }
                 break;
@@ -200,7 +200,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-        private LongAdder totalExecutionTime = new LongAdder();
+        private LongAdder totalExecutionTimeNanos = new LongAdder();
         private ThreadUtilizationTracker indexingUtilizationTracker;
 
         StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife, int numIndexingThreads) {

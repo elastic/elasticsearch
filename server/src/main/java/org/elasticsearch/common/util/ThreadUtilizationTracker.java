@@ -40,8 +40,8 @@ public class ThreadUtilizationTracker {
      * This method is synchronized to ensure that the state tracking variables are updated atomically with respect to the calculation.
      * @return the average thread utilization since the last time this method was called, as a value between 0 and 1 (inclusive)
      */
-    public synchronized double pollUtilization(LongAdder executionTimeAdder) {
-        final long currentTotalExecutionTimeNanos = executionTimeAdder.sum();
+    public synchronized double pollUtilization(LongAdder executionTimeNanosAdder) {
+        final long currentTotalExecutionTimeNanos = executionTimeNanosAdder.sum();
         final long currentPollTimeNanos = System.nanoTime();
 
         final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;

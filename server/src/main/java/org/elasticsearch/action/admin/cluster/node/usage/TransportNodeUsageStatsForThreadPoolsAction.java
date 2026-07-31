@@ -29,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,12 +122,15 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             localNode,
             new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats)),
             clusterService.state().getMinTransportVersion().supports(NodeUsageStatsForThreadPoolsAction.NodeResponse.ADD_SHARD_WRITE_LOADS)
-                ? getShardWriteLoads(indicesService)
+                ? getShardWriteLoads()
                 : Map.of()
         );
     }
 
-    private Map<ShardId, Double> getShardWriteLoads(IndicesService indicesService) {
+    /**
+     * Returns the write thread pool utilization (as a value between 0 and 1) per shard since the last polling.
+     */
+    private Map<ShardId, Double> getShardWriteLoads() {
         final var result = new HashMap<ShardId, Double>();
         for (var indexService : indicesService) {
             for (var indexShard : indexService) {

@@ -390,11 +390,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        var writeExecutor = (EsThreadPoolExecutor) threadPool.executor(WRITE);
         this.internalIndexingStats = new InternalIndexingStats(
             relativeTimeInNanosSupplier,
             indexingStatsSettings,
-            writeExecutor.getMaximumPoolSize()
+            ((EsThreadPoolExecutor) threadPool.executor(WRITE)).getMaximumPoolSize()
         );
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(

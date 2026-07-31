@@ -11,13 +11,11 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.indices.recovery.RecoveryGate.Decision;
-import org.elasticsearch.indices.recovery.RecoveryGateMonitor.DecisionChangeListener;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -68,84 +66,20 @@ public class RecoveryGateMonitorTests extends ESTestCase {
         final var monitor = new RecoveryGateMonitor(() -> {
             resolutions.incrementAndGet();
             return List.of(() -> Decision.RUN);
-        }, () -> DecisionChangeListener.NOOP, new DeterministicTaskQueue().getThreadPool());
+        }, new DeterministicTaskQueue().getThreadPool());
 
         assertThat("supplier must not be resolved at construction", resolutions.get(), equalTo(0));
         for (int i = between(1, 3); i > 0; i--) {
-            assertTrue(monitor.check().mayRun());
+            assertTrue(monitor.evaluate().mayRun());
         }
         assertThat(resolutions.get(), equalTo(1));
-    }
-
-    public void testCheckReportsTransitionsAndRechecksWithListener() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var previousDecision = new AtomicReference<Decision>();
-        final var currentDecision = new AtomicReference<Decision>();
-        final var reportedMillis = new AtomicLong(-1);
-        final var changeCount = new AtomicInteger();
-        final var onChangeResolutions = new AtomicInteger();
-        final var decision = new AtomicReference<>(Decision.RUN);
-        final var monitor = new RecoveryGateMonitor(() -> List.of(decision::get), () -> {
-            onChangeResolutions.incrementAndGet();
-            return (previous, current, durationMillis) -> {
-                previousDecision.set(previous);
-                currentDecision.set(current);
-                reportedMillis.set(durationMillis);
-                changeCount.incrementAndGet();
-            };
-        }, taskQueue.getThreadPool());
-
-        // May-run: no transition, no report, no recheck scheduled, and the change listener is not resolved yet.
-        assertTrue(monitor.check().mayRun());
-        assertThat(changeCount.get(), equalTo(0));
-        assertThat("change listener must not be resolved before the first transition", onChangeResolutions.get(), equalTo(0));
-        assertFalse(taskQueue.hasAnyTasks());
-
-        // Flips to block: reported once. Repeated checks while blocked do not re-report, and with no listener waiting there is no
-        // periodic recheck.
-        final String gateName = randomIdentifier();
-        final String reason = randomAlphaOfLengthBetween(5, 30);
-        decision.set(Decision.block(gateName, reason));
-        final long blockedSince = taskQueue.getCurrentTimeMillis();
-        for (int i = between(1, 100); i > 0; i--) {
-            assertFalse(monitor.check().mayRun());
-        }
-        assertThat(changeCount.get(), equalTo(1));
-        assertTrue(previousDecision.get().mayRun());
-        assertFalse(currentDecision.get().mayRun());
-        assertThat(currentDecision.get().gateName(), equalTo(gateName));
-        assertThat(currentDecision.get().reason(), equalTo(reason));
-        assertFalse("no recheck without a waiting listener", taskQueue.hasAnyTasks());
-
-        // A listener awaiting RUN starts the periodic recheck.
-        monitor.addListener(RecoveryGate.Outcome.RUN, "test-listener", () -> {});
-        assertTrue(taskQueue.hasDeferredTasks());
-
-        // Rechecks while still blocked change nothing.
-        for (int i = between(0, 100); i > 0; i--) {
-            taskQueue.advanceTime();
-            taskQueue.runAllRunnableTasks();
-        }
-        assertThat(changeCount.get(), equalTo(1));
-
-        // The gate unblocks: the next recheck notices it without any external call, reports the blocked duration, and stops itself
-        // because no listener remains.
-        decision.set(Decision.RUN);
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(changeCount.get(), equalTo(2));
-        assertThat(previousDecision.get().gateName(), equalTo(gateName));
-        assertTrue(currentDecision.get().mayRun());
-        assertThat(reportedMillis.get(), equalTo(taskQueue.getCurrentTimeMillis() - blockedSince));
-        assertThat("change listener resolved exactly once", onChangeResolutions.get(), equalTo(1));
-        assertFalse("recheck must stop once no listener remains", taskQueue.hasDeferredTasks());
     }
 
     public void testListenerFiredWhenAwaitedOutcomeReached() {
         final var taskQueue = new DeterministicTaskQueue();
         final var decision = new AtomicReference<>(Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
         final var monitor = newMonitor(taskQueue, decision);
-        assertFalse(monitor.check().mayRun());
+        assertFalse(monitor.evaluate().mayRun());
         assertFalse("no recheck without a waiting listener", taskQueue.hasDeferredTasks());
 
         final AtomicInteger fired = new AtomicInteger();
@@ -156,8 +90,11 @@ public class RecoveryGateMonitorTests extends ESTestCase {
         assertTrue("registering a waiting listener starts the recheck", taskQueue.hasDeferredTasks());
 
         // Rechecks while still blocked do not fire the listeners.
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
+        for (int i = between(0, 3); i > 0; i--) {
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            assertTrue("recheck must keep rescheduling while listeners wait", taskQueue.hasDeferredTasks());
+        }
         assertThat(fired.get(), equalTo(0));
         assertThat(otherFired.get(), equalTo(0));
 
@@ -171,13 +108,14 @@ public class RecoveryGateMonitorTests extends ESTestCase {
     }
 
     public void testListenerFiredInlineWhenAlreadyAtAwaitedOutcome() {
-        final var monitor = newMonitor(new DeterministicTaskQueue(), new AtomicReference<>(Decision.RUN));
-        assertTrue(monitor.check().mayRun());
+        final var taskQueue = new DeterministicTaskQueue();
+        final var monitor = newMonitor(taskQueue, new AtomicReference<>(Decision.RUN));
 
         // Registering for an outcome the decision already has fires inline, so a caller racing with a transition cannot miss it.
         final AtomicInteger fired = new AtomicInteger();
         monitor.addListener(RecoveryGate.Outcome.RUN, randomIdentifier(), fired::incrementAndGet);
         assertThat(fired.get(), equalTo(1));
+        assertFalse("no recheck needed for an inline-fired listener", taskQueue.hasDeferredTasks());
     }
 
     private static RecoveryGateMonitor newMonitor(DeterministicTaskQueue taskQueue, AtomicReference<Decision> decision) {
@@ -185,6 +123,6 @@ public class RecoveryGateMonitorTests extends ESTestCase {
     }
 
     private static RecoveryGateMonitor newMonitor(DeterministicTaskQueue taskQueue, List<RecoveryGate> gateList) {
-        return new RecoveryGateMonitor(() -> gateList, () -> DecisionChangeListener.NOOP, taskQueue.getThreadPool());
+        return new RecoveryGateMonitor(() -> gateList, taskQueue.getThreadPool());
     }
 }

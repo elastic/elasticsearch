@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -1105,16 +1104,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // A blocking gate holds every recovery back until it flips to run.
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
         final RecoveryGate gate = gateDecision::get;
-        // The service must be the change listener: its onChange is what arms the retry that resumes dispatch after a block.
-        final var serviceReference = new SetOnce<ThrottlingRecoveryService>();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), serviceReference::get, taskQueue.getThreadPool())
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool())
         );
-        serviceReference.set(service);
         service.start();
 
         final var started = new AtomicInteger();
@@ -1186,8 +1182,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final String gateName = randomIdentifier();
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
         final RecoveryGate gate = gateDecision::get;
-        final var serviceReference = new SetOnce<ThrottlingRecoveryService>();
-        final var recoveryGateMonitor = new RecoveryGateMonitor(() -> List.of(gate), serviceReference::get, taskQueue.getThreadPool());
+        final var recoveryGateMonitor = new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool());
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
@@ -1195,7 +1190,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             listener,
             recoveryGateMonitor
         );
-        serviceReference.set(service);
         service.start();
 
         final long blockedSince = taskQueue.getCurrentTimeMillis();
@@ -1241,15 +1235,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testConcurrentEnqueuesWithFlappingGateEventuallyDispatchEverything() throws Exception {
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
         final RecoveryGate gate = gateDecision::get;
-        final var serviceReference = new SetOnce<ThrottlingRecoveryService>();
         final var service = new ThrottlingRecoveryService(
             threadPool,
             DefaultProjectResolver.INSTANCE,
             newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5)),
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), serviceReference::get, threadPool)
+            new RecoveryGateMonitor(() -> List.of(gate), threadPool)
         );
-        serviceReference.set(service);
         service.start();
 
         final int enqueueThreads = between(4, 10);
@@ -1322,7 +1314,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /// A [RecoveryGateMonitor] with no gates: the decision never transitions, so the change listener never fires.
     private static RecoveryGateMonitor monitorWithNoGates(ThreadPool threadPool) {
-        return new RecoveryGateMonitor(() -> List.of(), () -> RecoveryGateMonitor.DecisionChangeListener.NOOP, threadPool);
+        return new RecoveryGateMonitor(() -> List.of(), threadPool);
     }
 
     private static RecoveryState newRecoveryState() {

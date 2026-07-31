@@ -937,11 +937,9 @@ class NodeConstruction {
         };
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
-        // Use a holder to break circular dependency
-        final SetOnce<ThrottlingRecoveryService> throttlingRecoveryServiceReference = new SetOnce<>();
+        // Recovery gates may be contributed by plugins and are resolved once on first use, by which point plugin components exist.
         final RecoveryGateMonitor recoveryGateMonitor = new RecoveryGateMonitor(
             () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList(),
-            throttlingRecoveryServiceReference::get,
             threadPool
         );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
@@ -951,7 +949,6 @@ class NodeConstruction {
             recoverySchedulingListeners,
             recoveryGateMonitor
         );
-        throttlingRecoveryServiceReference.set(throttlingRecoveryService);
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)

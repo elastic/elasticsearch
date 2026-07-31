@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -138,10 +139,13 @@ public class EqlSession {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
         }
-        // If the caller (the ES|QL EQL source command) already fetched the target pattern's merged field-caps on the
-        // coordinator, reuse it here instead of issuing a second _field_caps request.
+        // If the caller (e.g. the ES|QL EQL source command) already resolved the target pattern's merged field-caps on
+        // the coordinator, reuse it instead of issuing a second _field_caps request. Runtime mappings change the mapping
+        // the engine must plan against, so a request that defines them always self-resolves — the engine defends itself
+        // here rather than relying on the caller to withhold the response.
         FieldCapabilitiesResponse preResolvedFieldCaps = configuration.preResolvedFieldCaps();
-        if (preResolvedFieldCaps != null) {
+        Map<String, Object> runtimeMappings = configuration.runtimeMappings();
+        if (preResolvedFieldCaps != null && (runtimeMappings == null || runtimeMappings.isEmpty())) {
             indexResolver.resolveAsMergedMapping(
                 preResolvedFieldCaps,
                 indexWildcard,

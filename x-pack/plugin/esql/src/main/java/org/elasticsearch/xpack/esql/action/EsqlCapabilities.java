@@ -2128,7 +2128,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V3(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -3572,6 +3572,13 @@ public class EsqlCapabilities {
          * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
          */
         FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
+
+        /**
+         * Support for the {@code {"include_empty_buckets": true}} option on the {@code BUCKET} grouping function, which
+         * makes {@code STATS ... BY BUCKET(...)} emit empty buckets (filled with zero/null aggregate values) across the
+         * whole {@code from}..{@code to} range.
+         */
+        BUCKET_INCLUDE_EMPTY_BUCKETS,
 
         /**
          * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an

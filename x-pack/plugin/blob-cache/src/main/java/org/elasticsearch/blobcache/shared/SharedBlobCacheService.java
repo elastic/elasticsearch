@@ -152,36 +152,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
-    public static final TimeValue MIN_SHARED_CACHE_METRICS_INTERVAL = TimeValue.timeValueSeconds(1L);
-
-    /**
-     * How often {@link BlobCachePeriodicMetrics} will sample. A value of {@link TimeValue#MINUS_ONE} disables sampling.
-     * Enabled intervals must be at least {@link #MIN_SHARED_CACHE_METRICS_INTERVAL}.
-     * <p>
-     * Minutes frequency is cheap even at large cache sizes: a full sample walks occupied regions once without holding the
-     * cache monitor. At a 2TiB cache with 16MiB regions that is at most ~131k entries of field reads and map lookups.
-     */
-    public static final Setting<TimeValue> SHARED_CACHE_METRICS_INTERVAL_SETTING = Setting.timeSetting(
-        SHARED_CACHE_SETTINGS_PREFIX + "metrics_interval",
-        settings -> DiscoveryNode.isStateless(settings) ? TimeValue.timeValueMinutes(3) : TimeValue.MINUS_ONE,
-        value -> {
-            if (TimeValue.MINUS_ONE.equals(value) == false && value.compareTo(MIN_SHARED_CACHE_METRICS_INTERVAL) < 0) {
-                throw new IllegalArgumentException(
-                    "failed to parse value ["
-                        + value.getStringRep()
-                        + "] for setting ["
-                        + SHARED_CACHE_SETTINGS_PREFIX
-                        + "metrics_interval], must be ["
-                        + TimeValue.MINUS_ONE.getStringRep()
-                        + "] to disable or >= ["
-                        + MIN_SHARED_CACHE_METRICS_INTERVAL.getStringRep()
-                        + "]"
-                );
-            }
-        },
-        Setting.Property.NodeScope
-    );
-
     private static Setting.Validator<ByteSizeValue> getPageSizeAlignedByteSizeValueValidator(String settingName) {
         return value -> {
             if (value.getBytes() == -1) {
@@ -970,7 +940,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * the key map while still initializing). The consumer receives the region and its current LFU frequency
      * (may be stale if read without holding the cache monitor; acceptable for metrics).
      */
-    void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
+    public void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
         if (cache instanceof LFUCache lfuCache) {
             lfuCache.iterateCachedRegions(consumer);
             return;
@@ -978,8 +948,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
-    // used by BlobCachePeriodicMetrics and tests
-    EvictionPolicy<KeyType> getEvictionPolicy() {
+    // used by periodic metrics and tests
+    public EvictionPolicy<KeyType> getEvictionPolicy() {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.evictionPolicy;
         }

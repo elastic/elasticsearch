@@ -103,13 +103,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                StatelessCacheEvictionPolicyType.createEvictionPolicy(
-                    settings,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    blobCacheMetrics.getMeterRegistry()
-                ),
+                StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
                 threadPool::relativeTimeInNanos,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

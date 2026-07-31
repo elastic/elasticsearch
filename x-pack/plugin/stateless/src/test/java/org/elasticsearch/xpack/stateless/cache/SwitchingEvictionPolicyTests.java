@@ -15,19 +15,14 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 
-import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_METRIC;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SwitchingEvictionPolicyTests extends ESTestCase {
 
@@ -37,14 +32,12 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
             .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.PINNED_WINDOW)
             .build();
         final var clusterSettings = createClusterSettings(settings);
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        final var switchingPolicy = createSwitchingEvictionPolicy(clusterSettings, settings, recording);
+        final var switchingPolicy = createSwitchingEvictionPolicy(clusterSettings, settings);
 
         assertThat(switchingPolicy.getDelegate(), instanceOf(PinnedWindowEvictionPolicy.class));
         final var oldDelegate = (PinnedWindowEvictionPolicy) switchingPolicy.getDelegate();
         final var initialPinnedDuration = oldDelegate.getPinnedWindowDuration();
         assertThat(initialPinnedDuration, equalTo(PINNED_WINDOW_DURATION_SETTING.get(Settings.EMPTY)));
-        assertThat(recording.getLongGauge(PINNED_METRIC), notNullValue());
 
         // Switch to a different policy — the old PinnedWindowEvictionPolicy should be closed
         settings = Settings.builder()
@@ -53,8 +46,6 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
             .build();
         clusterSettings.applySettings(settings);
         assertThat(switchingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));
-        // No-op swap then close deregisters pinned gauges before ALWAYS is installed.
-        assertThat(recording.getLongGauge(PINNED_METRIC), nullValue());
 
         // The old policy's PINNED_WINDOW_DURATION_SETTING watcher was removed by close(), so further
         // changes to the setting do not update it
@@ -63,7 +54,7 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
         clusterSettings.applySettings(settings);
         assertThat(oldDelegate.getPinnedWindowDuration(), equalTo(initialPinnedDuration));
 
-        // Switch back to pinned window policy again, it picks up the latest setting value and re-registers gauges
+        // Switch back to pinned window policy again, it picks up the latest setting value
         settings = Settings.builder()
             .put(settings)
             .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.PINNED_WINDOW)
@@ -72,7 +63,6 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
         assertThat(switchingPolicy.getDelegate(), instanceOf(PinnedWindowEvictionPolicy.class));
         final var newDelegate = (PinnedWindowEvictionPolicy) switchingPolicy.getDelegate();
         assertThat(newDelegate.getPinnedWindowDuration(), equalTo(expectedDuration));
-        assertThat(recording.getLongGauge(PINNED_METRIC), notNullValue());
 
         // Dynamically updatable again
         expectedDuration = TimeValue.timeValueHours(between(100, 200));
@@ -90,19 +80,16 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
             .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.PINNED_WINDOW)
             .build();
         final var clusterSettings = createClusterSettings(settings);
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        final var switchingPolicy = createSwitchingEvictionPolicy(clusterSettings, settings, recording);
+        final var switchingPolicy = createSwitchingEvictionPolicy(clusterSettings, settings);
 
         assertThat(switchingPolicy.getDelegate(), instanceOf(PinnedWindowEvictionPolicy.class));
         final var delegate = (PinnedWindowEvictionPolicy) switchingPolicy.getDelegate();
         final var initialPinnedDuration = delegate.getPinnedWindowDuration();
-        assertThat(recording.getLongGauge(PINNED_METRIC), notNullValue());
 
         switchingPolicy.close();
         if (randomBoolean()) {
             switchingPolicy.close(); // close should be idempotent for the settings updater
         }
-        assertThat(recording.getLongGauge(PINNED_METRIC), nullValue());
 
         // Policy-type setting changes must not swap in a new delegate after close
         settings = Settings.builder()
@@ -119,16 +106,12 @@ public class SwitchingEvictionPolicyTests extends ESTestCase {
         assertThat(delegate.getPinnedWindowDuration(), equalTo(initialPinnedDuration));
     }
 
-    private static SwitchingEvictionPolicy createSwitchingEvictionPolicy(
-        ClusterSettings clusterSettings,
-        Settings settings,
-        MeterRegistry meterRegistry
-    ) {
+    private static SwitchingEvictionPolicy createSwitchingEvictionPolicy(ClusterSettings clusterSettings, Settings settings) {
         final var taskQueue = new DeterministicTaskQueue();
         final var threadPool = taskQueue.getThreadPool();
         final var clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final var indicesService = TestUtils.mockIndicesService(clusterService);
-        return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool, meterRegistry);
+        return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

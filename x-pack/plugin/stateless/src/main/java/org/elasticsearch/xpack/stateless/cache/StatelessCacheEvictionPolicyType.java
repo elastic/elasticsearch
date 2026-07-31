@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -31,27 +30,16 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
 public enum StatelessCacheEvictionPolicyType {
     ALWAYS {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(
-            ClusterService clusterService,
-            IndicesService indicesService,
-            ThreadPool threadPool,
-            MeterRegistry meterRegistry
-        ) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new DefaultEvictionPolicy<>();
         }
     },
     PINNED_WINDOW {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(
-            ClusterService clusterService,
-            IndicesService indicesService,
-            ThreadPool threadPool,
-            MeterRegistry meterRegistry
-        ) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new PinnedWindowEvictionPolicy(
                 clusterService.getClusterSettings(),
                 threadPool,
-                meterRegistry,
                 // We consult IndicesService rather than cluster-state routing because routing can lag behind locally open shards
                 // during cluster-state application. Once a shard is open here, IndicesService reflects that immediately.
                 indicesService.hasShardPredicate()
@@ -60,34 +48,19 @@ public enum StatelessCacheEvictionPolicyType {
     },
     INDEX_AGE {
         @Override
-        EvictionPolicy<FileCacheKey> doCreate(
-            ClusterService clusterService,
-            IndicesService indicesService,
-            ThreadPool threadPool,
-            MeterRegistry meterRegistry
-        ) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new IndexAgeEvictionPolicy(clusterService);
         }
     };
 
     private static final Logger logger = LogManager.getLogger(StatelessCacheEvictionPolicyType.class);
 
-    public final EvictionPolicy<FileCacheKey> create(
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        MeterRegistry meterRegistry
-    ) {
+    public final EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
         logger.info("creating eviction policy of type [{}]", this);
-        return doCreate(clusterService, indicesService, threadPool, meterRegistry);
+        return doCreate(clusterService, indicesService, threadPool);
     }
 
-    abstract EvictionPolicy<FileCacheKey> doCreate(
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        MeterRegistry meterRegistry
-    );
+    abstract EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         // Explicit configuration takes precedence when on search nodes
@@ -112,14 +85,12 @@ public enum StatelessCacheEvictionPolicyType {
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool,
-        MeterRegistry meterRegistry
+        ThreadPool threadPool
     ) {
         return resolveEvictionPolicyFromSettings(settings).create(
             clusterService,
             Objects.requireNonNull(indicesService),
-            Objects.requireNonNull(threadPool),
-            Objects.requireNonNull(meterRegistry)
+            Objects.requireNonNull(threadPool)
         );
     }
 }

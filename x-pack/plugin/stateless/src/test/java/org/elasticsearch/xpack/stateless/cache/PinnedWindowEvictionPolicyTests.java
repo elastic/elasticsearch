@@ -29,9 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +50,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
@@ -86,12 +82,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     public void testPinnedWindowDurationUpdatesDynamically() {
-        final var policy = new PinnedWindowEvictionPolicy(
-            clusterSettings,
-            clusterService.threadPool(),
-            MeterRegistry.NOOP,
-            shardId -> false
-        );
+        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false);
         assertThat(policy.getPinnedWindowDuration(), equalTo(PINNED_WINDOW_DURATION));
 
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
@@ -99,12 +90,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     public void testPinnedWindowDurationNotUpdatedAfterClose() {
-        final var policy = new PinnedWindowEvictionPolicy(
-            clusterSettings,
-            clusterService.threadPool(),
-            MeterRegistry.NOOP,
-            shardId -> false
-        );
+        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false);
 
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
         assertThat(policy.getPinnedWindowDuration(), equalTo(TimeValue.timeValueHours(6)));
@@ -166,51 +152,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         assertTrue(canEvict(policy, region(shardId, now - PINNED_WINDOW_DURATION.millis() - 1)));
     }
 
-    public void testUpdatePeriodicMetricsPublishesGauges() {
-        final long now = TimeValue.timeValueDays(365).millis() + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
-        final ShardId shardId = new ShardId("index", randomUUID(), 0);
-        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
-        final var policy = fixedTimePolicy(now, PINNED_WINDOW_DURATION, recording, shardId);
-        final long insideWindow = now - randomLongBetween(0, PINNED_WINDOW_DURATION.millis() / 2);
-        final long outsideWindow = now - PINNED_WINDOW_DURATION.millis() - 1;
-
-        policy.updatePeriodicMetrics(consumer -> {
-            consumer.accept(region(shardId, insideWindow), 1);
-            consumer.accept(region(shardId, UNKNOWN_TIMESTAMP), 0);
-            consumer.accept(region(shardId, BACKFILL_IN_PROGRESS_TIMESTAMP), 50);
-            consumer.accept(region(shardId, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP), 0);
-            consumer.accept(region(shardId, outsideWindow), 2);
-        });
-
-        recording.getRecorder().collect();
-        // pinned: inside + unknown + backfill (minimal and outside are not pinned)
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_METRIC, 3L);
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_FREQ_0_METRIC, 1L); // unknown at freq 0
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_FREQ_POSITIVE_METRIC, 2L); // inside at 1 + backfill at 50
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_UNKNOWN_METRIC, 1L);
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_BACKFILL_METRIC, 1L);
-        assertGauge(recording, PinnedWindowEvictionPolicy.MINIMAL_METRIC, 1L);
-
-        // RecordingMeterRegistry (like APM) rejects duplicate names while the first policy's gauges are live.
-        expectThrows(AssertionError.class, () -> fixedTimePolicy(now, PINNED_WINDOW_DURATION, recording, shardId));
-
-        policy.close();
-
-        // After close, the same metric names can be registered again by a new policy instance.
-        final var replacement = fixedTimePolicy(now, PINNED_WINDOW_DURATION, recording, shardId);
-        assertThat(recording.getLongGauge(PinnedWindowEvictionPolicy.PINNED_METRIC), notNullValue());
-        replacement.updatePeriodicMetrics(consumer -> consumer.accept(region(shardId, insideWindow), 1));
-        recording.getRecorder().collect();
-        assertGauge(recording, PinnedWindowEvictionPolicy.PINNED_METRIC, 1L);
-        replacement.close();
-    }
-
-    private static void assertGauge(RecordingMeterRegistry recording, String name, long expected) {
-        final var measurement = recording.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name).getLast();
-        assertThat(measurement.getLong(), equalTo(expected));
-        assertThat(measurement.attributes().isEmpty(), equalTo(true));
-    }
-
     public void testShrinkingPinnedWindowMakesRegionEvictable() {
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION).build());
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
@@ -219,7 +160,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            MeterRegistry.NOOP,
             candidate -> candidate.equals(shardId)
         );
         final var region = region(shardId, timestampMillis);
@@ -313,23 +253,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... presentShardIds) {
-        return fixedTimePolicy(now, pinnedWindowDuration, MeterRegistry.NOOP, presentShardIds);
-    }
-
-    private PinnedWindowEvictionPolicy fixedTimePolicy(
-        long now,
-        TimeValue pinnedWindowDuration,
-        MeterRegistry meterRegistry,
-        ShardId... presentShardIds
-    ) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(
-            clusterService.threadPool(),
-            hasShardPredicate,
-            now,
-            pinnedWindowDuration,
-            meterRegistry
-        );
+        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), hasShardPredicate, now, pinnedWindowDuration);
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
@@ -348,10 +273,9 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
             ThreadPool threadPool,
             Predicate<ShardId> hasShardPredicate,
             long fixedCurrentTimeMillis,
-            TimeValue pinnedWindowDuration,
-            MeterRegistry meterRegistry
+            TimeValue pinnedWindowDuration
         ) {
-            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, meterRegistry, hasShardPredicate);
+            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, hasShardPredicate);
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 

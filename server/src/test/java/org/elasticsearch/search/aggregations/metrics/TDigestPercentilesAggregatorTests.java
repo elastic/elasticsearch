@@ -14,7 +14,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -209,7 +208,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                         AggregationContext context = createAggregationContext(
                             reader,
                             createIndexSettings(),
-                            new MatchAllDocsQuery(),
+                            Queries.ALL_DOCS_INSTANCE,
                             breakerService,
                             0,
                             DEFAULT_MAX_BUCKETS,
@@ -220,7 +219,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                     ) {
                         Aggregator aggregator = createAggregator(aggBuilder, context);
                         aggregator.preCollection();
-                        context.searcher().search(new MatchAllDocsQuery(), aggregator.asCollector());
+                        context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
                         aggregator.postCollection();
                         aggregator.buildTopLevel();
                     }

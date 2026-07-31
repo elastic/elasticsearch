@@ -861,6 +861,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant(null, List.of("a*", "b*"))),
                 "Invalid pattern parameter type for like [?]: expected string, found list"
             );
+            expectError(
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, null)),
+                "Invalid pattern parameter type for like [?]: expected string, found null"
+            );
         }
     }
 
@@ -885,6 +890,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
                 "No parameter is defined for position 3, did you mean any position between 1 and 2?"
             );
+            expectError(
+                "row a = \"abc\" | where a like ( ?1, ?2 )",
+                List.of(paramAsConstant(null, "a*"), paramAsConstant(null, null)),
+                "Invalid pattern parameter type for like [?2]: expected string, found null"
+            );
         }
     }
 
@@ -907,6 +917,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 "row a = \"abc\" | where a rlike ?pattern1",
                 List.of(paramAsConstant("pattern", 1)),
                 "Unknown query parameter [pattern1], did you mean [pattern]?"
+            );
+            expectError(
+                "row a = \"abc\" | where a rlike ?pattern",
+                List.of(paramAsConstant("pattern", null)),
+                "Invalid pattern parameter type for rlike [?pattern]: expected string, found null"
             );
         }
     }
@@ -932,6 +947,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
                 "Unknown query parameter [p3], did you mean any of [p1, p2]?"
             );
+            expectError(
+                "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", null)),
+                "Invalid pattern parameter type for rlike [?p2]: expected string, found null"
+            );
         }
     }
 
@@ -942,6 +962,12 @@ public class ParamsParserTests extends AbstractStatementParserTests {
             "row a = \"abc\" | where a like ?p",
             List.of(paramAsConstant("p", 12)),
             "Invalid pattern parameter type for like [?p]: expected string, found integer"
+        );
+        // A null param is also rejected at parse time (DataType.NULL is not a string).
+        expectError(
+            "row a = \"abc\" | where a like ?p",
+            List.of(paramAsConstant("p", null)),
+            "Invalid pattern parameter type for like [?p]: expected string, found null"
         );
 
         // A parenthesized `(?param)` is a primaryExpression, so it bypasses the parse-time parameter-type check

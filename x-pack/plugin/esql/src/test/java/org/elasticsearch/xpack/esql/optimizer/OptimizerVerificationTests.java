@@ -882,6 +882,64 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
+     * A bare {@code null} literal (DataType.NULL) must be rejected because it is not a string type,
+     * not because it is null. This is the simplest null path: {@code WHERE field LIKE null}.
+     */
+    public void testLikeNullLiteralReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like null"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullLiteralReportsTypeError} for RLIKE.
+     */
+    public void testRLikeNullLiteralReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike null"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
+     * {@code CONCAT(null, "*")} folds to a null KEYWORD value; the null guard in
+     * {@code postOptimizationVerification} must catch it and report a clear error.
+     */
+    public void testLikeConcatNullPropagatesError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name like concat(null, \"*\")"));
+        assertThat(err, containsString("[LIKE] pattern must not be null"));
+    }
+
+    /**
+     * Same as {@link #testLikeConcatNullPropagatesError} for RLIKE.
+     */
+    public void testRLikeConcatNullPropagatesError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | where first_name rlike concat(null, \".*\")"));
+        assertThat(err, containsString("[RLIKE] pattern must not be null"));
+    }
+
+    /**
+     * An untyped {@code null} via EVAL (DataType.NULL) must be rejected because it is not a string,
+     * not because it is null. Symmetric to {@link #testLikeNullLiteralReportsTypeError} but via
+     * the EVAL propagation path.
+     */
+    public void testLikeNullEvalReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null | where first_name like p"));
+        assertThat(err, containsString("[LIKE] pattern must be a string"));
+    }
+
+    /**
+     * Same as {@link #testLikeNullEvalReportsTypeError} for RLIKE.
+     */
+    public void testRLikeNullEvalReportsTypeError() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var err = error(defaultAnalyzer().query("from test | eval p = null | where first_name rlike p"));
+        assertThat(err, containsString("[RLIKE] pattern must be a string"));
+    }
+
+    /**
      * RLIKE pattern ".*" via EVAL matches every non-null string; ReplaceDeferredRegex
      * detects {@code matchesAll()} and produces {@link IsNotNull} instead of {@link RLike}.
      * Symmetric to {@link #testLikeEvalPropagatedMatchesAll}.

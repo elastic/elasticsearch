@@ -111,4 +111,5 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
     }
+
 }

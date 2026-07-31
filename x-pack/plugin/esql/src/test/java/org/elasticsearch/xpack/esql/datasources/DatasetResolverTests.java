@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -55,16 +57,14 @@ public class DatasetResolverTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startThreadPool() {
         threadPool = new TestThreadPool(getTestName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopThreadPool() {
         ThreadPool.terminate(threadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     public void testLocalDatasetRewrittenWhenCrossProjectEnabled() {
@@ -128,6 +128,18 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
+    public void testFederationUnavailableReturnsPlanUnchanged() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls, false);
+
+        // A node without federation performs no dataset resolution at all: the plan is returned untouched and no
+        // EsqlResolveDatasetAction dispatch happens, even though datasets are registered in project state.
+        UnresolvedRelation relation = relationOf(DATASET_NAME);
+        LogicalPlan rewritten = replaceDatasets(resolver, relation);
+        assertSame(relation, rewritten);
+        assertEquals("federation unavailable, so no dispatch", 0, localCalls.get());
+    }
+
     // --- harness ---
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {
@@ -141,7 +153,11 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls) {
-        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider);
+        return resolver(decider, localCalls, true);
+    }
+
+    private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls, boolean federationAvailable) {
+        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider, federationAvailable);
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {

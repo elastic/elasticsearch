@@ -474,7 +474,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, realm);
+            final var ctx = new AuditEventContext(null, null, realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -509,7 +509,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -540,7 +540,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -574,7 +574,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -611,7 +611,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -656,7 +656,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
@@ -706,7 +706,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx) == false
                 && eventFilterPolicyRegistry.ignorePredicate()
                     .test(
@@ -853,7 +853,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(eventType)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices, realm);
+            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -899,7 +899,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -943,7 +943,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -965,7 +965,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1035,7 +1035,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1074,7 +1074,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1106,7 +1106,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, realm);
+            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1865,8 +1865,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (includeThreadContext) {
                 withThreadContext();
             }
-            customizer.enrich(eventContext, new StringMapAuditEntry(logEntry));
-            logger.info(AUDIT_MARKER, logEntry);
+            logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
         }
 
         static String toQuotedJsonArray(Object[] values) {
@@ -1887,6 +1886,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
+    }
+
+    @Nullable
+    private static String[] principalRoles(AuthorizationInfo authorizationInfo) {
+        return authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME) instanceof String[] roles ? roles : null;
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

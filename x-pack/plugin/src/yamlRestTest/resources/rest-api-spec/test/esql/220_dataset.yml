@@ -210,8 +210,13 @@ setup:
             properties:
               g: { type: geo_point }
 
+  # The message tail differs across versions (a 9.5 node says "[date] columns"; a node with date_nanos
+  # declarable says "[date] and [date_nanos] columns"), and this suite also runs mixed-cluster, where the
+  # request may land on either. Assert only the version-stable prefix — what is being pinned is that a
+  # `format` on a non-temporal column is rejected, not the wording of the list. The exact message is
+  # asserted in DeclaredSchemaValidatorTests, which runs against one known version.
   - do:
-      catch: /\[format\] on column \[msg\] is only supported on \[date\] columns/
+      catch: /\[format\] on column \[msg\] is only supported on \[date\]/
       esql.put_dataset:
         name: ds
         body:
@@ -220,6 +225,12 @@ setup:
           mappings:
             properties:
               msg: { type: keyword, format: "yyyy-MM-dd" }
+
+  # NOTE: `format` validation on a declared date_nanos column is deliberately NOT asserted here. This suite also
+  # runs mixed-cluster, where the PUT may land on a node that predates date_nanos being declarable and so answers
+  # "unsupported declared type [date_nanos]" instead — a version-dependent assert this runner cannot make. It is
+  # covered where the version is known: DeclaredSchemaValidatorTests (the exact message) and FromDatasetIT (a real
+  # PUT + real read).
 
   - do:
       esql.delete_data_source:

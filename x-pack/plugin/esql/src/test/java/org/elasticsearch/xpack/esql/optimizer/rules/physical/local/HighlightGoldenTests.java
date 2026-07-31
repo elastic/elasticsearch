@@ -23,10 +23,20 @@ public class HighlightGoldenTests extends GoldenTestCase {
      * whose generated {@code highlight_<field>} column is appended to the output layout.
      */
     public void testBasicHighlight() {
-        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         String query = """
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    public void testMatchOperatorWhereIsPushedBelowHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | WHERE first_name : "elasticsearch"
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }

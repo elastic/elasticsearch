@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -478,6 +479,19 @@ public class EsqlSession {
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
+                        return;
+                    }
+                    // The EQL delegate does not yet honor the out-of-band request filter, and applying it post-hoc would
+                    // strip events out of sequence matches (a wrong answer). Reject rather than silently ignore the
+                    // filter and return rows it should have excluded as complete. Lifts once the filter is bridged to
+                    // the delegate through a coordinator-local execution context.
+                    if (request.filter() != null && plan.anyMatch(EqlRelation.class::isInstance)) {
+                        listener.onFailure(
+                            new VerificationException(
+                                "[EQL] source command cannot yet be combined with a request filter; "
+                                    + "remove the filter or express it inside the EQL query"
+                            )
+                        );
                         return;
                     }
                     // Capture the analyzed plan for failure-path logging: schema-resolved,

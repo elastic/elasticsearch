@@ -512,6 +512,54 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
+    /** A partial EQL response (a shard failed while the enclosing query allowed partial results) surfaces as a warning. */
+    public void testPartialResponseEmitsWarning() {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        Source source = new Source(1, 0, "eqlq");
+        Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+        // isPartial=true: the delegate returned partial results because the enclosing ES|QL query allowed them.
+        EqlSearchResponse response = new EqlSearchResponse(hits, 1, false, null, false, true, new ShardSearchFailure[0]);
+
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            source,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            false
+        );
+        Page page = null;
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onResponse(response);
+            assertFalse(
+                "the warning is the getOutput path's job, not the callback",
+                threadContext.getResponseHeaders().containsKey("Warning")
+            );
+
+            page = operator.getOutput();
+            assertThat(page.getPositionCount(), equalTo(1));
+            assertWarnings(
+                "Line "
+                    + source.lineNumber()
+                    + ":"
+                    + source.columnNumber()
+                    + " ["
+                    + source.text()
+                    + "]: EQL query returned partial results (one or more shards failed or timed out); some events may be missing"
+            );
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
     /** No warning when the result count is below the size cap, even with {@code warnOnTruncation} on. */
     public void testNoTruncationWarningBelowCap() {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);

@@ -267,9 +267,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
 
-        // The EQL command targets indices via its own WITH {"indices": ...} option, which the CCS test
-        // harness does not rewrite to remote (*:index) patterns the way it rewrites FROM. Skip in CCS.
-        assumeFalse("EQL command not supported in CCS", testCase.requiredCapabilities.contains(EQL_COMMAND.capabilityName()));
+        // This harness rewrites a FROM command's index pattern to the remote (*:index) form, but does not rewrite the
+        // EQL command's leading index pattern the same way, so its specs cannot target the remote here. The EQL command
+        // itself supports CCS (a remote:pattern in its leading argument, see CrossClusterEqlCommandIT); this is only a
+        // spec-harness limitation. Skip in CCS.
+        assumeFalse(
+            "EQL command specs are not rewritten for CCS by this harness",
+            testCase.requiredCapabilities.contains(EQL_COMMAND.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

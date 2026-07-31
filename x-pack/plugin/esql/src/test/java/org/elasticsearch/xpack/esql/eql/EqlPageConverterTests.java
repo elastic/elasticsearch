@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.eql;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -41,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -547,7 +549,7 @@ public class EqlPageConverterTests extends ESTestCase {
     }
 
     private static List<Attribute> concat(List<Attribute> head, Attribute tail) {
-        return java.util.stream.Stream.concat(head.stream(), java.util.stream.Stream.of(tail)).toList();
+        return Stream.concat(head.stream(), Stream.of(tail)).toList();
     }
 
     private static EqlSearchResponse eventResponse(List<Event> events) {
@@ -560,8 +562,8 @@ public class EqlPageConverterTests extends ESTestCase {
         return new EqlSearchResponse(hits, 1, false, noFailures());
     }
 
-    private static org.elasticsearch.action.search.ShardSearchFailure[] noFailures() {
-        return new org.elasticsearch.action.search.ShardSearchFailure[0];
+    private static ShardSearchFailure[] noFailures() {
+        return new ShardSearchFailure[0];
     }
 
     private static void assertBytesRefColumn(Page page, int blockIndex, String... expected) {

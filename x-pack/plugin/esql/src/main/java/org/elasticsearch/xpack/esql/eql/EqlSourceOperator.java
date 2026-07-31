@@ -71,6 +71,9 @@ public class EqlSourceOperator extends SourceOperator {
     private volatile Exception failure;
     // Number of top-level results (events, or sequences/samples) the response carried; set in the response callback.
     private volatile int topLevelCount;
+    // Whether the EQL response was partial (a shard failed or timed out). Only possible when the enclosing ES|QL query
+    // allows partial results; surfaced as a warning so the incomplete result is not reported as complete.
+    private volatile boolean partial;
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
@@ -107,6 +110,7 @@ public class EqlSourceOperator extends SourceOperator {
                 // response via respondAndRelease and releases it once this listener returns — so we must not
                 // decRef it ourselves (doing so over-releases).
                 topLevelCount = topLevelResultCount(response);
+                partial = response.isPartial();
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory());
                 synchronized (this) {
                     if (closed) {
@@ -151,6 +155,7 @@ public class EqlSourceOperator extends SourceOperator {
             Page result = page;
             page = null;
             emitted = true;
+            maybeWarnPartial();
             maybeWarnTruncated();
             return result;
         }
@@ -173,6 +178,18 @@ public class EqlSourceOperator extends SourceOperator {
                         + "]; results may be incomplete. Raise the size option or the "
                         + "[esql.query.result_truncation_max_size] setting"
                 );
+        }
+    }
+
+    /**
+     * Emits a warning on the driver thread when the EQL response was partial (a shard failed or timed out), so an
+     * incomplete result is never presented as complete. This only happens when the enclosing ES|QL query allows
+     * partial results; when it does not, the delegate fails the query outright and no page is emitted.
+     */
+    private void maybeWarnPartial() {
+        if (partial) {
+            driverContext.createOnlyWarnings(source)
+                .registerWarning("EQL query returned partial results (one or more shards failed or timed out); some events may be missing");
         }
     }
 

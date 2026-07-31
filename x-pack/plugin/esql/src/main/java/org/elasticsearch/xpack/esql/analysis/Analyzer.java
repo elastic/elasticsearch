@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -830,8 +831,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private String extractTablePath(Expression tablePath) {
             if (tablePath instanceof Literal literal && literal.value() != null) {
                 Object value = literal.value();
-                if (value instanceof org.apache.lucene.util.BytesRef) {
-                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                if (value instanceof BytesRef) {
+                    return BytesRefs.toString((BytesRef) value);
                 }
                 return value.toString();
             }
@@ -880,12 +881,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             try {
                 queryMode = EqlQueryMode.of(queryString);
             } catch (Exception e) {
-                throw new org.elasticsearch.xpack.esql.parser.ParsingException(
-                    plan.source(),
-                    "cannot parse EQL query [{}]: {}",
-                    queryString,
-                    e.getMessage()
-                );
+                throw new ParsingException(plan.source(), "cannot parse EQL query [{}]: {}", queryString, e.getMessage());
             }
             EqlRelation.Mode mode = switch (queryMode) {
                 case EVENT -> EqlRelation.Mode.EVENT;
@@ -1005,7 +1001,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static String extractEqlQuery(Expression query) {
             if (query instanceof Literal literal && literal.value() != null) {
                 Object value = literal.value();
-                if (value instanceof org.apache.lucene.util.BytesRef bytesRef) {
+                if (value instanceof BytesRef bytesRef) {
                     return BytesRefs.toString(bytesRef);
                 }
                 return value.toString();

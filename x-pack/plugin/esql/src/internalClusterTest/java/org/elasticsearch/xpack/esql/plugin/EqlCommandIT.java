@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
@@ -203,6 +204,16 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             () -> run("EQL " + INDEX + " \"process where true\" METADATA _score").close()
         );
         assertThat(e.getMessage(), containsString("metadata field [_score] is not supported by the EQL command"));
+    }
+
+    public void testRequestFilterOnEqlSourceRejectedE2E() {
+        // The EQL delegate does not yet honor the out-of-band request filter; combining them must fail loud rather than
+        // silently drop the filter and return rows it should have excluded.
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run(syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\"").filter(new MatchAllQueryBuilder())).close()
+        );
+        assertThat(e.getMessage(), containsString("cannot yet be combined with a request filter"));
     }
 
     public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {

@@ -83,10 +83,11 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 ### Partial results
 
 An event query honors the enclosing {{esql}} query's
-[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting, so it behaves like a
-`FROM` source under a shard failure. A `sequence` query is fail-safe by default: a sequence that lost a
-stage on a failed shard is dropped rather than returned as a shorter, corrupt match. Set
-`WITH { "allow_partial_sequence_results": true }` to prefer resilience over completeness.
+[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are
+allowed and a shard fails, the query returns the events it could and adds a warning that the results may be
+incomplete, rather than reporting a partial result as complete. A `sequence` query is fail-safe by default:
+a sequence that lost a stage on a failed shard is dropped rather than returned as a shorter, corrupt match.
+Set `WITH { "allow_partial_sequence_results": true }` to prefer resilience over completeness.
 
 ### Unmapped fields
 

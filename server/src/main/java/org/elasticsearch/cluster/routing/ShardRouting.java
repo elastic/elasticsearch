@@ -126,9 +126,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
 
     // visible for testing
-    static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
-        "recovery_priority_in_shard_routing"
-    );
+    static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName("recovery_priority_in_shard_routing");
 
     /// Introduced along with [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY]
     private static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion

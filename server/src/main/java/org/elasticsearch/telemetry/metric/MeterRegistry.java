@@ -316,6 +316,11 @@ public interface MeterRegistry {
         }
 
         @Override
+        public DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
+            return DoubleHistogram.NOOP;
+        }
+
+        @Override
         public DoubleHistogram getDoubleHistogram(String name) {
             return DoubleHistogram.NOOP;
         }
@@ -387,6 +392,11 @@ public interface MeterRegistry {
 
         @Override
         public LongHistogram registerLongHistogram(String name, String description, String unit) {
+            return LongHistogram.NOOP;
+        }
+
+        @Override
+        public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
             return LongHistogram.NOOP;
         }
 

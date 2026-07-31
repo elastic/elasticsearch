@@ -256,6 +256,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         );
     }
 
+    /**
+     * Convenience overload that sets {@code writeColumnarFlattenedBinary=false}; provided for
+     * back-compat with existing call sites that pre-date the columnar flattened-keyed feature.
+     */
     public ES819TSDBDocValuesFormat(
         String codecName,
         int skipIndexIntervalSize,
@@ -268,6 +272,68 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         int blockBytesThreshold,
         int blockCountThreshold,
         boolean writePrefixPartitions
+    ) {
+        this(
+            codecName,
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            numericBlockShift,
+            docOffsetsCodec,
+            blockBytesThreshold,
+            blockCountThreshold,
+            writePrefixPartitions,
+            false
+        );
+    }
+
+    public ES819TSDBDocValuesFormat(
+        String codecName,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression,
+        final int numericBlockShift,
+        DocOffsetsCodec docOffsetsCodec,
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean writePrefixPartitions,
+        boolean writeColumnarFlattenedBinary
+    ) {
+        this(
+            codecName,
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            numericBlockShift,
+            docOffsetsCodec,
+            blockBytesThreshold,
+            blockCountThreshold,
+            writePrefixPartitions,
+            writeColumnarFlattenedBinary,
+            false
+        );
+    }
+
+    public ES819TSDBDocValuesFormat(
+        String codecName,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression,
+        final int numericBlockShift,
+        DocOffsetsCodec docOffsetsCodec,
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        boolean writePrefixPartitions,
+        boolean writeColumnarFlattenedBinary,
+        boolean writeSubchunkedFlattenedBinary
     ) {
         super(codecName);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
@@ -292,7 +358,9 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
                 binaryDVCompressionMode
             ),
             DIRECT_MONOTONIC_BLOCK_SHIFT,
-            writePrefixPartitions
+            writePrefixPartitions,
+            writeColumnarFlattenedBinary,
+            writeSubchunkedFlattenedBinary
         );
     }
 

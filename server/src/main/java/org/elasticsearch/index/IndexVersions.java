@@ -268,6 +268,7 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_ES95_CODEC_DEFAULT = def(9_106_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES_NO_FF = def(9_107_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY = def(9_108_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion FLATTENED_KEYED_COLUMNAR_BINARY_DV = def(9_110_0_00, Version.LUCENE_10_5_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

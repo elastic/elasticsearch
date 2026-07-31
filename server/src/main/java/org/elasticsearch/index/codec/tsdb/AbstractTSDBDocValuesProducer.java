@@ -265,6 +265,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return DocValues.emptyBinary();
         }
 
+        if (entry.isColumnar) {
+            return getColumnarBinary(entry);
+        }
         return switch (entry.compression) {
             case NO_COMPRESS -> getUncompressedBinary(entry);
             default -> getCompressedBinary(entry);
@@ -601,6 +604,729 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
                 }
             };
+        }
+    }
+
+    /**
+     * Returns a {@link BinaryDocValues} that decodes columnar-layout blocks written by
+     * {@code AbstractTSDBDocValuesConsumer.ColumnarFlattenedBlockWriter}. On the first access to any
+     * doc in a block the entire block is transposed into a row-view buffer; subsequent accesses within
+     * the same block are served from that buffer without re-decompression.
+     */
+    private BinaryDocValues getColumnarBinary(BinaryEntry entry) throws IOException {
+        if (entry.docsWithFieldOffset == -1) {
+            // dense: every doc in the segment has a value
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
+            final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
+            return new SubchunkedBinaryDocValues(maxDoc) {
+                final ColumnarBinaryDecoder decoder = new ColumnarBinaryDecoder(
+                    entry.compression == BinaryDVCompressionMode.NO_COMPRESS ? null : entry.compression.compressionMode().newDecompressor(),
+                    addresses,
+                    docOffsets,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.maxNumDocsInAnyBlock
+                );
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(doc, entry.numCompressedBlocks);
+                }
+
+                @Override
+                int getLength() throws IOException {
+                    return decoder.decode(doc, entry.numCompressedBlocks).length;
+                }
+
+                @Override
+                public BytesRef lookupKey(byte[] keyWithSep) throws IOException {
+                    return decoder.lookupKey(doc, entry.numCompressedBlocks, keyWithSep);
+                }
+            };
+        } else {
+            // sparse: only some docs have a value; use DISI to map docID → DV ordinal
+            final IndexedDISI disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numDocsWithField
+            );
+            final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
+            final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
+            final RandomAccessInput docOffsetsData = this.data.randomAccessSlice(entry.docOffsetsOffset, entry.docOffsetLength);
+            final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
+            return new SparseBinaryDocValues(disi) {
+                final ColumnarBinaryDecoder decoder = new ColumnarBinaryDecoder(
+                    entry.compression == BinaryDVCompressionMode.NO_COMPRESS ? null : entry.compression.compressionMode().newDecompressor(),
+                    addresses,
+                    docOffsets,
+                    data.clone(),
+                    entry.maxUncompressedChunkSize,
+                    entry.maxNumDocsInAnyBlock
+                );
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return decoder.decode(disi.index(), entry.numCompressedBlocks);
+                }
+
+                @Override
+                int getLength() throws IOException {
+                    return decoder.decode(disi.index(), entry.numCompressedBlocks).length;
+                }
+            };
+        }
+    }
+
+    /**
+     * Decodes columnar-layout blocks for flattened {@code ._keyed} binary doc values.
+     *
+     * <p>Block format (as written by {@code ColumnarFlattenedBlockWriter}):
+     * <pre>
+     *   [byte  header]            IS_COMPRESSED | IS_COLUMNAR
+     *   [vint  numKeys]
+     *   [vint  numDocsInBlock]
+     *   [vint  directoryLength]
+     *   --- directory (UNCOMPRESSED, directoryLength bytes) ---
+     *   per key in sorted order:
+     *     [vint keyLen][key bytes]
+     *     [vint totalValueCount]
+     *     [vint valuesOffset]     byte offset into values region
+     *     [ceil(numDocs/8) bytes] presence bitmap
+     *   --- values region (optionally compressed) ---
+     *   [vint uncompressedValuesLength]
+     *   payload (per key run × per present doc × [vint numSlots] × per slot [(valLen+1 or 0) vint][val bytes if non-null])
+     * </pre>
+     *
+     * <p>On the first access to a block the entire block is transposed into a per-doc
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull}
+     * row-view buffer ({@code [(valLen+1 or 0) vint][key\0value or key\0]...}) and cached. Subsequent
+     * doc accesses in the same block are served from the cache.
+     */
+    static final class ColumnarBinaryDecoder {
+
+        private final Decompressor decompressor; // null when blocks are stored uncompressed
+        private final LongValues addresses;
+        private final DirectMonotonicReader docOffsets;
+        private final IndexInput data;
+        private long lastBlockId = -1;
+        private long startDocNumForBlock = -1;
+        private long limitDocNumForBlock = -1;
+
+        /** Offsets into {@link #rowBytes} for each doc in the current block; rowView[numDocs] = end. */
+        private int[] rowView;
+        /** Concatenated KeyedArrayOrderInlineNull blobs for each doc in the current block. */
+        private byte[] rowBytes;
+
+        /** Reusable directory byte buffer; grown as needed across blocks. */
+        private byte[] dirBuffer = BytesRef.EMPTY_BYTES;
+        /** Reusable decompression target; may be grown by the decompressor. */
+        private final BytesRef decompBuf;
+        /** Reusable per-doc slot-count accumulator for the transpose first pass. */
+        private final int[] docSlotCounts;
+        /** Reusable per-doc encoded-byte-count accumulator for the transpose first pass. */
+        private final int[] docSlotBytes;
+        /** Reusable per-doc write-position array for the transpose second pass. */
+        private final int[] docWritePos;
+        /** Reusable result holder returned by {@link #decode} and {@link #lookupKey}; valid only until the next call. */
+        private final BytesRef reusableResult = new BytesRef();
+
+        // --- Sub-chunked directory cache ---
+        /** Block ID whose sub-chunked directory is loaded in {@link #dirBuffer}; -1 if not loaded. */
+        private long dirBlockId = -1;
+        /** Absolute file offset of the values region (first byte after directory) for {@link #dirBlockId}. */
+        private long valuesRegionOffset;
+        /** Number of keys in the loaded directory. */
+        private int dirNumKeys;
+        /** Number of docs in the loaded directory. */
+        private int dirNumDocs;
+        /** Byte offset in {@link #dirBuffer} of each key's directory entry start. */
+        private int[] keyEntryStarts;
+        /** Uncompressed length of each key's value run. */
+        private int[] keyUncompressedLens;
+        /** Compressed length of each key's value run in the file. */
+        private int[] keyCompressedLens;
+
+        // --- Sub-chunked key-run cache ---
+        /** Block ID of the key run cached in {@link #keyRunBuf}; -1 if not loaded. */
+        private long keyRunBlockId = -1;
+        /** Index of the key whose run is cached; -1 if not loaded. */
+        private int keyRunKeyIdx = -1;
+        /** Decompressed bytes of the cached key run. */
+        private byte[] keyRunBuf;
+        /** Valid byte count in {@link #keyRunBuf}. */
+        private int keyRunBufLen;
+        /**
+         * Last doc index within the block that the cursor has advanced past in the key run,
+         * or -1 if at the beginning. Used to amortize sequential scan cost.
+         */
+        private int keyRunCursorDocIdx = -1;
+        /** Byte position in {@link #keyRunBuf} after the last doc the cursor advanced past. */
+        private int keyRunCursorBytePos = 0;
+
+        ColumnarBinaryDecoder(
+            Decompressor decompressor,
+            LongValues addresses,
+            DirectMonotonicReader docOffsets,
+            IndexInput data,
+            int maxUncompressedValuesSize,
+            int maxNumDocsInAnyBlock
+        ) {
+            this.decompressor = decompressor;
+            this.addresses = addresses;
+            this.docOffsets = docOffsets;
+            this.data = data;
+            final byte[] valBuf = new byte[Math.max(1, maxUncompressedValuesSize)];
+            this.decompBuf = new BytesRef(valBuf, 0, valBuf.length);
+            this.docSlotCounts = new int[maxNumDocsInAnyBlock];
+            this.docSlotBytes = new int[maxNumDocsInAnyBlock];
+            this.docWritePos = new int[maxNumDocsInAnyBlock];
+            this.rowView = new int[maxNumDocsInAnyBlock + 1];
+            this.keyEntryStarts = new int[128];
+            this.keyUncompressedLens = new int[128];
+            this.keyCompressedLens = new int[128];
+            this.keyRunBuf = new byte[Math.max(1, maxUncompressedValuesSize)];
+        }
+
+        long findAndUpdateBlock(int docNumber, int numBlocks) {
+            if (docNumber < limitDocNumForBlock && lastBlockId >= 0) {
+                return lastBlockId;
+            }
+            long index = docOffsets.binarySearch(Math.max(0, lastBlockId + 1), numBlocks, docNumber);
+            if (index < 0) {
+                index = -2 - index;
+            }
+            assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
+            startDocNumForBlock = docOffsets.get(index);
+            limitDocNumForBlock = docOffsets.get(index + 1);
+            return index;
+        }
+
+        BytesRef decode(int docNumber, int numBlocks) throws IOException {
+            long blockId = findAndUpdateBlock(docNumber, numBlocks);
+            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+            int idxInBlock = (int) (docNumber - startDocNumForBlock);
+
+            if (blockId != lastBlockId) {
+                transposeBlock(blockId, numDocsInBlock);
+                lastBlockId = blockId;
+            }
+
+            int start = rowView[idxInBlock];
+            int end = rowView[idxInBlock + 1];
+            reusableResult.bytes = rowBytes;
+            reusableResult.offset = start;
+            reusableResult.length = end - start;
+            return reusableResult;
+        }
+
+        /**
+         * Returns the first value for {@code keyWithSep} in {@code docNumber}, or {@code null} if
+         * the key is absent. Only valid for sub-chunked blocks; for single-frame columnar blocks this
+         * falls back to a full transpose followed by a linear scan of the row blob.
+         */
+        BytesRef lookupKey(int docNumber, int numBlocks, byte[] keyWithSep) throws IOException {
+            long blockId = findAndUpdateBlock(docNumber, numBlocks);
+            int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
+            int idxInBlock = (int) (docNumber - startDocNumForBlock);
+
+            // Ensure sub-chunked directory for this block is loaded.
+            if (blockId != dirBlockId) {
+                loadSubchunkedDirectory(blockId, numDocsInBlock);
+            }
+
+            int keyIdx = findKeyIndex(keyWithSep);
+            if (keyIdx < 0) {
+                return null;
+            }
+
+            // Locate the presence bitmap for this key in dirBuffer.
+            int bitmapPos = keyEntryStarts[keyIdx];
+            final int keyLen = readVInt(dirBuffer, bitmapPos);
+            bitmapPos += vIntLen(dirBuffer, bitmapPos);
+            bitmapPos += keyLen;                           // skip key bytes
+            bitmapPos += vIntLen(dirBuffer, bitmapPos);   // skip totalValueCount
+            bitmapPos += vIntLen(dirBuffer, bitmapPos);   // skip uncompressedRunLen
+            bitmapPos += vIntLen(dirBuffer, bitmapPos);   // skip compressedRunLen
+            // bitmapPos now points at the presence bitmap.
+
+            if ((dirBuffer[bitmapPos + (idxInBlock >>> 3)] & (1 << (idxInBlock & 7))) == 0) {
+                return null; // doc does not have this key
+            }
+
+            // Load this key's decompressed run if not already cached.
+            if (blockId != keyRunBlockId || keyIdx != keyRunKeyIdx) {
+                loadKeyRun(keyIdx);
+            }
+
+            // Advance the sequential cursor to idxInBlock.
+            if (idxInBlock < keyRunCursorDocIdx) {
+                // Requested doc is behind the cursor; reset.
+                keyRunCursorDocIdx = -1;
+                keyRunCursorBytePos = 0;
+            }
+
+            int bytePos = keyRunCursorBytePos;
+            for (int d = keyRunCursorDocIdx + 1; d < idxInBlock; d++) {
+                if ((dirBuffer[bitmapPos + (d >>> 3)] & (1 << (d & 7))) != 0) {
+                    // Present doc before idxInBlock; skip its entry.
+                    int numSlots = readVInt(keyRunBuf, bytePos);
+                    bytePos += vIntLen(keyRunBuf, bytePos);
+                    for (int s = 0; s < numSlots; s++) {
+                        int encodedLen = readVInt(keyRunBuf, bytePos);
+                        bytePos += vIntLen(keyRunBuf, bytePos);
+                        bytePos += encodedLen == 0 ? 0 : encodedLen - 1;
+                    }
+                }
+            }
+
+            // Read the entry for idxInBlock.
+            int numSlots = readVInt(keyRunBuf, bytePos);
+            bytePos += vIntLen(keyRunBuf, bytePos);
+
+            // Find the first non-null slot (encodedLen > 0).
+            int firstValOff = -1;
+            int firstValLen = 0;
+            for (int s = 0; s < numSlots; s++) {
+                int encodedLen = readVInt(keyRunBuf, bytePos);
+                bytePos += vIntLen(keyRunBuf, bytePos);
+                int valLen = encodedLen == 0 ? 0 : encodedLen - 1;
+                if (firstValOff < 0 && encodedLen > 0) {
+                    firstValOff = bytePos;
+                    firstValLen = valLen;
+                }
+                bytePos += valLen;
+            }
+
+            // Update cursor past idxInBlock.
+            keyRunCursorDocIdx = idxInBlock;
+            keyRunCursorBytePos = bytePos;
+
+            if (firstValOff < 0) {
+                reusableResult.bytes = BytesRef.EMPTY_BYTES;
+                reusableResult.offset = 0;
+                reusableResult.length = 0;
+            } else {
+                reusableResult.bytes = keyRunBuf;
+                reusableResult.offset = firstValOff;
+                reusableResult.length = firstValLen;
+            }
+            return reusableResult;
+        }
+
+        /**
+         * Reads and transposes a columnar block into the row-view cache ({@link #rowView} /
+         * {@link #rowBytes}). After this call, {@link #decode} serves any doc in the block in O(1).
+         * Handles both the single-frame (non-sub-chunked) and sub-chunked block formats.
+         */
+        private void transposeBlock(long blockId, int numDocsInBlock) throws IOException {
+            long blockStartOffset = addresses.get(blockId);
+            data.seek(blockStartOffset);
+
+            // Read block header
+            final BinaryDVCompressionMode.BlockHeader header = BinaryDVCompressionMode.BlockHeader.fromByte(data.readByte());
+            assert header.isColumnar() : "expected columnar block header";
+
+            if (header.isSubchunked()) {
+                transposeSubchunkedBlock(blockId, numDocsInBlock);
+                return;
+            }
+
+            final int numKeys = data.readVInt();
+            final int numDocs = data.readVInt();
+            assert numDocs == numDocsInBlock;
+            final int directoryLen = data.readVInt();
+
+            // Read directory (uncompressed) — reuse dirBuffer, growing only when needed
+            if (dirBuffer.length < directoryLen) {
+                dirBuffer = new byte[directoryLen];
+            }
+            data.readBytes(dirBuffer, 0, directoryLen);
+            final byte[] dirBytes = dirBuffer;
+
+            // Read values region — reuse decompBuf, growing only when needed
+            final int uncompressedValuesLen = data.readVInt();
+            if (decompBuf.bytes.length < uncompressedValuesLen) {
+                decompBuf.bytes = new byte[uncompressedValuesLen];
+            }
+            decompBuf.offset = 0;
+            decompBuf.length = uncompressedValuesLen;
+            if (header.isCompressed()) {
+                decompressor.decompress(data, uncompressedValuesLen, 0, uncompressedValuesLen, decompBuf);
+                if (decompBuf.offset > 0) {
+                    System.arraycopy(decompBuf.bytes, decompBuf.offset, decompBuf.bytes, 0, decompBuf.length);
+                    decompBuf.offset = 0;
+                }
+            } else {
+                data.readBytes(decompBuf.bytes, 0, uncompressedValuesLen);
+            }
+            final byte[] valuesBytes = decompBuf.bytes;
+
+            // --- Transpose: columnar → row view ---
+            // For each doc, count total slots and total slot bytes, then write actual blobs.
+            final int presenceBytesPerKey = (numDocs + 7) >>> 3;
+            // Reuse the pre-sized accumulators (fields); zero only the live prefix
+            Arrays.fill(docSlotCounts, 0, numDocs, 0);
+            Arrays.fill(docSlotBytes, 0, numDocs, 0);
+
+            // First pass: compute per-doc byte sizes for the row view
+            int dirPos = 0;
+            for (int k = 0; k < numKeys; k++) {
+                final int keyLen = readVInt(dirBytes, dirPos);
+                dirPos += vIntLen(dirBytes, dirPos);
+                final int keyDataOff = dirPos;
+                dirPos += keyLen;
+                dirPos += vIntLen(dirBytes, dirPos); // skip totalValueCount
+                final int valuesOffset = readVInt(dirBytes, dirPos);
+                dirPos += vIntLen(dirBytes, dirPos);
+                int vPos = valuesOffset;
+                for (int d = 0; d < numDocs; d++) {
+                    if ((dirBytes[dirPos + (d >>> 3)] & (1 << (d & 7))) != 0) {
+                        int numSlots = readVInt(valuesBytes, vPos);
+                        vPos += vIntLen(valuesBytes, vPos);
+                        for (int s = 0; s < numSlots; s++) {
+                            int encodedLen = readVInt(valuesBytes, vPos);
+                            vPos += vIntLen(valuesBytes, vPos);
+                            int valLen = encodedLen == 0 ? 0 : encodedLen - 1;
+                            // KeyedArrayOrderInlineNull slot: [encodedLen vint][key bytes][\0][value bytes]
+                            docSlotBytes[d] += vIntSize(encodedLen) + keyLen + 1 + valLen;
+                            vPos += valLen;
+                        }
+                    }
+                }
+                dirPos += presenceBytesPerKey;
+            }
+
+            // Compute row-view offsets — reuse rowView field, growing only when needed
+            if (rowView.length < numDocs + 1) {
+                rowView = new int[numDocs + 1];
+            }
+            int totalRowBytes = 0;
+            for (int d = 0; d < numDocs; d++) {
+                rowView[d] = totalRowBytes;
+                totalRowBytes += docSlotBytes[d]; // no leading count in KeyedArrayOrderInlineNull
+            }
+            rowView[numDocs] = totalRowBytes;
+            // Reuse rowBytes field, growing only when needed
+            if (rowBytes == null || rowBytes.length < totalRowBytes) {
+                rowBytes = new byte[totalRowBytes];
+            }
+
+            // Initialise write cursors — no leading count written per doc
+            for (int d = 0; d < numDocs; d++) {
+                docWritePos[d] = rowView[d];
+            }
+
+            // Second pass: write KeyedArrayOrderInlineNull slot data for each (key, doc) pair
+            dirPos = 0;
+            for (int k = 0; k < numKeys; k++) {
+                final int keyLen = readVInt(dirBytes, dirPos);
+                dirPos += vIntLen(dirBytes, dirPos);
+                final int keyDataOff = dirPos;
+                dirPos += keyLen;
+                dirPos += vIntLen(dirBytes, dirPos); // skip totalValueCount
+                final int valuesOffset = readVInt(dirBytes, dirPos);
+                dirPos += vIntLen(dirBytes, dirPos);
+                int vPos = valuesOffset;
+                for (int d = 0; d < numDocs; d++) {
+                    if ((dirBytes[dirPos + (d >>> 3)] & (1 << (d & 7))) != 0) {
+                        int numSlots = readVInt(valuesBytes, vPos);
+                        vPos += vIntLen(valuesBytes, vPos);
+                        for (int s = 0; s < numSlots; s++) {
+                            int encodedLen = readVInt(valuesBytes, vPos);
+                            vPos += vIntLen(valuesBytes, vPos);
+                            int valLen = encodedLen == 0 ? 0 : encodedLen - 1;
+                            writeVInt(rowBytes, docWritePos[d], encodedLen); // 0=null, valLen+1 otherwise
+                            docWritePos[d] += vIntSize(encodedLen);
+                            System.arraycopy(dirBytes, keyDataOff, rowBytes, docWritePos[d], keyLen);
+                            docWritePos[d] += keyLen;
+                            rowBytes[docWritePos[d]++] = 0; // separator
+                            System.arraycopy(valuesBytes, vPos, rowBytes, docWritePos[d], valLen);
+                            docWritePos[d] += valLen;
+                            vPos += valLen;
+                        }
+                    }
+                }
+                dirPos += presenceBytesPerKey;
+            }
+        }
+
+        /**
+         * Loads the sub-chunked directory for {@code blockId} into {@link #dirBuffer} and populates
+         * {@link #keyEntryStarts}, {@link #keyUncompressedLens}, {@link #keyCompressedLens}, and
+         * {@link #valuesRegionOffset}. Invalidates the key-run cache.
+         */
+        private void loadSubchunkedDirectory(long blockId, int numDocsInBlock) throws IOException {
+            long blockStartOffset = addresses.get(blockId);
+            data.seek(blockStartOffset);
+
+            data.readByte(); // header already checked by caller; skip it
+            final int numKeys = data.readVInt();
+            final int numDocs = data.readVInt();
+            assert numDocs == numDocsInBlock;
+            final int directoryLen = data.readVInt();
+
+            if (dirBuffer.length < directoryLen) {
+                dirBuffer = new byte[directoryLen];
+            }
+            data.readBytes(dirBuffer, 0, directoryLen);
+            valuesRegionOffset = data.getFilePointer();
+
+            if (keyEntryStarts.length < numKeys) {
+                int newSize = Math.max(numKeys, keyEntryStarts.length * 2);
+                keyEntryStarts = new int[newSize];
+                keyUncompressedLens = new int[newSize];
+                keyCompressedLens = new int[newSize];
+            }
+
+            final int presenceBytesPerKey = (numDocs + 7) >>> 3;
+            int dirPos = 0;
+            for (int k = 0; k < numKeys; k++) {
+                keyEntryStarts[k] = dirPos;
+                dirPos += vIntLen(dirBuffer, dirPos);           // keyLen vint
+                dirPos += readVInt(dirBuffer, keyEntryStarts[k]); // key bytes
+                dirPos += vIntLen(dirBuffer, dirPos);           // totalValueCount
+                keyUncompressedLens[k] = readVInt(dirBuffer, dirPos);
+                dirPos += vIntLen(dirBuffer, dirPos);
+                keyCompressedLens[k] = readVInt(dirBuffer, dirPos);
+                dirPos += vIntLen(dirBuffer, dirPos);
+                dirPos += presenceBytesPerKey;
+            }
+
+            dirBlockId = blockId;
+            dirNumKeys = numKeys;
+            dirNumDocs = numDocs;
+            // Invalidate key-run cache since we've moved to a new block.
+            keyRunBlockId = -1;
+            keyRunKeyIdx = -1;
+        }
+
+        /**
+         * Linear scan of the loaded directory for the key identified by {@code keyWithSep}
+         * ({@code key bytes + NUL}). Returns the 0-based key index, or -1 if not found.
+         */
+        private int findKeyIndex(byte[] keyWithSep) {
+            final int searchKeyLen = keyWithSep.length - 1; // exclude the NUL separator
+            for (int k = 0; k < dirNumKeys; k++) {
+                int pos = keyEntryStarts[k];
+                final int dirKeyLen = readVInt(dirBuffer, pos);
+                pos += vIntLen(dirBuffer, pos);
+                if (dirKeyLen == searchKeyLen) {
+                    boolean match = true;
+                    for (int i = 0; i < searchKeyLen; i++) {
+                        if (dirBuffer[pos + i] != keyWithSep[i]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) {
+                        return k;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        /**
+         * Decompresses the value run for key index {@code keyIdx} from the loaded sub-chunked block
+         * into {@link #keyRunBuf} and resets the sequential cursor.
+         */
+        private void loadKeyRun(int keyIdx) throws IOException {
+            long offset = valuesRegionOffset;
+            for (int i = 0; i < keyIdx; i++) {
+                offset += keyCompressedLens[i];
+            }
+            data.seek(offset);
+
+            final int uncompressedLen = keyUncompressedLens[keyIdx];
+            if (keyRunBuf.length < uncompressedLen) {
+                keyRunBuf = new byte[uncompressedLen];
+            }
+
+            if (decompressor != null) {
+                if (decompBuf.bytes.length < uncompressedLen) {
+                    decompBuf.bytes = new byte[uncompressedLen];
+                }
+                decompBuf.offset = 0;
+                decompBuf.length = uncompressedLen;
+                decompressor.decompress(data, uncompressedLen, 0, uncompressedLen, decompBuf);
+                if (decompBuf.offset > 0) {
+                    System.arraycopy(decompBuf.bytes, decompBuf.offset, decompBuf.bytes, 0, uncompressedLen);
+                    decompBuf.offset = 0;
+                }
+                System.arraycopy(decompBuf.bytes, 0, keyRunBuf, 0, uncompressedLen);
+            } else {
+                data.readBytes(keyRunBuf, 0, uncompressedLen);
+            }
+
+            keyRunBufLen = uncompressedLen;
+            keyRunBlockId = dirBlockId;
+            keyRunKeyIdx = keyIdx;
+            keyRunCursorDocIdx = -1;
+            keyRunCursorBytePos = 0;
+        }
+
+        /**
+         * Transposes a sub-chunked columnar block (IS_COLUMNAR | IS_SUBCHUNKED) into the row-view
+         * cache by decompressing each key's run separately and performing the two-pass transpose.
+         */
+        private void transposeSubchunkedBlock(long blockId, int numDocsInBlock) throws IOException {
+            if (blockId != dirBlockId) {
+                loadSubchunkedDirectory(blockId, numDocsInBlock);
+            }
+
+            final int numKeys = dirNumKeys;
+            final int numDocs = dirNumDocs;
+            final int presenceBytesPerKey = (numDocs + 7) >>> 3;
+
+            // Decompress all key runs into temporary arrays.
+            final byte[][] keyRuns = new byte[numKeys][];
+            for (int k = 0; k < numKeys; k++) {
+                final int uncompressedLen = keyUncompressedLens[k];
+                final byte[] runBytes = new byte[Math.max(1, uncompressedLen)];
+                if (decompressor != null) {
+                    if (decompBuf.bytes.length < uncompressedLen) {
+                        decompBuf.bytes = new byte[uncompressedLen];
+                    }
+                    decompBuf.offset = 0;
+                    decompBuf.length = uncompressedLen;
+                    // Seek to this key's run (offsets computed incrementally via loadKeyRun, but here
+                    // we decompress all keys in file order so just seek relative to previous key).
+                    loadKeyRun(k);
+                    System.arraycopy(keyRunBuf, 0, runBytes, 0, uncompressedLen);
+                } else {
+                    loadKeyRun(k);
+                    System.arraycopy(keyRunBuf, 0, runBytes, 0, uncompressedLen);
+                }
+                keyRuns[k] = runBytes;
+            }
+            // Invalidate key-run cache since we touched multiple keys.
+            keyRunBlockId = -1;
+            keyRunKeyIdx = -1;
+
+            // --- First pass: compute per-doc byte sizes ---
+            Arrays.fill(docSlotCounts, 0, numDocs, 0);
+            Arrays.fill(docSlotBytes, 0, numDocs, 0);
+
+            for (int k = 0; k < numKeys; k++) {
+                int pos = keyEntryStarts[k];
+                final int keyLen = readVInt(dirBuffer, pos);
+                pos += vIntLen(dirBuffer, pos);
+                pos += keyLen;                           // skip key bytes
+                pos += vIntLen(dirBuffer, pos);          // skip totalValueCount
+                pos += vIntLen(dirBuffer, pos);          // skip uncompressedRunLen
+                pos += vIntLen(dirBuffer, pos);          // skip compressedRunLen
+                // pos now at presence bitmap
+
+                final byte[] run = keyRuns[k];
+                int vPos = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    if ((dirBuffer[pos + (d >>> 3)] & (1 << (d & 7))) != 0) {
+                        int numSlots = readVInt(run, vPos);
+                        vPos += vIntLen(run, vPos);
+                        for (int s = 0; s < numSlots; s++) {
+                            int encodedLen = readVInt(run, vPos);
+                            vPos += vIntLen(run, vPos);
+                            int valLen = encodedLen == 0 ? 0 : encodedLen - 1;
+                            docSlotBytes[d] += vIntSize(encodedLen) + keyLen + 1 + valLen;
+                            vPos += valLen;
+                        }
+                    }
+                }
+            }
+
+            // --- Compute row-view offsets ---
+            if (rowView.length < numDocs + 1) {
+                rowView = new int[numDocs + 1];
+            }
+            int totalRowBytes = 0;
+            for (int d = 0; d < numDocs; d++) {
+                rowView[d] = totalRowBytes;
+                totalRowBytes += docSlotBytes[d]; // no leading count in KeyedArrayOrderInlineNull
+            }
+            rowView[numDocs] = totalRowBytes;
+            if (rowBytes == null || rowBytes.length < totalRowBytes) {
+                rowBytes = new byte[totalRowBytes];
+            }
+
+            // Initialise write cursors — no leading count written per doc
+            for (int d = 0; d < numDocs; d++) {
+                docWritePos[d] = rowView[d];
+            }
+
+            // --- Second pass: write KeyedArrayOrderInlineNull slot data ---
+            for (int k = 0; k < numKeys; k++) {
+                int pos = keyEntryStarts[k];
+                final int keyLen = readVInt(dirBuffer, pos);
+                pos += vIntLen(dirBuffer, pos);
+                final int keyDataOff = pos;
+                pos += keyLen;
+                pos += vIntLen(dirBuffer, pos);  // skip totalValueCount
+                pos += vIntLen(dirBuffer, pos);  // skip uncompressedRunLen
+                pos += vIntLen(dirBuffer, pos);  // skip compressedRunLen
+                // pos at presence bitmap
+
+                final byte[] run = keyRuns[k];
+                int vPos = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    if ((dirBuffer[pos + (d >>> 3)] & (1 << (d & 7))) != 0) {
+                        int numSlots = readVInt(run, vPos);
+                        vPos += vIntLen(run, vPos);
+                        for (int s = 0; s < numSlots; s++) {
+                            int encodedLen = readVInt(run, vPos);
+                            vPos += vIntLen(run, vPos);
+                            int valLen = encodedLen == 0 ? 0 : encodedLen - 1;
+                            writeVInt(rowBytes, docWritePos[d], encodedLen); // 0=null, valLen+1 otherwise
+                            docWritePos[d] += vIntSize(encodedLen);
+                            System.arraycopy(dirBuffer, keyDataOff, rowBytes, docWritePos[d], keyLen);
+                            docWritePos[d] += keyLen;
+                            rowBytes[docWritePos[d]++] = 0; // separator
+                            System.arraycopy(run, vPos, rowBytes, docWritePos[d], valLen);
+                            docWritePos[d] += valLen;
+                            vPos += valLen;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- VInt helpers ---
+
+        private static int readVInt(byte[] b, int pos) {
+            int v = 0, shift = 0;
+            byte c;
+            do {
+                c = b[pos++];
+                v |= (c & 0x7F) << shift;
+                shift += 7;
+            } while ((c & 0x80) != 0);
+            return v;
+        }
+
+        private static int vIntLen(byte[] b, int pos) {
+            int len = 1;
+            while ((b[pos++] & 0x80) != 0)
+                len++;
+            return len;
+        }
+
+        private static int vIntSize(int v) {
+            int size = 1;
+            while ((v >>>= 7) != 0)
+                size++;
+            return size;
+        }
+
+        private static void writeVInt(byte[] b, int pos, int v) {
+            while ((v & ~0x7F) != 0) {
+                b[pos++] = (byte) ((v & 0x7F) | 0x80);
+                v >>>= 7;
+            }
+            b[pos] = (byte) v;
         }
     }
 
@@ -968,6 +1694,24 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         implements
             BlockLoader.OptionalColumnAtATimeReader,
             BlockLoader.OptionalLengthReader {}
+
+    /**
+     * A {@link DenseBinaryDocValues} for columnar blocks that supports single-key lookup without
+     * transposing the entire block. Returned by {@link #getColumnarBinary} for dense fields.
+     */
+    public abstract static class SubchunkedBinaryDocValues extends DenseBinaryDocValues {
+        SubchunkedBinaryDocValues(int maxDoc) {
+            super(maxDoc);
+        }
+
+        /**
+         * Returns the first value for the key identified by {@code keyWithSep} in the current
+         * document, or {@code null} if the key is absent. {@code keyWithSep} must be the key bytes
+         * followed by a NUL (0x00) separator byte. The returned {@link BytesRef} is reusable and
+         * valid only until the next call on this instance.
+         */
+        public abstract BytesRef lookupKey(byte[] keyWithSep) throws IOException;
+    }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {
 
@@ -2181,7 +2925,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         } else {
             compression = BinaryDVCompressionMode.NO_COMPRESS;
         }
+        final boolean isColumnar;
+        if (version >= TSDBDocValuesFormatConfig.VERSION_FLATTENED_COLUMNAR_BINARY) {
+            isColumnar = meta.readByte() != 0;
+        } else {
+            isColumnar = false;
+        }
         final BinaryEntry entry = new BinaryEntry(compression);
+        entry.isColumnar = isColumnar;
 
         entry.dataOffset = meta.readLong();
         entry.dataLength = meta.readLong();
@@ -3113,6 +3864,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     static class BinaryEntry {
         final BinaryDVCompressionMode compression;
+        /** True when the blocks use the columnar layout for flattened {@code ._keyed} fields. */
+        boolean isColumnar;
 
         long dataOffset;
         long dataLength;

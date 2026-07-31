@@ -87,9 +87,11 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 } else {
                     Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                     final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                    iterator = arrayOrderInlineNull
-                        ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
-                        : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                    if (arrayOrderInlineNull) {
+                        iterator = AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost());
+                    } else {
+                        iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                    }
                 }
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }

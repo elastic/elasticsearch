@@ -13,13 +13,16 @@ package org.elasticsearch.index.codec.tsdb;
  * Format-specific configuration that varies per codec version. Groups related parameters
  * into sub-records and provides delegation methods for convenient flat access.
  *
- * @param version                    version identifiers for header validation and feature gating
- * @param termsDict                  terms dictionary block layout parameters
- * @param skipIndex                  skip index geometry parameters
- * @param numeric                    numeric encoding parameters
- * @param binary                     binary doc values compression parameters
- * @param directMonotonicBlockShift  block shift for DirectMonotonicWriter used across all field types
- * @param writePrefixPartitions      whether to write prefix-based partition metadata for the primary sort field
+ * @param version                         version identifiers for header validation and feature gating
+ * @param termsDict                       terms dictionary block layout parameters
+ * @param skipIndex                       skip index geometry parameters
+ * @param numeric                         numeric encoding parameters
+ * @param binary                          binary doc values compression parameters
+ * @param directMonotonicBlockShift       block shift for DirectMonotonicWriter used across all field types
+ * @param writePrefixPartitions           whether to write prefix-based partition metadata for the primary sort field
+ * @param writeColumnarFlattenedBinary    whether to write flattened {@code ._keyed} fields in the columnar block layout
+ * @param writeSubchunkedFlattenedBinary  whether to write each key's value run as an individually compressed chunk
+ *                                        within the columnar layout (requires {@code writeColumnarFlattenedBinary=true})
  */
 public record TSDBDocValuesFormatConfig(
     int version,
@@ -28,7 +31,9 @@ public record TSDBDocValuesFormatConfig(
     NumericConfig numeric,
     BinaryConfig binary,
     int directMonotonicBlockShift,
-    boolean writePrefixPartitions
+    boolean writePrefixPartitions,
+    boolean writeColumnarFlattenedBinary,
+    boolean writeSubchunkedFlattenedBinary
 ) {
     /** @return terms dict block mask */
     public int termsBlockLz4Mask() {
@@ -143,5 +148,11 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_ORDINAL_BLOCK_SHIFT = 6;
     public static final int VERSION_SKIPPER_MAX_VALUE_COUNT = 7;
     public static final int VERSION_REMOVE_ORDINAL_BLOCK_SHIFT = 8;
-    public static final int VERSION_CURRENT = VERSION_REMOVE_ORDINAL_BLOCK_SHIFT;
+    /**
+     * Version that adds the binary-layout byte to the per-field meta record.
+     * A layout byte of {@code 0} means the existing row-oriented block layout;
+     * {@code 1} means the columnar layout for flattened {@code ._keyed} fields.
+     */
+    public static final int VERSION_FLATTENED_COLUMNAR_BINARY = 9;
+    public static final int VERSION_CURRENT = VERSION_FLATTENED_COLUMNAR_BINARY;
 }

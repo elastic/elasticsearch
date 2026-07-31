@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +34,15 @@ import java.util.TreeSet;
  * binary doc values for fields with multiple values per document.
  */
 public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+
+    /**
+     * {@link org.apache.lucene.index.FieldInfo} attribute key that marks a binary doc values field as
+     * the flattened {@code ._keyed} column. The codec consumer reads this attribute via
+     * {@code FieldInfo.getAttribute(FLATTENED_KEYED_BDV_ATTRIBUTE_KEY)} to decide whether to write the
+     * columnar block layout for this field.
+     */
+    public static final String FLATTENED_KEYED_BDV_ATTRIBUTE_KEY = "es.FlattenedKeyedBinaryDocValues";
+    public static final String FLATTENED_KEYED_BDV_ATTRIBUTE_VALUE = "true";
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
@@ -599,6 +611,21 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
      */
     public static class KeyedArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
 
+        /**
+         * Frozen {@link FieldType} carrying the {@link #FLATTENED_KEYED_BDV_ATTRIBUTE_KEY} attribute.
+         * Its presence on the field causes the TSDB codec consumer to route this field through the
+         * columnar block writer when {@code writeColumnarFlattenedBinary} is enabled.
+         */
+        private static final FieldType FIELD_TYPE_WITH_ATTR;
+        static {
+            FieldType ft = new FieldType();
+            ft.setDocValuesType(DocValuesType.BINARY);
+            ft.setOmitNorms(true);
+            ft.putAttribute(FLATTENED_KEYED_BDV_ATTRIBUTE_KEY, FLATTENED_KEYED_BDV_ATTRIBUTE_VALUE);
+            ft.freeze();
+            FIELD_TYPE_WITH_ATTR = ft;
+        }
+
         // slotBytesList.get(i) is key\0value for non-null slots, key\0 for null slots.
         // nullMarkers.get(i) is true when slot i is null (needed to distinguish null from empty-string value).
         // TODO: benchmark whether the lazy single-slot optimization from ArrayOrderInlineNull is worth porting here.
@@ -611,6 +638,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         public KeyedArrayOrderInlineNull(String name) {
             // Use eagerAllocate=false so the base-class `values` field stays null; slot state is managed here.
             super(name, ValueOrdering.UNSORTED, false);
+        }
+
+        @Override
+        public IndexableFieldType fieldType() {
+            return FIELD_TYPE_WITH_ATTR;
         }
 
         public String countFieldName() {

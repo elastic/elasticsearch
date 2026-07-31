@@ -249,8 +249,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(2, keyedFields.size());
 
         assertEquals("field._keyed", keyedFields.get(1).name());
+        // ._keyed uses SeparateCount framing: single-valued blobs store raw bytes, multi-valued use [len][val]... prefixes.
         assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
         assertEquals(DocValuesType.BINARY, keyedFields.get(1).fieldType().docValuesType());
+        // Companion .counts field is written for the ._keyed column.
+        assertFalse(parsedDoc.rootDoc().getFields("field._keyed.counts").isEmpty());
     }
 
     public void testNotDimension() throws Exception {

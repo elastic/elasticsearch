@@ -150,7 +150,9 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                 binaryDVCompressionMode
             ),
             DIRECT_MONOTONIC_BLOCK_SHIFT,
-            writePrefixPartitions
+            writePrefixPartitions,
+            false, // ES95 does not use columnar flattened binary in v1
+            false  // ES95 does not use sub-chunked flattened binary in v1
         );
     }
 

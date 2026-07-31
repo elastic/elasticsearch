@@ -43,12 +43,15 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 
@@ -120,6 +123,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     private final NumericBlockCodec numericCodec;
     private final OrdinalBlockCodec ordinalCodec;
     private final NumericWriteContext writeContext;
+    /**
+     * Tracks the current merge state during {@link #mergeBinaryField} so that
+     * {@link #isFlattenedKeyedColumnar} can verify that every source segment has the
+     * {@link MultiValuedBinaryDocValuesField#FLATTENED_KEYED_BDV_ATTRIBUTE_KEY} attribute,
+     * preventing mixed-format columnar writes.
+     */
+    private MergeState currentMergeState = null;
 
     /**
      * Construct a new consumer that writes doc values in the TSDB wire format.
@@ -304,11 +314,20 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     @Override
     public void mergeBinaryField(final FieldInfo mergeFieldInfo, final MergeState mergeState) throws IOException {
-        final DocValuesConsumerUtil.MergeStats mergeStats = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeState, mergeFieldInfo);
-        if (mergeStats.supported()) {
-            mergeBinaryField(mergeStats, mergeFieldInfo, mergeState);
-        } else {
-            super.mergeBinaryField(mergeFieldInfo, mergeState);
+        currentMergeState = mergeState;
+        try {
+            final DocValuesConsumerUtil.MergeStats mergeStats = compatibleWithOptimizedMerge(
+                enableOptimizedMerge,
+                mergeState,
+                mergeFieldInfo
+            );
+            if (mergeStats.supported()) {
+                mergeBinaryField(mergeStats, mergeFieldInfo, mergeState);
+            } else {
+                super.mergeBinaryField(mergeFieldInfo, mergeState);
+            }
+        } finally {
+            currentMergeState = null;
         }
     }
 
@@ -317,6 +336,12 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeInt(field.number);
         meta.writeByte(BINARY);
         meta.writeByte(formatConfig.binaryCompressionMode().code);
+
+        final boolean useColumnar = isFlattenedKeyedColumnar(field);
+        if (formatConfig.version() >= TSDBDocValuesFormatConfig.VERSION_FLATTENED_COLUMNAR_BINARY) {
+            // Layout byte: 0 = row-oriented (existing), 1 = columnar (new)
+            meta.writeByte(useColumnar ? (byte) 1 : (byte) 0);
+        }
 
         final TsdbDocValuesProducer source = new TsdbDocValuesProducer(valuesProducer);
         if (source.mergeStats.supported()) {
@@ -338,7 +363,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 }
 
                 assert maxLength >= minLength;
-                if (formatConfig.binaryCompressionMode() == BinaryDVCompressionMode.NO_COMPRESS) {
+                if (useColumnar) {
+                    binaryWriter = new ColumnarFlattenedBlockWriter(formatConfig.binaryCompressionMode());
+                } else if (formatConfig.binaryCompressionMode() == BinaryDVCompressionMode.NO_COMPRESS) {
                     final OffsetsAccumulator offsetsAccumulator = maxLength > minLength
                         ? new OffsetsAccumulator(dir, context, data, numDocsWithField, formatConfig.directMonotonicBlockShift())
                         : null;
@@ -387,7 +414,9 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         } else {
             BinaryWriter binaryWriter = null;
             try {
-                if (formatConfig.binaryCompressionMode() == BinaryDVCompressionMode.NO_COMPRESS) {
+                if (useColumnar) {
+                    binaryWriter = new ColumnarFlattenedBlockWriter(formatConfig.binaryCompressionMode());
+                } else if (formatConfig.binaryCompressionMode() == BinaryDVCompressionMode.NO_COMPRESS) {
                     binaryWriter = new DirectBinaryWriter(null, valuesProducer.getBinary(field));
                 } else {
                     binaryWriter = new CompressedBinaryBlockWriter(formatConfig.binaryCompressionMode());
@@ -443,7 +472,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    private sealed interface BinaryWriter extends Closeable {
+    private sealed interface BinaryWriter extends Closeable permits DirectBinaryWriter, CompressedBinaryBlockWriter,
+        ColumnarFlattenedBlockWriter {
         void addDoc(BytesRef v) throws IOException;
 
         default void flushData() throws IOException {}
@@ -606,6 +636,376 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         public void close() throws IOException {
             IOUtils.close(blockMetaAcc);
         }
+    }
+
+    /**
+     * Writes flattened {@code ._keyed} binary doc values in a columnar block layout.
+     *
+     * <p>Each flushed block has the following on-disk format:
+     * <pre>
+     *   [byte  header]            bit0=IS_COMPRESSED, bit1=IS_COLUMNAR
+     *   [vint  numKeys]           distinct key count in this block
+     *   [vint  numDocsInBlock]
+     *   [vint  directoryLength]   byte length of the directory region below
+     *   --- directory region (UNCOMPRESSED) ---
+     *   per key in sorted key order:
+     *     [vint  keyLen][key bytes]
+     *     [vint  totalValueCount] sum of per-doc value counts for this key
+     *     [vint  valuesOffset]    byte offset into the values region
+     *     [ceil(numDocsInBlock/8) bytes]  presence bitmap; bit d=1 ⟹ doc d has this key
+     *   --- values region (optionally ZSTD-compressed) ---
+     *   [vint  uncompressedValuesLength]
+     *   compressed (or raw) payload; payload layout:
+     *   per key run in key order:
+     *     per present doc in ascending docIndex order:
+     *       [vint numValsForDoc]
+     *       per value: [vint len][bytes]
+     * </pre>
+     *
+     * <p>All blobs received by {@link #addDoc} must use
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} framing
+     * ({@code [(valLen+1 or 0) vint][key\0value or key\0]...}, no leading count).
+     */
+    private final class ColumnarFlattenedBlockWriter implements BinaryWriter {
+
+        private final List<BytesRef> blockDocs = new ArrayList<>();
+        private int totalBlockBytesEstimate = 0;
+
+        private int totalChunks = 0;
+        private int maxUncompressedValuesLength = 0;
+        private int maxNumDocsInAnyBlock = 0;
+        private final BlockMetadataAccumulator blockMetaAcc;
+        private final boolean shouldCompress;
+        private final Compressor compressor;
+
+        ColumnarFlattenedBlockWriter(final BinaryDVCompressionMode compressionMode) throws IOException {
+            this.shouldCompress = formatConfig.enablePerBlockCompression() && compressionMode != BinaryDVCompressionMode.NO_COMPRESS;
+            this.compressor = shouldCompress ? compressionMode.compressionMode().newCompressor() : null;
+            long blockAddressesStart = data.getFilePointer();
+            this.blockMetaAcc = new BlockMetadataAccumulator(
+                state.directory,
+                state.context,
+                data,
+                blockAddressesStart,
+                metaCodecName,
+                TSDBDocValuesFormatConfig.VERSION_CURRENT,
+                formatConfig.directMonotonicBlockShift()
+            );
+        }
+
+        @Override
+        public void addDoc(final BytesRef v) throws IOException {
+            blockDocs.add(BytesRef.deepCopyOf(v));
+            totalBlockBytesEstimate += v.length;
+            if (totalBlockBytesEstimate >= formatConfig.blockBytesThreshold() || blockDocs.size() >= formatConfig.blockCountThreshold()) {
+                flushData();
+            }
+        }
+
+        @Override
+        public void flushData() throws IOException {
+            if (blockDocs.isEmpty()) {
+                return;
+            }
+            final int numDocs = blockDocs.size();
+            totalChunks++;
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocs);
+
+            // Parse each doc's KeyedArrayOrderInlineNull blob into per-key value lists.
+            // TreeMap ensures keys are in sorted order for the directory.
+            @SuppressWarnings("unchecked")
+            final TreeMap<BytesRef, List<BytesRef>[]> keyToDocValues = new TreeMap<>();
+            for (int docIdx = 0; docIdx < numDocs; docIdx++) {
+                parseFlattenedBlob(blockDocs.get(docIdx), docIdx, numDocs, keyToDocValues);
+            }
+
+            final int numKeys = keyToDocValues.size();
+            final int presenceBytesPerKey = (numDocs + 7) >>> 3;
+
+            if (formatConfig.writeSubchunkedFlattenedBinary()) {
+                flushSubchunkedBlock(numDocs, numKeys, presenceBytesPerKey, keyToDocValues);
+            } else {
+                flushSingleFrameBlock(numDocs, numKeys, presenceBytesPerKey, keyToDocValues);
+            }
+
+            blockDocs.clear();
+            totalBlockBytesEstimate = 0;
+        }
+
+        /**
+         * Writes a sub-chunked block: each key's value run is individually compressed.
+         * Directory per key: {@code [keyLen][keyBytes][totalValueCount][uncompressedRunLen][compressedRunLen][presenceBitmap]}.
+         * Values region: concatenated compressed key runs.
+         */
+        private void flushSubchunkedBlock(
+            int numDocs,
+            int numKeys,
+            int presenceBytesPerKey,
+            TreeMap<BytesRef, List<BytesRef>[]> keyToDocValues
+        ) throws IOException {
+            final byte[][] compressedRuns = new byte[numKeys][];
+            final int[] uncompressedRunLens = new int[numKeys];
+            final int[] totalValueCounts = new int[numKeys];
+
+            int ki = 0;
+            for (Map.Entry<BytesRef, List<BytesRef>[]> e : keyToDocValues.entrySet()) {
+                final List<BytesRef>[] docLists = e.getValue();
+                final ByteBuffersDataOutput runOut = new ByteBuffersDataOutput();
+                int total = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    final List<BytesRef> vals = docLists[d];
+                    if (vals != null) {
+                        runOut.writeVInt(vals.size());
+                        total += vals.size();
+                        for (BytesRef val : vals) {
+                            if (val == null) {
+                                runOut.writeVInt(0); // null slot sentinel
+                            } else {
+                                runOut.writeVInt(val.length + 1); // encodedLen = valLen + 1
+                                runOut.writeBytes(val.bytes, val.offset, val.length);
+                            }
+                        }
+                    }
+                }
+                totalValueCounts[ki] = total;
+
+                final byte[] runBytes = runOut.toArrayCopy();
+                uncompressedRunLens[ki] = runBytes.length;
+                maxUncompressedValuesLength = Math.max(maxUncompressedValuesLength, runBytes.length);
+
+                if (shouldCompress && runBytes.length > 0) {
+                    final ByteBuffersDataOutput compOut = new ByteBuffersDataOutput();
+                    compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(runBytes))), compOut);
+                    compressedRuns[ki] = compOut.toArrayCopy();
+                } else {
+                    compressedRuns[ki] = runBytes;
+                }
+                ki++;
+            }
+
+            // Build the directory region.
+            final ByteBuffersDataOutput dirOut = new ByteBuffersDataOutput();
+            ki = 0;
+            for (Map.Entry<BytesRef, List<BytesRef>[]> e : keyToDocValues.entrySet()) {
+                final BytesRef key = e.getKey();
+                dirOut.writeVInt(key.length);
+                dirOut.writeBytes(key.bytes, key.offset, key.length);
+                dirOut.writeVInt(totalValueCounts[ki]);
+                dirOut.writeVInt(uncompressedRunLens[ki]);
+                dirOut.writeVInt(compressedRuns[ki].length);
+                final List<BytesRef>[] docLists = e.getValue();
+                final byte[] presence = new byte[presenceBytesPerKey];
+                for (int d = 0; d < numDocs; d++) {
+                    if (docLists[d] != null) {
+                        presence[d >>> 3] |= (byte) (1 << (d & 7));
+                    }
+                }
+                dirOut.writeBytes(presence, 0, presenceBytesPerKey);
+                ki++;
+            }
+
+            // Write the block to the data file.
+            final long thisBlockStart = data.getFilePointer();
+            data.writeByte(new BinaryDVCompressionMode.BlockHeader(shouldCompress, true, true).toByte());
+            data.writeVInt(numKeys);
+            data.writeVInt(numDocs);
+
+            final byte[] dirBytes = dirOut.toArrayCopy();
+            data.writeVInt(dirBytes.length);
+            data.writeBytes(dirBytes, 0, dirBytes.length);
+
+            for (int i = 0; i < numKeys; i++) {
+                data.writeBytes(compressedRuns[i], 0, compressedRuns[i].length);
+            }
+
+            blockMetaAcc.addDoc(numDocs, data.getFilePointer() - thisBlockStart);
+        }
+
+        /**
+         * Writes a single-frame columnar block: all key runs concatenated in one optionally compressed frame.
+         */
+        private void flushSingleFrameBlock(
+            int numDocs,
+            int numKeys,
+            int presenceBytesPerKey,
+            TreeMap<BytesRef, List<BytesRef>[]> keyToDocValues
+        ) throws IOException {
+            // Build the values region in memory, recording each key's offset and total value count.
+            final ByteBuffersDataOutput valuesOut = new ByteBuffersDataOutput();
+            final int[] valuesOffsets = new int[numKeys];
+            final int[] totalValueCounts = new int[numKeys];
+            int ki = 0;
+            for (Map.Entry<BytesRef, List<BytesRef>[]> e : keyToDocValues.entrySet()) {
+                valuesOffsets[ki] = (int) valuesOut.size();
+                final List<BytesRef>[] docLists = e.getValue();
+                int total = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    final List<BytesRef> vals = docLists[d];
+                    if (vals != null) {
+                        valuesOut.writeVInt(vals.size());
+                        total += vals.size();
+                        for (BytesRef val : vals) {
+                            if (val == null) {
+                                valuesOut.writeVInt(0); // null slot sentinel
+                            } else {
+                                valuesOut.writeVInt(val.length + 1); // encodedLen = valLen + 1
+                                valuesOut.writeBytes(val.bytes, val.offset, val.length);
+                            }
+                        }
+                    }
+                }
+                totalValueCounts[ki] = total;
+                ki++;
+            }
+
+            // Build the directory region in memory.
+            final ByteBuffersDataOutput dirOut = new ByteBuffersDataOutput();
+            ki = 0;
+            for (Map.Entry<BytesRef, List<BytesRef>[]> e : keyToDocValues.entrySet()) {
+                final BytesRef key = e.getKey();
+                dirOut.writeVInt(key.length);
+                dirOut.writeBytes(key.bytes, key.offset, key.length);
+                dirOut.writeVInt(totalValueCounts[ki]);
+                dirOut.writeVInt(valuesOffsets[ki]);
+                final List<BytesRef>[] docLists = e.getValue();
+                final byte[] presence = new byte[presenceBytesPerKey];
+                for (int d = 0; d < numDocs; d++) {
+                    if (docLists[d] != null) {
+                        presence[d >>> 3] |= (byte) (1 << (d & 7));
+                    }
+                }
+                dirOut.writeBytes(presence, 0, presenceBytesPerKey);
+                ki++;
+            }
+
+            // Write the block to the data file.
+            final long thisBlockStart = data.getFilePointer();
+            data.writeByte(new BinaryDVCompressionMode.BlockHeader(shouldCompress, true).toByte());
+            data.writeVInt(numKeys);
+            data.writeVInt(numDocs);
+
+            final byte[] dirBytes = dirOut.toArrayCopy();
+            data.writeVInt(dirBytes.length);
+            data.writeBytes(dirBytes, 0, dirBytes.length);
+
+            final byte[] valBytes = valuesOut.toArrayCopy();
+            final int uncompressedLen = valBytes.length;
+            maxUncompressedValuesLength = Math.max(maxUncompressedValuesLength, uncompressedLen);
+            data.writeVInt(uncompressedLen);
+            if (shouldCompress) {
+                compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(valBytes, 0, uncompressedLen))), data);
+            } else {
+                data.writeBytes(valBytes, 0, uncompressedLen);
+            }
+
+            blockMetaAcc.addDoc(numDocs, data.getFilePointer() - thisBlockStart);
+        }
+
+        @Override
+        public void writeAddressMetadata(int minLength, int maxLength, int numDocsWithField) throws IOException {
+            if (totalChunks == 0) {
+                return;
+            }
+            long dataAddressesStart = data.getFilePointer();
+            meta.writeLong(dataAddressesStart);
+            meta.writeVInt(totalChunks);
+            meta.writeVInt(maxUncompressedValuesLength);
+            meta.writeVInt(maxNumDocsInAnyBlock);
+            meta.writeVInt(formatConfig.directMonotonicBlockShift());
+            blockMetaAcc.build(meta, data);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(blockMetaAcc);
+        }
+    }
+
+    /**
+     * Parses a {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull}
+     * blob ({@code [(valLen+1 or 0) vint][key\0value or key\0]...}) for {@code docIdx} and populates
+     * {@code keyToDocValues}, where each entry maps a key to a per-doc value list. A {@code null} entry
+     * in the per-doc list represents a null slot (key present but value is null).
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static void parseFlattenedBlob(BytesRef blob, int docIdx, int numDocs, TreeMap<BytesRef, List<BytesRef>[]> keyToDocValues) {
+        final byte[] b = blob.bytes;
+        int pos = blob.offset;
+        final int end = blob.offset + blob.length;
+
+        while (pos < end) {
+            // Read vint n: 0 = null slot, n > 0 → valueLen = n - 1
+            int n = 0, shift = 0;
+            byte c;
+            do {
+                c = b[pos++];
+                n |= (c & 0x7F) << shift;
+                shift += 7;
+            } while ((c & 0x80) != 0);
+
+            final boolean isNull = (n == 0);
+            final int valueLen = isNull ? 0 : n - 1;
+
+            // Find the \0 separator byte to locate the key
+            int sepIdx = -1;
+            for (int i = pos; i < end; i++) {
+                if (b[i] == 0) {
+                    sepIdx = i - pos;
+                    break;
+                }
+            }
+            assert sepIdx >= 0 : "flattened slot has no null-byte separator";
+
+            final BytesRef keyRef = new BytesRef(b, pos, sepIdx);
+            final BytesRef valueRef = isNull ? null : new BytesRef(b, pos + sepIdx + 1, valueLen);
+            pos += sepIdx + 1 + valueLen;
+
+            List<BytesRef>[] docLists = keyToDocValues.get(keyRef);
+            if (docLists == null) {
+                docLists = new List[numDocs];
+                keyToDocValues.put(BytesRef.deepCopyOf(keyRef), docLists);
+            }
+            if (docLists[docIdx] == null) {
+                docLists[docIdx] = new ArrayList<>(2);
+            }
+            docLists[docIdx].add(isNull ? null : BytesRef.deepCopyOf(valueRef));
+        }
+    }
+
+    /**
+     * Returns {@code true} if the given field should be written using the columnar block layout.
+     *
+     * <p>Requires all of:
+     * <ul>
+     *   <li>The format config has {@code writeColumnarFlattenedBinary} enabled.</li>
+     *   <li>The merged {@link FieldInfo} carries the
+     *       {@link MultiValuedBinaryDocValuesField#FLATTENED_KEYED_BDV_ATTRIBUTE_KEY} attribute.</li>
+     *   <li>During a merge ({@link #currentMergeState} is non-null): every source segment's
+     *       {@link FieldInfo} for this field also has the attribute, so all blobs share the same
+     *       encoding.</li>
+     * </ul>
+     */
+    private boolean isFlattenedKeyedColumnar(FieldInfo field) {
+        if (formatConfig.writeColumnarFlattenedBinary() == false) {
+            return false;
+        }
+        if (MultiValuedBinaryDocValuesField.FLATTENED_KEYED_BDV_ATTRIBUTE_VALUE.equals(
+            field.getAttribute(MultiValuedBinaryDocValuesField.FLATTENED_KEYED_BDV_ATTRIBUTE_KEY)
+        ) == false) {
+            return false;
+        }
+        if (currentMergeState != null) {
+            for (int i = 0; i < currentMergeState.fieldInfos.length; i++) {
+                final FieldInfo srcInfo = currentMergeState.fieldInfos[i].fieldInfo(field.name);
+                if (srcInfo != null
+                    && MultiValuedBinaryDocValuesField.FLATTENED_KEYED_BDV_ATTRIBUTE_VALUE.equals(
+                        srcInfo.getAttribute(MultiValuedBinaryDocValuesField.FLATTENED_KEYED_BDV_ATTRIBUTE_KEY)
+                    ) == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override

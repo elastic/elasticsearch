@@ -43,6 +43,7 @@ public final class TSDBDocValuesFormatSelector {
         final boolean writePartitions = indexSettings.getMode().isTsdb()
             && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
+        final boolean writeColumnarFlattenedBinary = indexCreatedVersion.onOrAfter(IndexVersions.FLATTENED_KEYED_COLUMNAR_BINARY_DV);
 
         if (useES95(indexSettings)) {
             return ES95TSDBDocValuesFormatFactory.create(
@@ -56,7 +57,8 @@ public final class TSDBDocValuesFormatSelector {
             indexCreatedVersion,
             useLargeNumericBlockSize,
             useLargeBinaryBlockSize,
-            writePartitions
+            writePartitions,
+            writeColumnarFlattenedBinary
         );
     }
 

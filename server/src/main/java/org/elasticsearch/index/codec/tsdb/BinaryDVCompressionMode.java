@@ -46,18 +46,48 @@ public enum BinaryDVCompressionMode {
         return compressionMode;
     }
 
-    public record BlockHeader(boolean isCompressed) {
+    public record BlockHeader(boolean isCompressed, boolean isColumnar, boolean isSubchunked) {
         static final byte IS_COMPRESSED = 0x1;
+        /**
+         * Set when the block uses the columnar layout for flattened {@code ._keyed} fields:
+         * an uncompressed key dictionary followed by a (optionally compressed) values region.
+         * When set, the row-oriented doc-offsets array is absent.
+         */
+        static final byte IS_COLUMNAR = 0x2;
+        /**
+         * Set (together with {@link #IS_COLUMNAR}) when each key's value run is stored as an
+         * individually compressed chunk. Enables single-key decompression without touching the
+         * runs for other keys.
+         */
+        static final byte IS_SUBCHUNKED = 0x4;
+
+        /** Convenience constructor for row-oriented blocks (back-compat). */
+        BlockHeader(boolean isCompressed) {
+            this(isCompressed, false, false);
+        }
+
+        /** Convenience constructor for columnar blocks without sub-chunking (back-compat). */
+        BlockHeader(boolean isCompressed, boolean isColumnar) {
+            this(isCompressed, isColumnar, false);
+        }
 
         public static BlockHeader fromByte(byte header) {
             boolean isCompressed = (header & IS_COMPRESSED) != 0;
-            return new BlockHeader(isCompressed);
+            boolean isColumnar = (header & IS_COLUMNAR) != 0;
+            boolean isSubchunked = (header & IS_SUBCHUNKED) != 0;
+            return new BlockHeader(isCompressed, isColumnar, isSubchunked);
         }
 
         public byte toByte() {
             byte header = 0;
             if (isCompressed) {
                 header |= IS_COMPRESSED;
+            }
+            if (isColumnar) {
+                header |= IS_COLUMNAR;
+            }
+            if (isSubchunked) {
+                header |= IS_SUBCHUNKED;
             }
             return header;
         }

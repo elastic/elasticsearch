@@ -26,10 +26,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
 /**
- * End-to-end REST coverage for the default deployment shape: the feature is registered, but nobody enabled it, so it is
- * unavailable and looks exactly like the operator-unregistered case in {@link FederationDisabledRestIT}. The shared
- * cluster builder turns the setting on for the other suites in this project, so this cluster turns it back off, which
- * is equivalent to leaving it out of {@code elasticsearch.yml}.
+ * End-to-end REST coverage for the registered-but-not-enabled deployment shape: the feature is registered, but the
+ * setting is off, so it is unavailable and looks exactly like the operator-unregistered case in
+ * {@link FederationDisabledRestIT}. The shared cluster builder turns the setting on for the other suites in this
+ * project, so this cluster sets it back to {@code false}.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRestTestCase {
@@ -50,8 +50,8 @@ public class FederationNotEnabledRestIT extends AbstractFederationUnavailableRes
 
     /**
      * Only availability is off here, not registration, so the rest of the federation settings still exist and the cluster
-     * settings API accepts them. A deployment can therefore configure the feature before opting in, or without ever
-     * opting in. This assertion belongs to this suite rather than the shared base because the same request must be
+     * settings API accepts them. A deployment can therefore configure the feature before turning it on, or without ever
+     * turning it on. This assertion belongs to this suite rather than the shared base because the same request must be
      * rejected on the operator-unregistered node of {@link FederationDisabledRestIT}, where those settings do not exist.
      */
     public void testFederationSettingsAreStillUpdatableOverRest() throws IOException {

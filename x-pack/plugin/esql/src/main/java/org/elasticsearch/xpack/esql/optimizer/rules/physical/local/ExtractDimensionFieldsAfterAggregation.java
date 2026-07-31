@@ -100,11 +100,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             }
                             packedAttr = oldIntermediates.get(intermediateOffset);
                             for (Expression dim : packDimsAgg.dims()) {
-                                Attribute attr = (Attribute) dim;
-                                if (inputAttributes.contains(attr) == false) {
-                                    attr = readDimAttribute(attr);
-                                    readDims.add(attr);
-                                }
+                                Attribute attr = readDimAttribute((Attribute) dim);
+                                readDims.add(attr);
                                 packDims.add(attr);
                             }
                             intermediateOffset += size;

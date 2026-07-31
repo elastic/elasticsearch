@@ -83,12 +83,13 @@ FROM derived-metrics-logs-derived-demo-default-10s
 
 
 // ---------------------------------------------------------------------------------------------
-// 7. Latency, from the avg gauge. AVG of per-interval averages, so it is unweighted — close enough
-//    when the series are similarly busy, not a substitute for a real histogram.
+// 7. Latency, from the avg gauge. metric.value carries the sum and metric.count the observation
+//    count, so SUM(value)/SUM(count) is the exact mean. Still not a substitute for a histogram: a
+//    mean tells you nothing about the tail.
 // ---------------------------------------------------------------------------------------------
 FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE metric.name == "event.duration.avg"
-| STATS avg_ms = ROUND(AVG(metric.value) / 1000000, 1)
+| STATS avg_ms = ROUND(SUM(metric.value) / SUM(metric.count) / 1000000, 1)
     BY bucket = BUCKET(@timestamp, 10 second)
 | SORT bucket DESC
 | LIMIT 20

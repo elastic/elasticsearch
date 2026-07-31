@@ -37,11 +37,16 @@ public final class DerivedMetricsDestination {
     /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 1L;
+    public static final long TEMPLATE_VERSION = 2L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
     public static final String METRIC_VALUE_FIELD = "metric.value";
+    /**
+     * Only present on avg gauges, which emit their sum in {@link #METRIC_VALUE_FIELD} and the observation count here so that the mean is
+     * a re-aggregatable SUM(value)/SUM(count) rather than an average of averages.
+     */
+    public static final String METRIC_COUNT_FIELD = "metric.count";
     public static final String SOURCE_FIELD = "derived_metrics.source";
     public static final String INTERVAL_FIELD = "derived_metrics.interval";
     public static final String NODE_FIELD = "derived_metrics.node";
@@ -80,6 +85,10 @@ public final class DerivedMetricsDestination {
                   },
                   "value": {
                     "type": "double",
+                    "time_series_metric": "gauge"
+                  },
+                  "count": {
+                    "type": "long",
                     "time_series_metric": "gauge"
                   }
                 }

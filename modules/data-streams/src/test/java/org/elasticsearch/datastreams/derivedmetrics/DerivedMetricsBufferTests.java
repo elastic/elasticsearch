@@ -9,17 +9,38 @@
 
 package org.elasticsearch.datastreams.derivedmetrics;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
+import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Interval;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Reduction;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Accumulator;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.BucketKey;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.SeriesKey;
+import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Source;
+import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Map;
 
 public class DerivedMetricsBufferTests extends ESTestCase {
+
+    private static final Interval TEN_SECONDS = new Interval("10s", 10_000L);
+
+    private BigArrays bigArrays;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        // MockBigArrays fails the test if anything we allocate is not released, which is exactly the leak we care about
+        bigArrays = new MockBigArrays(
+            new MockPageCacheRecycler(org.elasticsearch.common.settings.Settings.EMPTY),
+            new NoneCircuitBreakerService()
+        );
+    }
 
     public void testBucketsAreAlignedToTheEpoch() {
         assertEquals(0L, DerivedMetricsBuffer.bucketStart(9_999, 10_000));
@@ -29,61 +50,85 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     public void testAccumulationReducesEveryWay() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(10);
-        BucketKey key = key(Reduction.SUM, 0L, 10_000L);
-        for (double value : new double[] { 4.0, 1.0, 7.0 }) {
-            assertTrue(buffer.record(key, value));
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            for (double value : new double[] { 4.0, 1.0, 7.0 }) {
+                assertTrue(record(buffer, key, "checkout", value));
+            }
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).getValue();
+                assertEquals(1L, table.size());
+                assertEquals(3L, table.countOf(0));
+                assertEquals(12.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(1.0, table.reduce(0, Reduction.MIN, 10_000L), 0.0);
+                assertEquals(7.0, table.reduce(0, Reduction.MAX, 10_000L), 0.0);
+                assertEquals(4.0, table.reduce(0, Reduction.FIRST, 10_000L), 0.0);
+                assertEquals(7.0, table.reduce(0, Reduction.LAST, 10_000L), 0.0);
+                // 12 observations worth of value spread over a ten second interval
+                assertEquals(1.2, table.reduce(0, Reduction.RATE, 10_000L), 0.0);
+                // an avg gauge emits its sum, and the count travels alongside it
+                assertEquals(12.0, table.reduce(0, Reduction.AVG, 10_000L), 0.0);
+            } finally {
+                drained.forEach(entry -> entry.getValue().close());
+            }
         }
-        Accumulator accumulator = buffer.drainAll().get(0).getValue();
-        assertEquals(3L, accumulator.count());
-        assertEquals(12.0, accumulator.reduce(Reduction.SUM, 10_000L), 0.0);
-        assertEquals(1.0, accumulator.reduce(Reduction.MIN, 10_000L), 0.0);
-        assertEquals(7.0, accumulator.reduce(Reduction.MAX, 10_000L), 0.0);
-        assertEquals(4.0, accumulator.reduce(Reduction.AVG, 10_000L), 0.0);
-        assertEquals(4.0, accumulator.reduce(Reduction.FIRST, 10_000L), 0.0);
-        assertEquals(7.0, accumulator.reduce(Reduction.LAST, 10_000L), 0.0);
-        // 12 observations worth of value spread over a ten second interval
-        assertEquals(1.2, accumulator.reduce(Reduction.RATE, 10_000L), 0.0);
     }
 
-    public void testObservationsOfDifferentBucketsDoNotMix() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(10);
-        buffer.record(key(Reduction.SUM, 0L, 10_000L), 1.0);
-        buffer.record(key(Reduction.SUM, 10_000L, 10_000L), 2.0);
-        assertEquals(2, buffer.size());
+    public void testDistinctDimensionValuesAreDistinctSeries() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertTrue(record(buffer, key, "search", 2.0));
+            assertTrue(record(buffer, key, "checkout", 3.0));
+            assertEquals(2, buffer.size());
+
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).getValue();
+                assertEquals(2L, table.size());
+                BytesRef spare = new BytesRef();
+                assertEquals("checkout", table.dimensionsOf(0, 1, spare)[0]);
+                assertEquals(4.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals("search", table.dimensionsOf(1, 1, spare)[0]);
+                assertEquals(2.0, table.reduce(1, Reduction.SUM, 10_000L), 0.0);
+            } finally {
+                drained.forEach(entry -> entry.getValue().close());
+            }
+        }
     }
 
     public void testDrainClosedOnlyReturnsBucketsPastTheGracePeriod() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(10);
-        buffer.record(key(Reduction.SUM, 0L, 10_000L), 1.0);
-        buffer.record(key(Reduction.SUM, 10_000L, 10_000L), 2.0);
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            record(buffer, key(Reduction.SUM, 0L), "checkout", 1.0);
+            record(buffer, key(Reduction.SUM, 10_000L), "checkout", 2.0);
 
-        // the first bucket ends at 10s, so with a 5s grace period it only closes at 15s
-        assertTrue(buffer.drainClosed(14_999, 5_000).isEmpty());
+            // the first bucket ends at 10s, so with a 5s grace period it only closes at 15s
+            assertTrue(buffer.drainClosed(14_999, 5_000).isEmpty());
 
-        List<Map.Entry<BucketKey, Accumulator>> closed = buffer.drainClosed(15_000, 5_000);
-        assertEquals(1, closed.size());
-        assertEquals(0L, closed.get(0).getKey().bucketStartMillis());
-        assertEquals(1, buffer.size());
-    }
-
-    public void testDrainAllReturnsOpenBucketsToo() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(10);
-        buffer.record(key(Reduction.SUM, 0L, 10_000L), 1.0);
-        assertEquals(1, buffer.drainAll().size());
-        assertEquals(0, buffer.size());
+            var closed = buffer.drainClosed(15_000, 5_000);
+            try {
+                assertEquals(1, closed.size());
+                assertEquals(0L, closed.get(0).getKey().bucketStartMillis());
+            } finally {
+                closed.forEach(entry -> entry.getValue().close());
+            }
+            assertEquals(1, buffer.size());
+        }
     }
 
     public void testNewSeriesAreDroppedOnceTheCapIsReached() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(2);
-        assertTrue(buffer.record(key(Reduction.SUM, 0L, 10_000L, "a"), 1.0));
-        assertTrue(buffer.record(key(Reduction.SUM, 0L, 10_000L, "b"), 1.0));
-        assertFalse(buffer.record(key(Reduction.SUM, 0L, 10_000L, "c"), 1.0));
-        assertEquals(2, buffer.size());
-        assertEquals(1L, buffer.droppedSeries());
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 2)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "a", 1.0));
+            assertTrue(record(buffer, key, "b", 1.0));
+            assertFalse(record(buffer, key, "c", 1.0));
+            assertEquals(2, buffer.size());
+            assertEquals(1L, buffer.droppedSeries());
 
-        // series that are already tracked keep accumulating even once the cap is reached
-        assertTrue(buffer.record(key(Reduction.SUM, 0L, 10_000L, "a"), 1.0));
+            // series that are already tracked keep accumulating even once the cap is reached
+            assertTrue(record(buffer, key, "a", 1.0));
+        }
     }
 
     /**
@@ -91,58 +136,55 @@ public class DerivedMetricsBufferTests extends ESTestCase {
      * consume all of it and silently starve every other stream on the node.
      */
     public void testOneStreamCannotConsumeAnotherStreamsBudget() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(100, 2);
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 2)) {
+            TableKey noisy = key("logs-noisy-default", Reduction.SUM, 0L);
+            TableKey quiet = key("logs-quiet-default", Reduction.SUM, 0L);
 
-        assertTrue(buffer.record(keyFor("logs-noisy-default", "a"), 1.0));
-        assertTrue(buffer.record(keyFor("logs-noisy-default", "b"), 1.0));
-        // the noisy stream has spent its share
-        assertFalse(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+            assertTrue(record(buffer, noisy, "a", 1.0));
+            assertTrue(record(buffer, noisy, "b", 1.0));
+            // the noisy stream has spent its share
+            assertFalse(record(buffer, noisy, "c", 1.0));
 
-        // a quiet stream is unaffected, even though the node as a whole has plenty of room left
-        assertTrue(buffer.record(keyFor("logs-quiet-default", "a"), 1.0));
-        assertTrue(buffer.record(keyFor("logs-quiet-default", "b"), 1.0));
-        assertEquals(2, buffer.seriesFor("logs-noisy-default"));
-        assertEquals(2, buffer.seriesFor("logs-quiet-default"));
+            // a quiet stream is unaffected, even though the node as a whole has plenty of room left
+            assertTrue(record(buffer, quiet, "a", 1.0));
+            assertTrue(record(buffer, quiet, "b", 1.0));
+            assertEquals(2, buffer.seriesFor("logs-noisy-default"));
+            assertEquals(2, buffer.seriesFor("logs-quiet-default"));
+        }
     }
 
     public void testDrainingReturnsBudgetToTheStream() {
-        DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(100, 2);
-        assertTrue(buffer.record(keyFor("logs-noisy-default", "a"), 1.0));
-        assertTrue(buffer.record(keyFor("logs-noisy-default", "b"), 1.0));
-        assertFalse(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 2)) {
+            TableKey noisy = key("logs-noisy-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, noisy, "a", 1.0));
+            assertTrue(record(buffer, noisy, "b", 1.0));
+            assertFalse(record(buffer, noisy, "c", 1.0));
 
-        buffer.drainAll();
-        assertEquals(0, buffer.seriesFor("logs-noisy-default"));
-        assertTrue(buffer.record(keyFor("logs-noisy-default", "c"), 1.0));
+            buffer.drainAll().forEach(entry -> entry.getValue().close());
+            assertEquals(0, buffer.seriesFor("logs-noisy-default"));
+            assertEquals(0, buffer.size());
+            assertTrue(record(buffer, noisy, "c", 1.0));
+        }
     }
 
-    private static BucketKey keyFor(String sourceDataStream, String dimensionValue) {
-        SeriesKey series = new SeriesKey(
-            ProjectId.DEFAULT,
-            sourceDataStream,
+    private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
+        return buffer.record(key, new String[] { service }, new Scratch(), value);
+    }
+
+    private static TableKey key(Reduction reduction, long bucketStart) {
+        return key("logs-my_app-default", reduction, bucketStart);
+    }
+
+    private static TableKey key(String sourceDataStream, Reduction reduction, long bucketStart) {
+        CompiledMetric metric = new CompiledMetric(
             "ingest.docs.count",
-            "10s",
-            Reduction.SUM,
-            List.of("service.name"),
-            List.of(dimensionValue)
-        );
-        return new BucketKey(series, 0L, 10_000L);
-    }
-
-    private static BucketKey key(Reduction reduction, long bucketStart, long intervalMillis) {
-        return key(reduction, bucketStart, intervalMillis, "checkout");
-    }
-
-    private static BucketKey key(Reduction reduction, long bucketStart, long intervalMillis, String dimensionValue) {
-        SeriesKey series = new SeriesKey(
-            ProjectId.DEFAULT,
-            "logs-my_app-default",
-            "ingest.docs.count",
-            "10s",
+            Trigger.SUCCESS,
             reduction,
+            DerivedMetricsPredicate.MATCH_ALL,
+            new Source.Constant(1.0),
             List.of("service.name"),
-            List.of(dimensionValue)
+            TEN_SECONDS
         );
-        return new BucketKey(series, bucketStart, intervalMillis);
+        return new TableKey(ProjectId.DEFAULT, sourceDataStream, metric, bucketStart, TEN_SECONDS.millis());
     }
 }

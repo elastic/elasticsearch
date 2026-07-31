@@ -119,46 +119,27 @@ POST /_query?format=txt
 
 
 # =================================================================================================
-# 5. AN AVG GAUGE.  The one reduction that is NOT self-contained. Three queries, not two.
+# 5. AN AVG GAUGE.  Now exactly re-aggregatable, because it emits sum and count.
 #
-# Averaging per-interval averages weights every interval equally, so a quiet 20 docs/s interval
-# counts as much as a 4000 docs/s spike. In this demo the busy intervals are also the slow ones, so
-# the naive answer comes out far too low — around 131ms against a true 186ms.
+# An avg gauge does not emit the mean. metric.value carries the sum and metric.count the observation
+# count, so the mean is SUM(value)/SUM(count). That is exact across partials, across nodes and across
+# buckets of unequal volume.
 #
-# Weighting by ingest.docs.count on the same series fixes it, because that metric carries exactly
-# the same dimensions and so lines up bucket for bucket. This needs no histogram: an average is
-# recoverable from a sum and a count. Percentiles are what would need a histogram.
+# It used to emit the mean, which cannot be re-aggregated: averaging per-interval means weights every
+# interval equally regardless of how busy it was, and read 30-50% low on this data because the busy
+# intervals are also the slow ones.
 # =================================================================================================
 
-# 5a. Naive, and wrong.
 POST /_query?format=txt
 {
   "query": """
     FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "event.duration.avg"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS avg_ms = ROUND(AVG(metric.value) / 1000000, 2)
+    | STATS avg_ms = ROUND(SUM(metric.value) / SUM(metric.count) / 1000000, 2)
   """
 }
 
-# 5b. Weighted by the document count of the same series.
-POST /_query?format=txt
-{
-  "query": """
-    FROM derived-metrics-logs-derived-demo-default-10s
-    | WHERE metric.name IN ("event.duration.avg", "ingest.docs.count")
-        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS avg_v = MAX(CASE(metric.name == "event.duration.avg", metric.value, null)),
-            cnt   = MAX(CASE(metric.name == "ingest.docs.count",  metric.value, null))
-        BY bucket = BUCKET(@timestamp, 10 second),
-           svc = dimensions.service.name,
-           reg = dimensions.cloud.region
-    | WHERE avg_v IS NOT NULL AND cnt IS NOT NULL
-    | STATS avg_ms = ROUND(SUM(avg_v * cnt) / SUM(cnt) / 1000000, 2)
-  """
-}
-
-# 5c. Ground truth.
 POST /_query?format=txt
 {
   "query": """

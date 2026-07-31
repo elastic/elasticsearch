@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestinationLifecycle;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -233,6 +234,20 @@ public class DerivedMetricsIT extends ESIntegTestCase {
             assertNotNull("the destination has no lifecycle yet", lifecycle);
             assertThat(lifecycle.dataRetention(), equalTo(DerivedMetricsDestinationLifecycle.FALLBACK_RETENTION));
         });
+    }
+
+    /**
+     * The buffer allocates through BigArrays against its own breaker, so its memory is bounded and an operator can see it rather than
+     * having to infer it. This asserts the plugin wiring; that the accounting actually moves is covered by the buffer's own tests.
+     */
+    public void testTheDerivedMetricsBreakerIsRegistered() {
+        var nodes = clusterAdmin().prepareNodesStats().setBreaker(true).get().getNodes();
+        assertFalse(nodes.isEmpty());
+        for (var node : nodes) {
+            var stats = node.getBreaker().getStats(DerivedMetricsService.BREAKER_NAME);
+            assertNotNull("the derived metrics breaker should appear in node stats", stats);
+            assertThat("its limit should be derived from the heap", stats.getLimit(), greaterThan(0L));
+        }
     }
 
     private DataStreamLifecycle lifecycleOf(String dataStream) {

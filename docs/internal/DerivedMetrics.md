@@ -128,8 +128,17 @@ the set of source paths any metric needs is known up front. When that set is emp
 built-in ingest metrics without dimensions — the write path never parses `_source` at all. When it is not empty, only those paths are
 parsed, using the same filtered-parsing technique `IndexRouting` uses for routing fields.
 
-`DerivedMetricsBuffer` holds one accumulator per series and interval bucket. Buckets are aligned to the epoch, so every node agrees on
-boundaries without coordination. `DerivedMetricsService` flushes buckets whose interval ended more than a grace period ago, emitting one
+`DerivedMetricsBuffer` holds one table per metric per interval bucket, and within a table one accumulator slot per series. A series is
+interned to a dense ordinal by `DerivedMetricsSeriesTable` and its state lives in parallel `BigArrays` arrays indexed by that ordinal —
+the same shape the metric aggregations use. That is 56 bytes per series with no per-series object, and recording an observation against a
+series that already exists allocates nothing at all, because the dimension tuple is encoded into a reusable per-thread buffer and looked
+up by hash.
+
+Because the storage comes from `BigArrays` against the `derived_metrics` circuit breaker, the memory is bounded and reportable through
+`_nodes/stats/breakers`. The breaker's limit defaults to 5% of the heap, so a node with a small heap gets a proportionally small budget
+without anyone configuring one.
+
+Buckets are aligned to the epoch, so every node agrees on boundaries without coordination. `DerivedMetricsService` flushes buckets whose interval ended more than a grace period ago, emitting one
 document per bucket, and emits nothing at all for intervals with no observations.
 
 Nothing is coordinated across nodes. Each node emits partial series carrying its own `derived_metrics.node` dimension, and queries reduce
@@ -184,7 +193,8 @@ Emitted documents look like this:
 |---|---|---|
 | `@timestamp` | `date` | start of the interval bucket |
 | `metric.name` | keyword dimension | the metric name |
-| `metric.value` | `double`, gauge | this node's partial value for the interval |
+| `metric.value` | `double`, gauge | this node's partial value for the interval; for an `avg` gauge this is the **sum** |
+| `metric.count` | `long`, gauge | observation count, present only on `avg` gauges |
 | `derived_metrics.source` | keyword dimension | the source data stream |
 | `derived_metrics.interval` | keyword dimension | the interval, matching the destination's suffix |
 | `derived_metrics.node` | keyword dimension | the emitting node |
@@ -217,6 +227,15 @@ every partial covers the same interval.
 
 `ingest.docs.*` and `ingest.bytes.*` count successful writes; `ingest.failures.*` counts failed ones. Byte counts come from the size of
 the document's source. Global dimensions apply to the built-ins as well as to user metrics.
+
+### Averages
+
+An `avg` gauge does **not** emit the mean. It emits its sum in `metric.value` and the observation count in `metric.count`, so the mean is
+`SUM(metric.value) / SUM(metric.count)`.
+
+This matters because a mean cannot be re-aggregated. Averaging per-interval means weights every interval equally regardless of how busy
+it was, which on a stream whose busy intervals differ from its quiet ones reads 30–50% low — measured at 131ms against a true 186ms in
+one sample and 81ms against 156ms in another.
 
 ## Query Examples
 

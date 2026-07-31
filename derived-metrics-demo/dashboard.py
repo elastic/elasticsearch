@@ -197,17 +197,11 @@ def build_rows(derived_dv, source_dv, derived, source):
         row(CHART_HEIGHT,
             d_line("Queue depth at close of interval", "queue.depth.last", "depth = MAX(metric.value)", "depth"),
             None),  # "last value per interval" has no cheap equivalent over raw documents
-        # Weighted by the document count of the same series. A plain AVG of the avg gauge weights every
-        # interval equally and lands far too low, because the busy intervals are the slow ones.
+        # The avg gauge emits sum and count, so the mean is a straight ratio rather than the weighting
+        # gymnastics this used to need.
         row(CHART_HEIGHT,
-            line_panel("Mean latency, ms (weighted)  ·  DERIVED", derived_dv,
-                f'FROM {derived} | WHERE metric.name IN ("event.duration.avg", "ingest.docs.count") '
-                '| STATS avg_v = MAX(CASE(metric.name == "event.duration.avg", metric.value, null)), '
-                'cnt = MAX(CASE(metric.name == "ingest.docs.count", metric.value, null)) '
-                f"BY bucket = {b}, svc = dimensions.service.name, reg = dimensions.cloud.region "
-                "| WHERE avg_v IS NOT NULL AND cnt IS NOT NULL "
-                "| STATS avg_ms = SUM(avg_v * cnt) / SUM(cnt) / 1000000 BY bucket",
-                "bucket", "avg_ms", DERIVED_COLOUR),
+            d_line("Mean latency, ms", "event.duration.avg",
+                   "avg_ms = SUM(metric.value) / SUM(metric.count) / 1000000", "avg_ms"),
             s_line("Mean latency, ms", "avg_ms = AVG(event.duration) / 1000000", "avg_ms")),
     ]
 

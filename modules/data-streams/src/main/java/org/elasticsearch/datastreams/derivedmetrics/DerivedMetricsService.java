@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams.derivedmetrics;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -19,21 +20,20 @@ import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Interval;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Accumulator;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.BucketKey;
-import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.SeriesKey;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +68,22 @@ public class DerivedMetricsService implements Closeable {
         TimeValue.ZERO,
         Setting.Property.NodeScope
     );
+
+    /**
+     * The buffer's own circuit breaker. Its limit is a fraction of the heap by default, so a node with a small heap gets a
+     * proportionally small metrics budget without anyone configuring it.
+     */
+    public static final String BREAKER_NAME = "derived_metrics";
+    public static final double DEFAULT_BREAKER_LIMIT_FRACTION = 0.05;
+    public static final double DEFAULT_BREAKER_OVERHEAD = 1.0;
+
+    /**
+     * Five percent of the heap. Expressed as a fraction rather than a fixed size so that a node with a small heap gets a proportionally
+     * small metrics budget without anyone having to configure one.
+     */
+    public static long defaultBreakerLimit() {
+        return (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * DEFAULT_BREAKER_LIMIT_FRACTION);
+    }
 
     public static final Setting<Integer> MAX_SERIES_PER_NODE = Setting.intSetting(
         "data_streams.derived_metrics.max_series_per_node",
@@ -116,14 +132,16 @@ public class DerivedMetricsService implements Closeable {
     private final AtomicInteger inFlightBulks = new AtomicInteger();
     private final AtomicLong droppedForBackpressure = new AtomicLong();
 
+    private final ThreadLocal<RecordingScratch> scratches = ThreadLocal.withInitial(RecordingScratch::new);
+
     private volatile Scheduler.Cancellable scheduled;
     private volatile boolean closed;
     private long lastReportedDrops;
 
-    public DerivedMetricsService(Settings settings, Client client, ThreadPool threadPool, String nodeName) {
+    public DerivedMetricsService(Settings settings, Client client, ThreadPool threadPool, BigArrays bigArrays, String nodeName) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
         this.threadPool = threadPool;
-        this.buffer = new DerivedMetricsBuffer(MAX_SERIES_PER_NODE.get(settings), MAX_SERIES_PER_STREAM.get(settings));
+        this.buffer = new DerivedMetricsBuffer(bigArrays, MAX_SERIES_PER_NODE.get(settings), MAX_SERIES_PER_STREAM.get(settings));
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
         this.bulkSize = BULK_SIZE.get(settings);
@@ -174,21 +192,54 @@ public class DerivedMetricsService implements Closeable {
             if (value == null) {
                 continue;
             }
-            List<String> dimensionNames = new ArrayList<>(metric.dimensions().size());
-            List<String> dimensionValues = new ArrayList<>(metric.dimensions().size());
-            resolveDimensions(metric.dimensions(), source, dimensionNames, dimensionValues);
+            RecordingScratch scratch = scratches.get();
+            String[] values = scratch.dimensionValues(metric.dimensions().size());
+            resolveDimensions(metric.dimensions(), source, values);
             Interval interval = metric.interval();
-            SeriesKey series = new SeriesKey(
-                project,
-                sourceDataStream,
-                metric.name(),
-                interval.name(),
-                metric.reduction(),
-                List.copyOf(dimensionNames),
-                List.copyOf(dimensionValues)
-            );
             long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
-            buffer.record(new BucketKey(series, bucketStart, interval.millis()), value);
+            buffer.record(
+                scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis()),
+                values,
+                scratch.encoding,
+                value
+            );
+        }
+    }
+
+    /**
+     * Per-thread reusable state for the write path. The dimension buffer, the encoding buffer and the table key are all reused, so
+     * recording an observation against a series that already exists allocates nothing at all — which matters because this runs on the
+     * indexing thread for every document times every metric.
+     */
+    private static final class RecordingScratch {
+        private final DerivedMetricsDimensionCodec.Scratch encoding = new DerivedMetricsDimensionCodec.Scratch();
+        private String[] values = new String[16];
+        private TableKey key;
+
+        String[] dimensionValues(int size) {
+            if (values.length < size) {
+                values = new String[size];
+            }
+            for (int i = 0; i < size; i++) {
+                values[i] = null;
+            }
+            return values;
+        }
+
+        /**
+         * A table key changes only when the bucket rolls or the metric differs, so the previous one is reused whenever it still matches.
+         */
+        TableKey tableKey(ProjectId project, String sourceDataStream, CompiledMetric metric, long bucketStart, long intervalMillis) {
+            TableKey previous = key;
+            if (previous != null
+                && previous.bucketStartMillis() == bucketStart
+                && previous.metric() == metric
+                && previous.sourceDataStream().equals(sourceDataStream)
+                && previous.project().equals(project)) {
+                return previous;
+            }
+            key = new TableKey(project, sourceDataStream, metric, bucketStart, intervalMillis);
+            return key;
         }
     }
 
@@ -202,16 +253,16 @@ public class DerivedMetricsService implements Closeable {
         };
     }
 
-    private static void resolveDimensions(List<String> dimensions, Map<String, Object> source, List<String> names, List<String> values) {
+    /**
+     * Fills the caller's reusable array with the value of each configured dimension, leaving null where the document did not have one.
+     * A document missing a dimension forms its own series rather than sharing a placeholder.
+     */
+    private static void resolveDimensions(List<String> dimensions, Map<String, Object> source, String[] values) {
         if (dimensions.isEmpty() || source == null) {
             return;
         }
-        for (String dimension : dimensions) {
-            String value = DerivedMetricsSourceReader.stringValue(source, dimension);
-            if (value != null) {
-                names.add(dimension);
-                values.add(value);
-            }
+        for (int i = 0; i < dimensions.size(); i++) {
+            values[i] = DerivedMetricsSourceReader.stringValue(source, dimensions.get(i));
         }
     }
 
@@ -227,20 +278,34 @@ public class DerivedMetricsService implements Closeable {
      * Converts and sends in bulk-sized chunks rather than materialising every closed bucket first, so peak memory during a flush is one
      * bulk rather than the whole drained set.
      */
-    private void flush(List<Map.Entry<BucketKey, Accumulator>> closed) {
+    /**
+     * Converts and sends in bulk-sized chunks rather than materialising every closed bucket first, so peak memory during a flush is one
+     * bulk rather than the whole drained set. Every drained table is closed, which is what returns its memory to the circuit breaker.
+     */
+    private void flush(List<Map.Entry<TableKey, DerivedMetricsSeriesTable>> closed) {
         if (closed.isEmpty()) {
             reportDrops();
             return;
         }
-        // Group by project only: a bulk request can address any number of destinations, but it is scoped to one project.
+        // Group by project only: a bulk can address any number of destinations, but it is scoped to one project.
         Map<ProjectId, BulkRequest> pending = new HashMap<>();
-        for (Map.Entry<BucketKey, Accumulator> entry : closed) {
-            ProjectId project = entry.getKey().series().project();
-            BulkRequest bulk = pending.computeIfAbsent(project, unused -> new BulkRequest());
-            bulk.add(DerivedMetricsEmitter.toIndexRequest(entry.getKey(), entry.getValue(), nodeName));
-            if (bulk.numberOfActions() >= bulkSize) {
-                pending.remove(project);
-                send(project, bulk);
+        BytesRef spare = new BytesRef();
+        for (Map.Entry<TableKey, DerivedMetricsSeriesTable> entry : closed) {
+            TableKey key = entry.getKey();
+            DerivedMetricsSeriesTable table = entry.getValue();
+            try {
+                long series = table.size();
+                for (long ordinal = 0; ordinal < series; ordinal++) {
+                    ProjectId project = key.project();
+                    BulkRequest bulk = pending.computeIfAbsent(project, unused -> new BulkRequest());
+                    bulk.add(DerivedMetricsEmitter.toIndexRequest(key, table, ordinal, spare, nodeName, 0));
+                    if (bulk.numberOfActions() >= bulkSize) {
+                        pending.remove(project);
+                        send(project, bulk);
+                    }
+                }
+            } finally {
+                table.close();
             }
         }
         pending.forEach(this::send);
@@ -321,5 +386,6 @@ public class DerivedMetricsService implements Closeable {
         }
         // emit whatever is still buffered rather than losing the partial intervals
         flush(buffer.drainAll());
+        buffer.close();
     }
 }

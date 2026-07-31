@@ -29,6 +29,7 @@ import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleActi
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -91,7 +92,9 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -108,7 +111,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin, CircuitBreakerPlugin {
 
     public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
@@ -161,6 +164,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DerivedMetricsService> derivedMetricsService = new SetOnce<>();
     private final SetOnce<DerivedMetricsTemplateRegistry> derivedMetricsTemplateRegistry = new SetOnce<>();
     private final SetOnce<DerivedMetricsDestinationLifecycle> derivedMetricsDestinationLifecycle = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> derivedMetricsBreaker = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
@@ -265,7 +269,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         components.add(dataStreamLifecycleErrorsPublisher.get());
 
         derivedMetricsService.set(
-            new DerivedMetricsService(settings, services.client(), services.threadPool(), services.clusterService().getNodeName())
+            new DerivedMetricsService(
+                settings,
+                services.client(),
+                services.threadPool(),
+                services.bigArrays(),
+                services.clusterService().getNodeName()
+            )
         );
         derivedMetricsService.get().init();
         derivedMetricsTemplateRegistry.set(new DerivedMetricsTemplateRegistry(services.client(), services.clusterService()));
@@ -282,6 +292,31 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         components.add(derivedMetricsTemplateRegistry.get());
         components.add(derivedMetricsDestinationLifecycle.get());
         return components;
+    }
+
+    /**
+     * Derived metrics buffer node-local state whose size is driven by dimension cardinality, so it gets its own breaker rather than
+     * being invisible. Everything the buffer allocates goes through BigArrays against this breaker, which makes it both bounded and
+     * reportable through {@code _nodes/stats/breakers}.
+     */
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                DerivedMetricsService.BREAKER_NAME,
+                DerivedMetricsService.defaultBreakerLimit(),
+                DerivedMetricsService.DEFAULT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert circuitBreaker.getName().equals(DerivedMetricsService.BREAKER_NAME);
+        derivedMetricsBreaker.set(circuitBreaker);
     }
 
     @Override

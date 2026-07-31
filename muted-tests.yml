@@ -190,12 +190,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesCountDistinctOverTimeIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskRelocatesOnNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/150294
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
-  issue: https://github.com/elastic/elasticsearch/issues/150295
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
@@ -538,18 +532,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
   method: testValidateIndexOptionsWithBasicLicense
   issue: https://github.com/elastic/elasticsearch/issues/155026
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=downsample/100_downsample_histograms/Downsample tdigest with last value}
-  issue: https://github.com/elastic/elasticsearch/issues/155028
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586
 - class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
   method: testIsolatedNodeDoesNotDeleteTranslogs
   issue: https://github.com/elastic/elasticsearch/issues/155130
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
-  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
-  issue: https://github.com/elastic/elasticsearch/issues/153700
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/153434
@@ -562,15 +550,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155155
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/05_dimension_and_metric_in_non_tsdb_index/add time series mappings}
-  issue: https://github.com/elastic/elasticsearch/issues/155331
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
-  method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/155342
 - class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
   method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
   issue: https://github.com/elastic/elasticsearch/issues/155351

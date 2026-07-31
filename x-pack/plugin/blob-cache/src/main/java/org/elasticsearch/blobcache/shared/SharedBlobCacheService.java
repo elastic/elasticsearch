@@ -73,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -506,11 +507,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             threadPool.generic()
         );
         logger.info(
-            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}], eviction policy=[{}]",
+            "initialized shared blob cache with size=[{}], region size=[{}], number of regions=[{}]",
             ByteSizeValue.ofBytes(cacheSize),
             ByteSizeValue.ofBytes(regionSize),
-            numRegions,
-            evictionPolicy.getClass().getSimpleName()
+            numRegions
         );
     }
 
@@ -935,6 +935,27 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         throw new UnsupportedOperationException("cache is not an LFUCache");
     }
 
+    /**
+     * Iterates occupied cache regions that have an assigned IO slot (fully initialized, not merely present in
+     * the key map while still initializing). The consumer receives the region and its current LFU frequency
+     * (may be stale if read without holding the cache monitor; acceptable for metrics).
+     */
+    public void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
+        if (cache instanceof LFUCache lfuCache) {
+            lfuCache.iterateCachedRegions(consumer);
+            return;
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
+    // used by periodic metrics and tests
+    public EvictionPolicy<KeyType> getEvictionPolicy() {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.evictionPolicy;
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
     private static void throwAlreadyClosed(String message) {
         throw new AlreadyClosedException(message);
     }
@@ -1091,6 +1112,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     @Override
     public void close() {
+        cache.close();
         sharedBytes.decRef();
     }
 
@@ -2332,6 +2354,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public void close() {
             decayAndNewEpochTask.close();
+            evictionPolicy.close();
         }
 
         // used by tests
@@ -2902,6 +2925,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             });
             return count[0];
+        }
+
+        void iterateCachedRegions(BiConsumer<CacheRegion<KeyType>, Integer> consumer) {
+            keyMapping.forEach((regionKey, entry) -> {
+                // Exclude still-initializing entries (no IO slot yet) so occupancy metrics cannot exceed capacity.
+                // freq is not volatile and may be stale without the monitor; acceptable for metrics sampling.
+                if (entry.chunk.isEvicted() == false && entry.chunk.volatileIO() != null) {
+                    consumer.accept(entry.chunk, entry.freq);
+                }
+            });
         }
 
         // used by tests

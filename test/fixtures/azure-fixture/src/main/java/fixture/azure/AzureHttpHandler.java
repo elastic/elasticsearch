@@ -75,6 +75,17 @@ public class AzureHttpHandler implements HttpHandler {
         this.container = Objects.requireNonNull(container);
         this.authHeaderPredicate = authHeaderPredicate;
         this.mockAzureBlobStore = new MockAzureBlobStore(leaseExpiryPredicate);
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "AzureHttpHandler created: account=[{}], container=[{}], authHeaderPredicate=[{}], leaseExpiryPredicate=[{}]",
+                account,
+                container,
+                authHeaderPredicate != null ? "present" : "null",
+                leaseExpiryPredicate == MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
+                    ? "NEVER_EXPIRE"
+                    : leaseExpiryPredicate.getClass().getName()
+            );
+        }
     }
 
     private static List<String> getAuthHeader(HttpExchange exchange) {
@@ -96,6 +107,24 @@ public class AzureHttpHandler implements HttpHandler {
         }
 
         return authHeaderPredicate.test(authHeader.get(0));
+    }
+
+    private void sendResponseHeadersWithTrace(HttpExchange exchange, int statusCode, long responseLength) throws IOException {
+        exchange.sendResponseHeaders(statusCode, responseLength);
+        traceResponse(exchange, statusCode, responseLength);
+    }
+
+    private static void traceResponse(HttpExchange exchange, int statusCode, long responseLength) {
+        if (logger.isTraceEnabled() == false) {
+            return;
+        }
+        logger.trace(
+            "AzureHttpHandler response: status=[{}], responseLength=[{}], x-ms-client-request-id=[{}], responseHeaders=[{}]",
+            statusCode,
+            responseLength,
+            exchange.getRequestHeaders().getFirst("x-ms-client-request-id"),
+            exchange.getResponseHeaders()
+        );
     }
 
     @Override
@@ -123,7 +152,7 @@ public class AzureHttpHandler implements HttpHandler {
                 builder.endObject();
                 final var responseBytes = BytesReference.bytes(builder);
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(RestStatus.FORBIDDEN.getStatus(), responseBytes.length());
+                sendResponseHeadersWithTrace(exchange, RestStatus.FORBIDDEN.getStatus(), responseBytes.length());
                 responseBytes.writeTo(exchange.getResponseBody());
                 return;
             }
@@ -143,7 +172,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
                 mockAzureBlobStore.putBlock(blobPath(exchange), blockId, Streams.readFully(exchange.getRequestBody()), leaseId(exchange));
-                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*comp=blocklist*", request)) {
                 // Put Block List (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list)
@@ -155,7 +184,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 mockAzureBlobStore.putBlockList(blobPath(exchange), blockIds, leaseId(exchange));
                 exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
-                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "*comp=lease*", request)) {
                 // Lease Blob (https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob)
@@ -171,16 +200,16 @@ public class AzureHttpHandler implements HttpHandler {
                             proposedLeaseId
                         );
                         exchange.getResponseHeaders().set(X_MS_LEASE_ID, newLeaseId);
-                        exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                        sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
                     }
                     case "release" -> {
                         final String leaseId = requireHeader(exchange, X_MS_LEASE_ID);
                         mockAzureBlobStore.releaseLease(blobPath(exchange), leaseId);
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                        sendResponseHeadersWithTrace(exchange, RestStatus.OK.getStatus(), -1);
                     }
                     case "break" -> {
                         mockAzureBlobStore.breakLease(blobPath(exchange), getOptionalIntegerHeader(exchange, X_MS_LEASE_BREAK_PERIOD));
-                        exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
+                        sendResponseHeadersWithTrace(exchange, RestStatus.ACCEPTED.getStatus(), -1);
                     }
                     case "renew", "change" -> {
                         failTestWithAssertionError("Attempt was made to use not-implemented lease action: " + leaseAction);
@@ -200,6 +229,7 @@ public class AzureHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
+
                 final String blobType = requireHeader(exchange, X_MS_BLOB_TYPE);
                 final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 mockAzureBlobStore.putBlob(
@@ -210,8 +240,7 @@ public class AzureHttpHandler implements HttpHandler {
                     leaseId(exchange)
                 );
                 exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
-                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-
+                sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
             } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
                 // Get Blob Properties (see https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
                 final MockAzureBlobStore.AzureBlockBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
@@ -221,8 +250,7 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-
+                sendResponseHeadersWithTrace(exchange, RestStatus.OK.getStatus(), -1);
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "/*", request)) {
                 // Get Blob (https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob)
                 final MockAzureBlobStore.AzureBlockBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
@@ -243,7 +271,7 @@ public class AzureHttpHandler implements HttpHandler {
                     final BytesReference blobContents = blob.getContents();
                     if (blobContents.length() <= range.start()) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                        sendResponseHeadersWithTrace(exchange, RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                         return;
                     }
 
@@ -261,13 +289,17 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(successStatus.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
+                sendResponseHeadersWithTrace(
+                    exchange,
+                    successStatus.getStatus(),
+                    responseContent.length() == 0 ? -1 : responseContent.length()
+                );
                 responseContent.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
                 mockAzureBlobStore.deleteBlob(blobPath(exchange), leaseId(exchange));
-                exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
+                sendResponseHeadersWithTrace(exchange, RestStatus.ACCEPTED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
@@ -318,7 +350,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                sendResponseHeadersWithTrace(exchange, RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
             } else if (Regex.simpleMatch("POST /" + account + "/" + container + "*restype=container*comp=batch*", request)) {
@@ -529,6 +561,7 @@ public class AzureHttpHandler implements HttpHandler {
 
         if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(restStatus.getStatus(), -1L);
+            traceResponse(exchange, restStatus.getStatus(), -1L);
         } else {
             final byte[] response = (String.format(Locale.ROOT, """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -537,6 +570,7 @@ public class AzureHttpHandler implements HttpHandler {
                     <Message>%s</Message>
                 </Error>""", errorCode, errorMessage)).getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(restStatus.getStatus(), response.length);
+            traceResponse(exchange, restStatus.getStatus(), response.length);
             exchange.getResponseBody().write(response);
         }
     }

@@ -52,48 +52,10 @@ public abstract class VectorSimilarityFunctions {
         SQUARE_DISTANCE
     }
 
-    public enum DataType {
-        /**
-         * Unsigned int7. Single vector score returns results as an int.
-         */
-        INT7U(Byte.SIZE),
-        /**
-         * 4-bit packed nibble. Two values per byte; single vector score returns results as an int.
-         */
-        INT4(4),
-        /**
-         * 1-byte int. Single vector score returns results as an int.
-         */
-        INT8(Byte.SIZE),
-        /**
-         * 4-byte float. Single vector score returns results as a float.
-         */
-        FLOAT32(Float.SIZE);
-
-        private final int bits;
-
-        DataType(int bits) {
-            this.bits = bits;
-        }
-
-        public int bits() {
-            return bits;
-        }
-    }
-
+    /** Query-side element format for the BFloat16 kernels; the document side is always bfloat16. */
     public enum BFloat16QueryType {
-        BFLOAT16(Short.BYTES),
-        FLOAT32(Float.BYTES);
-
-        private final int bytes;
-
-        BFloat16QueryType(int bytes) {
-            this.bytes = bytes;
-        }
-
-        public int bytes() {
-            return bytes;
-        }
+        BFLOAT16,
+        FLOAT32
     }
 
     /**
@@ -687,8 +649,8 @@ public abstract class VectorSimilarityFunctions {
 
     // --- BFloat16 ---
     //
-    // The dataset always holds two bytes per value; the query holds either four bytes (QF32) or two
-    // (QBF16), per BFloat16QueryType#bytes().
+    // The document always holds two bytes per value; the query holds either four bytes (QF32) or two
+    // (QBF16), as spelled out in the `elementBits` of each kernel's query parameter below.
 
     @Function("vec_dotDbf16Qf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)

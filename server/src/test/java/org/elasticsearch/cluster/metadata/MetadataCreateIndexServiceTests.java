@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
@@ -2325,27 +2326,36 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             final var noneFuture = new PlainActionFuture<AcknowledgedResponse>();
             final var defaultFuture = new PlainActionFuture<AcknowledgedResponse>();
+            final var oneFuture = new PlainActionFuture<AcknowledgedResponse>();
             final var noneTask = new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
                 new CreateIndexClusterStateUpdateRequest("test", projectId, "none-index", "none-index").waitForActiveShards(
                     ActiveShardCount.NONE
                 ),
-                TimeValue.THIRTY_SECONDS,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                 noneFuture
             );
             final var defaultTask = new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
                 new CreateIndexClusterStateUpdateRequest("test", projectId, "default-index", "default-index"),
-                TimeValue.THIRTY_SECONDS,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                 defaultFuture
             );
-            final var noneContext = new CapturingTaskContext<>(noneTask);
-            final var defaultContext = new CapturingTaskContext<>(defaultTask);
+            final var oneTask = new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                new CreateIndexClusterStateUpdateRequest("test", projectId, "one-index", "one-index").waitForActiveShards(
+                    ActiveShardCount.ONE
+                ),
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                oneFuture
+            );
+            final var noneContext = new TestTaskContext<>(noneTask);
+            final var defaultContext = new TestTaskContext<>(defaultTask);
+            final var oneContext = new TestTaskContext<>(oneTask);
 
             final ClusterStateTaskExecutor rawExecutor = service.createIndexTaskExecutor;
             try {
                 rawExecutor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         clusterService.state(),
-                        List.of(noneContext, defaultContext),
+                        List.of(noneContext, defaultContext, oneContext),
                         () -> () -> {}
                     )
                 );
@@ -2353,24 +2363,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 throw new AssertionError(e);
             }
 
-            noneContext.ackListener.onAllNodesAcked();
             assertTrue("NONE should complete without waiting for allocation reroute", noneFuture.isDone());
-            assertTrue(noneFuture.actionGet().isAcknowledged());
+            assertTrue(safeGet(noneFuture).isAcknowledged());
 
-            defaultContext.ackListener.onAllNodesAcked();
             assertFalse("DEFAULT should retain the existing reroute wait", defaultFuture.isDone());
+            assertFalse("ONE should retain the existing reroute wait", oneFuture.isDone());
 
             rerouteListener.get().onResponse(null);
-            assertTrue(defaultFuture.isDone());
-            assertTrue(defaultFuture.actionGet().isAcknowledged());
+            assertTrue(safeGet(defaultFuture).isAcknowledged());
+            assertTrue(safeGet(oneFuture).isAcknowledged());
         });
     }
 
-    private static class CapturingTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
+    private static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         private final T task;
-        private ClusterStateAckListener ackListener;
 
-        private CapturingTaskContext(T task) {
+        private TestTaskContext(T task) {
             this.task = task;
         }
 
@@ -2381,16 +2389,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         @Override
         public void success(Runnable onPublicationSuccess) {
-            onPublicationSuccess.run();
+            throw new AssertionError("expected an acknowledgement listener");
         }
 
         @Override
-        public void success(java.util.function.Consumer<ClusterState> publishedStateConsumer) {}
+        public void success(java.util.function.Consumer<ClusterState> publishedStateConsumer) {
+            throw new AssertionError("expected an acknowledgement listener");
+        }
 
         @Override
         public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {
-            this.ackListener = clusterStateAckListener;
             onPublicationSuccess.run();
+            clusterStateAckListener.onAllNodesAcked();
         }
 
         @Override
@@ -2398,7 +2408,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             java.util.function.Consumer<ClusterState> publishedStateConsumer,
             ClusterStateAckListener clusterStateAckListener
         ) {
-            this.ackListener = clusterStateAckListener;
+            throw new AssertionError("expected the publication callback without a cluster state argument");
         }
 
         @Override

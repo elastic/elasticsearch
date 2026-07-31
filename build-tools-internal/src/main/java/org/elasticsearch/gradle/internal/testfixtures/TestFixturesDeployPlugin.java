@@ -50,6 +50,7 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
                     if (baseImages.isEmpty() == false) {
                         task.setBaseImages(baseImages.toArray(new String[baseImages.size()]));
                     }
+                    task.getBuildArgs().putAll(fixture.getBuildArgs());
                     task.setNoCache(isCi);
                     task.setTags(
                         new String[] {

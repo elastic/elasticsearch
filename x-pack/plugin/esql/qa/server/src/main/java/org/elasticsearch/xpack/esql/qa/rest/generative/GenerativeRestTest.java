@@ -170,9 +170,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // repeat() returns validation error when the Number parameter is a negative foldable
         "Number parameter cannot be negative, found \\[",
 
-        // need to refine the MATCH function generation
+        // need to refine the MATCH function generation: MATCH on a non-index-mapped, non-TEXT field with a string
+        // query value (MATCH_PHRASE only accepts keyword/text, so it has no equivalent query-value type check)
         "query value .* does not match the type .* of non-index-mapped field",
-        "Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[.*\\]",
+        // need to refine the MATCH / MATCH_PHRASE function generation: options on a non-index-mapped, non-TEXT field
+        "Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[.*\\]",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -729,11 +731,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
-     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
-     * This is the error MATCH raises when called with options on a renamed/computed field.
+     * Matches "Options are not supported for [MATCH|MATCH_PHRASE] function call on non-index-mapped[, non-TEXT] field [X]".
+     * This is the error MATCH/MATCH_PHRASE raises when called with options on a renamed/computed field.
      */
     private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
-        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
+        ".*Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[([^]]+)\\].*",
         Pattern.DOTALL
     );
 

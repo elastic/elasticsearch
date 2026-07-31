@@ -52,8 +52,9 @@ public class Clusters {
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            // Federation is opt-in for users; every suite here queries external data. This default is a supplier rather
-            // than a plain value so that a per-node override added later still wins: explicit settings beat suppliers.
+            // Every suite here queries external data, so the federation gate is pinned rather than left to the build
+            // default. This default is a supplier rather than a plain value so that a per-node override added later
+            // still wins: explicit settings beat suppliers.
             .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")

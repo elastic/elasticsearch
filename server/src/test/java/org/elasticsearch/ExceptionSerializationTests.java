@@ -492,7 +492,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         SliceMissingException ex = serialize(new SliceMissingException("idx", "id"), SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION);
         assertEquals("idx", ex.getIndex().getName());
         assertEquals("id", ex.getId());
-        assertEquals("_slice is required for [idx]/[id]", ex.getMessage());
+        assertEquals("slice is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {

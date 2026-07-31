@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -58,6 +59,12 @@ import java.util.Map;
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
+
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        return indexMode.isStrictColumnar()
+            ? DocValuesParameter.Values.ENABLED_HIGH_CARDINALITY
+            : DocValuesParameter.Values.ENABLED_LOW_CARDINALITY;
+    }
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
@@ -276,20 +283,22 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        private final IndexSettings indexSettings;
+        private final boolean indexDisabledByDefault;
+        private final IndexMode indexMode;
 
         public Builder(String name, IndexSettings indexSettings) {
+            this(name, indexSettings.getMode(), indexSettings.isIndexDisabledByDefault());
+        }
+
+        public Builder(String name, IndexMode indexMode, boolean indexDisabledByDefault) {
             super(name);
-            this.indexSettings = indexSettings;
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
+            this.indexMode = indexMode;
             this.docValuesPameters = DocValuesParameter.of(
-                DocValuesParameter.defaultValues(
-                    indexSettings,
-                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
-                    DocValuesParameter.Values.Cardinality.HIGH
-                ),
+                defaultDocValuesParameters(indexMode),
                 m -> toType(m).docValuesParams(),
-                indexSettings.getMode().isStrictColumnar()
+                indexMode.isStrictColumnar()
             );
         }
 
@@ -385,7 +394,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 collator,
                 this,
-                indexSettings
+                indexMode
             );
         }
     }
@@ -511,7 +520,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final IndexSettings indexSettings;
+    private final boolean indexDisabledByDefault;
+    private final IndexMode indexMode;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -520,7 +530,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         Collator collator,
         Builder builder,
-        IndexSettings indexSettings
+        IndexMode indexMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
@@ -532,7 +542,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexSettings = indexSettings;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
+        this.indexMode = indexMode;
     }
 
     public DocValuesParameter.Values docValuesParams() {
@@ -561,7 +572,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).init(this);
+        return new Builder(leafName(), indexMode, indexDisabledByDefault).init(this);
     }
 
     @Override

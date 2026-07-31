@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -60,16 +61,30 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * Controls what type of shard-level write load estimate value the write load decider will use.
+     * Controls what type of shard-level write load estimate value will be placed in the ClusterInfo for the allocation code to use.
      */
     public enum WriteLoadDeciderShardWriteLoadType {
         /** Max recent write load value seen for the life of the shard on a node */
         PEAK,
         /** The recent write load value */
-        RECENT;
+        RECENT,
+        /** The total thread time in the last polling interval. */
+        TOTAL;
 
+        /**
+         * Parses the stats for the desired write load type.
+         */
         public double getWriteLoad(IndexingStats indexingStats) {
+            assert this != TOTAL : "Unexpectedly found TOTAL value setting in this path: should not reach this code when that value is set";
             return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
+        }
+
+        /**
+         * The PEAK and RECENT shard write load stats are collected via the {@link IndicesStatsAction}, whereas TOTAL is collected via a
+         * different transport action.
+         */
+        public boolean useIndicesStats() {
+            return this != TOTAL;
         }
     }
 

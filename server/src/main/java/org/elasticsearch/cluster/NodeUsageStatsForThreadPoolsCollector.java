@@ -18,26 +18,34 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThread
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Collects the thread pool usage stats for each node in the cluster.
- * <p>
- * Results are returned as a map of node ID to node usage stats. Keeps track of the most recent
- * usage stats for each node, which will be returned in the event of a failure response from that node.
+ * Collects the thread pool usage stats for each node in the cluster. The most recent values for each node are saved so that in the event
+ * that a node fails to respond in a future request, the last received node stats can be returned.
  */
 public class NodeUsageStatsForThreadPoolsCollector {
+
+    /**
+     * Holds the collected per-node thread pool usage stats and per-shard write load stats from a round of remote calls.
+     */
+    public record CollectedUsageStats(
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStats,
+        Map<ShardId, Double> shardWriteLoadUtilizations
+    ) {
+        public static final CollectedUsageStats EMPTY = new CollectedUsageStats(Map.of(), Map.of());
+    }
+
     public static final NodeUsageStatsForThreadPoolsCollector EMPTY = new NodeUsageStatsForThreadPoolsCollector() {
-        public void collectUsageStats(
-            Client client,
-            ClusterState clusterState,
-            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
-        ) {
-            listener.onResponse(Map.of());
+        public void collectUsageStats(Client client, ClusterState clusterState, ActionListener<CollectedUsageStats> listener) {
+            listener.onResponse(CollectedUsageStats.EMPTY);
         }
     };
 
@@ -47,39 +55,67 @@ public class NodeUsageStatsForThreadPoolsCollector {
 
     private static final Logger logger = LogManager.getLogger(NodeUsageStatsForThreadPoolsCollector.class);
 
+    // These two maps save each node's last response to be used instead of returning empty node results in case a future node stats
+    // collection call fails
     private final Map<String, NodeUsageStatsForThreadPools> lastNodeUsageStatsPerNode = new ConcurrentHashMap<>();
+    private final Map<String, Map<ShardId, Double>> lastShardWriteLoadsPerNode = new ConcurrentHashMap<>();
 
     /**
-     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
+     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) and per-shard write load utilizations
+     * for each node in the cluster.
      *
-     * @param listener The listener to receive the usage results.
+     * @param listener The listener to receive the collected results.
      */
-    public void collectUsageStats(
-        Client client,
-        ClusterState clusterState,
-        ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
-    ) {
+    public void collectUsageStats(Client client, ClusterState clusterState, ActionListener<CollectedUsageStats> listener) {
         var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(DiscoveryNode::getId).toArray(String[]::new);
         // Discard last-seen values for any nodes no longer present in the cluster state
         lastNodeUsageStatsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
+        lastShardWriteLoadsPerNode.keySet().retainAll(Arrays.asList(dataNodeIds));
         if (clusterState.getMinTransportVersion().supports(TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
                 new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),
                 listener.map(response -> {
-                    // Update last seen stats
+                    // Update last seen stats (failed nodes retain their previously cached values)
                     lastNodeUsageStatsPerNode.putAll(response.getAllNodeUsageStatsForThreadPools());
+                    lastShardWriteLoadsPerNode.putAll(response.getAllShardWriteLoadUtilizationsPerNode());
                     if (response.failures().isEmpty() == false) {
                         logger.warn(
                             "Got no usage stats from nodes [{}], using last known stats for them",
                             response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(", "))
                         );
                     }
-                    return Map.copyOf(lastNodeUsageStatsPerNode);
+
+                    return new CollectedUsageStats(
+                        Map.copyOf(lastNodeUsageStatsPerNode),
+                        Map.copyOf(convertShardUtilizationToThreadTime())
+                    );
                 })
             );
         } else {
-            listener.onResponse(Map.of());
+            listener.onResponse(CollectedUsageStats.EMPTY);
         }
+    }
+
+    /**
+     * {@link TransportNodeUsageStatsForThreadPoolsAction} returns shard write load values as the shard's % thread pool utilization during
+     * the polling window. However, the total shard thread time is expected in the shard allocation code. Therefore, utilization will be
+     * converted to thread time here before passing the values onward: see
+     * {@link org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator#calculateUtilizationForWriteLoad} for details.
+     */
+    private Map<ShardId, Double> convertShardUtilizationToThreadTime() {
+        final var allShardWriteThreadTime = new HashMap<ShardId, Double>();
+        for (var nodeShardWriteLoads : lastShardWriteLoadsPerNode.entrySet()) {
+            var threadPoolStats = lastNodeUsageStatsPerNode.get(nodeShardWriteLoads.getKey());
+            assert threadPoolStats != null;
+            var writeThreadPoolStats = threadPoolStats.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+            assert writeThreadPoolStats != null;
+            var numThreads = writeThreadPoolStats.totalThreadPoolThreads();
+
+            for (var shardWriteLoad : nodeShardWriteLoads.getValue().entrySet()) {
+                allShardWriteThreadTime.put(shardWriteLoad.getKey(), shardWriteLoad.getValue() * numThreads);
+            }
+        }
+        return allShardWriteThreadTime;
     }
 }

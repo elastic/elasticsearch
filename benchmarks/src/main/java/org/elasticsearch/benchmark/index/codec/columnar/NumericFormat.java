@@ -26,8 +26,10 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarNumericRangeQuery;
@@ -43,6 +45,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * A numeric doc-values format under comparison, abstracting the codec, how a value is indexed,
@@ -70,7 +73,7 @@ public enum NumericFormat {
             case LUCENE -> new Lucene90DocValuesFormat();
             case ES819 -> new ES819TSDBDocValuesFormat();
             case ES95 -> new ES95TSDBDocValuesFormat();
-            case COLUMNAR -> new ColumNARDocValuesFormat((f, bs) -> selectPipeline(workload, bs));
+            case COLUMNAR -> new ColumNARDocValuesFormat((f, t, bs) -> selectPipeline(workload, bs));
         };
         return new Elasticsearch93Lucene104Codec() {
             @Override
@@ -130,10 +133,11 @@ public enum NumericFormat {
      * result and are responsible for closing both the reader and the directory.
      */
     Directory buildSegment(String field, String workload, long[] values, String tempDirPrefix) throws IOException {
-        final Directory directory = FSDirectory.open(Files.createTempDirectory(tempDirPrefix));
+        final Path tempPath = Files.createTempDirectory(tempDirPrefix);
+        final FSDirectory fsDir = FSDirectory.open(tempPath);
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(codec(workload));
         final BytesRefBuilder builder = new BytesRefBuilder();
-        try (IndexWriter writer = new IndexWriter(directory, config)) {
+        try (IndexWriter writer = new IndexWriter(fsDir, config)) {
             for (long value : values) {
                 final Document doc = new Document();
                 addField(doc, field, value, builder);
@@ -141,7 +145,13 @@ public enum NumericFormat {
             }
             writer.forceMerge(1);
         }
-        return directory;
+        return new FilterDirectory(fsDir) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                IOUtils.rm(tempPath);
+            }
+        };
     }
 
     static NumericPipeline selectPipeline(String workload, int blockSize) {

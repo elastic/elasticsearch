@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
         indices.create:
@@ -43,6 +45,8 @@ setup:
 "Get field mapping with * for fields":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         fields: "*"
 
@@ -56,6 +60,8 @@ setup:
 "Get field mapping with t* for fields":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: "t*"
@@ -68,6 +74,8 @@ setup:
 "Get field mapping with *t1 for fields":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: "*t1"
@@ -80,6 +88,8 @@ setup:
 "Get field mapping with wildcarded relative names":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: "obj.i_*"
@@ -91,6 +101,8 @@ setup:
 "Get field mapping should work using '_all' for index":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: _all
         fields: "t*"
@@ -105,6 +117,8 @@ setup:
 "Get field mapping should work using '*' for index":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: '*'
         fields: "t*"
@@ -119,6 +133,8 @@ setup:
 "Get field mapping should work using comma_separated values for indices":
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: 'test_index,test_index_2'
         fields: "t*"

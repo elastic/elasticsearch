@@ -5,6 +5,10 @@
       "description": "Get mapping definitions"
     },
     "stability": "stable",
+    "deprecated": {
+      "version": "9.5.0",
+      "description": "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
+    },
     "visibility": "public",
     "headers": {
       "accept": [

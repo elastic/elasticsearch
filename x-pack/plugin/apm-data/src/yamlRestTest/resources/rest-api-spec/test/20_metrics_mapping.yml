@@ -42,6 +42,8 @@ setup:
       cluster.health:
         wait_for_events: languid
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: metrics-apm.app.svc1-testing
         fields: [double_metric, summary_metric, histogram_metric]

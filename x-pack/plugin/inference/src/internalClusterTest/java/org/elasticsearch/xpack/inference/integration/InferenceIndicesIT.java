@@ -283,10 +283,11 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         assertNotNull("Expected .inference to exist in cluster state", indexMeta);
         @SuppressWarnings("unchecked")
         var meta = (Map<String, Object>) indexMeta.mapping().sourceAsMap().get("_meta");
+        var currentMappingsVersion = InferencePlugin.createInferenceIndexDescriptor(InferenceIndex.settings()).getMappingsVersion();
         assertThat(
             "Expected managed_index_mappings_version to be current after withUpToDateMappings completed",
             meta.get(SystemIndexDescriptor.VERSION_META_KEY),
-            equalTo(4)
+            equalTo(currentMappingsVersion.version())
         );
 
         // Verify that a document containing the doc_type field can be indexed without a

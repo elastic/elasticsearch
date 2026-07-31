@@ -137,7 +137,7 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
     }
 
     public void testIndexAtCurrentVersion_immediateCallbackNoIO() {
-        ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV4());
+        ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, descriptor.getMappings());
         InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
 
         TestActionListener callerListener = new TestActionListener();
@@ -239,7 +239,7 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         String migratedIndexName = ".inference-reindexed-for-10";
         IndexMetadata migratedIndex = IndexMetadata.builder(migratedIndexName)
             .settings(indexSettings(IndexVersion.current(), 1, 0))
-            .putMapping(new MappingMetadata("_doc", jsonToMap(InferenceIndex.mappingsV4())))
+            .putMapping(new MappingMetadata("_doc", jsonToMap(descriptor.getMappings())))
             .putAlias(AliasMetadata.builder(InferenceIndex.INDEX_NAME).build())
             .build();
         var project = ProjectMetadata.builder(ProjectId.DEFAULT).put(migratedIndex, false).build();

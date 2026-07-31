@@ -807,12 +807,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
-    public boolean addCircuitBreakerMemory(long bytes, String label) {
+    public void addCircuitBreakerMemory(long bytes, String label) {
         assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
         if (circuitBreaker == null || bytes <= 0) {
-            return false;
+            return;
         }
-        return addCircuitBreakerMemory(bytes, 0L, label);
+        addCircuitBreakerMemory(bytes, 0L, label);
     }
 
     /**
@@ -827,10 +827,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Used by wildcard / regexp construction to keep the in-flight clause visible to the breaker
      * across the unguarded {@code CompiledAutomaton} build window.
      */
-    public boolean addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+    public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
         assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
         if (circuitBreaker == null) {
-            return false;
+            return;
         }
         long held = Math.max(heldBreakerBytes, 0L);
         long delta = bytes - held;
@@ -851,7 +851,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 label
             );
         }
-        return true;
+        return;
     }
 
     /**

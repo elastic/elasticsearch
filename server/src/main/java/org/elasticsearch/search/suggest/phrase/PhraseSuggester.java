@@ -113,7 +113,10 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             // growable candidate queue bounded by generator size * max_inspections. These queues are built sequentially,
             // so reserve the largest backing-array estimate as a coarse guard against oversized configuration values.
             final long collectorBytes = Math.max(priorityQueueRamBytesUsed(suggestion.getShardSize()), maxGeneratorQueueBytes);
-            boolean collectorBytesReserved = searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            var circuitBreaker = suggestion.getSearchExecutionContext().getCircuitBreaker();
+            if (circuitBreaker != null) {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            }
             Result checkerResult;
             try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
                 checkerResult = checker.getCorrections(
@@ -128,9 +131,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             } finally {
                 // These queues are local to getCorrections: CandidateScorer drains its queue into the result and
                 // DirectSpellChecker does not retain its candidate queues.
-                if (collectorBytesReserved) {
-                    searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
-                    collectorBytesReserved = false;
+                if (circuitBreaker != null) {
+                    circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
                 }
             }
 

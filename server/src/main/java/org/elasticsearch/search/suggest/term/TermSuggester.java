@@ -51,8 +51,10 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             suggestion.getShardSize(),
             suggestion.getDirectSpellCheckerSettings().maxInspections()
         );
-        boolean collectorBytesReserved = suggestion.getSearchExecutionContext()
-            .addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+        var circuitBreaker = suggestion.getSearchExecutionContext().getCircuitBreaker();
+        if (circuitBreaker != null) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(collectorBytes, COLLECTOR_MEMORY_LABEL);
+        }
         try {
             for (Token token : tokens) {
                 // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
@@ -74,8 +76,8 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             }
             return response;
         } finally {
-            if (collectorBytesReserved) {
-                suggestion.getSearchExecutionContext().releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            if (circuitBreaker != null) {
+                circuitBreaker.addWithoutBreaking(-collectorBytes, COLLECTOR_MEMORY_LABEL);
             }
         }
     }

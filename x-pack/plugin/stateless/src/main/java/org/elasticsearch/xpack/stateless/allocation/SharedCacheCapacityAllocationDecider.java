@@ -175,7 +175,12 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         assert nodeCacheSizeAndCommitments != null;
         final NodeCacheSizeAndCommitments nodeCommitments = nodeCacheSizeAndCommitments.get(node.nodeId());
         if (nodeCommitments == null) {
-            return allocation.decision(Decision.YES, NAME, "no cache size and commitment data available for node [%s]", node.nodeId());
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "no cache size and commitment data available for node [%s]",
+                node.getShortNodeDescription()
+            );
         }
 
         // Snapshot the accounting mode once so a concurrent settings update can't mix boosted and total values within a single decision.
@@ -189,7 +194,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             if (isDebugEnabled || allocation.debugDecision()) {
                 final String message = Strings.format(
                     "node [%s] cache commitment [%d] bytes already exceeds the low watermark [%d] bytes (accounting mode [%s])",
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     currentCommitmentBytes,
                     thresholdBytes,
                     accountingMode
@@ -214,7 +219,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                 "no cache requirement data available for shard [%s], node [%s] cache commitment [%d] bytes is below the low watermark "
                     + "[%d] bytes",
                 shardRouting.shardId(),
-                node.nodeId(),
+                node.getShortNodeDescription(),
                 currentCommitmentBytes,
                 thresholdBytes
             );
@@ -229,7 +234,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
                     "allocating shard [%s] to node [%s] would raise its cache commitment from [%d] to [%d] bytes, exceeding the low "
                         + "watermark [%d] bytes (accounting mode [%s])",
                     shardRouting.shardId(),
-                    node.nodeId(),
+                    node.getShortNodeDescription(),
                     currentCommitmentBytes,
                     newCommitmentBytes,
                     thresholdBytes,
@@ -250,7 +255,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             "allocating shard [%s] to node [%s] would raise its cache commitment from [%d] to [%d] bytes, which remains below the low "
                 + "watermark [%d] bytes (accounting mode [%s])",
             shardRouting.shardId(),
-            node.nodeId(),
+            node.getShortNodeDescription(),
             currentCommitmentBytes,
             newCommitmentBytes,
             thresholdBytes,

@@ -107,6 +107,18 @@ public class MacNativeAccess extends PosixNativeAccess {
     }
 
     private void initMacSandbox() {
+        // macOS PIDs are 32-bit (pid_t); Math.toIntExact guards the implicit assumption
+        int pid = Math.toIntExact(ProcessHandle.current().pid());
+        int sandboxStatus = macLibc.sandbox_check(pid, null, 0);
+        if (sandboxStatus != 0) {
+            if (sandboxStatus < 0) {
+                logger.warn("sandbox_check returned {}; assuming already sandboxed, skipping seatbelt initialization", sandboxStatus);
+            } else {
+                logger.debug("already running inside a macOS sandbox; skipping seatbelt initialization");
+            }
+            return;
+        }
+
         // write rules to a temporary file, which will be passed to sandbox_init()
         Path rules;
         try {

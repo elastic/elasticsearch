@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -38,7 +39,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Equals",
@@ -201,8 +202,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                         if (value instanceof BytesRef br) {
                             value = br.utf8ToString();
                         }
-                        TermQuery termQuery = new TermQuery(source(), kn, value);
-                        return new SingleValueQuery(termQuery, kn, false);
+                        return new TermQuery(source(), kn, value);
                     }).orElseThrow();
                 }
             }

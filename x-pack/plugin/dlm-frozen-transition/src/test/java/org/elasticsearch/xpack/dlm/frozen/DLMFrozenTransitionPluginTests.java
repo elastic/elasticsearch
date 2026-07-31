@@ -86,6 +86,7 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
             clusterService,
             (indexName, pid) -> new DLMFrozenTransitionServiceTests.TestDLMFrozenTransitionRunnable(
                 indexName,
+                pid,
                 new java.util.concurrent.CountDownLatch(0)
             ),
             transitionExecutor,

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtra
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -37,7 +37,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NotEquals",
@@ -260,8 +260,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                         value = br.utf8ToString();
                     }
                     TermQuery termQuery = new TermQuery(source(), kn, value);
-
-                    return new SingleValueQuery(new NotQuery(source(), termQuery), kn, false);
+                    // Candidate query: documents not carrying this key/value are a superset of the true
+                    // "!=" matches. The optimizer marks this RECHECK so the FilterOperator restores exact
+                    // single-value semantics (multi-valued and missing-key documents null out).
+                    return new NotQuery(source(), termQuery);
                 }).orElseThrow();
             }
         }

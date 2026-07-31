@@ -33,6 +33,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -48,18 +50,16 @@ public class ReshardSearchFiltersTests extends ESTestCase {
     private Directory directory;
     private ReshardSearchFilters reshardSearchFilters;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initReshardResources() throws Exception {
         directory = newDirectory();
         reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeReshardResources() throws Exception {
         reshardSearchFilters.close();
         directory.close();
-        super.tearDown();
     }
 
     private ReshardUnownedBitsetCache cache() {

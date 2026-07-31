@@ -22,6 +22,7 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -281,13 +282,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
         static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+        static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
         protected final int bulkSize;
 
-        private byte[] scratch;
+        protected final BufferScratch scratch = new BufferScratch();
 
         /**
          * Creates a new MemorySegmentScorer. The index input must be a
@@ -331,13 +333,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     scores[i] = 0;
                 }
             }
-        }
-
-        protected byte[] getScratch(int len) {
-            if (scratch == null || scratch.length < len) {
-                scratch = new byte[len];
-            }
-            return scratch;
         }
 
         /**
@@ -440,23 +435,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float maxScore
         ) {
             for (int j = limit; j < bulkSize; j++) {
-                float ax = memorySegment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), (long) j * Float.BYTES);
+                float ax = memorySegment.get(LAYOUT_LE_FLOAT, (long) j * Float.BYTES);
 
-                float lx = memorySegment.get(
-                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    4L * bulkSize + (long) j * Float.BYTES
-                );
+                float lx = memorySegment.get(LAYOUT_LE_FLOAT, 4L * bulkSize + (long) j * Float.BYTES);
                 lx = (lx - ax) * indexBitScale;
 
-                int targetComponentSum = memorySegment.get(
-                    ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    8L * bulkSize + (long) j * Integer.BYTES
-                );
+                int targetComponentSum = memorySegment.get(LAYOUT_LE_INT, 8L * bulkSize + (long) j * Integer.BYTES);
 
-                float additionalCorrection = memorySegment.get(
-                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    12L * bulkSize + (long) j * Float.BYTES
-                );
+                float additionalCorrection = memorySegment.get(LAYOUT_LE_FLOAT, 12L * bulkSize + (long) j * Float.BYTES);
 
                 float qcDist = scores[j];
 

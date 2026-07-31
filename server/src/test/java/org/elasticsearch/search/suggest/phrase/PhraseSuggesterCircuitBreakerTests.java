@@ -300,8 +300,7 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
                     null,
                     Collections.emptyMap(),
                     null,
-                    MapperMetrics.NOOP,
-                    SHARD_SEARCH_STATS
+                    MapperMetrics.NOOP
                 );
                 SearchExecutionContext ctx = new SearchExecutionContext(baseCtx, cb);
 

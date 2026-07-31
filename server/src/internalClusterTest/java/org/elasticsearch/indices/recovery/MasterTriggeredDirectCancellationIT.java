@@ -748,7 +748,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         final var repoName = randomIndexName();
         final var snapshotName = randomIndexName();
 
-        createIndex(indexName, indexSettings(1, 0).build());
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", sourceNode).build());
         ensureGreen(indexName);
 
         assertAcked(
@@ -766,7 +766,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
-        // Direct indexName sourceNode's indexShard to targetNode, the relocation recovery queues behind blockingIndex
+        // Direct indexName to targetNode, the relocation recovery queues behind blockingIndex
         updateSettings(indexName, Settings.builder().put("index.routing.allocation.include._name", targetNode));
         awaitRecoveryCountStats(Map.of(targetNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
         waitNoPendingTasksOnAll();

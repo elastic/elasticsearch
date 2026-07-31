@@ -20,6 +20,8 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('rank-rrf'))
   javaRestTestImplementation project(path: xpackModule('esql-core'))
   javaRestTestImplementation project(path: xpackModule('esql'))
+  // esql extends x-pack-eql-action; the in-JVM node loading esql needs its DTOs on the classpath to start.
+  javaRestTestImplementation project(path: xpackModule('eql-action'))
   javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
   javaRestTestImplementation project(path: xpackModule('ent-search'))
   javaRestTestImplementation project(path: xpackModule('inference'))

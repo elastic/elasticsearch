@@ -261,22 +261,52 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     public void testForceEvictAsyncOnIndexDelete() throws Exception {
-        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
+        final Settings cacheSettings = evictDeletedIndexRegionsTestSettings();
         startMasterAndIndexNode(cacheSettings);
         final String searchNode = startSearchNode(cacheSettings);
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-
-        indexAndSearch(indexName, randomIntBetween(10, 100));
-
         final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
-        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), greaterThan(0L));
+
+        final String indexName = randomIdentifier();
+        final ShardId shardId = createIndexWithPopulatedCache(indexName, cacheService);
 
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         assertBusy(() -> assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), equalTo(0L)));
+    }
+
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING] escape hatch is a
+    /// live no-op when flipped off, and takes effect again when flipped back on.
+    public void testEvictionOfDeletedIndexRegionsCanBeFlippedDynamically() throws Exception {
+        final Settings cacheSettings = evictDeletedIndexRegionsTestSettings();
+        startMasterAndIndexNode(cacheSettings);
+        final String searchNode = startSearchNode(cacheSettings);
+        final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
+
+        // Flip the escape hatch off, then delete an index. updateClusterSettings blocks until every node has acknowledged the update, so
+        // the search node's cache service has observed the new value before the deletion starts.
+        final String indexNotToBeEvicted = randomIdentifier();
+        final ShardId shardIdNotToBeEvicted = createIndexWithPopulatedCache(indexNotToBeEvicted, cacheService);
+        setEvictDeletedIndexRegionsEnabledTo(false);
+        final long regionsBeforeDelete = cacheService.countCachedRegions(shardPredicate(shardIdNotToBeEvicted));
+        assertAcked(indicesAdmin().prepareDelete(indexNotToBeEvicted));
+        // beforeIndexRemoved runs before the index's stores are closed, so once the store is gone the (disabled) gate has had its chance
+        // to schedule an eviction. The retention assertion below is therefore deterministic rather than racing the async force-evict.
+        awaitShardStoreClosed(searchNode, shardIdNotToBeEvicted);
+
+        verify(cacheService, never()).forceEvictAsync(ArgumentMatchers.any());
+        assertThat(
+            "cache regions of the index deleted while the setting was disabled must be retained",
+            cacheService.countCachedRegions(shardPredicate(shardIdNotToBeEvicted)),
+            equalTo(regionsBeforeDelete)
+        );
+
+        // Flip back on and delete a second index, whose regions must be evicted.
+        setEvictDeletedIndexRegionsEnabledTo(true);
+        final String indexToBeEvicted = randomIdentifier();
+        final ShardId shardIdToBeEvicted = createIndexWithPopulatedCache(indexToBeEvicted, cacheService);
+        assertAcked(indicesAdmin().prepareDelete(indexToBeEvicted));
+
+        assertBusy(() -> assertThat(cacheService.countCachedRegions(shardPredicate(shardIdToBeEvicted)), equalTo(0L)));
     }
 
     public void testCacheNotDemotedWhenNodeIsShuttingDown() throws Exception {
@@ -342,25 +372,35 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             .put(SHARED_CACHE_DECAY_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1));
     }
 
-    private static Settings cacheBoostPreferenceTestSettings() {
-        return smallCacheSettings().put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            .build();
-    }
-
-    /// Enables demotion, the only setting a demotion test needs now that it is gated independently. Boost preference is randomized on
-    /// top - demotion keys off store closure alone, so it must behave the same either way - which incidentally also exercises the
-    /// pinned-window eviction policy and read-path region timestamps that flag turns on.
-    private static Settings demoteClosedShardRegionsTestSettings() {
-        final Settings.Builder builder = smallCacheSettings().put(
-            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(),
-            true
-        );
+    /// Randomizes boost preference on top of the cache-maintenance feature a test enables. Each of those features keys off its own
+    /// trigger, so it must behave the same either way - and enabling boost preference incidentally exercises the pinned-window eviction
+    /// policy and read-path region timestamps that flag turns on.
+    private static Settings.Builder maybeEnableCacheBoostPreference(Settings.Builder builder) {
         if (randomBoolean()) {
             builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
                 .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
         }
-        return builder.build();
+        return builder;
+    }
+
+    /// Enables demotion, the only setting a demotion test needs now that it is gated independently.
+    private static Settings demoteClosedShardRegionsTestSettings() {
+        return maybeEnableCacheBoostPreference(
+            smallCacheSettings().put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(),
+                true
+            )
+        ).build();
+    }
+
+    /// Enables deleted-index eviction, the only setting such a test needs now that it is gated independently.
+    private static Settings evictDeletedIndexRegionsTestSettings() {
+        return maybeEnableCacheBoostPreference(
+            smallCacheSettings().put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(),
+                true
+            )
+        ).build();
     }
 
     /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on
@@ -375,6 +415,16 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         indexAndSearch(indexName, randomIntBetween(10, 100));
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         assertNonZeroFrequencies(cacheService, shardId);
+        return shardId;
+    }
+
+    /// Creates a one-replica index and searches it so that its search shard has cached regions. Returns the shard id.
+    private ShardId createIndexWithPopulatedCache(String indexName, StatelessSharedBlobCacheService cacheService) {
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexAndSearch(indexName, randomIntBetween(10, 100));
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        assertThat(cacheService.countCachedRegions(shardPredicate(shardId)), greaterThan(0L));
         return shardId;
     }
 
@@ -403,6 +453,13 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         updateClusterSettings(
             Settings.builder()
                 .put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), enabled)
+        );
+    }
+
+    private static void setEvictDeletedIndexRegionsEnabledTo(boolean enabled) {
+        updateClusterSettings(
+            Settings.builder()
+                .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(), enabled)
         );
     }
 
@@ -546,11 +603,12 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             );
             final StatelessSharedBlobCacheService spy = Mockito.spy(real);
             // Mockito copies the real service's fields into the spy rather than delegating to it. Reference fields such as the LFU
-            // cache still point at the same objects, but a field reassigned later does not: the settings watcher registered in the
-            // constructor writes the demotion flag to `real`, leaving the spy stuck on its creation-time value. Read the flag
+            // cache still point at the same objects, but a field reassigned later does not: the settings watchers registered in the
+            // constructor write the maintenance flags to `real`, leaving the spy stuck on its creation-time values. Read the flags
             // through `real` so the tests below see a dynamic update.
             Mockito.doAnswer(invocation -> real.isDemoteClosedShardRegionsEnabled()).when(spy).isDemoteClosedShardRegionsEnabled();
             Mockito.doAnswer(invocation -> real.isEvictObsoleteRegionsEnabled()).when(spy).isEvictObsoleteRegionsEnabled();
+            Mockito.doAnswer(invocation -> real.isEvictDeletedIndexRegionsEnabled()).when(spy).isEvictDeletedIndexRegionsEnabled();
             return spy;
         }
     }

@@ -98,6 +98,20 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         );
     }
 
+    public void testFirstKnownTimestamp() {
+        assertThat(BlobFileRanges.firstKnownTimestamp(1000L, 2000L), equalTo(1000L));
+        assertThat(BlobFileRanges.firstKnownTimestamp(1000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(1000L));
+        assertThat(BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 2000L), equalTo(2000L));
+        assertThat(
+            BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, SharedBlobCacheService.UNKNOWN_TIMESTAMP),
+            equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+        );
+        assertThat(
+            BlobFileRanges.firstKnownTimestamp(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP, 2000L),
+            equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
+        );
+    }
+
     public void testReconcileWithTimestamps() {
         final var location = createBlobLocation(1L, 1L, 0L, 100L);
         final var olderRange = new StatelessCompoundCommit.TimestampFieldValueRange(100L, 200L); // midpoint 150

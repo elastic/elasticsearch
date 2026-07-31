@@ -551,7 +551,7 @@ final class DefaultSearchContext extends SearchContext {
             .filter(value -> value.isEmpty() == false)
             .toList();
         if (sliceTerms.isEmpty()) {
-            return new MatchNoDocsQuery("empty [_slice] routing");
+            return new MatchNoDocsQuery("empty [slice] routing");
         }
         final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
             ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))

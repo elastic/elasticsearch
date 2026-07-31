@@ -12,15 +12,25 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -32,6 +42,7 @@ import java.util.function.Consumer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
@@ -159,6 +170,63 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             e.getMessage(),
             equalTo("Cannot set [numberOfSignificantValueDigits] because the " + "method has already been configured for TDigest")
         );
+    }
+
+    /**
+     * Verifies that the REQUEST circuit breaker trips when per-bucket TDigest states exceed the configured
+     * limit, rather than letting the heap grow unbounded until OOM. Before the fix, every
+     * HistogramUnionState was created with NOOP_BREAKER, making all TDigest memory invisible to the
+     * breaker. After the fix, context.breaker() is used so every centroid array allocation is tracked
+     * and the breaker can reject the query gracefully.
+     */
+    public void testCircuitBreakerTripsOnHighCardinality() throws IOException {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1kb")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HierarchyCircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            clusterSettings
+        );
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                // Write enough data so the TDigest centroid arrays exceed the 1kb REQUEST limit.
+                for (int i = 0; i < 500; i++) {
+                    iw.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                expectThrows(CircuitBreakingException.class, () -> {
+                    try (
+                        AggregationContext context = createAggregationContext(
+                            reader,
+                            createIndexSettings(),
+                            new MatchAllDocsQuery(),
+                            breakerService,
+                            0,
+                            DEFAULT_MAX_BUCKETS,
+                            false,
+                            false,
+                            fieldType
+                        )
+                    ) {
+                        Aggregator aggregator = createAggregator(aggBuilder, context);
+                        aggregator.preCollection();
+                        context.searcher().search(new MatchAllDocsQuery(), aggregator.asCollector());
+                        aggregator.postCollection();
+                        aggregator.buildTopLevel();
+                    }
+                });
+            }
+        }
     }
 
     private void testCase(

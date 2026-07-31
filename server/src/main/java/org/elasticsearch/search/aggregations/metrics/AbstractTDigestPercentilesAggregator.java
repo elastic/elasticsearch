@@ -107,10 +107,6 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
-        // Close each state individually so the circuit breaker bytes are returned before releasing the array.
-        for (long i = 0; i < states.size(); i++) {
-            Releasables.close(states.get(i));
-        }
         Releasables.close(states);
     }
 

@@ -580,12 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
   method: test {csv-spec:knn-function.knnAfterRenameWithEval}
   issue: https://github.com/elastic/elasticsearch/issues/155521
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/155532
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldSourceOnlyRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/155541
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/155567

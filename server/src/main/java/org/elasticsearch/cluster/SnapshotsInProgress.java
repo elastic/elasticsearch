@@ -1100,9 +1100,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, IndexId> indices,
             Map<ShardId, ShardSnapshotStatus> shards,
             Map<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId,
+            boolean hasActiveShards,
             boolean hasInitStateShards,
-            boolean hasWaitingStateShards,
-            boolean hasActiveShards
+            boolean hasWaitingStateShards
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;

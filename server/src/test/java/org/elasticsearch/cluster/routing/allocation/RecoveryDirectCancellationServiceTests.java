@@ -1012,7 +1012,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         }
     }
 
-    public void testSnapshotBlockingCancellationCancelsWaitingSnapshot() {
+    public void testCancellationForWaitingSnapshot() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var waitingShardId = new ShardId(index, 0);
@@ -1042,7 +1042,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
     }
 
-    public void testSnapshotBlockingCancellationPicksRelocatingShardTargetForWaitingShard() {
+    public void testCancelsRecoveryBlockingSnapshotWhenRelocatingShardTarget() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 3, 0)).build();
         final var index = indexMetadata.getIndex();
         final var waitingShardId = new ShardId(index, 0);
@@ -1087,7 +1087,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(cancellation, equalTo(new ShardRecoveryCancellation(waitingShardId, targetAllocationId.getId(), false)));
     }
 
-    public void testSnapshotBlockingCancellationDiscardsNonRelocatingInitializingShard() {
+    public void testDoesNotCancelRecoveryBlockingSnapshotWhenNonRelocating() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();
         final var nonRelocatingShardId = new ShardId(index, 0);
@@ -1110,7 +1110,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(requests.entrySet(), hasSize(0));
     }
 
-    public void testSnapshotBlockingCancellationDiscardsShardWhenSourceNodeMarkedForRemoval() {
+    public void testDoesNotCancelRecoveryBlockingSnapshotWhenSourceNodeMarkedForRemoval() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shutdownBlockedShardId = new ShardId(index, 0);
@@ -1150,7 +1150,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(requests.entrySet(), hasSize(0));
     }
 
-    public void testSnapshotBlockingCancellationStillCancelsWhenSourceNodeRestarting() {
+    public void testStillCancelsRecoveryBlockingSnapshotWhenSourceNodeRestarting() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();
         final var waitingShardId = new ShardId(index, 0);
@@ -1296,7 +1296,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
     }
 
-    public void testSnapshotCancellationSkippedWhenRelocationDuringSnapshotEnabled() {
+    public void testRecoveryCancellationSkippedWhenRelocationDuringSnapshotEnabled() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
         final var index = indexMetadata.getIndex();
         final var waitingShardId = new ShardId(index, 0);

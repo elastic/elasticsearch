@@ -208,6 +208,33 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Boolean[] { true, true }, result);
     }
 
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace"),
+            "the Brown Fox runs",
+            "the brown fox runs"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value.
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("analyzer", "keyword"), "brown fox", "a brown fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndSlopCombined() {
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace", "slop", "1"),
+            "the Brown quick Fox",
+            "the brown quick fox"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
     public void testTextWithBoostDoesNotChangeMatching() {
         // Boost only affects scoring, which runtime match_phrase does not contribute to.
         Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("boost", "2.5"), "a brown fox", "a brown quick fox");

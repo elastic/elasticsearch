@@ -12,6 +12,9 @@ products:
 
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md). A dataset cannot have the same name as any of them.
 
+:::{include} _snippets/data-federation/experimental-warning.md
+:::
+
 ## Supported file formats
 
 Federated data sources can read the following file formats:

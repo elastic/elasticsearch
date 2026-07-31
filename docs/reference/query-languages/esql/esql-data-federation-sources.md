@@ -12,6 +12,9 @@ products:
 
 A data source defines the connection to an external storage system. It stores the connection type, region, endpoint, and credentials. A data source defines how to connect, not what data to query. One data source can serve many [datasets](esql-data-federation-datasets.md). When credentials rotate, you update the data source in one place without touching the datasets that reference it.
 
+:::{include} _snippets/data-federation/experimental-warning.md
+:::
+
 ## Supported data source types
 
 The following data source types are supported:

@@ -117,6 +117,9 @@ The following search functions are available for datasets:
 
 ## Limitations
 
+:::{include} _snippets/data-federation/experimental-warning.md
+:::
+
 The operations below require structures that only exist in an {{es}} index, such as the inverted index, doc values, or time series metadata. Each fails with a clear error rather than wrong results.
 
 | Operation | Reason | Error |

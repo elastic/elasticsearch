@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -262,15 +263,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Must be between
-     * {@code 0} and {@link HighlightBuilder#MAX_NUMBER_OF_FRAGMENTS}.
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Must not be negative.
+     * The upper bound is enforced per index at request time, see {@link IndexSettings#MAX_NUMBER_OF_FRAGMENTS_SETTING}.
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
-        if (numOfFragments != null && (numOfFragments < 0 || numOfFragments > HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS)) {
-            throw new IllegalArgumentException(
-                "[" + NUMBER_OF_FRAGMENTS_FIELD + "] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]"
-            );
+        if (numOfFragments != null && numOfFragments < 0) {
+            throw new IllegalArgumentException("[" + NUMBER_OF_FRAGMENTS_FIELD + "] must not be negative");
         }
         this.numOfFragments = numOfFragments;
         return (HB) this;

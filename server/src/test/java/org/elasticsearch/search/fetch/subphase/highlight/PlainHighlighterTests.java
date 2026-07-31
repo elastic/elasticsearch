@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -106,7 +107,7 @@ public class PlainHighlighterTests extends HighlighterTestCase {
     }
 
     public void testCappedNumberOfFragments() {
-        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS, 19));
+        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(10_000, 19));
         assertEquals(19, PlainHighlighter.cappedNumberOfFragments(1_000_000, 19));
         assertEquals(3, PlainHighlighter.cappedNumberOfFragments(3, 100));
         assertEquals(1, PlainHighlighter.cappedNumberOfFragments(5, 0));
@@ -125,7 +126,9 @@ public class PlainHighlighterTests extends HighlighterTestCase {
 
         SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("text", "important"))
             .highlighter(
-                new HighlightBuilder().field("text").highlighterType("plain").numOfFragments(HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS)
+                new HighlightBuilder().field("text")
+                    .highlighterType("plain")
+                    .numOfFragments(10_000)
             );
 
         assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text");

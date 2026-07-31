@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentCaptor.forClass;
@@ -85,7 +86,15 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
         // All nodes start below the high watermark, so there is nothing to reroute for yet.
-        monitor.decideReroute(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)), Map.of());
+        final SharedCacheCapacityMonitor.RerouteDecision initialDecision = monitor.decideReroute(
+            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
+            Map.of()
+        );
+        assertThat(initialDecision.shouldReroute(), equalTo(false));
+        assertThat(initialDecision.reason(), equalTo(null));
+        assertThat(initialDecision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
+        assertThat(initialDecision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(initialDecision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
 
         // One node crosses the high watermark. The anchor node stays below the low watermark, so there is somewhere to move
         // shards to, and a reroute is warranted, naming that node's short description in the debug log.
@@ -106,6 +115,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
+            assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+            assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
         }
     }
 
@@ -120,7 +131,10 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
     }
 
     public void testRerouteWhenAdditionalNodeExceedsHighWatermark() {
@@ -148,7 +162,10 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
+            assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_1)));
+            assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+            assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_2)));
         }
     }
 
@@ -167,8 +184,10 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_2)));
     }
 
     public void testRerouteWhenNodeDropsBelowLowWatermark() {
@@ -196,7 +215,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(DROPPED_BELOW_LOW_WATERMARK_REASON));
+            assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_0)));
+            assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1, SEARCH_2)));
         }
     }
 
@@ -213,7 +234,10 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1, SEARCH_2)));
     }
 
     public void testRerouteWhenNewNodeJoinsAlreadyAboveHighWatermark() {
@@ -232,6 +256,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(decision.shouldReroute(), equalTo(true));
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_2)));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
     }
 
     public void testNoRerouteWhenAllSearchNodesOverSubscribed() {
@@ -245,7 +271,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of()));
     }
 
@@ -259,7 +287,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of()));
     }
 
@@ -285,6 +315,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(decision.shouldReroute(), equalTo(true));
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
     }
 
     // -----------------------------------------------------------------------------------------------------------------------
@@ -438,10 +470,6 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     public void testAccountingModeSettingChangeIsObservedOnTheSameInstance() {
-        // The cluster state supplier is mutable so a new node can join between calls. That gives the second call a node with no
-        // prior commitment to compare against, which isolates the setting change as the only variable. A node whose commitment is
-        // unchanged between calls is judged the same way regardless of when the setting changed underneath it, since both its
-        // current and prior state are evaluated against whichever watermark is live at classification time.
         final AtomicReference<ClusterState> clusterState = new AtomicReference<>(twoSearchNodeState());
         final ClusterSettings clusterSettings = clusterSettingsFor(
             true,
@@ -458,14 +486,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
 
-        // Switch the same live instance to TOTAL accounting before the new node is even observed, so the only thing that can
-        // possibly explain a subsequent reroute is the accounting mode already being TOTAL when the node is first classified.
+        // Switch the same live instance to TOTAL accounting before search-2 is ever observed.
         clusterSettings.applySettings(
             Settings.builder().put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), "TOTAL").build()
         );
 
-        // A third node joins. Neither its boosted nor its unboosted commitment alone exceeds the high watermark, but their sum
-        // does. Only TOTAL accounting, now in effect on this instance, reports it as newly exceeding the high watermark.
+        // search-2 joins. Neither its boosted nor its unboosted commitment alone exceeds the high watermark, but their sum does.
+        // Only TOTAL accounting, already in effect when search-2 is first classified, reports it as newly exceeding the high
+        // watermark.
         clusterState.set(threeSearchNodeState());
         final long halfOfHighWatermark = bytesForPercent(HIGH_WATERMARK_PERCENT) / 2 + 1;
         final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = new HashMap<>();
@@ -477,9 +505,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     public void testHighWatermarkSettingChangeIsObservedOnTheSameInstance() {
-        // The cluster state supplier is mutable so a new node can join between calls, isolating the setting change as the only
-        // variable for the reasons given in testAccountingModeSettingChangeIsObservedOnTheSameInstance.
-        final AtomicReference<ClusterState> clusterState = new AtomicReference<>(twoSearchNodeState());
+        // A node whose commitment is unchanged between calls is judged the same way regardless of when a setting changed
+        // underneath it, since both its current and prior state are evaluated against whichever watermark is live at
+        // classification time. So search-1 joins for the very first time in the same call the lowered watermark first applies:
+        // it has no prior commitment to compare against, which is what lets the setting change, rather than a change in
+        // search-1's own commitment, explain the reroute.
+        final AtomicReference<ClusterState> clusterState = new AtomicReference<>(
+            ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0)).build()
+        );
         final ClusterSettings clusterSettings = clusterSettingsFor(
             true,
             SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
@@ -492,36 +525,32 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             rerouteService
         );
 
-        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
+        // search-0's commitment sits comfortably below the low watermark, anchoring it as somewhere shards could move to, so
+        // this call must not reroute.
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
 
-        // Lower the high watermark on the same live instance before the new node is even observed, so the only thing that can
-        // possibly explain a subsequent reroute is the lowered watermark already being in effect when the node is first
-        // classified.
+        // Lower the high watermark on the same live instance before search-1 is ever observed.
         clusterSettings.applySettings(
             Settings.builder()
                 .put(SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING.getKey(), (HIGH_WATERMARK_PERCENT - 2) + "%")
                 .build()
         );
 
-        // A third node joins with a commitment that exceeds the lowered high watermark but not the original one. It has no
-        // prior commitment to compare against, so only the watermark that is live at the time it is first classified can
-        // explain the outcome.
-        clusterState.set(threeSearchNodeState());
-        monitor.onNewInfo(
-            clusterInfoOf(
-                commitmentsAt(
-                    Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, HIGH_WATERMARK_PERCENT - 1)
-                )
-            )
+        // search-1 joins with a commitment that exceeds the lowered high watermark but not the original one, while search-0
+        // remains below the low watermark, so there is somewhere to move shards to. Only the watermark that is live at the
+        // moment search-1 is first classified can explain the outcome.
+        clusterState.set(
+            ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1)).build()
         );
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, HIGH_WATERMARK_PERCENT - 1))));
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testLowWatermarkSettingChangeIsObservedOnTheSameInstance() {
-        // The cluster state supplier is mutable so a new node can join between calls, isolating the setting change as the only
-        // variable for the reasons given in testAccountingModeSettingChangeIsObservedOnTheSameInstance.
-        final AtomicReference<ClusterState> clusterState = new AtomicReference<>(twoSearchNodeState());
+        // The cluster state supplier is mutable so a fourth node can join for the final call, isolating the setting change as
+        // the only variable for the reasons given in testAccountingModeSettingChangeIsObservedOnTheSameInstance.
+        final AtomicReference<ClusterState> clusterState = new AtomicReference<>(threeSearchNodeState());
         final ClusterSettings clusterSettings = clusterSettingsFor(
             true,
             SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
@@ -534,13 +563,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             rerouteService
         );
 
-        // search-0 sits comfortably below the still-unchanged 75% low watermark, so there is somewhere to move shards to.
-        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
-        verifyNoInteractions(rerouteService);
-
-        // A third node joins above the high watermark. With the low watermark still unchanged, search-0's commitment still
-        // counts as "below" it, so this call must reroute, proving the original low watermark is genuinely still in effect.
-        clusterState.set(threeSearchNodeState());
+        // search-2 starts above the high watermark, while search-0 sits comfortably below the still-unchanged 75% low
+        // watermark, so there is somewhere to move shards to and this call must reroute.
         monitor.onNewInfo(
             clusterInfoOf(
                 commitmentsAt(
@@ -551,15 +575,17 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // Lowering the low watermark below search-0's unchanged commitment (LOW_WATERMARK_PERCENT - 1), on the same live
-        // instance, must cause search-0 to no longer count as "below" it on the very next call. A fourth node then joins above
-        // the high watermark, which is new information, but with nowhere left to move shards to, so the reroute must be
-        // suppressed by the "nowhere to move to" rule rather than fired.
+        // Lower the low watermark below search-0's unchanged commitment (LOW_WATERMARK_PERCENT - 1) on the same live instance,
+        // before search-3 is ever observed.
         clusterSettings.applySettings(
             Settings.builder()
                 .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), (LOW_WATERMARK_PERCENT - 2) + "%")
                 .build()
         );
+
+        // search-3 joins, already above the high watermark, which is new information. With the lowered low watermark now in
+        // effect, search-0's unchanged commitment no longer counts as "below" it, so there is nowhere left to move shards to
+        // and the reroute must be suppressed by the "nowhere to move to" rule rather than fired.
         final DiscoveryNode search3 = searchNode("search-3");
         clusterState.set(
             ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -680,8 +706,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     private ClusterInfo clusterInfoOf(Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitmentsByNode) {
-        final Map<String, NodeCacheSizeAndCommitments> commitmentsById = new HashMap<>();
-        commitmentsByNode.forEach((node, commitments) -> commitmentsById.put(node.getId(), commitments));
+        final Map<String, NodeCacheSizeAndCommitments> commitmentsById = commitmentsByNode.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey().getId(), Map.Entry::getValue));
         return ClusterInfo.builder().nodeCacheSizeAndCommitments(commitmentsById).build();
     }
 
@@ -690,11 +717,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
      * recorded entirely as a boosted commitment.
      */
     private static Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitmentsAt(Map<DiscoveryNode, Integer> percentByNode) {
-        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = new HashMap<>();
-        percentByNode.forEach(
-            (node, percent) -> commitments.put(node, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(percent), 0L))
-        );
-        return commitments;
+        return percentByNode.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(entry.getValue()), 0L)
+                )
+            );
     }
 
     private static long bytesForPercent(int percent) {

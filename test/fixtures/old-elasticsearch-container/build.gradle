@@ -13,10 +13,28 @@ apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'
 
-def fixtureVersion = '1.2'
+def fixtureVersion = '1.3'
 def sharedDockerContext = project.file('src/main/resources/docker')
 
 dockerFixtures {
+  create('old-elasticsearch-0-90-13') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '0.90.13']
+  }
+  create('old-elasticsearch-1-7-6') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '1.7.6']
+  }
+  create('old-elasticsearch-2-4-5') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '2.4.5']
+  }
   create('old-elasticsearch-5-0-0') {
     dockerContext = sharedDockerContext
     version = fixtureVersion
@@ -40,6 +58,18 @@ dockerFixtures {
     version = fixtureVersion
     baseImages = ['eclipse-temurin:8-jdk']
     buildArgs = ['ES_VERSION': '6.8.20']
+  }
+  create('old-elasticsearch-7-9-3') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '7.9.3']
+  }
+  create('old-elasticsearch-7-10-0') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '7.10.0']
   }
 }
 

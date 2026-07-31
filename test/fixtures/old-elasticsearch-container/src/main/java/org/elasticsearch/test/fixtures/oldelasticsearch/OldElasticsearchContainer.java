@@ -31,8 +31,14 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
 
     private static final int HTTP_PORT = 9200;
     // Keep in sync with `def fixtureVersion` in test/fixtures/old-elasticsearch-container/build.gradle.
-    private static final String FIXTURE_IMAGE_VERSION = "1.2";
+    private static final String FIXTURE_IMAGE_VERSION = "1.3";
     private static final Map<String, String> IMAGES = Map.of(
+        "0.90.13",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-0-90-13-fixture:" + FIXTURE_IMAGE_VERSION,
+        "1.7.6",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-1-7-6-fixture:" + FIXTURE_IMAGE_VERSION,
+        "2.4.5",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-2-4-5-fixture:" + FIXTURE_IMAGE_VERSION,
         "5.0.0",
         "docker.elastic.co/elasticsearch-dev/old-elasticsearch-5-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
         "5.6.16",
@@ -40,15 +46,24 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
         "6.0.0",
         "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-0-0-fixture:" + FIXTURE_IMAGE_VERSION,
         "6.8.20",
-        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:" + FIXTURE_IMAGE_VERSION
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-6-8-20-fixture:" + FIXTURE_IMAGE_VERSION,
+        "7.9.3",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-7-9-3-fixture:" + FIXTURE_IMAGE_VERSION,
+        "7.10.0",
+        "docker.elastic.co/elasticsearch-dev/old-elasticsearch-7-10-0-fixture:" + FIXTURE_IMAGE_VERSION
     );
 
     // Version-specific elasticsearch.yml settings appended at runtime via ES_EXTRA_CONFIG.
-    // 5.x versions need no extra settings beyond what is baked into the shared Dockerfile.
+    // 0.90.13, 1.7.6, 2.4.5, and 5.x versions need no extra settings beyond what is baked
+    // into the shared Dockerfile.
     private static final Map<String, String> EXTRA_CONFIGS = Map.of(
         "6.0.0",
         "discovery.type: single-node",
         "6.8.20",
+        "xpack.ml.enabled: false\nxpack.security.enabled: false\ndiscovery.type: single-node",
+        "7.9.3",
+        "xpack.ml.enabled: false\nxpack.security.enabled: false\ndiscovery.type: single-node",
+        "7.10.0",
         "xpack.ml.enabled: false\nxpack.security.enabled: false\ndiscovery.type: single-node"
     );
 
@@ -75,7 +90,23 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
     private static ImageFromDockerfile localImage(String version) {
         return new ImageFromDockerfile().withFileFromClasspath("Dockerfile", "docker/Dockerfile")
             .withFileFromClasspath("entrypoint.sh", "docker/entrypoint.sh")
-            .withBuildArg("ES_VERSION", version);
+            .withBuildArg("ES_VERSION", version)
+            .withBuildArg("TARGETARCH", dockerArch());
+    }
+
+    /**
+     * Docker's automatic {@code TARGETARCH} build-arg is only populated by BuildKit/buildx-driven
+     * builds. Classic {@code docker build} (used by {@code ImageFromDockerfile} here) leaves it
+     * unset, so it must be supplied explicitly for the versions ({@code 7.9.3}, {@code 7.10.0})
+     * that resolve an architecture-specific download URL.
+     */
+    private static String dockerArch() {
+        String arch = System.getProperty("os.arch");
+        return switch (arch) {
+            case "aarch64" -> "arm64";
+            case "x86_64", "amd64" -> "amd64";
+            default -> throw new IllegalStateException("Unsupported architecture [" + arch + "] for old Elasticsearch fixture");
+        };
     }
 
     public int getHttpPort() {

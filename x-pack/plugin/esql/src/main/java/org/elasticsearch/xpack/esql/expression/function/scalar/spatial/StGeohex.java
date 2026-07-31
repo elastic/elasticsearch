@@ -30,6 +30,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
 import org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtil;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -411,34 +412,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
     }
 
     /**
-     * Tests whether the shape intersects the H3 cell polygon exactly.
-     * Falls back to bbox-only for antimeridian-crossing cells (whose polygon cannot be constructed
-     * directly from {@code H3.h3ToGeoBoundary} without additional normalization).
+     * Tests whether the shape intersects the H3 cell exactly.
+     * Uses {@link H3CartesianUtil#getLatLonGeometry(long)} which is adapted from {@code H3CartesianGeometry}
+     * in the spatial module. It handles coordinate quantization, polar cells, and dateline-crossing cells
+     * correctly. In particular it handles larger H3 cells due to great-circle-arc vs. straight-line projection differences.
      */
     private static boolean h3CellIntersectsShape(GeoShapeDocValues shape, long h3) throws IOException {
-        CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-        int n = boundary.numPoints();
-        double[] lats = new double[n + 1];
-        double[] lons = new double[n + 1];
-        for (int i = 0; i < n; i++) {
-            LatLng ll = boundary.getLatLon(i);
-            lats[i] = ll.getLatDeg();
-            lons[i] = ll.getLonDeg();
-        }
-        lats[n] = lats[0];
-        lons[n] = lons[0];
-        // Check for antimeridian crossing (adjacent vertices differ by > 180°)
-        for (int i = 0; i < n; i++) {
-            if (Math.abs(lons[i] - lons[(i + 1) % n]) > 180) {
-                // Antimeridian-crossing cell — bbox check already passed, assume intersection
-                return true;
-            }
-        }
-        try {
-            return shape.intersects(LatLonGeometry.create(new org.apache.lucene.geo.Polygon(lats, lons)));
-        } catch (Exception e) {
-            // Be conservative: if polygon construction fails, assume intersection
-            return true;
-        }
+        return shape.intersects(LatLonGeometry.create(H3CartesianUtil.getLatLonGeometry(h3)));
     }
 }

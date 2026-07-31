@@ -10,12 +10,18 @@ package org.elasticsearch.gradle.internal.docker;
 
 import org.junit.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.deriveId;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.parseOsRelease;
+import static org.elasticsearch.gradle.internal.docker.DockerSupportService.resolveDockerExecutableFromPath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -95,5 +101,24 @@ public class DockerSupportServiceTests {
         osRelease.put("VERSION_ID", "6.10");
 
         assertThat("ol-6.10", equalTo(deriveId(osRelease)));
+    }
+
+    @Test
+    public void testWindowsDockerExeIsPreferredOverExtensionlessDocker() throws IOException {
+        final Path dockerBin = Files.createTempDirectory("docker-bin");
+        final Path docker = dockerBin.resolve("docker");
+        final Path dockerExe = dockerBin.resolve("docker.exe");
+        Files.createFile(docker);
+        Files.createFile(dockerExe);
+        docker.toFile().setExecutable(true);
+        dockerExe.toFile().setExecutable(true);
+
+        Optional<String> resolved = resolveDockerExecutableFromPath(
+            dockerBin.toString(),
+            File.pathSeparator,
+            List.of("docker.exe", "docker")
+        );
+
+        assertThat(resolved.orElseThrow(), equalTo(dockerExe.toFile().getAbsolutePath()));
     }
 }

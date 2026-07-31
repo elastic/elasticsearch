@@ -252,7 +252,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     static int cappedNumberOfFragments(int requestedNumberOfFragments, int textLength) {
-        return Math.clamp(textLength, 1, requestedNumberOfFragments);
+        return Math.clamp(requestedNumberOfFragments, 1, textLength);
     }
 
     private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {

@@ -100,11 +100,11 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static final String ANTHROPIC_STOP_REASON_PAUSE_TURN = "pause_turn";
     private static final String ANTHROPIC_STOP_REASON_REFUSAL = "refusal";
 
-    // OpenAI-compatible finish reason values
-    private static final String FINISH_REASON_STOP = "stop";
-    private static final String FINISH_REASON_LENGTH = "length";
-    private static final String FINISH_REASON_TOOL_CALLS = "tool_calls";
-    private static final String FINISH_REASON_CONTENT_FILTER = "content_filter";
+    // OpenAI finish reasons
+    private static final String STOP_FINISH_REASON = "stop";
+    private static final String LENGTH_FINISH_REASON = "length";
+    private static final String TOOL_CALLS_FINISH_REASON = "tool_calls";
+    private static final String CONTENT_FILTER_FINISH_REASON = "content_filter";
 
     // Other constants
     private static final String OBJECT_VALUE = "chat.completion.chunk";
@@ -115,7 +115,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private String id;
     private String model;
     private int toolCallCount;
-    private final Map<Integer, Integer> blockToToolIdx = new HashMap<>();
+    private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
     private int reasoningBlockCount;
     private int inputTokens;
     private int outputTokens;
@@ -206,11 +206,14 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     }
      * }
      * </code></pre>
+     * @param parser the parser positioned at the root {@code START_OBJECT}
+     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @throws IOException if parsing fails
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(XContentParser parser) throws IOException {
         var messageMap = extractInnerStringObjectMap(parser.map(), MESSAGE_FIELD);
-        id = extractMandatoryString(messageMap, ID_FIELD);
         model = extractMandatoryString(messageMap, MODEL_FIELD);
+        id = extractMandatoryString(messageMap, ID_FIELD);
         var role = extractMandatoryString(messageMap, ROLE_FIELD);
         var finishReason = convertStopReason(extractOptionalString(messageMap, STOP_REASON_FIELD));
         var usageMap = extractInnerStringObjectMap(messageMap, USAGE_FIELD);
@@ -233,6 +236,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_start","index":2,"content_block":{"type":"thinking","thinking":"..."}}
      * {"type":"content_block_start","index":3,"content_block":{"type":"redacted_thinking","data":"..."}}
      * </code></pre>
+     * @param parser the parser positioned at the root {@code START_OBJECT}
+     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @throws IOException if parsing fails
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(XContentParser parser)
         throws IOException {
@@ -250,7 +256,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 var id = extractMandatoryString(contentBlockMap, ID_FIELD);
                 var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
                 var toolCallIndex = toolCallCount++;
-                blockToToolIdx.put(blockIndex, toolCallIndex);
+                contentBlockIndexToToolCallIndex.put(blockIndex, toolCallIndex);
                 // A tool_use content block start always carries an empty input object; the actual tool input arrives
                 // as input_json_delta fragments, which clients concatenate onto the arguments, so seed them empty.
                 var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function("", name);
@@ -307,6 +313,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * {"type":"content_block_delta","index":2,"delta":{"type":"thinking_delta","thinking":"..."}}
      * {"type":"content_block_delta","index":2,"delta":{"type":"signature_delta","signature":"..."}}
      * </code></pre>
+     * @param parser the parser positioned at the root {@code START_OBJECT}
+     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @throws IOException if parsing fails
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(XContentParser parser)
         throws IOException {
@@ -322,7 +331,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             }
             case INPUT_JSON_DELTA_TYPE -> {
                 var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
-                var toolCallIndex = blockToToolIdx.get(blockIndex);
+                var toolCallIndex = contentBlockIndexToToolCallIndex.get(blockIndex);
                 if (toolCallIndex == null) {
                     logger.warn("Received [{}] for unknown content block index [{}].", INPUT_JSON_DELTA_TYPE, blockIndex);
                     return Stream.empty();
@@ -403,6 +412,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     "usage": {"output_tokens": 41}
      * }
      * </code></pre>
+     * @param parser the parser positioned at the root {@code START_OBJECT}
+     * @return a stream of {@link StreamingUnifiedChatCompletionResults.ChatCompletionChunk}
+     * @throws IOException if parsing fails
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(XContentParser parser) throws IOException {
         var outerMap = parser.map();
@@ -470,13 +482,13 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         }
         return switch (stopReason) {
             case ANTHROPIC_STOP_REASON_END_TURN, ANTHROPIC_STOP_REASON_STOP_SEQUENCE, ANTHROPIC_STOP_REASON_PAUSE_TURN ->
-                FINISH_REASON_STOP;
-            case ANTHROPIC_STOP_REASON_MAX_TOKENS -> FINISH_REASON_LENGTH;
-            case ANTHROPIC_STOP_REASON_TOOL_USE -> FINISH_REASON_TOOL_CALLS;
-            case ANTHROPIC_STOP_REASON_REFUSAL -> FINISH_REASON_CONTENT_FILTER;
+                STOP_FINISH_REASON;
+            case ANTHROPIC_STOP_REASON_MAX_TOKENS -> LENGTH_FINISH_REASON;
+            case ANTHROPIC_STOP_REASON_TOOL_USE -> TOOL_CALLS_FINISH_REASON;
+            case ANTHROPIC_STOP_REASON_REFUSAL -> CONTENT_FILTER_FINISH_REASON;
             default -> {
-                logger.warn("Unhandled Anthropic stop reason [{}], defaulting to [{}].", stopReason, FINISH_REASON_STOP);
-                yield FINISH_REASON_STOP;
+                logger.warn("Unhandled Anthropic stop reason [{}], defaulting to [{}].", stopReason, STOP_FINISH_REASON);
+                yield STOP_FINISH_REASON;
             }
         };
     }

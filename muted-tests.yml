@@ -164,15 +164,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.get_alias/10_basic/Get aliases via /{index}/_alias/_all}
-  issue: https://github.com/elastic/elasticsearch/issues/153590
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/153595
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=field_caps/10_basic/Get prefix field caps}
-  issue: https://github.com/elastic/elasticsearch/issues/153913
 - class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/154059
@@ -215,9 +209,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/154866
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/27_id_generation_synthetic_id_true/create operation on top of old document fails}
-  issue: https://github.com/elastic/elasticsearch/issues/155027
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
@@ -227,15 +218,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/180_update_dense_vector_type/Test create and update dense vector mapping to int4 with per-doc indexing and flush}
-  issue: https://github.com/elastic/elasticsearch/issues/155334
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/155421
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/42_knn_search_flat/Cosine similarity with indexed vector}
-  issue: https://github.com/elastic/elasticsearch/issues/155450
 
 # Examples:
 #

@@ -1089,6 +1089,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
+    long countCachedRegionsByTimestamp(Predicate<KeyType> predicate, long timestampMillis) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.countCachedRegionsByTimestamp(predicate, timestampMillis);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
+    // used by tests
     int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.getFreq(cacheFileRegion);
@@ -2922,6 +2930,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             });
             return Map.copyOf(freqs);
+        }
+
+        // used by tests
+        long countCachedRegionsByTimestamp(Predicate<KeyType> predicate, long timestampMillis) {
+            final long[] count = new long[1];
+            keyMapping.forEach((regionKey, entry) -> {
+                if (predicate.test(regionKey.file())
+                    && entry.chunk.isEvicted() == false
+                    && entry.chunk.timestampMillis() == timestampMillis) {
+                    count[0]++;
+                }
+            });
+            return count[0];
         }
 
         /**

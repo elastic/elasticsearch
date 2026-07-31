@@ -22,7 +22,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -36,9 +35,7 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
-import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.junit.Before;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -62,6 +59,7 @@ import static org.elasticsearch.search.sort.SortOrder.ASC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -140,7 +138,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
             .build();
         final String masterAndIndexNodeName = startMasterAndIndexNode(cacheSettings);
-        startSearchNode(cacheSettings);
+        final var searchNode = startSearchNode(cacheSettings);
         final Settings idxSettings = ESTestCase.indexSettings(1, 1)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
@@ -163,7 +161,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         indexDocuments(masterAndIndexNodeName, 10, NON_BOOSTED_IDX, 10_000, nonBoostWindowStartInMillis, nonBoostWindowEndInMillis);
         indexDocuments(masterAndIndexNodeName, 10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
 
-        final StatelessSharedBlobCacheService cacheService = getCacheService();
+        final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
         logger.debug(
             "cache regions after ingesting docs: boosted={}, non-boosted={}",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
@@ -201,6 +199,86 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             "boosted regions must have been fully evicted by non-boosted searches",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
             equalTo(0L)
+        );
+    }
+
+    public void testPinnedWindowEvictionPolicyProtectsPinnedData() {
+        final Settings cacheSettings = Settings.builder()
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.PINNED_WINDOW
+            )
+            .put(PINNED_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueHours(12))
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING.getKey(), "100%")
+            .build();
+        final var masterAndIndexNodeName = startMasterAndIndexNode(cacheSettings);
+        final var searchNode = startSearchNode(cacheSettings);
+        final Settings idxSettings = ESTestCase.indexSettings(1, 1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+            .build();
+
+        final var pinnedIdx = randomIdentifier("pinned-");
+        final var unpinnedIdx = randomIdentifier("unpinned-");
+        assertAcked(prepareCreate(pinnedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
+        assertAcked(prepareCreate(unpinnedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
+        ensureGreen(pinnedIdx, unpinnedIdx);
+
+        // Default 12-hour pinned window: pinned data (< 6h old, midpoint ~T-3h) is protected;
+        // unpinned data (> 14h old, midpoint ~T-26h) is evictable.
+        final long now = System.currentTimeMillis();
+        final long pinnedDataEndMillis = now;
+        final long pinnedDataStartMillis = now - TimeValue.timeValueHours(6).millis();
+        final long unpinnedDataEndMillis = now - TimeValue.timeValueHours(14).millis();
+        final long unpinnedDataStartMillis = now - TimeValue.timeValueHours(38).millis();
+        // Unpinned index is sized to exceed the cache, same as testNonBoostedSearchesEvictBoostedData.
+        indexDocuments(masterAndIndexNodeName, 10, unpinnedIdx, 10_000, unpinnedDataStartMillis, unpinnedDataEndMillis);
+        indexDocuments(masterAndIndexNodeName, 10, pinnedIdx, 1_000, pinnedDataStartMillis, pinnedDataEndMillis);
+
+        final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
+        logger.debug(
+            "cache regions after ingesting docs: pinned={}, unpinned={}",
+            cacheRegionsForIndex(cacheService, pinnedIdx),
+            cacheRegionsForIndex(cacheService, unpinnedIdx)
+        );
+
+        // Step 1 — populate the cache with pinned data.
+        searchData(pinnedIdx, 1_000, false);
+
+        // Regions with MINIMAL_CACHE_TIMESTAMP (0) from metadata reads are not protected by the policy and may be evicted
+        // when they have no active readers.
+        final Predicate<FileCacheKey> isPinnedIdx = key -> key.shardId().getIndexName().equals(pinnedIdx);
+        final long pinnedRegionsAfterPinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - SharedBlobCacheServiceTestUtils
+            .countCachedRegionsByTimestamp(cacheService, isPinnedIdx, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+        logger.debug(
+            "cache regions after searching pinned data: pinned (positive-timestamp)={}, unpinned={}",
+            pinnedRegionsAfterPinnedSearch,
+            cacheRegionsForIndex(cacheService, unpinnedIdx)
+        );
+        assertThat("pinned data should have been loaded into the cache", pinnedRegionsAfterPinnedSearch, greaterThan(0L));
+
+        // Step 2 — drive searches over unpinned data to overflow the cache.
+        searchData(unpinnedIdx, 5_000, true);
+
+        final long pinnedRegionsAfterUnpinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - SharedBlobCacheServiceTestUtils
+            .countCachedRegionsByTimestamp(cacheService, isPinnedIdx, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+        logger.debug(
+            "cache regions after searching unpinned data: pinned (positive-timestamp)={}, unpinned={}",
+            pinnedRegionsAfterUnpinnedSearch,
+            cacheRegionsForIndex(cacheService, unpinnedIdx)
+        );
+
+        assertThat(
+            "pinned regions must not be evicted: PinnedWindowEvictionPolicy protects regions with timestamps inside the window",
+            pinnedRegionsAfterUnpinnedSearch,
+            equalTo(pinnedRegionsAfterPinnedSearch)
         );
     }
 
@@ -460,17 +538,20 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     private static void searchNonBoostedData(String nonBoostedIdx) {
-        for (int i = 0; i < randomIntBetween(2, 4); i++) {
-            assertResponse(
-                prepareSearch(nonBoostedIdx).setSize(5_000).addSort(DataStream.TIMESTAMP_FIELD_NAME, ASC),
-                ElasticsearchAssertions::assertNoFailures
-            );
-        }
+        searchData(nonBoostedIdx, 5_000, true);
     }
 
     private static void searchBoostedData(String boostedIdx) {
+        searchData(boostedIdx, 1_000, false);
+    }
+
+    private static void searchData(String indexName, int size, boolean sortByTimestamp) {
         for (int i = 0; i < randomIntBetween(2, 4); i++) {
-            assertResponse(prepareSearch(boostedIdx).setSize(1_000), ElasticsearchAssertions::assertNoFailures);
+            final var searchRequestBuilder = prepareSearch(indexName).setSize(size);
+            if (sortByTimestamp) {
+                searchRequestBuilder.addSort(DataStream.TIMESTAMP_FIELD_NAME, ASC);
+            }
+            assertResponse(searchRequestBuilder, ElasticsearchAssertions::assertNoFailures);
         }
     }
 
@@ -510,11 +591,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
                 )
         ).forEach(bulk::add);
         assertNoFailures(bulk.get());
-    }
-
-    private StatelessSharedBlobCacheService getCacheService() {
-        final IndexShard boostedShard = findSearchShard(BOOSTED_IDX);
-        return BlobStoreCacheDirectoryTestUtils.getCacheService(SearchDirectory.unwrapDirectory(boostedShard.store().directory()));
     }
 
     /**

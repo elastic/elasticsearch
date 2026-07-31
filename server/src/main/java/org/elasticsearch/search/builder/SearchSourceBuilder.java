@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -132,6 +133,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
+    private static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
+
     /**
      * A static factory method to construct a new search source.
      */
@@ -212,6 +215,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
+    private List<String> embeddingsFields = new ArrayList<>();
+
     /**
      * Constructs a new search source builder.
      */
@@ -273,6 +278,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
+        if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            embeddingsFields = new ArrayList<>(in.readStringCollectionAsList());
+        }
     }
 
     @Override
@@ -280,6 +288,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (retrieverBuilder != null) {
             throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
         }
+
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false) {
+            // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format
+            embeddingsFields.forEach(this::fetchField);
+        }
+
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -336,6 +350,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(knnSearch);
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            out.writeStringCollection(embeddingsFields);
+        }
     }
 
     /**
@@ -1002,6 +1019,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Adds a field whose embeddings should be returned as part of the search response.
+     */
+    public SearchSourceBuilder embeddingsField(String field) {
+        embeddingsFields.add(field);
+        return this;
+    }
+
+    /**
+     * Gets the fields whose embeddings should be returned as part of the search response.
+     */
+    public List<String> embeddingsFields() {
+        return Collections.unmodifiableList(embeddingsFields);
+    }
+
+    /**
      * Adds a script field under the given name with the provided script.
      *
      * @param name
@@ -1274,6 +1306,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
+        rewrittenBuilder.embeddingsFields = embeddingsFields;
         return rewrittenBuilder;
     }
 
@@ -2160,7 +2193,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             runtimeMappings,
-            skipInnerHits
+            skipInnerHits,
+            embeddingsFields
         );
     }
 
@@ -2206,7 +2240,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
-            && Objects.equals(skipInnerHits, other.skipInnerHits);
+            && Objects.equals(skipInnerHits, other.skipInnerHits)
+            && Objects.equals(embeddingsFields, other.embeddingsFields);
     }
 
     @Override

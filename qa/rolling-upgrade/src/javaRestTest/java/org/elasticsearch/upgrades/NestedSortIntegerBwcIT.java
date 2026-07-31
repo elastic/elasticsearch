@@ -51,25 +51,18 @@ public class NestedSortIntegerBwcIT extends AbstractRollingUpgradeTestCase {
         );
 
         if (isOldCluster()) {
-            createIndex(
-                INDEX_NAME,
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .build(),
-                """
-                    {
-                        "properties": {
-                            "obj": {
-                                "type": "nested",
-                                "properties": {
-                                    "value": { "type": "integer" }
-                                }
+            createIndex(INDEX_NAME, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build(), """
+                {
+                    "properties": {
+                        "obj": {
+                            "type": "nested",
+                            "properties": {
+                                "value": { "type": "integer" }
                             }
                         }
                     }
-                    """
-            );
+                }
+                """);
 
             // Index three parent docs with nested children in non-sorted order so that
             // a correct ascending sort must reorder them as 10 -> 20 -> 30.
@@ -111,12 +104,12 @@ public class NestedSortIntegerBwcIT extends AbstractRollingUpgradeTestCase {
         var hits = (List<Map<String, Object>>) ((Map<String, Object>) body.get("hits")).get("hits");
         assertEquals("Expected 3 hits", 3, hits.size());
 
-        List<Long> sortValues = hits.stream()
-            .map(h -> ((Number) ((List<Object>) h.get("sort")).get(0)).longValue())
-            .toList();
+        List<Long> sortValues = hits.stream().map(h -> ((Number) ((List<Object>) h.get("sort")).get(0)).longValue()).toList();
 
         assertEquals(
-            "Nested integer sort returned " + sortValues + " but expected [10, 20, 30]. "
+            "Nested integer sort returned "
+                + sortValues
+                + " but expected [10, 20, 30]. "
                 + "The integer sort BWC rewrite may have replaced the nested-aware comparator "
                 + "with a plain LONG SortedNumericSortField that ignores nested children.",
             List.of(10L, 20L, 30L),

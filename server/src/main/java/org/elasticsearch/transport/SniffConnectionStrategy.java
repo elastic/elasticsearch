@@ -261,6 +261,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                         connection,
                         clusterAlias,
+                        connectionManager.getLinkedProjectId(),
                         connectionManager.getCredentialsManager()
                     ),
                     profile,

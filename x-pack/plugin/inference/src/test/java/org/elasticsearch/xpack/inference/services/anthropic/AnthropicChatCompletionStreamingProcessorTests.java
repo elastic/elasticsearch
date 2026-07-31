@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,8 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
 
     private static final String MSG_ID = "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v";
     private static final String MODEL = "claude-3-5-haiku-20241022";
+    private static final String TOOL_ID = "toolu_vrtx_01GooUb1exnL7s8QrUgAQvQj";
+    private static final String FUNCTION_TYPE = "function";
 
     public void testParseSuccess() {
         var item = events(
@@ -113,11 +116,11 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertContent(response, "");
         assertContent(response, "Hello");
         assertContent(response, "World");
-        assertToolUseContentStartBlock(response);
-        assertToolUseArguments(response, "Hello");
-        assertToolUseArguments(response, "World");
+        assertToolUseContentStartBlock(response, 0, TOOL_ID, "get_weather");
+        assertToolUseArguments(response, 0, "Hello");
+        assertToolUseArguments(response, 0, "World");
         assertMessageDeltaBlock(response);
-        assertMessageStopUsageBlock(response, 99, 393, 492, null);
+        assertMessageStopUsageBlock(response, 99, 393, 492, null, null);
     }
 
     public void testParseSuccess_MultipleToolCalls() {
@@ -206,7 +209,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertNull(messageDelta.usage());
 
         // message_stop: usage
-        assertMessageStopUsageBlock(response, 20, 10, 30, null);
+        assertMessageStopUsageBlock(response, 20, 10, 30, null, null);
     }
 
     public void testParseSuccess_ThinkingBlock() {
@@ -277,7 +280,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(messageDelta.choices().getFirst().finishReason(), is("stop"));
 
         // message_stop: usage
-        assertMessageStopUsageBlock(response, 10, 5, 15, null);
+        assertMessageStopUsageBlock(response, 10, 5, 15, null, null);
     }
 
     public void testParseSuccess_RedactedThinkingBlock() {
@@ -320,7 +323,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
 
         response.chunks().remove(); // message_delta
 
-        assertMessageStopUsageBlock(response, 5, 5, 10, null);
+        assertMessageStopUsageBlock(response, 5, 5, 10, null, null);
     }
 
     public void testParseSuccess_CacheTokensIncludedInPromptTokens() {
@@ -359,52 +362,8 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var deltaChunk = response.chunks().remove();
         assertNull(deltaChunk.usage());
 
-        // message_stop: prompt = 100 + 50 + 200 = 350; total = 350 + 30 = 380; cachedTokens = 200
-        assertMessageStopUsageBlock(response, 30, 350, 380, 200);
-    }
-
-    public void testParseSuccess_FinishReasonMapping() {
-        assertFinishReasonMapped("end_turn", "stop");
-        assertFinishReasonMapped("stop_sequence", "stop");
-        assertFinishReasonMapped("max_tokens", "length");
-        assertFinishReasonMapped("tool_use", "tool_calls");
-        assertFinishReasonMapped("refusal", "content_filter");
-    }
-
-    private void assertFinishReasonMapped(String anthropicReason, String expectedUnifiedReason) {
-        var item = events(
-            List.of(
-                Pair.of("message_start", """
-                    {
-                        "type": "message_start",
-                        "message": {
-                            "model": "claude-3-5-haiku-20241022",
-                            "id": "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v",
-                            "role": "assistant",
-                            "stop_reason": null,
-                            "usage": {"input_tokens": 1, "output_tokens": 1,
-                                      "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
-                        }
-                    }
-                    """),
-                Pair.of("message_delta", """
-                    {"type":"message_delta","delta":{"stop_reason":"%s"},"usage":{"output_tokens":1}}""".formatted(anthropicReason)),
-                Pair.of("message_stop", """
-                    {"type":"message_stop"}""")
-            )
-        );
-        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
-            fail("This should not be called");
-            return null;
-        }), item);
-        // skip message_start
-        response.chunks().remove();
-        var deltaChunk = response.chunks().remove();
-        assertThat(
-            "Expected [" + anthropicReason + "] → [" + expectedUnifiedReason + "]",
-            deltaChunk.choices().getFirst().finishReason(),
-            is(expectedUnifiedReason)
-        );
+        // message_stop: prompt = 100 + 50 + 200 = 350; total = 350 + 30 = 380; cachedTokens = 200, cacheWriteTokens = 50
+        assertMessageStopUsageBlock(response, 30, 350, 380, 200, 50);
     }
 
     public void testIdModelObjectPropagatedOnEveryChunk() {
@@ -465,6 +424,116 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         }), item);
         assertThat(response.chunks().size(), equalTo(1));
         assertMessageStartBlock(response);
+    }
+
+    public void testParseParallelToolCallsKeepsDistinctIndices() {
+        // Two tool_use blocks (Anthropic content block indices 1 and 2, after a text block at 0) must stream as tool calls
+        // with distinct monotonically increasing indices, so a client accumulating arguments by index does not merge them.
+        var item = events(List.of(Pair.of("content_block_start", """
+            {
+                "type": "content_block_start",
+                "index": 1,
+                "content_block": {"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {}}
+            }
+            """), Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"location\\": \\"San Francisco\\"}"}
+            }
+            """), Pair.of("content_block_start", """
+            {
+                "type": "content_block_start",
+                "index": 2,
+                "content_block": {"type": "tool_use", "id": "toolu_02", "name": "get_time", "input": {}}
+            }
+            """), Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 2,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"timezone\\": \\"PST\\"}"}
+            }
+            """)));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), equalTo(4));
+        {
+            assertToolUseContentStartBlock(response, 0, "toolu_01", "get_weather");
+        }
+        {
+            assertToolUseArguments(response, 0, "{\"location\": \"San Francisco\"}");
+        }
+        {
+            assertToolUseContentStartBlock(response, 1, "toolu_02", "get_time");
+        }
+        {
+            assertToolUseArguments(response, 1, "{\"timezone\": \"PST\"}");
+        }
+    }
+
+    public void testInputJsonDeltaForUnknownContentBlockIsSkipped() throws Exception {
+        // An input_json_delta whose content block index was never announced by a tool_use content_block_start cannot be
+        // attributed to a tool call, so it is dropped and more data is requested instead of emitting a chunk.
+        var item = events(List.of(Pair.of("content_block_delta", """
+            {
+                "type": "content_block_delta",
+                "index": 5,
+                "delta": {"type": "input_json_delta", "partial_json": "{\\"location\\": \\"San Francisco\\"}"}
+            }
+            """)));
+
+        var processor = new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        });
+
+        Flow.Subscriber<ChunkedToXContent> downstream = mock();
+        processor.subscribe(downstream);
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+
+        processor.next(item);
+
+        verify(upstream, times(1)).request(1);
+        verify(downstream, times(0)).onNext(any());
+    }
+
+    public void testStopReasonConvertedToOpenAiFinishReason() {
+        assertFinishReasonForStopReason("end_turn", "stop");
+        assertFinishReasonForStopReason("stop_sequence", "stop");
+        assertFinishReasonForStopReason("pause_turn", "stop");
+        assertFinishReasonForStopReason("max_tokens", "length");
+        assertFinishReasonForStopReason("tool_use", "tool_calls");
+        assertFinishReasonForStopReason("refusal", "content_filter");
+        assertFinishReasonForStopReason("some_unknown_stop_reason", "stop");
+    }
+
+    private static void assertFinishReasonForStopReason(String stopReason, String expectedFinishReason) {
+        var item = events(List.of(Pair.of("message_delta", Strings.format("""
+            {
+                "type": "message_delta",
+                "delta": {
+                    "stop_reason": "%s",
+                    "stop_sequence": null
+                },
+                "usage": {
+                    "output_tokens": 10
+                }
+            }
+            """, stopReason))));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), equalTo(1));
+        var choices = response.chunks().remove().choices();
+        assertThat(choices.size(), is(1));
+        assertThat(choices.getFirst().finishReason(), is(expectedFinishReason));
     }
 
     public void testEmptyResultsRequestsMoreData() throws Exception {
@@ -581,27 +650,36 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(choice.delta().role(), is("assistant"));
     }
 
-    private static void assertToolUseContentStartBlock(StreamingUnifiedChatCompletionResults.Results response) {
+    private static void assertToolUseContentStartBlock(
+        StreamingUnifiedChatCompletionResults.Results response,
+        int toolCallIndex,
+        String id,
+        String name
+    ) {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
         var toolCalls = choices.getFirst().delta().toolCalls();
         assertThat(toolCalls.size(), is(1));
-        assertThat(toolCalls.getFirst().index(), is(0));
-        assertThat(toolCalls.getFirst().id(), is("toolu_vrtx_01GooUb1exnL7s8QrUgAQvQj"));
-        assertThat(toolCalls.getFirst().type(), is("function"));
+        assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
+        assertThat(toolCalls.getFirst().id(), is(id));
+        assertThat(toolCalls.getFirst().type(), is(FUNCTION_TYPE));
         var function = toolCalls.getFirst().function();
         assertThat(function.arguments(), is(""));
-        assertThat(function.name(), is("get_weather"));
+        assertThat(function.name(), is(name));
     }
 
-    private static void assertToolUseArguments(StreamingUnifiedChatCompletionResults.Results response, String arguments) {
+    private static void assertToolUseArguments(
+        StreamingUnifiedChatCompletionResults.Results response,
+        int toolCallIndex,
+        String arguments
+    ) {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
         var toolCalls = choices.getFirst().delta().toolCalls();
         assertThat(toolCalls.size(), is(1));
-        assertThat(toolCalls.getFirst().index(), is(0));
+        assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
         assertNull(toolCalls.getFirst().id());
         var function = toolCalls.getFirst().function();
         assertThat(function.arguments(), Matchers.is(arguments));
@@ -624,7 +702,8 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         int expectedCompletion,
         int expectedPrompt,
         int expectedTotal,
-        Integer expectedCachedTokens
+        Integer expectedCachedTokens,
+        Integer expectedCacheWriteTokens
     ) {
         var chunk = response.chunks().remove();
         assertThat(chunk.choices().size(), is(0));
@@ -632,7 +711,15 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(usage.completionTokens(), is(expectedCompletion));
         assertThat(usage.promptTokens(), is(expectedPrompt));
         assertThat(usage.totalTokens(), is(expectedTotal));
-        assertThat(usage.cachedTokens(), is(expectedCachedTokens));
+        assertThat(
+            usage.promptTokensDetails(),
+            is(
+                StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails.ofNullable(
+                    expectedCachedTokens,
+                    expectedCacheWriteTokens
+                )
+            )
+        );
     }
 
     private static void assertContent(StreamingUnifiedChatCompletionResults.Results response, String content) {

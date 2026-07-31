@@ -64,11 +64,8 @@ public class CustomResponseHandler extends BaseResponseHandler {
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
-            return;
-        }
 
         // handle error codes
         if (statusCode >= 500) {

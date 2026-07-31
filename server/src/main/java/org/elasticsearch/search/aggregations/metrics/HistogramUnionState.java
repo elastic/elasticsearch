@@ -124,10 +124,23 @@ public class HistogramUnionState implements Releasable, Accountable {
     }
 
     public static HistogramUnionState createUsingParamsFrom(HistogramUnionState otherState) {
+        return createUsingParamsFrom(otherState, otherState.breaker);
+    }
+
+    /**
+     * Creates a new empty {@link HistogramUnionState} with the same initialization params as {@code otherState} but charges
+     * {@code breaker} instead of the one stored in {@code otherState}. Use this when the state's original breaker may no longer be
+     * valid — for example, a {@code PreallocatedCircuitBreaker} closed when the aggregation context is torn down before reduction runs.
+     * No data loading happens, and the input state is not altered.
+     * @param otherState the state providing initialization params
+     * @param breaker the circuit breaker to charge for the new instance
+     * @return a new empty HistogramUnionState
+     */
+    public static HistogramUnionState createUsingParamsFrom(HistogramUnionState otherState, CircuitBreaker breaker) {
         if (otherState.tDigestState != null) {
-            return wrap(otherState.breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState));
+            return wrap(breaker, TDigestState.createUsingParamsFrom(otherState.tDigestState, breaker));
         } else {
-            return createWithEmptyTDigest(otherState.breaker, otherState.tdigestInitParams, null);
+            return createWithEmptyTDigest(breaker, otherState.tdigestInitParams, null);
         }
     }
 

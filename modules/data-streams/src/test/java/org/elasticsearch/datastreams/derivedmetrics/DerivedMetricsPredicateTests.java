@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -49,8 +48,12 @@ public class DerivedMetricsPredicateTests extends ESTestCase {
      * A source document does not have to agree with the mapping, so a numeric field written as a string still matches a numeric term.
      */
     public void testTermIsLenientAboutNumericTypes() {
-        Map<String, Object> source = Map.of("http", Map.of("response", Map.of("status_code", "503")));
-        assertTrue(DerivedMetricsPredicate.compile(Map.of("term", Map.of("http.response.status_code", 503))).test(source));
+        assertTrue(
+            matches(
+                Map.of("term", Map.of("http.response.status_code", 503)),
+                Map.of("http", Map.of("response", Map.of("status_code", "503")))
+            )
+        );
     }
 
     public void testTerms() {
@@ -107,13 +110,17 @@ public class DerivedMetricsPredicateTests extends ESTestCase {
     }
 
     public void testNullPredicateMatchesEverything() {
-        assertSame(DerivedMetricsPredicate.MATCH_ALL, DerivedMetricsPredicate.compile(null));
-        assertTrue(DerivedMetricsPredicate.MATCH_ALL.test(Map.of()));
+        assertSame(DerivedMetricsPredicate.MATCH_ALL, DerivedMetricsPredicate.compile(null, new DerivedMetricsSourcePaths()));
+        assertTrue(DerivedMetricsPredicate.MATCH_ALL.test(new Object[0]));
     }
 
-    public void testCollectPathsWalksTheWholeTree() {
-        Set<String> paths = new TreeSet<>();
-        DerivedMetricsPredicate.collectPaths(
+    /**
+     * Compiling a predicate is also what claims a slot for every field it reads, so that evaluation is an array read rather than a path
+     * lookup. Nothing else walks the predicate tree looking for paths any more.
+     */
+    public void testCompilingClaimsASlotForEveryFieldRead() {
+        DerivedMetricsSourcePaths paths = new DerivedMetricsSourcePaths();
+        DerivedMetricsPredicate.compile(
             Map.of(
                 "and",
                 List.of(
@@ -130,24 +137,45 @@ public class DerivedMetricsPredicateTests extends ESTestCase {
             ),
             paths
         );
-        assertEquals(Set.of("event.duration", "event.outcome", "http.response.status_code", "http.request.bytes"), Set.copyOf(paths));
+        assertEquals(
+            Set.of("event.duration", "event.outcome", "http.response.status_code", "http.request.bytes"),
+            Set.copyOf(paths.paths())
+        );
     }
 
-    public void testCollectPathsOfNullPredicate() {
-        Set<String> paths = new TreeSet<>();
-        DerivedMetricsPredicate.collectPaths(null, paths);
-        assertTrue(paths.isEmpty());
+    /**
+     * Two fields naming the same path share one slot, so the value is extracted once per document however many predicates want it.
+     */
+    public void testTheSameFieldClaimsTheSameSlot() {
+        DerivedMetricsSourcePaths paths = new DerivedMetricsSourcePaths();
+        DerivedMetricsPredicate.compile(
+            Map.of("and", List.of(Map.of("term", Map.of("event.outcome", "failure")), Map.of("exists", Map.of("field", "event.outcome")))),
+            paths
+        );
+        assertEquals(1, paths.size());
     }
 
     public void testUnsupportedOperator() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DerivedMetricsPredicate.compile(Map.of("wildcard", Map.of("event.outcome", "fail*")))
+            () -> DerivedMetricsPredicate.compile(Map.of("wildcard", Map.of("event.outcome", "fail*")), new DerivedMetricsSourcePaths())
         );
         assertThat(e.getMessage(), containsString("unsupported derived metrics predicate operator [wildcard]"));
     }
 
     private static boolean matches(Map<String, Object> predicate) {
-        return DerivedMetricsPredicate.compile(predicate).test(DOCUMENT);
+        return matches(predicate, DOCUMENT);
+    }
+
+    /**
+     * Compiles the predicate, extracts what the document has at the paths it claimed, and evaluates it — the same sequence the write path
+     * runs, so the extractor and the predicate are exercised together rather than one being faked for the other.
+     */
+    private static boolean matches(Map<String, Object> predicate, Map<String, Object> document) {
+        DerivedMetricsSourcePaths paths = new DerivedMetricsSourcePaths();
+        DerivedMetricsPredicate compiled = DerivedMetricsPredicate.compile(predicate, paths);
+        Object[] values = new Object[paths.size()];
+        DerivedMetricsSourceReader.read(DerivedMetricsSourceReaderTests.parsedDocument(document), paths, values);
+        return compiled.test(values);
     }
 }

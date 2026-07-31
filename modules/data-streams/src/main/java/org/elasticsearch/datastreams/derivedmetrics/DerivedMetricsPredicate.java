@@ -9,13 +9,10 @@
 
 package org.elasticsearch.datastreams.derivedmetrics;
 
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A {@code when} clause of a derived metric, compiled once into a tree that can be evaluated against a document's source on the write
@@ -32,11 +29,17 @@ import java.util.Set;
 @FunctionalInterface
 public interface DerivedMetricsPredicate {
 
-    DerivedMetricsPredicate MATCH_ALL = source -> true;
+    DerivedMetricsPredicate MATCH_ALL = values -> true;
 
-    boolean test(Map<String, Object> source);
+    /**
+     * @param values the document's values indexed by slot, as filled by {@link DerivedMetricsSourceReader}
+     */
+    boolean test(Object[] values);
 
-    static DerivedMetricsPredicate compile(Map<String, Object> when) {
+    /**
+     * @param paths assigns a slot to each field the predicate reads, so evaluation is an array read rather than a path lookup
+     */
+    static DerivedMetricsPredicate compile(Map<String, Object> when, DerivedMetricsSourcePaths paths) {
         if (when == null) {
             return MATCH_ALL;
         }
@@ -45,21 +48,21 @@ public interface DerivedMetricsPredicate {
         Object value = entry.getValue();
         return switch (operator) {
             case "exists" -> {
-                String[] field = path((String) single(asMap(value, operator)).getValue());
-                yield source -> hasValue(XContentMapValues.extractValue(source, field));
+                int field = paths.slotFor((String) single(asMap(value, operator)).getValue());
+                yield values -> hasValue(values[field]);
             }
             case "term" -> {
                 Map.Entry<String, Object> term = single(asMap(value, operator));
-                String[] field = path(term.getKey());
+                int field = paths.slotFor(term.getKey());
                 Object expected = term.getValue();
-                yield source -> matches(XContentMapValues.extractValue(source, field), expected);
+                yield values -> matches(values[field], expected);
             }
             case "terms" -> {
                 Map.Entry<String, Object> terms = single(asMap(value, operator));
-                String[] field = path(terms.getKey());
+                int field = paths.slotFor(terms.getKey());
                 List<?> expected = (List<?>) terms.getValue();
-                yield source -> {
-                    Object actual = XContentMapValues.extractValue(source, field);
+                yield values -> {
+                    Object actual = values[field];
                     for (Object candidate : expected) {
                         if (matches(actual, candidate)) {
                             return true;
@@ -70,15 +73,15 @@ public interface DerivedMetricsPredicate {
             }
             case "range" -> {
                 Map.Entry<String, Object> range = single(asMap(value, operator));
-                String[] field = path(range.getKey());
+                int field = paths.slotFor(range.getKey());
                 Map<String, Object> bounds = asMap(range.getValue(), operator);
                 Double gt = bound(bounds, "gt");
                 Double gte = bound(bounds, "gte");
                 Double lt = bound(bounds, "lt");
                 Double lte = bound(bounds, "lte");
-                yield source -> {
-                    Object actual = XContentMapValues.extractValue(source, field);
-                    for (Object candidate : values(actual)) {
+                yield values -> {
+                    Object actual = values[field];
+                    for (Object candidate : valuesOf(actual)) {
                         Double number = asDouble(candidate);
                         if (number == null) {
                             continue;
@@ -101,10 +104,10 @@ public interface DerivedMetricsPredicate {
                 };
             }
             case "and" -> {
-                List<DerivedMetricsPredicate> children = compileAll(value, operator);
-                yield source -> {
+                List<DerivedMetricsPredicate> children = compileAll(value, operator, paths);
+                yield values -> {
                     for (DerivedMetricsPredicate child : children) {
-                        if (child.test(source) == false) {
+                        if (child.test(values) == false) {
                             return false;
                         }
                     }
@@ -112,10 +115,10 @@ public interface DerivedMetricsPredicate {
                 };
             }
             case "or" -> {
-                List<DerivedMetricsPredicate> children = compileAll(value, operator);
-                yield source -> {
+                List<DerivedMetricsPredicate> children = compileAll(value, operator, paths);
+                yield values -> {
                     for (DerivedMetricsPredicate child : children) {
-                        if (child.test(source)) {
+                        if (child.test(values)) {
                             return true;
                         }
                     }
@@ -123,49 +126,18 @@ public interface DerivedMetricsPredicate {
                 };
             }
             case "not" -> {
-                DerivedMetricsPredicate child = compile(asMap(value, operator));
-                yield source -> child.test(source) == false;
+                DerivedMetricsPredicate child = compile(asMap(value, operator), paths);
+                yield values -> child.test(values) == false;
             }
             default -> throw new IllegalArgumentException("unsupported derived metrics predicate operator [" + operator + "]");
         };
     }
 
-    /**
-     * Splits a dotted path once, at compile time. {@link XContentMapValues#extractValue(String, Map)} splits on every call, which on the
-     * write path means a regular expression split per predicate per document.
-     */
-    private static String[] path(String field) {
-        return field.split("\\.");
-    }
-
-    /**
-     * Collects every source path the predicate reads, so that only those paths need to be extracted from {@code _source}.
-     */
-    static void collectPaths(Map<String, Object> when, Set<String> paths) {
-        if (when == null) {
-            return;
-        }
-        Map.Entry<String, Object> entry = single(when);
-        String operator = entry.getKey();
-        Object value = entry.getValue();
-        switch (operator) {
-            case "exists" -> paths.add((String) single(asMap(value, operator)).getValue());
-            case "term", "terms", "range" -> paths.add(single(asMap(value, operator)).getKey());
-            case "and", "or" -> {
-                for (Object child : (List<?>) value) {
-                    collectPaths(asMap(child, operator), paths);
-                }
-            }
-            case "not" -> collectPaths(asMap(value, operator), paths);
-            default -> throw new IllegalArgumentException("unsupported derived metrics predicate operator [" + operator + "]");
-        }
-    }
-
-    private static List<DerivedMetricsPredicate> compileAll(Object value, String operator) {
+    private static List<DerivedMetricsPredicate> compileAll(Object value, String operator, DerivedMetricsSourcePaths paths) {
         if (value instanceof List<?> children) {
             List<DerivedMetricsPredicate> compiled = new ArrayList<>(children.size());
             for (Object child : children) {
-                compiled.add(compile(asMap(child, operator)));
+                compiled.add(compile(asMap(child, operator), paths));
             }
             return List.copyOf(compiled);
         }
@@ -183,7 +155,7 @@ public interface DerivedMetricsPredicate {
     }
 
     private static boolean matches(Object actual, Object expected) {
-        for (Object candidate : values(actual)) {
+        for (Object candidate : valuesOf(actual)) {
             if (candidate == null) {
                 continue;
             }
@@ -205,7 +177,7 @@ public interface DerivedMetricsPredicate {
         return false;
     }
 
-    private static Collection<?> values(Object value) {
+    private static Collection<?> valuesOf(Object value) {
         if (value == null) {
             return List.of();
         }

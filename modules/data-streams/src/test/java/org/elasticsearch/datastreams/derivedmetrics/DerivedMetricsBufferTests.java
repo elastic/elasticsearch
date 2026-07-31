@@ -432,6 +432,8 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             DerivedMetricsPredicate.MATCH_ALL,
             new Source.Constant(1.0),
             List.of("service.name"),
+            new int[] { 0 },
+            0,
             TEN_SECONDS
         );
         return new TableKey(ProjectId.DEFAULT, sourceDataStream, metric, bucketStart, TEN_SECONDS.millis());

@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -32,8 +31,7 @@ import java.util.Set;
  */
 public record CompiledDerivedMetrics(
     List<CompiledMetric> metrics,
-    Set<String> requiredPaths,
-    XContentParserConfiguration sourceFilter,
+    DerivedMetricsSourcePaths sourcePaths,
     int dimensionSets,
     List<String> unsupportedMetrics,
     EnumSet<Trigger> triggers
@@ -82,14 +80,9 @@ public record CompiledDerivedMetrics(
         /**
          * The numeric value of a source field. Documents where the field is absent or not numeric contribute nothing.
          *
-         * @param segments the path split once, at compile time, because splitting it per document is a regular expression match per
-         *                 document
+         * @param slot where the extractor writes this field's value, resolved once at compile time
          */
-        record Field(String path, String[] segments) implements Source {
-            static Field of(String path) {
-                return new Field(path, splitPath(path));
-            }
-        }
+        record Field(String path, int slot) implements Source {}
 
         /**
          * The size of the document's source in bytes, used by the {@code ingest.bytes.*} built-ins.
@@ -110,7 +103,7 @@ public record CompiledDerivedMetrics(
      * destination data stream the metric is written to.
      *
      * @param dimensions     dimension names, in the order they are emitted
-     * @param dimensionPaths the same names split once, at compile time, for reading out of {@code _source}
+     * @param dimensionSlots where the extractor writes each of those dimensions' values, resolved once at compile time
      * @param dimensionSet   which distinct dimension list this metric uses. Metrics that configure the same dimensions — the normal case,
      *                       since global dimensions apply to every metric — share a slot, so the write path resolves those values once per
      *                       document instead of once per metric. Reading a value out of {@code _source} is not free: it allocates a list
@@ -123,34 +116,10 @@ public record CompiledDerivedMetrics(
         DerivedMetricsPredicate predicate,
         Source source,
         List<String> dimensions,
-        String[][] dimensionPaths,
+        int[] dimensionSlots,
         int dimensionSet,
         Interval interval
-    ) {
-        public CompiledMetric(
-            String name,
-            Trigger trigger,
-            Reduction reduction,
-            DerivedMetricsPredicate predicate,
-            Source source,
-            List<String> dimensions,
-            Interval interval
-        ) {
-            this(name, trigger, reduction, predicate, source, dimensions, splitPaths(dimensions), 0, interval);
-        }
-    }
-
-    private static String[][] splitPaths(List<String> paths) {
-        String[][] split = new String[paths.size()][];
-        for (int i = 0; i < paths.size(); i++) {
-            split[i] = splitPath(paths.get(i));
-        }
-        return split;
-    }
-
-    private static String[] splitPath(String path) {
-        return path.split("\\.");
-    }
+    ) {}
 
     private static final String INGEST_DOCS_COUNT = "ingest.docs.count";
     private static final String INGEST_DOCS_RATE = "ingest.docs.rate";
@@ -170,33 +139,32 @@ public record CompiledDerivedMetrics(
 
     public static CompiledDerivedMetrics compile(DataStreamDerivedMetrics config) {
         Interval defaultInterval = intervalOf(config.defaultInterval());
+        // Every path any metric reads is numbered here, so nothing downstream ever carries a path string: the write path fills an array
+        // indexed by slot and reads it back by index.
+        DerivedMetricsSourcePaths paths = new DerivedMetricsSourcePaths();
 
-        Set<String> requiredPaths = new LinkedHashSet<>(config.dimensions());
         List<CompiledMetric> metrics = new ArrayList<>();
         for (String builtin : expandBuiltins(config.builtin())) {
-            metrics.add(compileBuiltin(builtin, config.dimensions(), defaultInterval));
+            metrics.add(compileBuiltin(builtin, config.dimensions(), paths, defaultInterval));
         }
 
         List<String> unsupported = new ArrayList<>();
         for (DataStreamDerivedMetrics.Metric metric : config.metrics()) {
             List<String> dimensions = mergeDimensions(config.dimensions(), metric.dimensions());
-            requiredPaths.addAll(dimensions);
-            DerivedMetricsPredicate.collectPaths(metric.when(), requiredPaths);
-            Source source;
-            if (metric.value().field() != null) {
-                source = Source.Field.of(metric.value().field());
-                requiredPaths.add(metric.value().field());
-            } else {
-                source = new Source.Constant(metric.value().constant());
-            }
+            Source source = metric.value().field() != null
+                ? new Source.Field(metric.value().field(), paths.slotFor(metric.value().field()))
+                : new Source.Constant(metric.value().constant());
             metrics.add(
                 new CompiledMetric(
                     metric.name(),
                     Trigger.SUCCESS,
                     reductionFor(metric),
-                    DerivedMetricsPredicate.compile(metric.when()),
+                    // compiling the predicate is also what assigns slots to the fields it reads
+                    DerivedMetricsPredicate.compile(metric.when(), paths),
                     source,
                     dimensions,
+                    slotsFor(dimensions, paths),
+                    0,
                     intervalOf(config.intervalOf(metric))
                 )
             );
@@ -207,20 +175,35 @@ public record CompiledDerivedMetrics(
             triggers.add(metric.trigger());
         }
 
-        // Compiling the source filter here rather than per document is the point: withFiltering runs FilterPath.compile, which parses
-        // every path. The paths are a property of the configuration, so this is done once per configuration change.
-        Set<String> paths = Set.copyOf(requiredPaths);
-        XContentParserConfiguration sourceFilter = paths.isEmpty()
-            ? XContentParserConfiguration.EMPTY
-            : XContentParserConfiguration.EMPTY.withFiltering(null, paths, null, true);
+        return new CompiledDerivedMetrics(
+            assignDimensionSets(metrics),
+            paths,
+            countDimensionSets(metrics),
+            List.copyOf(unsupported),
+            triggers
+        );
+    }
 
-        List<List<String>> dimensionSets = new ArrayList<>();
+    private static int[] slotsFor(List<String> dimensions, DerivedMetricsSourcePaths paths) {
+        int[] slots = new int[dimensions.size()];
+        for (int i = 0; i < dimensions.size(); i++) {
+            slots[i] = paths.slotFor(dimensions.get(i));
+        }
+        return slots;
+    }
+
+    /**
+     * Gives every metric the index of its dimension list among the distinct ones, so that metrics configuring the same dimensions resolve
+     * them once per document between them rather than once each. Global dimensions apply to every metric, so this is the normal case.
+     */
+    private static List<CompiledMetric> assignDimensionSets(List<CompiledMetric> metrics) {
+        List<List<String>> distinct = new ArrayList<>();
         List<CompiledMetric> assigned = new ArrayList<>(metrics.size());
         for (CompiledMetric metric : metrics) {
-            int set = dimensionSets.indexOf(metric.dimensions());
+            int set = distinct.indexOf(metric.dimensions());
             if (set < 0) {
-                set = dimensionSets.size();
-                dimensionSets.add(metric.dimensions());
+                set = distinct.size();
+                distinct.add(metric.dimensions());
             }
             assigned.add(
                 new CompiledMetric(
@@ -230,21 +213,23 @@ public record CompiledDerivedMetrics(
                     metric.predicate(),
                     metric.source(),
                     metric.dimensions(),
-                    metric.dimensionPaths(),
+                    metric.dimensionSlots(),
                     set,
                     metric.interval()
                 )
             );
         }
+        return List.copyOf(assigned);
+    }
 
-        return new CompiledDerivedMetrics(
-            List.copyOf(assigned),
-            paths,
-            sourceFilter,
-            dimensionSets.size(),
-            List.copyOf(unsupported),
-            triggers
-        );
+    private static int countDimensionSets(List<CompiledMetric> metrics) {
+        List<List<String>> distinct = new ArrayList<>();
+        for (CompiledMetric metric : metrics) {
+            if (distinct.contains(metric.dimensions()) == false) {
+                distinct.add(metric.dimensions());
+            }
+        }
+        return distinct.size();
     }
 
     private static List<String> expandBuiltins(List<String> builtin) {
@@ -263,14 +248,46 @@ public record CompiledDerivedMetrics(
         return new Interval(interval.getStringRep(), interval.millis());
     }
 
-    private static CompiledMetric compileBuiltin(String name, List<String> dimensions, Interval interval) {
+    private static CompiledMetric compileBuiltin(String name, List<String> dimensions, DerivedMetricsSourcePaths paths, Interval interval) {
         return switch (name) {
-            case INGEST_DOCS_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.Constant(1.0), dimensions, interval);
-            case INGEST_DOCS_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.Constant(1.0), dimensions, interval);
-            case INGEST_BYTES_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.DocumentSize(), dimensions, interval);
-            case INGEST_BYTES_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.DocumentSize(), dimensions, interval);
-            case INGEST_FAILURES_COUNT -> builtin(name, Trigger.FAILURE, Reduction.SUM, new Source.Constant(1.0), dimensions, interval);
-            case INGEST_FAILURES_RATE -> builtin(name, Trigger.FAILURE, Reduction.RATE, new Source.Constant(1.0), dimensions, interval);
+            case INGEST_DOCS_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.Constant(1.0), dimensions, paths, interval);
+            case INGEST_DOCS_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.Constant(1.0), dimensions, paths, interval);
+            case INGEST_BYTES_COUNT -> builtin(
+                name,
+                Trigger.SUCCESS,
+                Reduction.SUM,
+                new Source.DocumentSize(),
+                dimensions,
+                paths,
+                interval
+            );
+            case INGEST_BYTES_RATE -> builtin(
+                name,
+                Trigger.SUCCESS,
+                Reduction.RATE,
+                new Source.DocumentSize(),
+                dimensions,
+                paths,
+                interval
+            );
+            case INGEST_FAILURES_COUNT -> builtin(
+                name,
+                Trigger.FAILURE,
+                Reduction.SUM,
+                new Source.Constant(1.0),
+                dimensions,
+                paths,
+                interval
+            );
+            case INGEST_FAILURES_RATE -> builtin(
+                name,
+                Trigger.FAILURE,
+                Reduction.RATE,
+                new Source.Constant(1.0),
+                dimensions,
+                paths,
+                interval
+            );
             default -> throw new IllegalArgumentException("unsupported derived metrics builtin [" + name + "]");
         };
     }
@@ -281,9 +298,21 @@ public record CompiledDerivedMetrics(
         Reduction reduction,
         Source source,
         List<String> dimensions,
+        DerivedMetricsSourcePaths paths,
         Interval interval
     ) {
-        return new CompiledMetric(name, trigger, reduction, DerivedMetricsPredicate.MATCH_ALL, source, List.copyOf(dimensions), interval);
+        List<String> copy = List.copyOf(dimensions);
+        return new CompiledMetric(
+            name,
+            trigger,
+            reduction,
+            DerivedMetricsPredicate.MATCH_ALL,
+            source,
+            copy,
+            slotsFor(copy, paths),
+            0,
+            interval
+        );
     }
 
     private static Reduction reductionFor(DataStreamDerivedMetrics.Metric metric) {
@@ -311,6 +340,11 @@ public record CompiledDerivedMetrics(
      * Whether any metric needs values read from the document's source. When false the write path can skip source parsing entirely.
      */
     public boolean needsSource() {
-        return requiredPaths.isEmpty() == false;
+        return sourcePaths.size() > 0;
+    }
+
+    /** The source paths any metric reads, in slot order. */
+    public List<String> requiredPaths() {
+        return sourcePaths.paths();
     }
 }

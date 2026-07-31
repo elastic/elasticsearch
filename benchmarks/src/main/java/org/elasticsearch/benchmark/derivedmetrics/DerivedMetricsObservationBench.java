@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsSourceReader;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -99,7 +101,11 @@ public class DerivedMetricsObservationBench {
 
     @Setup
     public void setUp() {
-        threadPool = new TestThreadPool("derived-metrics-bench");
+        // the service takes its executor from the pool the plugin registers, so the benchmark has to register it too
+        threadPool = new TestThreadPool(
+            "derived-metrics-bench",
+            new DataStreamsPlugin(Settings.EMPTY).getExecutorBuilders(Settings.EMPTY).toArray(ExecutorBuilder<?>[]::new)
+        );
         Settings settings = Settings.builder()
             // a budget wide enough that the benchmark never measures the cap-refusal path
             .put(DerivedMetricsService.MAX_SERIES_PER_NODE.getKey(), 100_000)
@@ -134,7 +140,9 @@ public class DerivedMetricsObservationBench {
      */
     @Benchmark
     public Object readSource() {
-        return DerivedMetricsSourceReader.read(document, compiled.sourceFilter());
+        Object[] values = new Object[compiled.sourcePaths().size()];
+        DerivedMetricsSourceReader.read(document, compiled.sourcePaths(), values);
+        return values;
     }
 
     private static DataStreamDerivedMetrics configFor(String shape) {

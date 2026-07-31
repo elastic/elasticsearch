@@ -165,6 +165,8 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
             DerivedMetricsPredicate.MATCH_ALL,
             new Source.Constant(1.0),
             names,
+            new int[names.size()],
+            0,
             TEN_SECONDS
         );
         TableKey key = new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, 60_000L, TEN_SECONDS.millis());

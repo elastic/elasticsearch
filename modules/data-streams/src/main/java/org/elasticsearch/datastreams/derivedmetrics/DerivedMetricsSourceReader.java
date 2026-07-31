@@ -9,7 +9,7 @@
 
 package org.elasticsearch.datastreams.derivedmetrics;
 
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsSourcePaths.Node;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -17,15 +17,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
+import java.util.List;
 
 /**
- * Reads the handful of source paths that derived metrics need out of a document that is being written.
+ * Pulls the handful of {@code _source} values derived metrics need out of a document that is being written.
  *
- * <p>The document's source is parsed with a filter restricted to the required paths, the same technique
- * {@link org.elasticsearch.cluster.routing.IndexRouting} uses to extract routing fields. Parsing a filtered slice rather than the whole
- * document is what keeps the write path affordable on a stream that only cares about a few dimensions.
+ * <p>The document is walked once and the values are written straight into a caller-owned array indexed by slot. Nothing intermediate is
+ * built: no filtered copy of the source, no map of the values, no path strings. Any field that no configured path leads to has its whole
+ * subtree skipped, which is almost every field in a real document.
+ *
+ * <p>That matters because this runs once per document on the indexing thread. Building a filtered map first, which is the obvious way and
+ * is how this used to work, cost several kilobytes per document — more, in fact, than parsing the document with no filter at all, because
+ * the filtering machinery is not free either.
  */
 public final class DerivedMetricsSourceReader {
 
@@ -34,48 +39,148 @@ public final class DerivedMetricsSourceReader {
     private DerivedMetricsSourceReader() {}
 
     /**
-     * Returns the requested paths of the document's source, or null when the source could not be read. Callers treat a null source as
-     * "no values available" rather than as an error, because a malformed document must never fail the write it is derived from.
+     * Fills {@code values} with what the document has at each configured path, leaving null where it has nothing.
      *
-     * @param sourceFilter the filter restricted to the required paths, compiled once per configuration by {@link CompiledDerivedMetrics}.
-     *                     Building it here instead would run {@code FilterPath.compile} for every document.
+     * <p>A malformed document must never fail the write it is derived from, so a parse failure leaves the values as they are and is
+     * logged at debug rather than propagating.
+     *
+     * @return whether the document was read. False means no values are available, not that the document had none.
      */
-    public static Map<String, Object> read(ParsedDocument parsedDocument, XContentParserConfiguration sourceFilter) {
-        try (XContentParser parser = parsedDocument.source().parser(sourceFilter)) {
-            return parser.map();
+    public static boolean read(ParsedDocument parsedDocument, DerivedMetricsSourcePaths paths, Object[] values) {
+        try (XContentParser parser = parsedDocument.source().parser(XContentParserConfiguration.EMPTY)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                return false;
+            }
+            readObject(parser, paths.root(), values);
+            return true;
         } catch (IOException | RuntimeException e) {
             logger.debug(() -> "unable to read source for derived metrics", e);
-            return null;
+            return false;
         }
     }
 
     /**
-     * The value at the given path rendered as a dimension value, or null when the path is absent or holds something that cannot be a
-     * single dimension value such as an object or a multi-valued field.
+     * Reads the fields of one object, descending only where the trie says something below is wanted.
      */
-    public static String stringValue(Map<String, Object> source, String[] path) {
-        Object value = XContentMapValues.extractValue(source, path);
-        if (value == null || value instanceof Map<?, ?> || value instanceof Collection<?>) {
-            return null;
+    private static void readObject(XContentParser parser, Node node, Object[] values) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                continue;
+            }
+            String name = parser.currentName();
+            parser.nextToken();
+            // A source may write a nested path either as nested objects or as one dotted field name, and both mean the same path, so the
+            // field name is walked segment by segment rather than looked up whole.
+            Node next = descend(node, name);
+            if (next == null) {
+                parser.skipChildren();
+                continue;
+            }
+            readValue(parser, next, values);
         }
-        return String.valueOf(value);
+    }
+
+    private static Node descend(Node node, String name) {
+        Node next = node.child(name);
+        if (next != null || name.indexOf('.') < 0) {
+            return next;
+        }
+        for (String segment : name.split("\\.")) {
+            node = node.child(segment);
+            if (node == null) {
+                return null;
+            }
+        }
+        return node;
+    }
+
+    private static void readValue(XContentParser parser, Node node, Object[] values) throws IOException {
+        switch (parser.currentToken()) {
+            case START_OBJECT -> {
+                if (node.hasChildren()) {
+                    readObject(parser, node, values);
+                } else {
+                    // the path names an object rather than a value, which is not something a dimension or a metric value can use
+                    parser.skipChildren();
+                }
+            }
+            case START_ARRAY -> {
+                if (node.slot() >= 0) {
+                    values[node.slot()] = readArray(parser);
+                } else {
+                    readArrayForChildren(parser, node, values);
+                }
+            }
+            case VALUE_NULL -> {
+            }
+            default -> {
+                if (node.slot() >= 0) {
+                    values[node.slot()] = parser.objectText();
+                }
+            }
+        }
     }
 
     /**
-     * The numeric value at the given path, or null when the path is absent or does not hold a number.
+     * Collects a multi-valued field into a list, which predicates match against element by element. Allocating here is fine: a dimension
+     * or predicate field is almost never an array, and when it is there is nothing cheaper to represent it with.
      */
-    public static Double numericValue(Map<String, Object> source, String[] path) {
-        Object value = XContentMapValues.extractValue(source, path);
+    private static List<Object> readArray(XContentParser parser) throws IOException {
+        List<Object> collected = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY && token != null) {
+            if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            } else if (token != XContentParser.Token.VALUE_NULL) {
+                collected.add(parser.objectText());
+            }
+        }
+        return collected;
+    }
+
+    /**
+     * An array below a path that only leads to deeper values, such as {@code host.name} where the document holds an array of hosts. Each
+     * element is read as an object so the deeper values are still found.
+     */
+    private static void readArrayForChildren(XContentParser parser, Node node, Object[] values) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY && token != null) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                readObject(parser, node, values);
+            } else {
+                parser.skipChildren();
+            }
+        }
+    }
+
+    /**
+     * The value at the given slot rendered as a dimension value, or null when the document had nothing there or had something that cannot
+     * be a single dimension value, such as an object or a multi-valued field.
+     */
+    public static String stringValue(Object[] values, int slot) {
+        Object value = values[slot];
+        if (value == null || value instanceof Collection<?>) {
+            return null;
+        }
+        return value instanceof String string ? string : String.valueOf(value);
+    }
+
+    /**
+     * The numeric value at the given slot, or {@code NaN} when the document had nothing there or had something that is not a number.
+     */
+    public static double numericValue(Object[] values, int slot) {
+        Object value = values[slot];
         if (value instanceof Number number) {
             return number.doubleValue();
         }
         if (value instanceof String string) {
             try {
-                return Double.valueOf(string);
+                return Double.parseDouble(string);
             } catch (NumberFormatException e) {
-                return null;
+                return Double.NaN;
             }
         }
-        return null;
+        return Double.NaN;
     }
 }

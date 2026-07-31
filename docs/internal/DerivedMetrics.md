@@ -131,13 +131,16 @@ configuration is cached per cluster state version, so the steady-state per-docum
 `CompiledDerivedMetrics` is the write-path form of the configuration: predicates are compiled once, built-in selectors are expanded, and
 the set of source paths any metric needs is known up front. When that set is empty — the common case for a stream that only asks for the
 built-in ingest metrics without dimensions — the write path never parses `_source` at all. When it is not empty, only those paths are
-parsed, using the same filtered-parsing technique `IndexRouting` uses for routing fields — including, as `IndexRouting` does, compiling
-the filter once per configuration rather than once per document.
+walked for.
 
-Everything else that can be precomputed is: predicate and dimension paths are split into segments at compile time rather than on every
-lookup, and metrics that configure the same dimensions share a resolution slot so their values are read out of `_source` once per document
-between them rather than once per metric. That last one is the difference between a linear and a quadratic write path, since global
-dimensions apply to every metric by definition.
+Every path any metric reads — dimensions, predicate fields, value fields — is numbered into a slot at compile time and arranged as a trie.
+The document is then walked exactly once, values are written straight into an array indexed by slot, and any field no configured path leads
+to has its whole subtree skipped. Nothing intermediate is built: no filtered copy of the source, no map, no path strings at all. Two metrics
+naming the same field share a slot, so it is extracted once however many of them want it.
+
+The obvious implementation — build a filtered map and look paths up in it — is what this used to do, and it cost several kilobytes per
+document. It was in fact *more* expensive than parsing the document with no filter at all, because the filtering machinery is not free
+either.
 
 ### What observing a write costs
 
@@ -146,15 +149,19 @@ at least as much as the time. This path runs once per document on the indexing t
 
 | configuration | ns/op | B/op |
 |---|---|---|
-| built-in ingest metrics, no dimensions | 423 | 160 |
-| built-in ingest metrics, one dimension | 1,781 | 3,130 |
-| built-in plus a predicate-guarded counter, five dimensions | 3,620 | 6,884 |
-| one histogram metric over a field | 1,793 | 3,580 |
+| built-in ingest metrics, no dimensions | 398 | 160 |
+| built-in ingest metrics, one dimension | 1,509 | 2,112 |
+| built-in plus a predicate-guarded counter, five dimensions | 2,473 | 2,328 |
+| one histogram metric over a field | 1,269 | 1,932 |
 
-The shape of that table is the important part. A stream that only wants the built-in ingest metrics never reads `_source`, and costs
-essentially nothing. The moment a single dimension is configured the write path has to parse a filtered slice of the document, and that
-parse then dominates: for the five-dimension case roughly two thirds of the remaining bytes are the filtered parse itself, and everything
-derived from it is the other third. If this needs to get cheaper again, the parse is where to look, not the accumulation.
+The shape of that table is the important part, and it is close to flat. A stream that only wants the built-in ingest metrics never reads
+`_source` at all and costs essentially nothing. Every configuration that does read it pays about the same, because what dominates is
+touching the source at all rather than how much of it is wanted: creating a parser and scanning the document with *nothing* configured
+already costs about 1,850 bytes, which is 89% of the five-dimension figure. Adding four more dimensions and a predicate on top of one
+dimension costs 216 bytes.
+
+So the remaining floor is the parser, not anything derived metrics does with it. Getting below it would mean not parsing the source
+separately at all — reusing the parse the indexing path already performs — which is a much larger change than anything here.
 
 `DerivedMetricsBuffer` holds one table per metric per interval bucket, and within a table one accumulator slot per series. A series is
 interned to a dense ordinal by `DerivedMetricsSeriesTable` and its state lives in parallel `BigArrays` arrays indexed by that ordinal —

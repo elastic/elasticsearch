@@ -105,9 +105,33 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return states.get(bucketOrd);
     }
 
+    /**
+     * Removes and returns the state for {@code bucketOrd}, transferring ownership to the caller.
+     * After this call the aggregator no longer holds a reference to the state, so {@link #doClose()}
+     * will not attempt to close it. Use this in {@code buildAggregation} to hand the state off to
+     * an {@link org.elasticsearch.search.aggregations.InternalAggregation} result object.
+     */
+    protected HistogramUnionState takeState(long bucketOrd) {
+        if (bucketOrd >= states.size()) {
+            return null;
+        }
+        HistogramUnionState state = states.get(bucketOrd);
+        states.set(bucketOrd, null);
+        return state;
+    }
+
     @Override
     protected void doClose() {
-        Releasables.close(states);
+        // Close any states that were not transferred to an InternalAggregation via takeState().
+        // This returns their circuit-breaker bytes on the failure path (e.g. when a
+        // CircuitBreakingException aborts collection before buildAggregation is called).
+        // Guard against null: the circuit breaker may trip inside the constructor before states is assigned.
+        if (states != null) {
+            for (long i = 0; i < states.size(); i++) {
+                Releasables.close(states.get(i));
+            }
+            Releasables.close(states);
+        }
     }
 
 }

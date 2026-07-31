@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -27,9 +28,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE = "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0.";
+
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_monitoring/migrate/alerts"));
+        return List.of(
+            Route.builder(POST, "/_monitoring/migrate/alerts").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.current()).build()
+        );
     }
 
     @Override

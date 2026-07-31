@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
@@ -100,6 +101,9 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -227,6 +231,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DerivedMetricsService.MAX_IN_FLIGHT_BULKS);
         pluginSettings.add(DerivedMetricsService.MEMORY_PRESSURE_POLICY);
         pluginSettings.add(DerivedMetricsService.HISTOGRAM_BUCKETS);
+        pluginSettings.add(DerivedMetricsService.INDEXING_PRESSURE_CEILING);
         return pluginSettings;
     }
 
@@ -280,6 +285,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 // otherwise share, which means a BigArrays bound to this breaker by name. The pages are long lived rather than
                 // per-request, so giving up the recycler costs nothing.
                 new BigArrays(null, services.bigArrays().breakerService(), DerivedMetricsService.BREAKER_NAME).withCircuitBreaking(),
+                services.indexingPressure(),
                 services.clusterService().getNodeName()
             )
         );
@@ -298,6 +304,33 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         components.add(derivedMetricsTemplateRegistry.get());
         components.add(derivedMetricsDestinationLifecycle.get());
         return components;
+    }
+
+    /**
+     * Derived metrics do their periodic flushing and all of their emission on their own pool.
+     *
+     * <p>Without one they would run on {@code management}, which is capped at five threads, has an unbounded queue that never rejects, and
+     * carries dynamic mapping updates and cluster-info collection. A derived metrics flush storm there would delay work the cluster cannot
+     * afford to have delayed, and would do it invisibly, since nothing would ever be shed.
+     *
+     * <p>Small and bounded on purpose: this is background work that should be shed rather than queued when it cannot keep up, and the
+     * shedding is counted. Operators can resize it through {@code data_streams.derived_metrics.thread_pool}.
+     */
+    public static final String DERIVED_METRICS_THREAD_POOL = "derived_metrics";
+    private static final int DERIVED_METRICS_THREAD_POOL_QUEUE_SIZE = 128;
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(
+            new FixedExecutorBuilder(
+                settings,
+                DERIVED_METRICS_THREAD_POOL,
+                ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
+                DERIVED_METRICS_THREAD_POOL_QUEUE_SIZE,
+                "data_streams.derived_metrics.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
+        );
     }
 
     /**

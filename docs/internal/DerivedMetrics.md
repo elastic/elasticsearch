@@ -182,6 +182,32 @@ would let every flush add to a queue with nothing bounding it; documents shed fo
 rather than requests, because otherwise it would depend on how the documents happened to be divided up — flushing early emits a handful
 at a time, and a request-based ceiling would shed almost all of them while barely any memory was actually in flight.
 
+### Isolation
+
+Only the observation runs on the indexing thread, because only it needs the document. It runs inside the shard's operation permit, so
+anything that needs every permit — relocation hand-off, a primary-term bump, shard close — waits behind it. That is why the numbers above
+matter and why the work done there is bounded: when a bucket refuses an observation under `flush_early`, the write path drains that one
+bucket and nothing else, rather than walking every bucket the node holds.
+
+Everything after that — the periodic flush, building documents, sending bulks — runs on the feature's own `derived_metrics` threadpool,
+sized at an eighth of the node's processors with a bounded queue. It exists because the obvious alternative, `management`, is capped at
+five threads, has an unbounded queue that never rejects, and carries dynamic mapping updates and cluster-info collection: a flush storm
+there would delay work the cluster cannot afford to have delayed, and would queue indefinitely rather than shedding. Here the queue is
+bounded on purpose, and what it sheds is counted. Operators can resize it through `data_streams.derived_metrics.thread_pool`.
+
+One hop cannot be isolated: the bulk that carries the metrics is executed by the `write` pool, the same pool that served the writes being
+observed. That is not a deadlock — emission is fire and forget and observation never waits on it — but it is a feedback loop, which is
+what the in-flight ceiling and the indexing-pressure ceiling below are there to damp.
+
+### Indexing pressure
+
+Emitted bulks are charged against the same node-wide indexing pressure budget as the user writes that produced them. The
+`derived_metrics` origin buys a security context, not a separate allowance, and the bypass that system indices get is a bypass of the
+check rather than a budget of its own — taking it would be the opposite of isolation.
+
+So derived metrics decline instead. Above `data_streams.derived_metrics.indexing_pressure_ceiling` of the node's budget, emission is
+skipped and counted rather than competing with the writes it is measuring. Set it to `1.0` to never decline.
+
 ### Memory pressure
 
 `data_streams.derived_metrics.memory_pressure_policy` decides what happens when the buffer can take no more, either because a series cap
@@ -235,6 +261,9 @@ lifecycle edited by hand on a destination is left alone. See `docs/internal/Deri
 | `data_streams.derived_metrics.max_series_per_stream` | the node cap | per-source-stream cap, so one stream cannot spend the whole node budget |
 | `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
 | `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on emission outstanding at once, counted as this many `bulk_size` documents |
+| `data_streams.derived_metrics.thread_pool.size` | an eighth of the node's processors | size of the feature's own pool |
+| `data_streams.derived_metrics.thread_pool.queue_size` | `128` | bounded on purpose, so backlog is shed and counted |
+| `data_streams.derived_metrics.indexing_pressure_ceiling` | `0.7` | share of the node's indexing budget above which emission is skipped |
 | `data_streams.derived_metrics.histogram_buckets` | `160` | bucket capacity of each histogram series, trading precision against size |
 | `data_streams.derived_metrics.memory_pressure_policy` | `flush_early` | `flush_early` emits a partial bucket and keeps collecting; `drop` sheds the observation |
 

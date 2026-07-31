@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -25,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsSourceReader;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -102,7 +103,14 @@ public class DerivedMetricsObservationBench {
             // a budget wide enough that the benchmark never measures the cap-refusal path
             .put(DerivedMetricsService.MAX_SERIES_PER_NODE.getKey(), 100_000)
             .build();
-        service = new DerivedMetricsService(settings, new NoOpClient(threadPool), threadPool, BigArrays.NON_RECYCLING_INSTANCE, "node-1");
+        service = new DerivedMetricsService(
+            settings,
+            new NoOpClient(threadPool),
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new IndexingPressure(Settings.EMPTY),
+            "node-1"
+        );
         compiled = CompiledDerivedMetrics.compile(configFor(shape));
         document = documentFor();
     }

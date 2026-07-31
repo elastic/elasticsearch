@@ -23,12 +23,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Interval;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Drained;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -39,7 +42,7 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -143,6 +146,22 @@ public class DerivedMetricsService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The share of the node's indexing pressure budget above which derived metrics stop emitting.
+     *
+     * <p>Emitted bulks are charged to the same node-wide budget as the user writes that produced them — the {@code derived_metrics} origin
+     * buys a security context, not a separate allowance — so without this a busy node can have its own writes rejected to make room for
+     * metrics about those writes. Declining early is the isolation we can actually get: we cannot have our own pool of bytes, but we can
+     * refuse to compete for the shared one when the node is already under strain. Set to 1.0 to never decline.
+     */
+    public static final Setting<Double> INDEXING_PRESSURE_CEILING = Setting.doubleSetting(
+        "data_streams.derived_metrics.indexing_pressure_ceiling",
+        0.7,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Integer> BULK_SIZE = Setting.intSetting(
         "data_streams.derived_metrics.bulk_size",
         1_000,
@@ -176,8 +195,11 @@ public class DerivedMetricsService implements Closeable {
     private final String nodeName;
     private final AtomicInteger inFlightDocuments = new AtomicInteger();
     private final AtomicLong droppedForBackpressure = new AtomicLong();
-    private final AtomicBoolean relievingPressure = new AtomicBoolean();
     private final AtomicLong earlyFlushes = new AtomicLong();
+    private final AtomicLong droppedForIndexingPressure = new AtomicLong();
+    private final IndexingPressure indexingPressure;
+    private final double indexingPressureCeiling;
+    private final Executor executor;
 
     private final ThreadLocal<RecordingScratch> scratches = ThreadLocal.withInitial(RecordingScratch::new);
 
@@ -185,9 +207,19 @@ public class DerivedMetricsService implements Closeable {
     private volatile boolean closed;
     private long lastReportedDrops;
 
-    public DerivedMetricsService(Settings settings, Client client, ThreadPool threadPool, BigArrays bigArrays, String nodeName) {
+    public DerivedMetricsService(
+        Settings settings,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        IndexingPressure indexingPressure,
+        String nodeName
+    ) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
         this.threadPool = threadPool;
+        this.executor = threadPool.executor(DataStreamsPlugin.DERIVED_METRICS_THREAD_POOL);
+        this.indexingPressure = indexingPressure;
+        this.indexingPressureCeiling = INDEXING_PRESSURE_CEILING.get(settings);
         this.buffer = new DerivedMetricsBuffer(
             bigArrays,
             MAX_SERIES_PER_NODE.get(settings),
@@ -203,7 +235,7 @@ public class DerivedMetricsService implements Closeable {
     }
 
     public void init() {
-        scheduled = threadPool.scheduleWithFixedDelay(this::flush, flushInterval, threadPool.executor(ThreadPool.Names.MANAGEMENT));
+        scheduled = threadPool.scheduleWithFixedDelay(this::flush, flushInterval, executor);
     }
 
     /**
@@ -254,44 +286,45 @@ public class DerivedMetricsService implements Closeable {
             if (buffer.record(key, values, scratch.encoding, value) == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
                 // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
                 // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
-                relievePressure();
+                relievePressure(key);
                 buffer.record(key, values, scratch.encoding, value);
             }
         }
     }
 
     /**
-     * Empties the buffer, including buckets that are still open, so that the write path can carry on collecting. The drain itself is a
-     * handful of map operations and runs here on the indexing thread; building and sending the documents is handed to the flush thread.
+     * Frees the bucket that just refused an observation, so the write path can carry on collecting into a fresh one.
      *
-     * <p>Only one thread does this at a time. The others simply fail to record the observation that found the buffer full, which is the
-     * same outcome as {@code drop} for that one observation and avoids every indexing thread piling into the same drain.
+     * <p>Deliberately scoped to the one bucket. This runs on the indexing thread, inside the shard's operation permit — anything that
+     * needs every permit, including relocation hand-off and shard close, waits behind it — so it must be bounded work rather than a walk
+     * of every bucket the node holds. Draining one table is enough for the retry to succeed, which is the whole point of
+     * {@code flush_early}; a wider drain would free memory this observation does not need. Building and sending the documents is handed
+     * to the derived metrics pool.
      */
-    private void relievePressure() {
-        if (relievingPressure.compareAndSet(false, true) == false) {
-            return;
-        }
-        final List<Drained> drained;
-        try {
-            drained = buffer.drainForPressure();
-        } finally {
-            relievingPressure.set(false);
-        }
-        if (drained.isEmpty()) {
+    private void relievePressure(TableKey key) {
+        Drained drained = buffer.drainForPressure(key);
+        if (drained == null) {
             return;
         }
         earlyFlushes.incrementAndGet();
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                emit(drained);
+                emit(List.of(drained));
             }
 
             @Override
             public void onFailure(Exception e) {
                 // emit closes every table it consumes and close is idempotent, so this only has to catch the tables it never reached
-                drained.forEach(entry -> entry.table().close());
+                drained.table().close();
                 logger.warn("failed to emit derived metrics flushed early under memory pressure", e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // the pool is bounded on purpose: shedding here is the designed behaviour, not a failure, but it must be counted
+                droppedForBackpressure.addAndGet(drained.table().size());
+                drained.table().close();
             }
         });
     }
@@ -446,6 +479,10 @@ public class DerivedMetricsService implements Closeable {
      */
     private void send(ProjectId project, BulkRequest bulk) {
         int documents = bulk.numberOfActions();
+        if (nodeIsUnderIndexingPressure()) {
+            droppedForIndexingPressure.addAndGet(documents);
+            return;
+        }
         if (inFlightDocuments.addAndGet(documents) > maxInFlightDocuments) {
             inFlightDocuments.addAndGet(-documents);
             droppedForBackpressure.addAndGet(documents);
@@ -474,6 +511,19 @@ public class DerivedMetricsService implements Closeable {
         }, () -> inFlightDocuments.addAndGet(-documents)));
     }
 
+    /**
+     * Whether the node is already spending enough of its indexing budget that derived metrics should get out of the way. Checked once per
+     * bulk rather than per document, so the cost of reading the stats is irrelevant next to the bulk it guards.
+     */
+    private boolean nodeIsUnderIndexingPressure() {
+        if (indexingPressure == null || indexingPressureCeiling >= 1.0) {
+            return false;
+        }
+        IndexingPressureStats stats = indexingPressure.stats();
+        long limit = stats.getMemoryLimit();
+        return limit > 0 && stats.getCurrentCombinedCoordinatingAndPrimaryBytes() > limit * indexingPressureCeiling;
+    }
+
     private void reportDrops() {
         long shed = droppedForBackpressure.getAndSet(0);
         if (shed > 0) {
@@ -492,6 +542,16 @@ public class DerivedMetricsService implements Closeable {
                 early,
                 MAX_SERIES_PER_NODE.getKey(),
                 MEMORY_PRESSURE_POLICY.getKey()
+            );
+        }
+        long shedForPressure = droppedForIndexingPressure.getAndSet(0);
+        if (shedForPressure > 0) {
+            logger.warn(
+                "derived metrics dropped [{}] documents because the node was above [{}] of its indexing pressure budget; user writes take "
+                    + "precedence, raise [{}] to change that",
+                shedForPressure,
+                indexingPressureCeiling,
+                INDEXING_PRESSURE_CEILING.getKey()
             );
         }
         long dropped = buffer.droppedSeries();

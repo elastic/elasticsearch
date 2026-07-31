@@ -203,12 +203,17 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     /**
-     * Removes everything currently buffered, including buckets that are still open, and remembers that those buckets have now been
-     * emitted once more so the next emission of the same bucket does not collide with this one. This is the {@code flush_early} response
-     * to memory pressure: the observations already collected are kept rather than the ones still to come being dropped.
+     * Removes one bucket even though it is still open, and remembers that it has now been emitted once more so the next emission of the
+     * same bucket does not collide with this one. This is the {@code flush_early} response to memory pressure: the observations already
+     * collected are kept rather than the ones still to come being dropped.
+     *
+     * <p>Scoped to a single bucket because the caller is on the indexing thread. The caller owns the returned table and must close it.
+     *
+     * @return the drained bucket, or null if it had already been drained by someone else
      */
-    public List<Drained> drainForPressure() {
-        return drain(key -> true, true);
+    public Drained drainForPressure(TableKey key) {
+        DerivedMetricsSeriesTable table = tables.get(key);
+        return table == null ? null : take(key, table, true);
     }
 
     /**
@@ -230,27 +235,39 @@ public class DerivedMetricsBuffer implements Releasable {
             if (take.test(key) == false) {
                 continue;
             }
-            // Remove this exact table rather than whatever the key maps to now, so a bucket recreated by a concurrent write survives. And
-            // remove it before sealing, so a writer that finds it sealed is guaranteed to see the replacement on its next lookup.
-            if (tables.remove(key, table) == false) {
-                continue;
+            Drained taken = take(key, table, reopening);
+            if (taken != null) {
+                drained.add(taken);
             }
-            long released;
-            synchronized (table) {
-                released = table.seal();
-            }
-            totalSeries.addAndGet(-(int) released);
-            AtomicInteger held = perStream.get(key.sourceDataStream());
-            if (held != null && held.addAndGet(-(int) released) <= 0) {
-                perStream.remove(key.sourceDataStream(), held);
-            }
-            int partial = partials.getOrDefault(key, ZERO).get();
-            if (reopening) {
-                partials.computeIfAbsent(key, unused -> new AtomicInteger()).incrementAndGet();
-            }
-            drained.add(new Drained(key, table, partial));
         }
         return drained;
+    }
+
+    /**
+     * Removes one table and gives its budget back, or returns null if someone else got there first.
+     *
+     * <p>The table is removed from the map <em>before</em> it is sealed, so a writer that finds it sealed is guaranteed to see the
+     * replacement on its next lookup rather than spinning. It is removed by value rather than by key, so a bucket recreated by a
+     * concurrent write survives.
+     */
+    private Drained take(TableKey key, DerivedMetricsSeriesTable table, boolean reopening) {
+        if (tables.remove(key, table) == false) {
+            return null;
+        }
+        long released;
+        synchronized (table) {
+            released = table.seal();
+        }
+        totalSeries.addAndGet(-(int) released);
+        AtomicInteger held = perStream.get(key.sourceDataStream());
+        if (held != null && held.addAndGet(-(int) released) <= 0) {
+            perStream.remove(key.sourceDataStream(), held);
+        }
+        int partial = partials.getOrDefault(key, ZERO).get();
+        if (reopening) {
+            partials.computeIfAbsent(key, unused -> new AtomicInteger()).incrementAndGet();
+        }
+        return new Drained(key, table, partial);
     }
 
     /** Series currently held, across every table. */

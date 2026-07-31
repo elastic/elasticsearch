@@ -181,10 +181,10 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             TableKey key = key(Reduction.SUM, 0L);
 
             assertTrue(record(buffer, key, "checkout", 1.0));
-            assertEquals(0, drainForPressure(buffer).get(0).partial());
+            assertEquals(0, drainForPressure(buffer, key).partial());
 
             assertTrue(record(buffer, key, "checkout", 2.0));
-            assertEquals(1, drainForPressure(buffer).get(0).partial());
+            assertEquals(1, drainForPressure(buffer, key).partial());
 
             // the bucket then closes normally, and its final emission continues the numbering
             assertTrue(record(buffer, key, "checkout", 3.0));
@@ -207,7 +207,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
             TableKey key = key(Reduction.SUM, 0L);
             assertTrue(record(buffer, key, "checkout", 1.0));
-            drainForPressure(buffer);
+            drainForPressure(buffer, key);
             assertEquals(1, buffer.partialsTracked());
 
             buffer.drainClosed(20_000, 0);
@@ -223,7 +223,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
             TableKey key = key(Reduction.SUM, 0L);
             assertTrue(record(buffer, key, "checkout", 1.0));
-            drainForPressure(buffer);
+            drainForPressure(buffer, key);
             assertEquals(0, buffer.size());
 
             assertTrue(record(buffer, key, "checkout", 5.0));
@@ -238,6 +238,25 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     /**
+     * Relieving pressure runs on the indexing thread, inside the shard's operation permit, so it has to touch exactly the bucket that
+     * refused the observation and nothing else. Draining every bucket the node holds would be unbounded work in the one place that cannot
+     * afford it.
+     */
+    public void testAnEarlyFlushTakesOnlyTheBucketThatRefused() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100)) {
+            TableKey refused = key("logs-refused-default", Reduction.SUM, 0L);
+            TableKey untouched = key("logs-untouched-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, refused, "a", 1.0));
+            assertTrue(record(buffer, untouched, "a", 1.0));
+
+            drainForPressure(buffer, refused);
+
+            assertEquals(0, buffer.seriesFor("logs-refused-default"));
+            assertEquals(1, buffer.seriesFor("logs-untouched-default"));
+        }
+    }
+
+    /**
      * Flushing early is what turns a full buffer from lost observations into extra documents: the series that had been refused fits once
      * the bucket has been emitted.
      */
@@ -248,7 +267,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             assertTrue(record(buffer, key, "b", 1.0));
             assertFalse(record(buffer, key, "c", 1.0));
 
-            drainForPressure(buffer);
+            drainForPressure(buffer, key);
             assertTrue(record(buffer, key, "c", 1.0));
         }
     }
@@ -316,9 +335,11 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         }
     }
 
-    private static List<DerivedMetricsBuffer.Drained> drainForPressure(DerivedMetricsBuffer buffer) {
-        List<DerivedMetricsBuffer.Drained> drained = buffer.drainForPressure();
-        drained.forEach(d -> d.table().close());
+    private static DerivedMetricsBuffer.Drained drainForPressure(DerivedMetricsBuffer buffer, TableKey key) {
+        DerivedMetricsBuffer.Drained drained = buffer.drainForPressure(key);
+        if (drained != null) {
+            drained.table().close();
+        }
         return drained;
     }
 

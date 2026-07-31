@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams.derivedmetrics;
 
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -35,9 +36,24 @@ public final class DerivedMetricsDestination {
     public static final String TEMPLATE_NAME = "derived-metrics@template";
 
     /**
+     * The managed component template holding the settings a user is allowed to override.
+     *
+     * <p>They live here rather than on the index template because settings on the index template itself are applied last and therefore
+     * win over everything in {@code composed_of} — a setting kept there could not be overridden at all.
+     */
+    public static final String SETTINGS_COMPONENT_NAME = "derived-metrics@settings";
+
+    /**
+     * The optional user-owned component template. It does not have to exist; the index template lists it in
+     * {@code ignore_missing_component_templates}. Creating one is how an operator changes the destination's shard count or replica count,
+     * following the same convention as {@code logs@custom} and {@code metrics@custom}.
+     */
+    public static final String CUSTOM_COMPONENT_NAME = "derived-metrics@custom";
+
+    /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 3L;
+    public static final long TEMPLATE_VERSION = 4L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
@@ -153,12 +169,26 @@ public final class DerivedMetricsDestination {
         return TEMPLATE;
     }
 
+    /**
+     * The settings a user may override, as a component template. Only the negotiable ones belong here.
+     */
+    public static ComponentTemplate settingsComponent() {
+        return new ComponentTemplate(
+            Template.builder()
+                .settings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build())
+                .build(),
+            TEMPLATE_VERSION,
+            Map.of("description", "default settings for data stream derived metrics destinations", "managed", true)
+        );
+    }
+
     private static ComposableIndexTemplate buildTemplate() {
+        // Only what the feature cannot work without. index.mode and routing_path decide the tsid, which the emitted documents and their
+        // _ids depend on, so they stay on the index template where the composition rules put them beyond a user's reach. Shard and replica
+        // counts are in the settings component instead, where derived-metrics@custom can override them.
         Settings settings = Settings.builder()
             .put("index.mode", "time_series")
             .putList("index.routing_path", List.of("metric.name", "derived_metrics.*", "dimensions.*"))
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
             .build();
         final CompressedXContent mappings;
         try {
@@ -169,6 +199,8 @@ public final class DerivedMetricsDestination {
         return ComposableIndexTemplate.builder()
             .indexPatterns(List.of(INDEX_PATTERN))
             .template(Template.builder().settings(settings).mappings(mappings))
+            .componentTemplates(List.of(SETTINGS_COMPONENT_NAME, CUSTOM_COMPONENT_NAME))
+            .ignoreMissingComponentTemplates(List.of(CUSTOM_COMPONENT_NAME))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(true, false))
             .priority(500L)
             .version(TEMPLATE_VERSION)

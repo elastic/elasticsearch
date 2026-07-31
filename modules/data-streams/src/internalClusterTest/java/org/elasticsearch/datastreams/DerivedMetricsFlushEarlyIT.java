@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction.Request;
 import static org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction.TYPE;
@@ -55,6 +56,15 @@ public class DerivedMetricsFlushEarlyIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // the destination maps metric.histogram as exponential_histogram, whose mapper ships in x-pack-analytics
         return List.of(DataStreamsPlugin.class, DerivedMetricsHistogramMapperPlugin.class);
+    }
+
+    /**
+     * The registry reinstalls the managed templates as soon as it sees them missing, so letting the test framework delete them between
+     * tests just races it: the index template comes back and then the component template it composes cannot be removed.
+     */
+    @Override
+    protected Set<String> excludeTemplates() {
+        return Set.of(DerivedMetricsDestination.TEMPLATE_NAME, DerivedMetricsDestination.SETTINGS_COMPONENT_NAME);
     }
 
     @Override

@@ -203,3 +203,42 @@ teardown:
         name: "derived-metrics@template"
   - match: { index_templates.0.index_template.template.mappings.properties.metric.properties.histogram.type: "exponential_histogram" }
   - match: { index_templates.0.index_template.template.mappings.properties.metric.properties.histogram.time_series_metric: "histogram" }
+
+---
+"Destination settings can be overridden through the custom component template":
+  # The managed template keeps index.mode and routing_path on the index template itself, where composition puts them beyond a component
+  # template's reach, and puts only the negotiable settings in derived-metrics@settings. So derived-metrics@custom can change the shard
+  # count without being able to break the time series configuration the emitter depends on.
+  - do:
+      cluster.get_component_template:
+        name: "derived-metrics@settings"
+  - match: { component_templates.0.component_template.template.settings.index.number_of_shards: "1" }
+
+  - do:
+      indices.get_index_template:
+        name: "derived-metrics@template"
+  - match: { index_templates.0.index_template.composed_of: [ "derived-metrics@settings", "derived-metrics@custom" ] }
+  - match: { index_templates.0.index_template.ignore_missing_component_templates: [ "derived-metrics@custom" ] }
+  - match: { index_templates.0.index_template.template.settings.index.mode: "time_series" }
+  # the negotiable settings are not on the index template, or nothing in composed_of could ever override them
+  - is_false: index_templates.0.index_template.template.settings.index.number_of_shards
+
+  - do:
+      cluster.put_component_template:
+        name: "derived-metrics@custom"
+        body:
+          template:
+            settings:
+              number_of_shards: 3
+  - is_true: acknowledged
+
+  - do:
+      indices.simulate_index_template:
+        name: "derived-metrics-source-derived-metrics-ds-10s"
+  - match: { template.settings.index.number_of_shards: "3" }
+  # and the settings the feature cannot work without are untouched
+  - match: { template.settings.index.mode: "time_series" }
+
+  - do:
+      cluster.delete_component_template:
+        name: "derived-metrics@custom"

@@ -10,12 +10,14 @@
 package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -73,15 +75,43 @@ public class DerivedMetricsTemplateRegistry implements ClusterStateListener {
     }
 
     private static boolean needsInstall(ProjectMetadata project) {
-        ComposableIndexTemplate existing = project.templatesV2().get(DerivedMetricsDestination.TEMPLATE_NAME);
-        if (existing == null) {
-            return true;
-        }
-        Long version = existing.version();
+        ComposableIndexTemplate indexTemplate = project.templatesV2().get(DerivedMetricsDestination.TEMPLATE_NAME);
+        ComponentTemplate settings = project.componentTemplates().get(DerivedMetricsDestination.SETTINGS_COMPONENT_NAME);
+        return outOfDate(indexTemplate == null ? null : indexTemplate.version()) || outOfDate(settings == null ? null : settings.version());
+    }
+
+    private static boolean outOfDate(Long version) {
         return version == null || version < DerivedMetricsDestination.TEMPLATE_VERSION;
     }
 
+    /**
+     * Installs the settings component first, then the index template that composes it.
+     *
+     * <p>The order matters: the index template lists the settings component in {@code composed_of} without listing it in
+     * {@code ignore_missing_component_templates}, so installing the index template against a project that does not have the component yet
+     * would be rejected. The user-owned {@code derived-metrics@custom} is the one that is allowed to be missing.
+     */
     private void install(ProjectId project) {
+        PutComponentTemplateAction.Request settings = new PutComponentTemplateAction.Request(
+            DerivedMetricsDestination.SETTINGS_COMPONENT_NAME
+        );
+        settings.componentTemplate(DerivedMetricsDestination.settingsComponent());
+        settings.masterNodeTimeout(TimeValue.timeValueSeconds(30));
+        client.projectClient(project)
+            .execute(PutComponentTemplateAction.INSTANCE, settings, ActionListener.wrap(unused -> installIndexTemplate(project), e -> {
+                inFlight.remove(project);
+                logger.warn(
+                    () -> "failed to install the derived metrics component template ["
+                        + DerivedMetricsDestination.SETTINGS_COMPONENT_NAME
+                        + "] in project ["
+                        + project
+                        + "]",
+                    e
+                );
+            }));
+    }
+
+    private void installIndexTemplate(ProjectId project) {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             DerivedMetricsDestination.TEMPLATE_NAME
         );

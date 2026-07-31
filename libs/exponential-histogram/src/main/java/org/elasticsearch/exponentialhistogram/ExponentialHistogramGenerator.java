@@ -23,6 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -61,17 +62,39 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
      * @param circuitBreaker the circuit breaker to use to limit memory allocations
      */
     public static ExponentialHistogramGenerator create(int maxBucketCount, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return create(maxBucketCount, null, circuitBreaker);
+    }
+
+    /**
+     * Creates a new instance whose merger comes from the given factory, so that the scratch space the factory holds is shared with every
+     * other generator built from it rather than duplicated per generator.
+     *
+     * <p>Worth using whenever many generators are alive at once — one per series of a metric, say — because the shared scratch is a
+     * meaningful share of what a generator costs. The factory must outlive every generator created from it, and the generators, like the
+     * mergers behind them, must not be used concurrently.
+     *
+     * @param factory the factory to take the merger from, or null to give this generator one of its own
+     */
+    public static ExponentialHistogramGenerator create(
+        int maxBucketCount,
+        @Nullable ExponentialHistogramMerger.Factory factory,
+        ExponentialHistogramCircuitBreaker circuitBreaker
+    ) {
         long size = estimateBaseSize(maxBucketCount);
         circuitBreaker.adjustBreaker(size);
         try {
-            return new ExponentialHistogramGenerator(maxBucketCount, circuitBreaker);
+            return new ExponentialHistogramGenerator(maxBucketCount, factory, circuitBreaker);
         } catch (RuntimeException e) {
             circuitBreaker.adjustBreaker(-size);
             throw e;
         }
     }
 
-    private ExponentialHistogramGenerator(int maxBucketCount, ExponentialHistogramCircuitBreaker circuitBreaker) {
+    private ExponentialHistogramGenerator(
+        int maxBucketCount,
+        @Nullable ExponentialHistogramMerger.Factory factory,
+        ExponentialHistogramCircuitBreaker circuitBreaker
+    ) {
         this.circuitBreaker = circuitBreaker;
         rawValueBuffer = new double[maxBucketCount];
         valueCount = 0;
@@ -79,7 +102,7 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         ExponentialHistogramMerger merger = null;
         try {
             buffer = FixedCapacityExponentialHistogram.create(maxBucketCount, circuitBreaker);
-            merger = ExponentialHistogramMerger.create(maxBucketCount, circuitBreaker);
+            merger = factory == null ? ExponentialHistogramMerger.create(maxBucketCount, circuitBreaker) : factory.createMerger();
         } catch (RuntimeException e) {
             Releasables.close(buffer, merger);
             throw e;

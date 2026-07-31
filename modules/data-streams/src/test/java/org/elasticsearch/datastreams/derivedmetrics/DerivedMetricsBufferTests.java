@@ -33,6 +33,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DerivedMetricsBufferTests extends ESTestCase {
 
@@ -340,6 +341,40 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             }
         }
         assertEquals("closing the buffer must give every byte back", 0L, breaker.getUsed());
+    }
+
+    /**
+     * Pins what a series of each kind costs, because these numbers are what the circuit breaker's budget is planned against and a
+     * regression in them would otherwise only show up as a node running out of room sooner than expected.
+     *
+     * <p>The bounds are deliberately loose — the exact figure depends on how the underlying arrays round up — but the order of magnitude
+     * is the point: a scalar series is tens of bytes and a histogram series is thousands, which is why the two cannot share a budget
+     * assumption.
+     */
+    public void testWhatASeriesOfEachKindCosts() {
+        long scalar = bytesPerSeries(Reduction.SUM, 1000);
+        long histogram = bytesPerSeries(Reduction.HISTOGRAM, 50);
+        logger.info("bytes per series: scalar [{}], histogram [{}]", scalar, histogram);
+
+        assertThat("a scalar series is a handful of primitives in shared arrays", scalar, lessThan(200L));
+        assertThat("a histogram series keeps a whole distribution", histogram, greaterThan(1000L));
+        assertThat("but it must still be bounded by its bucket count", histogram, lessThan(20_000L));
+    }
+
+    /**
+     * Fills a table with the given number of distinct series and returns the accounted bytes each one cost.
+     */
+    private long bytesPerSeries(Reduction reduction, int series) {
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofMb(512));
+        CircuitBreaker breaker = breakerService.getBreaker(DerivedMetricsService.BREAKER_NAME);
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, series * 2)) {
+            TableKey key = key(reduction, 0L);
+            for (int i = 0; i < series; i++) {
+                assertTrue(record(buffer, key, "service-" + i, i + 1.0));
+            }
+            return breaker.getUsed() / series;
+        }
     }
 
     /**

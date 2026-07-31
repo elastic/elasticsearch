@@ -158,9 +158,27 @@ derived from it is the other third. If this needs to get cheaper again, the pars
 
 `DerivedMetricsBuffer` holds one table per metric per interval bucket, and within a table one accumulator slot per series. A series is
 interned to a dense ordinal by `DerivedMetricsSeriesTable` and its state lives in parallel `BigArrays` arrays indexed by that ordinal —
-the same shape the metric aggregations use. That is 56 bytes per series with no per-series object, and recording an observation against a
+the same shape the metric aggregations use. There is no per-series object for a scalar metric, and recording an observation against a
 series that already exists allocates nothing at all, because the dimension tuple is encoded into a reusable per-thread buffer and looked
 up by hash.
+
+### What a series costs
+
+Measured and asserted by `DerivedMetricsBufferTests#testWhatASeriesOfEachKindCosts`, so a regression fails a test rather than surfacing as
+a node running out of room sooner than expected.
+
+| metric kind | bytes per series |
+|---|---|
+| counter or gauge | ~152 |
+| histogram | ~4,600 |
+
+A scalar series is 48 bytes of accumulator columns plus its interned dimension tuple and the hash slots that find it. A histogram series
+is dominated by the distribution itself and scales with `histogram_buckets`; the mergers within one table share their scratch space through
+a single factory, which is worth about 7% — the rest is inherently per-series. The two differ by a factor of thirty, which is why they
+cannot share a capacity assumption: at the breaker's default of 5% of heap, a 4 GB node has room for roughly 1.4 million scalar series or
+45,000 histogram series.
+
+Nothing is coordinated across nodes, so none of this is duplicated anywhere: each node holds only what it observed.
 
 Because the storage comes from `BigArrays` against the `derived_metrics` circuit breaker, the memory is bounded and reportable through
 `_nodes/stats/breakers`. The breaker's limit defaults to 5% of the heap, so a node with a small heap gets a proportionally small budget

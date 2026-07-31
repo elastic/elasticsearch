@@ -20,15 +20,17 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Reduction;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 /**
  * Every series of one metric within one interval bucket.
  *
  * <p>A dimension tuple is interned into a dense ordinal and the accumulator state lives in parallel arrays indexed by that ordinal, the
- * same shape the metric aggregations use. That is 56 bytes per series with no per-series object, against roughly 340 bytes when each
- * series was a key holding two lists plus an accumulator — and, just as importantly, recording an observation for a series that already
- * exists allocates nothing at all.
+ * same shape the metric aggregations use. There is no per-series object for a scalar metric — 48 bytes of accumulator columns plus the
+ * interned tuple, measured at about 152 bytes per series all in — and, just as importantly, recording an observation for a series that
+ * already exists allocates nothing at all. A histogram series is far more expensive, since a distribution cannot be kept in primitives;
+ * see {@link #histograms}.
  *
  * <p>All storage comes from {@link BigArrays}, so growth is accounted against the derived metrics circuit breaker and shows up in
  * {@code _nodes/stats/breakers}. The table is {@link Releasable} and <em>must</em> be closed once drained, or that accounting leaks.
@@ -52,6 +54,11 @@ public class DerivedMetricsSeriesTable implements Releasable {
      * distribution cannot be kept in a handful of primitives; see {@link #histograms} usage in {@link #record}.
      */
     private ObjectArray<ExponentialHistogramGenerator> histograms;
+    /**
+     * Shared by every series in this table, so the scratch space merging needs is held once rather than per series. Measured at about 7%
+     * of what a histogram series costs — the rest of it is the distribution itself, which is inherently per-series.
+     */
+    private final ExponentialHistogramMerger.Factory histogramMergers;
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
     private boolean sealed;
@@ -71,6 +78,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker;
         BytesRefHash hash = null;
+        ExponentialHistogramMerger.Factory mergers = null;
         try {
             hash = new BytesRefHash(1, bigArrays);
             sum = bigArrays.newDoubleArray(1, true);
@@ -80,12 +88,14 @@ public class DerivedMetricsSeriesTable implements Releasable {
             last = bigArrays.newDoubleArray(1, true);
             count = bigArrays.newLongArray(1, true);
             histograms = histogram ? bigArrays.newObjectArray(1) : null;
+            mergers = histogram ? ExponentialHistogramMerger.createFactory(histogramBuckets, histogramBreaker) : null;
             this.dimensions = hash;
+            this.histogramMergers = mergers;
             hash = null;
         } finally {
             // if any allocation above tripped the breaker, give back what we did take
             if (hash != null) {
-                Releasables.close(hash, sum, min, max, first, last, count, histograms);
+                Releasables.close(hash, sum, min, max, first, last, count, histograms, mergers);
             }
         }
     }
@@ -119,7 +129,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
             // pays for one. It is charged against the same breaker as everything else here.
             ExponentialHistogramGenerator generator = histograms.get(ordinal);
             if (generator == null) {
-                generator = ExponentialHistogramGenerator.create(histogramBuckets, histogramBreaker);
+                generator = ExponentialHistogramGenerator.create(histogramBuckets, histogramMergers, histogramBreaker);
                 histograms.set(ordinal, generator);
             }
             generator.add(value);
@@ -215,6 +225,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
                 Releasables.close(histograms.get(ordinal));
             }
         }
-        Releasables.close(dimensions, sum, min, max, first, last, count, histograms);
+        Releasables.close(dimensions, sum, min, max, first, last, count, histograms, histogramMergers);
     }
 }

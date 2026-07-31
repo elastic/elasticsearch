@@ -15,7 +15,10 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
@@ -24,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -47,6 +51,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -125,6 +130,9 @@ public class FuzzyQueryCostEstimatorBenchmark {
     @Param({ "10", "50", "200" })
     public int maxExpansions;
 
+    @Param({ "1", "4", "16" })
+    public int segments;
+
     private String term;
     private int termByteLength;
     private int distinctUtf8Bytes;
@@ -165,15 +173,29 @@ public class FuzzyQueryCostEstimatorBenchmark {
         distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
 
         directory = new ByteBuffersDirectory();
-        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
-            for (String neighbour : buildVocabulary(term, prefixLength)) {
-                Document doc = new Document();
-                doc.add(new StringField(FIELD, neighbour, Field.Store.NO));
-                writer.addDocument(doc);
+        Set<String> vocabulary = buildVocabulary(term, prefixLength);
+        if (vocabulary.isEmpty()) {
+            throw new IllegalStateException("empty vocabulary for term length " + termLength + " / prefix " + prefixLength);
+        }
+
+        IndexWriterConfig writerConfig = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE).setUseCompoundFile(false);
+        try (IndexWriter writer = new IndexWriter(directory, writerConfig)) {
+            for (int s = 0; s < segments; s++) {
+                for (String neighbour : vocabulary) {
+                    Document doc = new Document();
+                    doc.add(new StringField(FIELD, neighbour, Field.Store.NO));
+                    writer.addDocument(doc);
+                }
+                writer.flush();
             }
-            writer.forceMerge(1);
+            writer.commit();
         }
         reader = DirectoryReader.open(directory);
+        if (reader.leaves().size() != segments) {
+            throw new IllegalStateException(
+                "expected index with " + segments + " segments but reader has " + reader.leaves().size() + " leaves"
+            );
+        }
         searcher = new IndexSearcher(reader);
 
         fuzzyQuery = new FuzzyQuery(new Term(FIELD, term), maxEdits, prefixLength, maxExpansions, transpositions);
@@ -272,7 +294,25 @@ public class FuzzyQueryCostEstimatorBenchmark {
     private static long measureRewriteRam(IndexSearcher searcher, FuzzyQuery query, Set<Term> expanded) throws IOException {
         long total = RamUsageEstimator.sizeOf(searcher.rewrite(query));
         for (Term term : expanded) {
-            total += RamUsageEstimator.sizeOfObject(TermStates.build(searcher, term, true));
+            total += measureTermStatesRam(searcher, term);
+        }
+        return total;
+    }
+
+    private static long measureTermStatesRam(IndexSearcher searcher, Term term) throws IOException {
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+        TermStates termStates = TermStates.build(searcher, term, true);
+        long total = RamUsageEstimator.shallowSizeOf(termStates) + RamUsageEstimator.shallowSizeOf(new TermState[leaves.size()]);
+        for (LeafReaderContext ctx : leaves) {
+            IOSupplier<TermState> supplier = termStates.get(ctx);
+            if (supplier == null) {
+                // Cheap negative check: the term is absent from this leaf, so no TermState is retained for it.
+                continue;
+            }
+            TermState state = supplier.get();
+            if (state != null) {
+                total += RamUsageEstimator.shallowSizeOf(state);
+            }
         }
         return total;
     }

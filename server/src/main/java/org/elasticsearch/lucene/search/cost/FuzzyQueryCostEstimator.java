@@ -35,6 +35,9 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
     /** Per-expanded-term add-on, charged once per {@code maxExpansions} to cover each expansion's retained RAM. */
     public static final long EXPANSION_BYTES_PER_TERM = 1024;
 
+    /** Maximum number of expansions charged per clause */
+    public static final int MAX_CHARGED_EXPANSIONS = 1024;
+
     private final int termByteLength;
     private final int distinctUtf8Bytes;
     private final int maxEdits;

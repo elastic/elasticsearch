@@ -79,17 +79,20 @@ public final class FuzzyQueries {
     /**
      * Effective expansion count for the breaker charge: a {@link TopTermsRewrite}'s configured size,
      * {@link IndexSearcher#getMaxClauseCount()} for the boolean-producing rewrites that can expand up to it,
-     * or {@link FuzzyQuery#defaultMaxExpansions} otherwise.
+     * or {@link FuzzyQuery#defaultMaxExpansions} otherwise; clamped to
+     * {@code [1, }{@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS}{@code ]}.
      */
     private static int effectiveMaxExpansions(FuzzyQuery query) {
         MultiTermQuery.RewriteMethod rewrite = query.getRewriteMethod();
+        final int requested;
         if (rewrite instanceof TopTermsRewrite<?> topTerms) {
-            return topTerms.getSize();
+            requested = topTerms.getSize();
         } else if (rewrite == MultiTermQuery.SCORING_BOOLEAN_REWRITE || rewrite == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
-            return IndexSearcher.getMaxClauseCount();
+            requested = IndexSearcher.getMaxClauseCount();
         } else {
-            return FuzzyQuery.defaultMaxExpansions;
+            requested = FuzzyQuery.defaultMaxExpansions;
         }
+        return Math.clamp(requested, 1, FuzzyQueryCostEstimator.MAX_CHARGED_EXPANSIONS);
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

@@ -179,7 +179,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match query options) are supported. The `analyzer` option must name a registered analyzer
-            (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
+            (prebuilt or plugin-contributed). Per-index custom analyzers cannot be used because the
             expression is not backed by an index. Unlike on an indexed field, the analyzer is applied to
             both the query and the expression values; when no analyzer is specified, the `standard`
             analyzer is used. On other expression types options are not supported.

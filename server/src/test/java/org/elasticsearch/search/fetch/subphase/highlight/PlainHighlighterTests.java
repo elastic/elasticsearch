@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -125,11 +124,7 @@ public class PlainHighlighterTests extends HighlighterTestCase {
             """));
 
         SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("text", "important"))
-            .highlighter(
-                new HighlightBuilder().field("text")
-                    .highlighterType("plain")
-                    .numOfFragments(10_000)
-            );
+            .highlighter(new HighlightBuilder().field("text").highlighterType("plain").numOfFragments(10_000));
 
         assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text");
     }

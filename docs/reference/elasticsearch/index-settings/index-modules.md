@@ -210,6 +210,11 @@ $$$index-max-analyzed-offset$$$
 `index.highlight.max_analyzed_offset`
 :   The maximum number of characters that will be analyzed for a highlight request. This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors. Defaults to `1000000`.
 
+$$$index-max-number-of-fragments$$$
+
+`index.highlight.max_number_of_fragments`
+:   The maximum value of [`number_of_fragments`](/reference/elasticsearch/rest-apis/highlighting-settings.md#number_of_fragments) accepted for a highlight request. Highlighters allocate memory in proportion to the requested number of fragments, so this setting bounds how much a single request can allocate. Defaults to `10000`.
+
 $$$index-max-terms-count$$$
 
 `index.max_terms_count`

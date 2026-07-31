@@ -372,9 +372,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             .put(SHARED_CACHE_DECAY_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1));
     }
 
-    /// Randomizes boost preference on top of the cache-maintenance feature a test enables. Each of those features keys off its own
-    /// trigger, so it must behave the same either way - and enabling boost preference incidentally exercises the pinned-window eviction
-    /// policy and read-path region timestamps that flag turns on.
     private static Settings.Builder maybeEnableCacheBoostPreference(Settings.Builder builder) {
         if (randomBoolean()) {
             builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
@@ -383,7 +380,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         return builder;
     }
 
-    /// Enables demotion, the only setting a demotion test needs now that it is gated independently.
     private static Settings demoteClosedShardRegionsTestSettings() {
         return maybeEnableCacheBoostPreference(
             smallCacheSettings().put(
@@ -393,7 +389,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         ).build();
     }
 
-    /// Enables deleted-index eviction, the only setting such a test needs now that it is gated independently.
     private static Settings evictDeletedIndexRegionsTestSettings() {
         return maybeEnableCacheBoostPreference(
             smallCacheSettings().put(

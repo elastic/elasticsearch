@@ -586,3 +586,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.CountDistinctLongGroupingAggregatorFunctionTests
   method: testAllKeyNulls
   issue: https://github.com/elastic/elasticsearch/issues/155578
+- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
+  method: testDisableCCM_RemovesAuthorizationTask
+  issue: https://github.com/elastic/elasticsearch/issues/155579

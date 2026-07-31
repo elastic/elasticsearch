@@ -84,7 +84,8 @@ public class SharedCacheCapacityMonitor {
      * Receives a copy of the latest {@link ClusterInfo} whenever the {@link org.elasticsearch.cluster.ClusterInfoService} collects it.
      * Compares each search node's cache commitment, from {@link ClusterInfo#getNodeCacheSizeAndCommitments()}, against the commitment
      * recorded on the previous call and triggers a reroute when a node newly crosses the high watermark or newly drops back below the
-     * low watermark.
+     * low watermark. When a transition is found but the reroute itself is suppressed by {@link #minimumRerouteInterval}, the recorded
+     * commitment snapshot is deliberately untouched. A subsequent call to onNewInfo might have a chance to trigger reroute.
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
         if (clusterStateSupplier.get().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -115,22 +116,23 @@ public class SharedCacheCapacityMonitor {
 
         final RerouteDecision rerouteDecision;
         synchronized (mutex) {
-            final Map<DiscoveryNode, NodeCacheSizeAndCommitments> previousSearchNodeCommitments = lastNodeCommitments;
-            lastNodeCommitments = currentSearchNodeCommitments;
+            final RerouteDecision noThrottleDecision = decideReroute(currentSearchNodeCommitments, lastNodeCommitments);
 
-            final RerouteDecision candidateDecision = decideReroute(currentSearchNodeCommitments, previousSearchNodeCommitments);
-
-            // Snapshot the clock right before it's used, so successive calls compare against a consistent reading. Every reroute
-            // reason here reflects a transition observed on this call, so unlike a monitor that re-reports a persisting condition on
-            // every tick, there's no "already known, skip it" case to bypass: the interval is a plain floor between reroutes.
+            // Snapshot the clock right before it's used, so successive calls compare against a consistent reading.
             final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
             final boolean haveCalledRerouteRecently = (currentTimeMillis - lastRerouteTimeMillis) < minimumRerouteInterval.millis();
 
-            if (candidateDecision.shouldReroute() && haveCalledRerouteRecently == false) {
-                rerouteDecision = candidateDecision;
+            if (noThrottleDecision.shouldReroute() == false) {
+                lastNodeCommitments = currentSearchNodeCommitments;
+                rerouteDecision = noThrottleDecision;
+            } else if (haveCalledRerouteRecently == false) {
+                lastNodeCommitments = currentSearchNodeCommitments;
                 lastRerouteTimeMillis = currentTimeMillis;
+                rerouteDecision = noThrottleDecision;
             } else {
-                rerouteDecision = RerouteDecision.no(candidateDecision.transitions());
+                // A real transition was found, but the reroute is being suppressed by the throttle. Deliberately leave
+                // lastNodeCommitments unadvanced, so the next call still compares against the pre-transition snapshot.
+                rerouteDecision = RerouteDecision.no(noThrottleDecision.transitions());
             }
         }
 

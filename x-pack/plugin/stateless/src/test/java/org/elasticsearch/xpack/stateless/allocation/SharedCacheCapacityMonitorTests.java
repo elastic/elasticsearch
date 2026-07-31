@@ -441,6 +441,90 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
+    public void testPendingHighWatermarkTransitionSurvivesThrottleAndFiresLater() {
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::threeSearchNodeState);
+
+        // A first reroute is issued and immediately consumes the throttle window.
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // search-1 also crosses the high watermark, a genuine transition, but the clock has advanced by less than the interval,
+        // so the reroute is throttled. The commitment snapshot must NOT be advanced to reflect search-1's new, already-over-
+        // watermark state, or the pending transition would be silently forgotten instead of merely delayed.
+        currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        verifyNoInteractions(rerouteService);
+
+        // Once the interval elapses, the very next call reports the exact same commitments again, with no further change to
+        // any node. If the earlier call had wrongly advanced the snapshot, this would look like "no transition" and the reroute
+        // would never fire. Because the snapshot was left pointing at the pre-transition state, search-1's crossing is still
+        // pending and must now be acted on.
+        currentTimeMillis.addAndGet(1);
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+    }
+
+    public void testPendingLowWatermarkTransitionSurvivesThrottleAndFiresLater() {
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::threeSearchNodeState);
+
+        // A first reroute is issued and immediately consumes the throttle window.
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // search-1 drops back below the low watermark, a genuine transition, but the clock has advanced by less than the
+        // interval, so the reroute is throttled. The snapshot must not be advanced to reflect search-1's new, already-dropped
+        // state, or the pending transition would be forgotten rather than merely delayed.
+        currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        verifyNoInteractions(rerouteService);
+
+        // Once the interval elapses, the same commitments are reported again with no further change, and the still-pending
+        // low-watermark transition for search-1 must now fire.
+        currentTimeMillis.addAndGet(1);
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+                )
+            )
+        );
+        assertRerouted(DROPPED_BELOW_LOW_WATERMARK_REASON);
+    }
+
     // -----------------------------------------------------------------------------------------------------------------------
     // Live settings updates: these apply a follow-up setting change to the same monitor instance and observe the effect on
     // the very next onNewInfo call, so they necessarily drive onNewInfo rather than decideReroute directly.

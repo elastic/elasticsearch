@@ -291,6 +291,23 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             );
         }
 
+        // Double range cases
+        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "NotEqualsDoubleRangeEvaluator",
+                    "lhs",
+                    "rhs",
+                    (l, r) -> false == l.equals(r),
+                    DataType.BOOLEAN,
+                    TestCaseSupplier.doubleRangeCases(),
+                    TestCaseSupplier.doubleRangeCases(),
+                    List.of(),
+                    false
+                )
+            );
+        }
+
         // Dense vector cases
         suppliers.add(new TestCaseSupplier("<dense_vector>, <dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
             int dimensions = between(64, 128);

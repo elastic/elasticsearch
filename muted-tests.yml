@@ -131,9 +131,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
   method: testing convention tasks are cacheable and uptodate
   issue: https://github.com/elastic/elasticsearch/issues/152371
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:stats.filterSometimesMatches}
-  issue: https://github.com/elastic/elasticsearch/issues/152607
 - class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
   method: testBigSizeCircuitBreak
   issue: https://github.com/elastic/elasticsearch/issues/152785
@@ -188,9 +185,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
   method: testUserSearchWithBindUserOpenLDAP
   issue: https://github.com/elastic/elasticsearch/issues/152601
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:inlinestats.filterSometimesMatches}
-  issue: https://github.com/elastic/elasticsearch/issues/154584
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348

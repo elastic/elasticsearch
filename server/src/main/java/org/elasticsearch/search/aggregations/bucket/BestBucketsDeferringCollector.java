@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
 /**
@@ -46,17 +47,30 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         AggregationExecutionContext aggCtx;
         PackedLongValues docDeltas;
         PackedLongValues buckets;
+        /**
+         * Bytes charged to the circuit breaker for the packed values in this entry.
+         * Tracked so we can return them precisely when the entry is released.
+         */
+        final long ramBytesUsed;
 
         Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
+            this.ramBytesUsed = docDeltas.ramBytesUsed() + buckets.ramBytesUsed();
         }
     }
 
     private final Query topLevelQuery;
     private final IndexSearcher searcher;
     private final boolean isGlobal;
+    /**
+     * Callback into the owning aggregator's {@code addRequestCircuitBreakerBytes}. Using the
+     * aggregator's tracker means bytes flow through {@code requestBytesUsed} and are automatically
+     * returned when the aggregator is closed, even if the query fails before
+     * {@link #prepareSelectedBuckets} is called.
+     */
+    private final LongConsumer bytesAccounter;
 
     private List<Entry> entries = new ArrayList<>();
     private BucketCollector collector;
@@ -65,15 +79,20 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private PackedLongValues.Builder bucketsBuilder;
     private LongHash selectedBuckets;
     private boolean finished = false;
+    private long callCount;
 
     /**
      * Sole constructor.
      * @param isGlobal Whether this collector visits all documents (global context)
+     * @param bytesAccounter Callback used to charge and return circuit breaker bytes.
+     *                       Pass {@code aggregator::addRequestCircuitBreakerBytes} so that
+     *                       bytes are automatically returned when the aggregator is closed.
      */
-    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal) {
+    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal, LongConsumer bytesAccounter) {
         this.topLevelQuery = topLevelQuery;
         this.searcher = searcher;
         this.isGlobal = isGlobal;
+        this.bytesAccounter = bytesAccounter;
     }
 
     @Override
@@ -97,7 +116,12 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         if (aggCtx != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             assert docDeltasBuilder.size() > 0;
-            entries.add(new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build()));
+            Entry entry = new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build());
+            // Charge the circuit breaker for the packed values we just committed. If this
+            // trips, the exception propagates out of getLeafCollector and the aggregator
+            // framework handles cleanup via AggregatorBase.close().
+            bytesAccounter.accept(entry.ramBytesUsed);
+            entries.add(entry);
             clearLeaf();
         }
     }
@@ -128,6 +152,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
+                // Periodically give the real-memory parent breaker a chance to check heap
+                // usage for in-flight builder allocations that are not yet committed to entries.
+                if ((++callCount & 0x3FF) == 0) {
+                    bytesAccounter.accept(0);
+                }
             }
         };
     }
@@ -206,9 +235,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // collection was terminated prematurely
                 // continue with the following leaf
             }
-            // release resources
+            // release resources and return the circuit breaker bytes for this entry
+            long entryBytes = entry.ramBytesUsed;
             entry.buckets = null;
             entry.docDeltas = null;
+            bytesAccounter.accept(-entryBytes);
         }
         collector.postCollection();
     }
@@ -263,6 +294,14 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
+        // Return bytes for all committed entries before rebuilding them. The old packed
+        // structures stay alive during the loop (we iterate over them), so for a brief
+        // moment real memory is slightly higher than the breaker tracking, but this is
+        // bounded and acceptable.
+        for (Entry sourceEntry : entries) {
+            bytesAccounter.accept(-sourceEntry.ramBytesUsed);
+        }
+
         List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
@@ -272,7 +311,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             // Only create an entry if this segment has buckets after merging
             if (newBuckets.size() > 0) {
                 assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
-                newEntries.add(new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build()));
+                Entry newEntry = new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build());
+                bytesAccounter.accept(newEntry.ramBytesUsed);
+                newEntries.add(newEntry);
             }
         }
         entries = newEntries;

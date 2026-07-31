@@ -68,7 +68,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, false) {
+        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, false, bytes -> {}) {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE;
@@ -87,7 +87,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         topDocs = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
-        collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, true);
+        collector = new BestBucketsDeferringCollector(rewrittenQuery, indexSearcher, true, bytes -> {});
         deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
         collector.preCollection();
@@ -207,7 +207,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader);
 
                 Query query = Queries.ALL_DOCS_INSTANCE;
-                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
+                    query,
+                    indexSearcher,
+                    false,
+                    bytes -> {}
+                );
 
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));

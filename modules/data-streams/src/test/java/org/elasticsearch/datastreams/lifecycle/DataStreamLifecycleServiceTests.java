@@ -79,6 +79,8 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixture
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -1542,7 +1544,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         IndexMetadata original = builder.get(frozenIndexName);
         Settings.Builder frozenSettings = Settings.builder()
             .put(original.getSettings())
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
             .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, repositoryName)
             .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, snapshotName);
         if (dlmCreated) {
@@ -1872,7 +1874,67 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
     }
 
-    public void testGatheringCandidatesForFrozenSkipsDlmCreatedIndices() {
+    public void testIndicesPastFrozenAfter() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int backingIndices = randomIntBetween(3, 10);
+        DataStream dataStreamWithNoFrozen = createDataStream(
+            builder,
+            "my-datastream",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            now
+        );
+        DataStream dataStreamWithFrozen = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMinutes(1)).build(),
+            now
+        );
+        builder.put(dataStreamWithNoFrozen);
+        builder.put(dataStreamWithFrozen);
+        ProjectMetadata projectMetadata = builder.build();
+
+        // a lifecycle with no frozen_after configured never reports any indices as past it
+        assertThat(
+            DataStreamLifecycleService.indicesPastFrozenAfter(projectMetadata, dataStreamWithNoFrozen, () -> now),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.indicesPastFrozenAfter(
+                projectMetadata,
+                dataStreamWithNoFrozen,
+                () -> now + TimeValue.timeValueDays(2).millis()
+            ),
+            equalTo(Set.of())
+        );
+
+        // not yet past frozen_after
+        assertThat(DataStreamLifecycleService.indicesPastFrozenAfter(projectMetadata, dataStreamWithFrozen, () -> now), equalTo(Set.of()));
+
+        // past frozen_after excludes the write index, matching candidatesForFrozen's age check
+        Set<Index> pastFrozenAfter = DataStreamLifecycleService.indicesPastFrozenAfter(
+            projectMetadata,
+            dataStreamWithFrozen,
+            () -> now + TimeValue.timeValueMinutes(2).millis()
+        );
+        assertThat(
+            new TreeSet<>(pastFrozenAfter.stream().map(Index::getName).toList()),
+            equalTo(
+                new TreeSet<>(
+                    dataStreamWithFrozen.getIndices()
+                        .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
+                        .stream()
+                        .map(Index::getName)
+                        .toList()
+                )
+            )
+        );
+    }
+
+    public void testGatheringCandidatesForFrozenSkipsDlmCreatedMountedIndices() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         int backingIndices = randomIntBetween(3, 10);
         DataStream dataStreamWithFrozen = createDataStream(
@@ -1891,7 +1953,11 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         IndexMetadata originalMeta = projectMetadata.index(dlmCreatedIndex);
         IndexMetadata dlmCreatedMeta = IndexMetadata.builder(originalMeta)
             .settings(
-                Settings.builder().put(originalMeta.getSettings()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build()
+                Settings.builder()
+                    .put(originalMeta.getSettings())
+                    .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                    .build()
             )
             .build();
         ProjectMetadata updatedProjectMetadata = ProjectMetadata.builder(projectMetadata).put(dlmCreatedMeta, false).build();

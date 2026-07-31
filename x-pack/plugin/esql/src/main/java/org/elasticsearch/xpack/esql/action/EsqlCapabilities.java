@@ -2128,7 +2128,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V3(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2858,8 +2858,8 @@ public class EsqlCapabilities {
         REGISTER_FEDERATION_FEATURE,
 
         /**
-         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so
-         * federation is off unless a deployment opts in. Nodes that only have the operator kill switch report
+         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
+         * deployment can turn federation on or off per node. Nodes that only have the operator kill switch report
          * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
          * per node, so a test that drives the setting has to skip against them.
          */

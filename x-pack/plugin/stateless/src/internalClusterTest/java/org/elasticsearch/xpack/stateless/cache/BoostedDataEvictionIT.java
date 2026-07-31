@@ -52,6 +52,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_DECAY_INTERVAL_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
@@ -64,7 +65,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
@@ -202,26 +205,59 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     public void testCacheDemotedToFrequencyZeroAfterSearchShardRelocation() throws Exception {
-        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
+        final Settings cacheSettings = demoteClosedShardRegionsTestSettings();
         startMasterAndIndexNode(cacheSettings);
         final String searchNodeA = startSearchNode(cacheSettings);
         final String searchNodeB = startSearchNode(cacheSettings);
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 1).put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeB).build());
-        ensureGreen(indexName);
-
-        indexAndSearch(indexName, randomIntBetween(10, 100));
-
-        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final StatelessSharedBlobCacheService cacheServiceA = getCacheService(searchNodeA);
-        assertNonZeroFrequencies(cacheServiceA, shardId);
 
-        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeA), indexName);
-        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(searchNodeA) == false && nodes.contains(searchNodeB));
+        final String indexName = randomIdentifier();
+        final ShardId shardId = createIndexWithPopulatedCacheExcludingNode(indexName, searchNodeB, cacheServiceA);
+
+        relocateSearchShardFromNodeToNode(indexName, searchNodeA, searchNodeB);
 
         assertBusy(() -> verify(cacheServiceA, atLeastOnce()).demoteAllAsync(ArgumentMatchers.any(), ArgumentMatchers.any()));
         assertDemotedToFrequencyZero(cacheServiceA, shardId);
         verify(cacheServiceA, never()).forceEvictAsync(ArgumentMatchers.any());
+    }
+
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING] escape hatch is a
+    /// live no-op when flipped off, and takes effect again when flipped back on.
+    public void testDemotionOfClosedShardRegionsCanBeFlippedDynamically() throws Exception {
+        final Settings cacheSettings = demoteClosedShardRegionsTestSettings();
+        startMasterAndIndexNode(cacheSettings);
+        final String searchNodeA = startSearchNode(cacheSettings);
+        final String searchNodeB = startSearchNode(cacheSettings);
+        final StatelessSharedBlobCacheService cacheServiceA = getCacheService(searchNodeA);
+
+        // Flip the escape hatch off, then relocate a shard away. updateClusterSettings blocks until every node has acknowledged the
+        // update, so node A's cache service has observed the new value before the relocation starts.
+        final String indexNotToBeDemoted = randomIdentifier();
+        final ShardId shardIdNotToBeDemoted = createIndexWithPopulatedCacheExcludingNode(indexNotToBeDemoted, searchNodeB, cacheServiceA);
+        setDemoteClosedShardRegionsEnabledTo(false);
+        final Map<Integer, Integer> shardNotToBeDemotedFreqs = SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(
+            cacheServiceA,
+            shardPredicate(shardIdNotToBeDemoted)
+        );
+        relocateSearchShardFromNodeToNode(indexNotToBeDemoted, searchNodeA, searchNodeB);
+        awaitShardStoreClosed(searchNodeA, shardIdNotToBeDemoted);
+
+        verify(cacheServiceA, never()).demoteAllAsync(ArgumentMatchers.eq(shardIdNotToBeDemoted), ArgumentMatchers.any());
+        assertThat(
+            "cache regions of the shard relocated while the setting was disabled must keep their frequencies",
+            SharedBlobCacheServiceTestUtils.countCachedRegionsByFreq(cacheServiceA, shardPredicate(shardIdNotToBeDemoted)),
+            equalTo(shardNotToBeDemotedFreqs)
+        );
+
+        // Flip back on and relocate a second shard, which must be demoted.
+        setDemoteClosedShardRegionsEnabledTo(true);
+        final String indexToBeDemoted = randomIdentifier();
+        final ShardId shardIdToBeDemoted = createIndexWithPopulatedCacheExcludingNode(indexToBeDemoted, searchNodeB, cacheServiceA);
+        relocateSearchShardFromNodeToNode(indexToBeDemoted, searchNodeA, searchNodeB);
+        awaitShardStoreClosed(searchNodeA, shardIdToBeDemoted);
+
+        verify(cacheServiceA, atLeastOnce()).demoteAllAsync(ArgumentMatchers.eq(shardIdToBeDemoted), ArgumentMatchers.any());
+        assertDemotedToFrequencyZero(cacheServiceA, shardIdToBeDemoted);
     }
 
     public void testForceEvictAsyncOnIndexDelete() throws Exception {
@@ -244,7 +280,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     public void testCacheNotDemotedWhenNodeIsShuttingDown() throws Exception {
-        final Settings cacheSettings = cacheBoostPreferenceTestSettings();
+        final Settings cacheSettings = demoteClosedShardRegionsTestSettings();
         startMasterAndIndexNode(cacheSettings);
         final String searchNodeA = startSearchNode(cacheSettings);
         final String searchNodeB = startSearchNode(cacheSettings);
@@ -298,13 +334,76 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         verify(cacheService, never()).forceEvictAsync(ArgumentMatchers.any());
     }
 
-    private static Settings cacheBoostPreferenceTestSettings() {
+    /// A cache small enough that the regions of a shard stay countable, but large enough that the test indices never compete for slots.
+    private static Settings.Builder smallCacheSettings() {
         return Settings.builder()
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256))
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(SHARED_CACHE_DECAY_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1));
+    }
+
+    private static Settings cacheBoostPreferenceTestSettings() {
+        return smallCacheSettings().put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .build();
+    }
+
+    /// Enables demotion, the only setting a demotion test needs now that it is gated independently. Boost preference is randomized on
+    /// top - demotion keys off store closure alone, so it must behave the same either way - which incidentally also exercises the
+    /// pinned-window eviction policy and read-path region timestamps that flag turns on.
+    private static Settings demoteClosedShardRegionsTestSettings() {
+        final Settings.Builder builder = smallCacheSettings().put(
+            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(),
+            true
+        );
+        if (randomBoolean()) {
+            builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+                .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true);
+        }
+        return builder.build();
+    }
+
+    /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on
+    /// the other search node has cached regions at a non-zero access frequency. Returns the shard id.
+    private ShardId createIndexWithPopulatedCacheExcludingNode(
+        String indexName,
+        String excludedSearchNode,
+        StatelessSharedBlobCacheService cacheService
+    ) throws Exception {
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", excludedSearchNode).build());
+        ensureGreen(indexName);
+        indexAndSearch(indexName, randomIntBetween(10, 100));
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        assertNonZeroFrequencies(cacheService, shardId);
+        return shardId;
+    }
+
+    /// Moves the search shard of `indexName` from `vacatedSearchNode` to `targetSearchNode` by excluding the former from the index's
+    /// routing, returning once the cluster state routing table reflects the move. Doesn't guarantee shard store has actually closed.
+    private static void relocateSearchShardFromNodeToNode(String indexName, String vacatedSearchNode, String targetSearchNode) {
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", vacatedSearchNode), indexName);
+        internalCluster().awaitNodesInclude(
+            indexName,
+            nodes -> nodes.contains(vacatedSearchNode) == false && nodes.contains(targetSearchNode)
+        );
+    }
+
+    private static void awaitShardStoreClosed(String searchNode, ShardId shardId) throws Exception {
+        final NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, searchNode);
+        assertBusy(
+            () -> assertThat(
+                "store of " + shardId + " is still open on [" + searchNode + "]",
+                nodeEnvironment.lockedShards(),
+                not(hasItem(shardId))
+            )
+        );
+    }
+
+    private static void setDemoteClosedShardRegionsEnabledTo(boolean enabled) {
+        updateClusterSettings(
+            Settings.builder()
+                .put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), enabled)
+        );
     }
 
     private void indexAndSearch(String indexName, int numDocs) {
@@ -437,9 +536,21 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             ClusterService clusterService,
             IndicesService indicesService
         ) {
-            final StatelessSharedBlobCacheService spy = Mockito.spy(
-                super.createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService, indicesService)
+            final StatelessSharedBlobCacheService real = super.createSharedBlobCacheService(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                blobCacheMetrics,
+                clusterService,
+                indicesService
             );
+            final StatelessSharedBlobCacheService spy = Mockito.spy(real);
+            // Mockito copies the real service's fields into the spy rather than delegating to it. Reference fields such as the LFU
+            // cache still point at the same objects, but a field reassigned later does not: the settings watcher registered in the
+            // constructor writes the demotion flag to `real`, leaving the spy stuck on its creation-time value. Read the flag
+            // through `real` so the tests below see a dynamic update.
+            Mockito.doAnswer(invocation -> real.isDemoteClosedShardRegionsEnabled()).when(spy).isDemoteClosedShardRegionsEnabled();
+            Mockito.doAnswer(invocation -> real.isEvictObsoleteRegionsEnabled()).when(spy).isEvictObsoleteRegionsEnabled();
             return spy;
         }
     }

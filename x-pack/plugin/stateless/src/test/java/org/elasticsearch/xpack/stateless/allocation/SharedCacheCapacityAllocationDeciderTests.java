@@ -51,6 +51,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
     static final String INDEX_NODE_ID = "index-node-id";
     static final String INDEX_NODE_NAME = "index-node-name";
 
+    private static final String SEARCH_NODE_NAME = "search-node-name";
+    private static final String OTHER_SEARCH_NODE_NAME = "other-" + SEARCH_NODE_NAME;
+    private static final String INDEX_NODE_NAME = "index-node-name";
+
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
     private static final long NO_COMMITMENT_BYTES = 0L;
     private static final int LOW_WATERMARK_PERCENT = 75;
@@ -100,16 +104,13 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
 
         final ClusterInfo clusterInfo = createClusterInfo(Map.of(), Map.of());
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+        final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
-        final Decision decision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
-            routingAllocation
-        );
+        final Decision decision = decider.canAllocate(shardRouting, searchNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
-            containsString("no cache size and commitment data available for node [" + SEARCH_NODE_ID + "]")
+            containsString("no cache size and commitment data available for node [" + searchNode.getShortNodeDescription() + "]")
         );
     }
 
@@ -124,18 +125,15 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             Map.of()
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
+        final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
-        final Decision decision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
-            routingAllocation
-        );
+        final Decision decision = decider.canAllocate(shardRouting, searchNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
             decision.getExplanation(),
             containsString(
                 "node ["
-                    + SEARCH_NODE_ID
+                    + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
                     + overWatermarkCommitmentBytes
                     + "] bytes already exceeds the low "
@@ -274,17 +272,14 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         // In TOTAL mode the combined boosted and unboosted bytes already exceed the low watermark.
         final var totalDecider = deciderBuilder().accountingMode(SharedCacheCapacityAllocationDecider.CacheAccountingMode.TOTAL).build();
         final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
-        final Decision totalDecision = totalDecider.canAllocate(
-            shardRouting,
-            totalAllocation.routingNodes().node(SEARCH_NODE_ID),
-            totalAllocation
-        );
+        final RoutingNode totalSearchNode = totalAllocation.routingNodes().node(SEARCH_NODE_ID);
+        final Decision totalDecision = totalDecider.canAllocate(shardRouting, totalSearchNode, totalAllocation);
         assertThat(totalDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
             totalDecision.getExplanation(),
             containsString(
                 "node ["
-                    + SEARCH_NODE_ID
+                    + totalSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
                     + totalCommitmentBytes
                     + "] bytes already exceeds the low watermark "

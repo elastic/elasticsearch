@@ -26,5 +26,8 @@ serverless: ga
 :::{include} ../types/bucket.md
 :::
 
+:::{include} ../functionNamedParams/bucket.md
+:::
+
 :::{include} ../examples/bucket.md
 :::

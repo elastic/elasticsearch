@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -33,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -80,6 +82,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     private static final int MAX_TOKENS_VALUE = 2;
     private static final String API_KEY_VALUE = "secret";
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
+    private static final FeatureService FEATURE_SERVICE = new FeatureService(List.of(new InferenceFeatures()));
 
     public void testParseRequestConfig_CreatesACompletionModel() throws IOException {
         try (var service = createInferenceService()) {
@@ -435,7 +438,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
 
         var mockModel = getInvalidModel(MODEL_NAME_VALUE, "service_name");
 
-        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty(), FEATURE_SERVICE)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
@@ -461,7 +464,14 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new AnthropicService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                FEATURE_SERVICE
+            )
+        ) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -544,7 +554,14 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     private InferenceEventsAssertion streamCompletion() throws Exception {
         // Uses the `completion` task type (via infer), not `chat_completion`.
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new AnthropicService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                FEATURE_SERVICE
+            )
+        ) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 API_KEY_VALUE,
@@ -593,7 +610,14 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new AnthropicService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                FEATURE_SERVICE
+            )
+        ) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 API_KEY_VALUE,
@@ -696,13 +720,22 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                               "type": "str",
                               "supported_task_types": ["completion", "chat_completion"]
                           },
-                        "max_tokens": {
+                          "max_tokens": {
                               "description": "The maximum number of tokens to generate before stopping.",
                               "label": "Max Tokens",
                               "required": true,
                               "sensitive": false,
                               "updatable": false,
                               "type": "int",
+                              "supported_task_types": ["completion", "chat_completion"]
+                          },
+                          "url": {
+                              "description": "The absolute URL of the Anthropic compatible API endpoint to send requests to.",
+                              "label": "URL",
+                              "required": false,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "str",
                               "supported_task_types": ["completion", "chat_completion"]
                           }
                       }
@@ -728,7 +761,8 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         return new AnthropicService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            FEATURE_SERVICE
         );
     }
 

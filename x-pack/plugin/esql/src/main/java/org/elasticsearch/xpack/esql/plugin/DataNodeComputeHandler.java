@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -29,9 +31,11 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -90,6 +94,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExchangeService exchangeService;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
+    private final ShardResultCache shardResultCache;
     /**
      * Resolved once: {@link Federation#FEDERATION_ENABLED} is node scoped and takes effect only after a restart, so
      * every external request on this node gets the same answer.
@@ -113,6 +118,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
+        this.shardResultCache = new ShardResultCache(
+            searchService.getIndicesService(),
+            clusterService.getClusterSettings(),
+            computeService.blockFactory()
+        );
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
@@ -508,6 +518,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
+        private final ShardResultCacheSettings cacheSettings;
+        /**
+         * The shared part of the cache key, or {@code null} when this request may not use the cache at all. Non-null
+         * implies {@link #maxConcurrentShards} is 1, which is what lets a batch's captured pages be attributed to one
+         * shard.
+         */
+        @Nullable
+        private final ShardResultCacheKey.QueryPart cacheQueryPart;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -518,7 +536,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean failFastOnShardFailure,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            ShardResultCacheSettings cacheSettings,
+            @Nullable ShardResultCacheKey.QueryPart cacheQueryPart
         ) {
             this.flags = flags;
             this.request = request;
@@ -531,6 +551,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
+            this.cacheSettings = cacheSettings;
+            this.cacheQueryPart = cacheQueryPart;
+            if (cacheQueryPart != null && maxConcurrentShards != 1) {
+                throw new IllegalStateException(
+                    "a cacheable request must run one shard per batch, but maxConcurrentShards=" + maxConcurrentShards
+                );
+            }
         }
 
         void start() {
@@ -584,6 +611,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         batchListener.onResponse(DriverCompletionInfo.EMPTY);
                         return;
                     }
+                    RetainedCacheProbe probe = probeCache(shards, acquiredSearchContexts);
+                    if (probe != null && probe.probe().isHit()) {
+                        if (serveFromCache(probe, pagesProduced, batchListener)) {
+                            return;
+                        }
+                        // The entry could not be replayed, so this shard has to be computed after all, and there is no
+                        // point capturing a value under a key that just failed to round-trip.
+                        probe = null;
+                    }
+                    final ShardResultCapture capture = probe == null ? null : new ShardResultCapture(cacheSettings.maxValueSizeInBytes());
                     var computeContext = new ComputeContext(
                         sessionId,
                         ComputeService.DATA_DESCRIPTION,
@@ -593,7 +630,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet),
+                        capture == null
+                            ? () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                            : () -> capture.wrap(exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)),
                         request.retainSearchContexts()
                     );
                     computeService.runCompute(
@@ -603,10 +642,144 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         computeService.plannerSettings().get(),
                         LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
-                        batchListener
+                        capture == null ? batchListener : storeThen(probe, capture, batchListener)
                     );
                 }, batchListener::onFailure)
             );
+        }
+
+        /**
+         * A probe plus the searcher that keeps it storable. A shard's {@link SearchContext} is closed as soon as
+         * the last operator holding its shard context releases it, which happens before this batch's completion listener
+         * runs, so holding an {@link Engine.Searcher} is what guarantees the reader stays alive — and therefore
+         * addressable by cache key — when the store finally happens. The compute context is carried for the same reason:
+         * only it can say, once the drivers are done, whether building this shard's queries turned out to be cacheable.
+         */
+        private record RetainedCacheProbe(ShardResultCache.ShardProbe probe, Engine.Searcher searcher, ComputeSearchContext context)
+            implements
+                Releasable {
+            @Override
+            public void close() {
+                searcher.close();
+            }
+        }
+
+        /**
+         * Probes the cache for this batch's single shard.
+         *
+         * @return {@code null} when this shard cannot use the cache, either because the request is not cacheable or
+         *         because its key could not be completed
+         */
+        @Nullable
+        private RetainedCacheProbe probeCache(
+            List<DataNodeRequest.Shard> shards,
+            IndexedByShardId<ComputeSearchContext> acquiredSearchContexts
+        ) {
+            if (cacheQueryPart == null) {
+                return null;
+            }
+            assert shards.size() == 1 : "expected a single shard per batch, got " + shards.size();
+            ComputeSearchContext context = acquiredSearchContexts.iterable().iterator().next();
+            SearchContext searchContext = context.searchContext();
+            /*
+             * The same gate the DSL path applies, here catching whatever preProcess already consulted. It is only half
+             * the gate: ES|QL builds this shard's queries later and against its own context, so the store path asks
+             * that one too, in storeThen.
+             */
+            if (searchContext.getSearchExecutionContext().isCacheable() == false) {
+                return null;
+            }
+            ShardResultCache.ShardProbe probe = shardResultCache.probe(cacheQueryPart, shards.getFirst(), searchContext);
+            if (probe == null) {
+                return null;
+            }
+            if (probe.isHit() == false && shardResultCache.admits(probe.shard(), cacheSettings) == false) {
+                // A miss on a shard the admission policy would refuse: the miss is worth counting, the capture is not
+                // worth paying for.
+                return null;
+            }
+            return new RetainedCacheProbe(probe, probe.shard().acquireSearcher("shard-result-cache"), context);
+        }
+
+        /**
+         * Replays a hit into the exchange in place of running any driver, and completes the batch with no driver
+         * profiles: there were none, and reporting borrowed ones would misattribute another query's work.
+         *
+         * @return false when the entry could not be replayed, in which case nothing was written to the exchange and the
+         *         caller must compute the shard normally
+         */
+        private boolean serveFromCache(
+            RetainedCacheProbe probe,
+            AtomicInteger pagesProduced,
+            ActionListener<DriverCompletionInfo> batchListener
+        ) {
+            final List<Page> pages;
+            try (probe) {
+                // Deserializes everything before writing anything, so a failure here leaves the exchange untouched.
+                pages = shardResultCache.replay(probe.probe().hit());
+            } catch (Exception e) {
+                LOGGER.warn("failed to replay a shard result cache entry; recomputing the shard", e);
+                return false;
+            }
+            ExchangeSink sink = exchangeSink.createExchangeSink(pagesProduced::incrementAndGet);
+            int handedOver = 0;
+            try {
+                for (Page page : pages) {
+                    // The sink owns a page once it has been handed over, and releases it itself if the exchange is
+                    // already finished. Anything not handed over is still ours.
+                    sink.addPage(page);
+                    handedOver++;
+                }
+            } finally {
+                for (int i = handedOver; i < pages.size(); i++) {
+                    pages.get(i).releaseBlocks();
+                }
+                sink.finish();
+                /*
+                 * A computed shard's search context is closed by the last operator to release its shard context. This
+                 * shard has no operators, so closing it here is what keeps a run of hits from holding one context per
+                 * shard open until the whole request ends. It is the same moment a computed batch would have closed
+                 * it, so the node-reduce driver, which sees every context, is no worse off than on a miss.
+                 */
+                probe.context().close();
+            }
+            batchListener.onResponse(DriverCompletionInfo.EMPTY);
+            return true;
+        }
+
+        /**
+         * Wraps the batch listener so a batch that completed normally is stored. Failures skip the store: a partial
+         * capture is indistinguishable from a complete one once it is bytes.
+         */
+        private ActionListener<DriverCompletionInfo> storeThen(
+            RetainedCacheProbe probe,
+            ShardResultCapture capture,
+            ActionListener<DriverCompletionInfo> batchListener
+        ) {
+            return ActionListener.runAfter(batchListener.delegateFailureAndWrap((l, info) -> {
+                /*
+                 * The cacheability question can only be answered here. Building this shard's queries is what discovers
+                 * a non-deterministic runtime field, and that happens on a context ES|QL made for the drivers, after
+                 * the probe.
+                 * Driver failures and cancellations route to onFailure, not here, so reaching this success branch means
+                 * the computation completed normally and the capture is complete.
+                 */
+                if (probe.context().queryConstructionWasCacheable() == false) {
+                    LOGGER.debug("not storing a shard result: building the shard's queries was not cacheable");
+                } else if (shardLevelFailures.containsKey(probe.probe().shard().shardId())) {
+                    /*
+                     * A request that allows partial results turns a shard failure into a recorded failure and a
+                     * successful batch, so a batch can complete having produced fewer rows than the shard holds.
+                     */
+                    LOGGER.debug("not storing a shard result: the shard failed");
+                } else {
+                    BytesReference value = capture.value();
+                    if (value != null) {
+                        shardResultCache.store(probe.probe(), value);
+                    }
+                }
+                l.onResponse(info);
+            }), probe::close);
         }
 
         private void acquireSearchContexts(
@@ -732,7 +905,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
                 });
                 EsqlFlags flags = computeService.createFlags();
-                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                ShardResultCacheSettings cacheSettings = shardResultCache.settings();
+                ShardResultCacheKey.QueryPart cacheQueryPart = cacheSettings.enabled() ? shardResultCache.queryPart(request, flags) : null;
+                /*
+                 * A batch's captured pages carry no shard attribution, so a cacheable request runs its shards one batch at
+                 * a time to make the attribution unambiguous. This gives up the work stealing that lets one slow shard be
+                 * helped by the drivers of another, which is why it applies only to the shapes the cache admits, where a
+                 * shard's work is a scan and a hash rather than something a peer could usefully take over.
+                 */
+                int maxConcurrentShards = cacheQueryPart == null ? request.pragmas().maxConcurrentShardsPerNode() : 1;
                 DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
                     flags,
                     request,
@@ -742,7 +923,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     failFastOnShardFailure,
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    cacheSettings,
+                    cacheQueryPart
                 );
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction

@@ -1814,6 +1814,54 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
     }
 
+    /**
+     * The plugin hook that folds whatever distinguishes two callers' results for the same query on the same shard, such
+     * as document- and field-level security, into the request cache key. Exposed so that a second caller of the shard
+     * cache reuses the one hook rather than reimplementing it, which is the likely source of a cross-user leak.
+     *
+     * @return the differentiator, or {@code null} when no plugin registered one
+     */
+    @Nullable
+    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator() {
+        return requestCacheKeyDifferentiator;
+    }
+
+    /**
+     * Probes the shard request cache for something calculated at the shard level, without computing it on a miss.
+     * The {@link #cacheShardLevelResult} loader contract cannot be used by a caller whose computation is asynchronous
+     * and whose eligibility to be stored is only known once it has finished; such a caller probes here and stores with
+     * {@link #putShardLevelResult}. Records a hit or a miss in the shard's {@code request_cache} statistics either way.
+     *
+     * @param reader a reader for this shard, naming the data version the entry belongs to
+     * @return the cached bytes, or {@code null} when there is no entry for this key
+     */
+    @Nullable
+    public BytesReference getCachedShardLevelResult(
+        IndexShard shard,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey
+    ) {
+        return indicesRequestCache.get(new IndexShardCacheEntity(shard), mappingCacheKey, reader, cacheKey);
+    }
+
+    /**
+     * Stores something calculated at the shard level that was computed outside the cache. The counterpart of
+     * {@link #getCachedShardLevelResult}; an entry already present under this key wins.
+     *
+     * @param reader the reader the value was computed against. Must still be open: the cache keys on its cache key and
+     *               registers a close listener on it to invalidate the entry.
+     */
+    public void putShardLevelResult(
+        IndexShard shard,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        BytesReference value
+    ) throws Exception {
+        indicesRequestCache.put(new IndexShardCacheEntity(shard), mappingCacheKey, reader, cacheKey, value);
+    }
+
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;

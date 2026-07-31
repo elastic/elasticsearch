@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -91,7 +92,7 @@ public final class Source implements Writeable, WarningSourceLocation {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (this == EMPTY) {
+        if (this == EMPTY || (out instanceof PlanStreamOutput planOut && planOut.normalizeForIdentity())) {
             out.writeBoolean(false);
             return;
         }

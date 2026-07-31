@@ -17,7 +17,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Search and shard context used as entries in {@link org.elasticsearch.compute.lucene.IndexedByShardId}. These are shared by both the data
@@ -45,6 +47,13 @@ class ComputeSearchContext implements Releasable {
     @Nullable
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
+    /**
+     * Every {@link EsqlSearchExecutionContext} handed out here. Kept because
+     * {@link org.elasticsearch.index.query.SearchExecutionContext#disableCache()} marks the instance it is called on
+     * and the copy constructor starts a fresh one cacheable, so the search context's own is not told what building this
+     * shard's queries discovered. See {@link #queryConstructionWasCacheable()}.
+     */
+    private final List<EsqlSearchExecutionContext> handedOutContexts = new CopyOnWriteArrayList<>();
 
     ComputeSearchContext(int index, SearchContext searchContext) {
         this.index = index;
@@ -96,12 +105,28 @@ class ComputeSearchContext implements Releasable {
         return createShardContext(() -> {}, QueryWarnings.NOOP);
     }
 
+    /**
+     * Whether everything consulted while building this shard's Lucene queries was a function of the shard's data alone.
+     * False once anything called {@code disableCache()}: a non-deterministic runtime field or script, a terms lookup, or
+     * a read of the query's wall clock. Safe to call after the search context is closed, and after the drivers have
+     * finished, which is when a caller wanting to cache the result has the answer it needs.
+     */
+    boolean queryConstructionWasCacheable() {
+        for (EsqlSearchExecutionContext context : handedOutContexts) {
+            if (context.isCacheable() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private ShardContext createShardContext(Releasable releasable, QueryWarnings queryWarnings) {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
             queryWarnings
         );
+        handedOutContexts.add(searchExecutionContext);
         // Registered unconditionally; for detached shard contexts this is a no-op since the remote fetch path does not construct
         // Lucene queries and the counter stays at zero.
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);

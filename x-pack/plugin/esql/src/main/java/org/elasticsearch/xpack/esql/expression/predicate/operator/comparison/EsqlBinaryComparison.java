@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -208,7 +209,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         functionType.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
-        out.writeOptionalZoneId(zoneId());
+        // readFrom throws the zone away, so a comparison that has crossed the wire never carries one while one built
+        // here does. A stream that describes what the comparison computes must not see a difference the wire erases.
+        boolean normalized = out instanceof PlanStreamOutput planOut && planOut.normalizeForIdentity();
+        out.writeOptionalZoneId(normalized ? null : zoneId());
     }
 
     public BinaryComparisonOperation getFunctionType() {

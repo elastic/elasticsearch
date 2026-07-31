@@ -636,6 +636,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             )
         );
         settings.addAll(PlannerSettings.settings());
+        settings.addAll(ShardResultCacheSettings.settings());
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());

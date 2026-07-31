@@ -146,28 +146,7 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
     private long measureConsumer(DocValuesFormat format, long[] values, boolean columnar) throws IOException {
         try (ByteBuffersDirectory dir = new ByteBuffersDirectory()) {
             final FieldInfo fieldInfo = columnar ? columnarFieldInfo() : numericFieldInfo();
-            final SegmentInfo segInfo = new SegmentInfo(
-                dir,
-                Version.LATEST,
-                Version.LATEST,
-                "_0",
-                values.length,
-                false,
-                false,
-                new Elasticsearch93Lucene104Codec(),
-                Collections.emptyMap(),
-                StringHelper.randomId(),
-                new HashMap<>(),
-                null
-            );
-            final SegmentWriteState state = new SegmentWriteState(
-                InfoStream.getDefault(),
-                dir,
-                segInfo,
-                new FieldInfos(new FieldInfo[] { fieldInfo }),
-                null,
-                IOContext.DEFAULT
-            );
+            final SegmentWriteState state = segmentWriteState(dir, fieldInfo, values.length);
             try (DocValuesConsumer consumer = format.fieldsConsumer(state)) {
                 if (columnar) {
                     consumer.addBinaryField(fieldInfo, new EmptyDocValuesProducer() {
@@ -191,6 +170,32 @@ public class ColumnarNumericFootprintTests extends ESTestCase {
             }
             return total;
         }
+    }
+
+    private static SegmentWriteState segmentWriteState(ByteBuffersDirectory dir, FieldInfo fieldInfo, int maxDoc)
+        throws IOException {
+        final SegmentInfo segInfo = new SegmentInfo(
+            dir,
+            Version.LATEST,
+            Version.LATEST,
+            "_0",
+            maxDoc,
+            false,
+            false,
+            new Elasticsearch93Lucene104Codec(),
+            Collections.emptyMap(),
+            StringHelper.randomId(),
+            new HashMap<>(),
+            null
+        );
+        return new SegmentWriteState(
+            InfoStream.getDefault(),
+            dir,
+            segInfo,
+            new FieldInfos(new FieldInfo[] { fieldInfo }),
+            null,
+            IOContext.DEFAULT
+        );
     }
 
     private static BinaryDocValues binaryDocValues(long[] values) {

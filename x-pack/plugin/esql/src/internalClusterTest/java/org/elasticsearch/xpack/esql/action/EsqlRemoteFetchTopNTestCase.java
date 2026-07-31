@@ -149,6 +149,41 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
+    public void testBinaryRemoteFetchHandlesSurviveTopN() {
+        String regressionIndex = indexName + "_binary_handles";
+        client().admin()
+            .indices()
+            .prepareCreate(regressionIndex)
+            .setSettings(indexSettings(1, 0))
+            .setMapping("content", "type=text", "payload", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 320; i++) {
+            bulk.add(
+                prepareIndex(regressionIndex).setId(Integer.toString(i))
+                    .setSource("content", "industrial revolution", "payload", "payload-" + i)
+            );
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM "
+                    + regressionIndex
+                    + " METADATA _score"
+                    + " | WHERE MATCH(content, \"industrial revolution\")"
+                    + " | SORT _score DESC"
+                    + " | LIMIT 300"
+                    + " | KEEP payload",
+                true
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), hasSize(300));
+            assertRemoteFetchRows(response, 300);
+        }
+    }
+
     public void testRemoteFetchTopNDisabledWithoutPragma() {
         try (
             EsqlQueryResponse response = runQuery(

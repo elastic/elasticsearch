@@ -65,7 +65,7 @@ import java.util.function.Function;
  * </ul>
  */
 class RemoteFetchReductionPlanner {
-    static final String HANDLE_ATTRIBUTE_NAME = "_remote_fetch_handle";
+    static final String HANDLE_ATTRIBUTE_NAME = RemoteFetchHandle.ATTRIBUTE_NAME;
 
     record CoordinatorPlan(PhysicalPlan coordinatorPlan, ExchangeSinkExec dataNodePlan) {}
 
@@ -214,7 +214,7 @@ class RemoteFetchReductionPlanner {
     }
 
     private static boolean isRemoteFetchHandleAttribute(Attribute attr) {
-        return attr.synthetic() && attr.name().equals(HANDLE_ATTRIBUTE_NAME) && attr.dataType() == DataType.KEYWORD;
+        return RemoteFetchHandle.isAttribute(attr);
     }
 
     private static boolean isFetchable(Attribute attr) {

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,6 +36,8 @@ import java.util.Objects;
  * versioned transport representation then.
  */
 public record RemoteFetchHandle(String nodeId, String retainedSessionId, int shard, int segment, int doc) {
+    public static final String ATTRIBUTE_NAME = "_remote_fetch_handle";
+
     public RemoteFetchHandle {
         Objects.requireNonNull(nodeId, "nodeId");
         Objects.requireNonNull(retainedSessionId, "retainedSessionId");
@@ -103,5 +107,12 @@ public record RemoteFetchHandle(String nodeId, String retainedSessionId, int sha
                 prefix.offset,
                 prefix.offset + prefix.length
             );
+    }
+
+    /**
+     * Whether an attribute is the internal binary carrier for remote fetch handles.
+     */
+    public static boolean isAttribute(Attribute attribute) {
+        return attribute.synthetic() && attribute.name().equals(ATTRIBUTE_NAME) && attribute.dataType() == DataType.KEYWORD;
     }
 }

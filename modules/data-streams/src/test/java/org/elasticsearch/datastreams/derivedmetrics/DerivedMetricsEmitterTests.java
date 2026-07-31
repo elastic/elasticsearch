@@ -25,6 +25,8 @@ import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Sourc
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -93,6 +95,51 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         assertEquals("1970-01-01T00:01:00.000Z", emit(Reduction.SUM, List.of(), 0, new String[0]).get("@timestamp"));
         assertEquals("1970-01-01T00:01:00.001Z", emit(Reduction.SUM, List.of(), 1, new String[0]).get("@timestamp"));
         assertEquals("1970-01-01T00:01:00.007Z", emit(Reduction.SUM, List.of(), 7, new String[0]).get("@timestamp"));
+    }
+
+    /**
+     * A histogram metric emits the distribution itself, in the shape the {@code exponential_histogram} field parses. It replaces
+     * metric.value rather than joining it, because the distribution already carries its own sum, count, min and max.
+     */
+    @SuppressWarnings("unchecked")
+    public void testHistogramMetricsEmitADistributionInsteadOfAValue() {
+        Map<String, Object> document = emit(Reduction.HISTOGRAM, List.of(), new String[0]);
+
+        assertThat(document, not(hasKey("metric.value")));
+        assertThat(document, not(hasKey("metric.count")));
+        Map<String, Object> histogram = (Map<String, Object>) document.get("metric.histogram");
+
+        // the three observations of 1, 2 and 3 the shared fixture records
+        assertEquals(6.0, ((Number) histogram.get("sum")).doubleValue(), 1e-9);
+        assertEquals(1.0, ((Number) histogram.get("min")).doubleValue(), 1e-9);
+        assertEquals(3.0, ((Number) histogram.get("max")).doubleValue(), 1e-9);
+        assertNotNull("a histogram must carry the scale its bucket indices are relative to", histogram.get("scale"));
+
+        Map<String, Object> positive = (Map<String, Object>) histogram.get("positive");
+        long counted = 0;
+        for (Object count : (List<Object>) positive.get("counts")) {
+            counted += ((Number) count).longValue();
+        }
+        assertEquals(3L, counted);
+        assertEquals(((List<Object>) positive.get("indices")).size(), ((List<Object>) positive.get("counts")).size());
+    }
+
+    /**
+     * The emitted shape has to be exactly what the field mapper reads, so the surest check is to parse it back and compare the parts a
+     * consumer would use.
+     */
+    public void testTheEmittedDistributionParsesBackIntoAHistogram() throws Exception {
+        IndexRequest request = request(Reduction.HISTOGRAM, List.of(), 0, new String[0]);
+        Map<String, Object> document = XContentHelper.convertToMap(request.source(), false, request.getContentType()).v2();
+
+        @SuppressWarnings("unchecked")
+        ExponentialHistogram histogram = ExponentialHistogramXContent.parseForTesting(
+            (Map<String, Object>) document.get("metric.histogram")
+        );
+        assertEquals(3L, histogram.valueCount());
+        assertEquals(6.0, histogram.sum(), 1e-9);
+        assertEquals(1.0, histogram.min(), 1e-9);
+        assertEquals(3.0, histogram.max(), 1e-9);
     }
 
     public void testDestinationIsDerivedFromTheSourceDataStream() {

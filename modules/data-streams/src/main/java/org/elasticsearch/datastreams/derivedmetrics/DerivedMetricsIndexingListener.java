@@ -133,7 +133,7 @@ public class DerivedMetricsIndexingListener implements IndexingOperationListener
         CompiledDerivedMetrics compiled = CompiledDerivedMetrics.compile(config);
         if (compiled.unsupportedMetrics().isEmpty() == false) {
             logger.warn(
-                "derived metrics {} on data stream [{}] are histograms, which are configured but not emitted yet",
+                "derived metrics {} on data stream [{}] are configured but cannot be emitted",
                 compiled.unsupportedMetrics(),
                 dataStream.getName()
             );

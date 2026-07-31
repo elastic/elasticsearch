@@ -14,7 +14,7 @@ The V1 metadata model supports:
 - gauge aggregations including `first_value` and `last_value`
 - script-free predicates and values
 
-Counter and gauge metrics, along with the built-in ingest metrics, are collected and emitted at runtime. Histogram metrics are configurable but not emitted yet.
+Counter, gauge and histogram metrics, along with the built-in ingest metrics, are collected and emitted at runtime.
 
 ## Data Stream Option
 
@@ -83,6 +83,11 @@ Gauges support `aggregation`:
 - `sum`
 
 Non-gauge metrics reject `aggregation`.
+
+Histograms keep the whole distribution of the observed values rather than reducing them to a number, so they take no `aggregation`. Each
+series accumulates into a bounded exponential histogram of `data_streams.derived_metrics.histogram_buckets` buckets, which is the knob
+that trades a histogram series' precision against its size. A histogram series is by far the most expensive kind: hundreds of buckets
+against the handful of primitives a scalar series needs, which is why the circuit breaker matters more here than anywhere else.
 
 ## Predicates
 
@@ -175,8 +180,18 @@ second, so up to a thousand partials fit before the offset could reach the next 
 cost of losing data. This is what Micrometer and the Prometheus Java client do, and it is the right choice for anyone aligning query
 windows to bucket boundaries by hand. Either way the buffer names the setting in a warning when it happens.
 
-Histogram metrics are accepted and validated by the configuration model but are not emitted yet. Compilation reports them and the runtime
-logs them once per data stream. Emitting them needs a histogram representation this module cannot map today.
+### Histograms
+
+A histogram metric emits `metric.histogram` instead of `metric.value`. The field is an `exponential_histogram`, which already carries its
+own sum, count, min and max, so no scalar travels alongside it and merging partials is the field's own concern rather than something a
+query has to reconstruct.
+
+That mapper ships in `x-pack-analytics` rather than in the server, so the destination template depends on it. The plugin is always bundled
+in the default distribution, and the OTel metrics templates map the same type unconditionally, so this is the same coupling those already
+take on. On a build without that plugin, installing the destination template fails outright rather than only histogram metrics failing —
+worth knowing, because it takes the whole feature with it.
+
+Exemplars are not collected. There is nowhere in a time series data stream to put them today.
 
 ### Retention
 
@@ -197,6 +212,7 @@ lifecycle edited by hand on a destination is left alone. See `docs/internal/Deri
 | `data_streams.derived_metrics.max_series_per_stream` | the node cap | per-source-stream cap, so one stream cannot spend the whole node budget |
 | `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
 | `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on emission outstanding at once, counted as this many `bulk_size` documents |
+| `data_streams.derived_metrics.histogram_buckets` | `160` | bucket capacity of each histogram series, trading precision against size |
 | `data_streams.derived_metrics.memory_pressure_policy` | `flush_early` | `flush_early` emits a partial bucket and keeps collecting; `drop` sheds the observation |
 
 ## Managed Destination

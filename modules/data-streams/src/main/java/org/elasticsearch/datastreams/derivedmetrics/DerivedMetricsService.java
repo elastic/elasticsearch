@@ -107,6 +107,17 @@ public class DerivedMetricsService implements Closeable {
     );
 
     /**
+     * The bucket capacity of each histogram series. This is the knob that trades a histogram series' precision against its size, and a
+     * histogram series is by far the most expensive kind: hundreds of buckets against the handful of primitives a scalar series needs.
+     */
+    public static final Setting<Integer> HISTOGRAM_BUCKETS = Setting.intSetting(
+        "data_streams.derived_metrics.histogram_buckets",
+        DerivedMetricsBuffer.DEFAULT_HISTOGRAM_BUCKETS,
+        2,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * What to do when the buffer can take no more, either because a series cap was reached or because the circuit breaker refused the
      * memory a new series needed.
      */
@@ -177,7 +188,12 @@ public class DerivedMetricsService implements Closeable {
     public DerivedMetricsService(Settings settings, Client client, ThreadPool threadPool, BigArrays bigArrays, String nodeName) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
         this.threadPool = threadPool;
-        this.buffer = new DerivedMetricsBuffer(bigArrays, MAX_SERIES_PER_NODE.get(settings), MAX_SERIES_PER_STREAM.get(settings));
+        this.buffer = new DerivedMetricsBuffer(
+            bigArrays,
+            MAX_SERIES_PER_NODE.get(settings),
+            MAX_SERIES_PER_STREAM.get(settings),
+            HISTOGRAM_BUCKETS.get(settings)
+        );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
         this.bulkSize = BULK_SIZE.get(settings);

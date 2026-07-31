@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 
 public class CompiledDerivedMetricsTests extends ESTestCase {
 
@@ -141,10 +142,10 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
     }
 
     /**
-     * Histograms are accepted by the configuration model but cannot be emitted yet, so compilation reports them instead of failing the
-     * whole configuration.
+     * A histogram keeps the whole distribution rather than reducing to a number, so it compiles to its own reduction and, like any other
+     * metric reading a field, makes that field one the write path has to read.
      */
-    public void testHistogramMetricsAreReportedAsUnsupported() {
+    public void testHistogramMetricsCompileToTheHistogramReduction() {
         CompiledDerivedMetrics compiled = compile(
             new DataStreamDerivedMetrics(
                 true,
@@ -158,8 +159,12 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
                 )
             )
         );
-        assertThat(compiled.unsupportedMetrics(), contains("http.request.duration"));
-        assertThat(compiled.metrics().stream().map(CompiledMetric::name).toList(), contains("http.requests"));
+        assertThat(compiled.unsupportedMetrics(), empty());
+        assertThat(compiled.metrics().stream().map(CompiledMetric::name).toList(), contains("http.request.duration", "http.requests"));
+        assertEquals(Reduction.HISTOGRAM, compiled.metrics().get(0).reduction());
+        assertTrue(compiled.metrics().get(0).reduction().isHistogram());
+        assertFalse(compiled.metrics().get(1).reduction().isHistogram());
+        assertThat(compiled.requiredPaths(), hasItem("event.duration"));
     }
 
     public void testMetricsUseTheDefaultIntervalUnlessTheyOverrideIt() {

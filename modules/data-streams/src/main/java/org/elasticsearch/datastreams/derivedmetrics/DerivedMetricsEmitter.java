@@ -16,11 +16,15 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Reduction;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Turns one series of a closed bucket into the document that represents it in the destination time series data stream.
@@ -53,30 +57,47 @@ public final class DerivedMetricsEmitter {
         List<String> names = metric.dimensions();
         String[] values = table.dimensionsOf(ordinal, names.size(), spare);
 
-        Map<String, Object> document = new LinkedHashMap<>();
-        document.put(
-            DerivedMetricsDestination.TIMESTAMP_FIELD,
-            TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(key.bucketStartMillis() + partial))
-        );
-        document.put(DerivedMetricsDestination.METRIC_NAME_FIELD, metric.name());
-        document.put(DerivedMetricsDestination.SOURCE_FIELD, key.sourceDataStream());
-        document.put(DerivedMetricsDestination.INTERVAL_FIELD, metric.interval().name());
-        document.put(DerivedMetricsDestination.NODE_FIELD, nodeName);
-        for (int i = 0; i < names.size(); i++) {
-            if (values[i] != null) {
-                document.put(DerivedMetricsDestination.DIMENSION_PREFIX + names.get(i), values[i]);
+        try (XContentBuilder document = XContentFactory.jsonBuilder()) {
+            document.startObject();
+            document.field(
+                DerivedMetricsDestination.TIMESTAMP_FIELD,
+                TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(key.bucketStartMillis() + partial))
+            );
+            document.field(DerivedMetricsDestination.METRIC_NAME_FIELD, metric.name());
+            document.field(DerivedMetricsDestination.SOURCE_FIELD, key.sourceDataStream());
+            document.field(DerivedMetricsDestination.INTERVAL_FIELD, metric.interval().name());
+            document.field(DerivedMetricsDestination.NODE_FIELD, nodeName);
+            for (int i = 0; i < names.size(); i++) {
+                if (values[i] != null) {
+                    document.field(DerivedMetricsDestination.DIMENSION_PREFIX + names.get(i), values[i]);
+                }
             }
-        }
-        document.put(DerivedMetricsDestination.METRIC_VALUE_FIELD, table.reduce(ordinal, metric.reduction(), key.intervalMillis()));
-        if (metric.reduction() == Reduction.AVG) {
-            // An avg gauge emits its sum in metric.value and its count alongside, so the mean is SUM(value)/SUM(count). Emitting the
-            // mean directly cannot be re-aggregated: averaging per-interval means weights every interval equally, which reads far too
-            // low whenever the busy intervals differ from the quiet ones.
-            document.put(DerivedMetricsDestination.METRIC_COUNT_FIELD, table.countOf(ordinal));
-        }
+            if (metric.reduction().isHistogram()) {
+                // The distribution carries its own sum, count, min and max, so it replaces metric.value rather than joining it.
+                try (ReleasableExponentialHistogram histogram = table.histogramOf(ordinal)) {
+                    document.field(DerivedMetricsDestination.METRIC_HISTOGRAM_FIELD);
+                    ExponentialHistogramXContent.serialize(document, histogram);
+                }
+            } else {
+                document.field(
+                    DerivedMetricsDestination.METRIC_VALUE_FIELD,
+                    table.reduce(ordinal, metric.reduction(), key.intervalMillis())
+                );
+                if (metric.reduction() == Reduction.AVG) {
+                    // An avg gauge emits its sum in metric.value and its count alongside, so the mean is SUM(value)/SUM(count). Emitting
+                    // the mean directly cannot be re-aggregated: averaging per-interval means weights every interval equally, which reads
+                    // far too low whenever the busy intervals differ from the quiet ones.
+                    document.field(DerivedMetricsDestination.METRIC_COUNT_FIELD, table.countOf(ordinal));
+                }
+            }
+            document.endObject();
 
-        return new IndexRequest(DerivedMetricsDestination.destinationFor(key.sourceDataStream(), metric.interval().name())).opType(
-            DocWriteRequest.OpType.CREATE
-        ).source(document);
+            return new IndexRequest(DerivedMetricsDestination.destinationFor(key.sourceDataStream(), metric.interval().name())).opType(
+                DocWriteRequest.OpType.CREATE
+            ).source(document);
+        } catch (IOException e) {
+            // building an in-memory document cannot fail on IO, so there is nothing useful a caller could do about this
+            throw new UncheckedIOException("unable to build a derived metrics document for [" + metric.name() + "]", e);
+        }
     }
 }

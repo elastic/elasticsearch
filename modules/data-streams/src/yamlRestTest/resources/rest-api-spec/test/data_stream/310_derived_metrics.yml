@@ -171,3 +171,35 @@ teardown:
         name: "source-derived-metrics-ds"
   - match: { data_streams.0.name: source-derived-metrics-ds }
   - is_false: data_streams.0.options.derived_metrics
+
+---
+"Histogram metrics are accepted and mapped as exponential histograms":
+  - do:
+      indices.put_data_stream_options:
+        name: "source-derived-metrics-ds"
+        body:
+          derived_metrics:
+            enabled: true
+            default_interval: "10s"
+            metrics:
+              - name: "http.request.duration"
+                type: histogram
+                value:
+                  field: "event.duration"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream_options:
+        name: "source-derived-metrics-ds"
+  - match: { data_streams.0.options.derived_metrics.metrics.0.name: "http.request.duration" }
+  - match: { data_streams.0.options.derived_metrics.metrics.0.type: "histogram" }
+  - match: { data_streams.0.options.derived_metrics.metrics.0.value.field: "event.duration" }
+
+  # The managed destination maps the distribution as an exponential_histogram, whose mapper ships in x-pack-analytics. Asserting it here
+  # rather than only in the integration test is the point: this suite runs against the real distribution, so it proves the template we
+  # install is one a real node accepts.
+  - do:
+      indices.get_index_template:
+        name: "derived-metrics@template"
+  - match: { index_templates.0.index_template.template.mappings.properties.metric.properties.histogram.type: "exponential_histogram" }
+  - match: { index_templates.0.index_template.template.mappings.properties.metric.properties.histogram.time_series_metric: "histogram" }

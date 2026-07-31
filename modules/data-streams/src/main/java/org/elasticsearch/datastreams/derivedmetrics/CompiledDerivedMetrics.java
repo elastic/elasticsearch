@@ -54,7 +54,17 @@ public record CompiledDerivedMetrics(
         /**
          * Sum divided by the interval length in seconds. Used by the built-in {@code *.rate} metrics.
          */
-        RATE
+        RATE,
+        /**
+         * The distribution of the values rather than any single number. This is the one reduction that does not produce a double, so it
+         * is accumulated and emitted separately from the rest.
+         */
+        HISTOGRAM;
+
+        /** Whether this reduction produces a distribution rather than a single value, which changes both storage and emission. */
+        public boolean isHistogram() {
+            return this == HISTOGRAM;
+        }
     }
 
     /**
@@ -126,11 +136,6 @@ public record CompiledDerivedMetrics(
 
         List<String> unsupported = new ArrayList<>();
         for (DataStreamDerivedMetrics.Metric metric : config.metrics()) {
-            if (metric.type() == DataStreamDerivedMetrics.MetricType.HISTOGRAM) {
-                // histogram emission needs a histogram representation that this module cannot map yet, see docs/internal/DerivedMetrics.md
-                unsupported.add(metric.name());
-                continue;
-            }
             List<String> dimensions = mergeDimensions(config.dimensions(), metric.dimensions());
             requiredPaths.addAll(dimensions);
             DerivedMetricsPredicate.collectPaths(metric.when(), requiredPaths);
@@ -212,7 +217,7 @@ public record CompiledDerivedMetrics(
                 case AVG -> Reduction.AVG;
                 case SUM -> Reduction.SUM;
             };
-            case HISTOGRAM -> throw new IllegalArgumentException("histogram metrics are not emitted yet");
+            case HISTOGRAM -> Reduction.HISTOGRAM;
         };
     }
 

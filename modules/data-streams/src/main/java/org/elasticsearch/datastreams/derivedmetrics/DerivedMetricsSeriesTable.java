@@ -14,9 +14,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Reduction;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
+import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 /**
  * Every series of one metric within one interval bucket.
@@ -43,11 +47,29 @@ public class DerivedMetricsSeriesTable implements Releasable {
     private DoubleArray first;
     private DoubleArray last;
     private LongArray count;
+    /**
+     * One accumulator per series, and only for a histogram metric. Unlike the scalar columns this holds an object per series, because a
+     * distribution cannot be kept in a handful of primitives; see {@link #histograms} usage in {@link #record}.
+     */
+    private ObjectArray<ExponentialHistogramGenerator> histograms;
+    private final int histogramBuckets;
+    private final ExponentialHistogramCircuitBreaker histogramBreaker;
     private boolean sealed;
     private boolean closed;
 
-    public DerivedMetricsSeriesTable(BigArrays bigArrays) {
+    /**
+     * @param histogram        whether this table accumulates distributions rather than scalars, which is a property of the metric
+     * @param histogramBuckets the bucket capacity of each series' histogram, which is what bounds its size
+     */
+    public DerivedMetricsSeriesTable(
+        BigArrays bigArrays,
+        boolean histogram,
+        int histogramBuckets,
+        ExponentialHistogramCircuitBreaker histogramBreaker
+    ) {
         this.bigArrays = bigArrays;
+        this.histogramBuckets = histogramBuckets;
+        this.histogramBreaker = histogramBreaker;
         BytesRefHash hash = null;
         try {
             hash = new BytesRefHash(1, bigArrays);
@@ -57,12 +79,13 @@ public class DerivedMetricsSeriesTable implements Releasable {
             first = bigArrays.newDoubleArray(1, true);
             last = bigArrays.newDoubleArray(1, true);
             count = bigArrays.newLongArray(1, true);
+            histograms = histogram ? bigArrays.newObjectArray(1) : null;
             this.dimensions = hash;
             hash = null;
         } finally {
             // if any allocation above tripped the breaker, give back what we did take
             if (hash != null) {
-                Releasables.close(hash, sum, min, max, first, last, count);
+                Releasables.close(hash, sum, min, max, first, last, count, histograms);
             }
         }
     }
@@ -91,6 +114,16 @@ public class DerivedMetricsSeriesTable implements Releasable {
         sum.increment(ordinal, value);
         min.set(ordinal, Math.min(min.get(ordinal), value));
         max.set(ordinal, Math.max(max.get(ordinal), value));
+        if (histograms != null) {
+            // The generator is created on first use rather than up front, so a series that is interned and then refused by a cap never
+            // pays for one. It is charged against the same breaker as everything else here.
+            ExponentialHistogramGenerator generator = histograms.get(ordinal);
+            if (generator == null) {
+                generator = ExponentialHistogramGenerator.create(histogramBuckets, histogramBreaker);
+                histograms.set(ordinal, generator);
+            }
+            generator.add(value);
+        }
         return created ? ordinal : -1 - ordinal;
     }
 
@@ -102,6 +135,9 @@ public class DerivedMetricsSeriesTable implements Releasable {
         first = bigArrays.grow(first, size);
         last = bigArrays.grow(last, size);
         count = bigArrays.grow(count, size);
+        if (histograms != null) {
+            histograms = bigArrays.grow(histograms, size);
+        }
     }
 
     /** Whether this table already holds the series, so the caller can charge its budget before interning a new one. */
@@ -139,6 +175,16 @@ public class DerivedMetricsSeriesTable implements Releasable {
         return count.get(ordinal);
     }
 
+    /**
+     * The distribution accumulated for one series. Only meaningful on a histogram table, and the caller owns the result: it must be
+     * closed, or the memory it was charged for is never given back.
+     */
+    public ReleasableExponentialHistogram histogramOf(long ordinal) {
+        assert histograms != null : "histogramOf on a table that does not accumulate distributions";
+        ExponentialHistogramGenerator generator = histograms.get(ordinal);
+        return generator == null ? ReleasableExponentialHistogram.empty() : generator.getAndClear();
+    }
+
     /** Reduces one series into the single value that gets emitted. */
     public double reduce(long ordinal, Reduction reduction, long intervalMillis) {
         return switch (reduction) {
@@ -150,6 +196,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
             case FIRST -> first.get(ordinal);
             case LAST -> last.get(ordinal);
             case RATE -> sum.get(ordinal) / (intervalMillis / 1000.0);
+            case HISTOGRAM -> throw new AssertionError("a histogram metric is emitted through histogramOf, not reduced to a value");
         };
     }
 
@@ -163,6 +210,11 @@ public class DerivedMetricsSeriesTable implements Releasable {
             return;
         }
         closed = true;
-        Releasables.close(dimensions, sum, min, max, first, last, count);
+        if (histograms != null) {
+            for (long ordinal = 0; ordinal < histograms.size(); ordinal++) {
+                Releasables.close(histograms.get(ordinal));
+            }
+        }
+        Releasables.close(dimensions, sum, min, max, first, last, count, histograms);
     }
 }

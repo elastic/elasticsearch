@@ -11,11 +11,13 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -76,17 +78,49 @@ public class DerivedMetricsBuffer implements Releasable {
     private final AtomicInteger totalSeries = new AtomicInteger();
     private final int maxSeries;
     private final int maxSeriesPerStream;
+    private final int histogramBuckets;
+    private final ExponentialHistogramCircuitBreaker histogramBreaker;
 
     private static final AtomicInteger ZERO = new AtomicInteger();
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries) {
-        this(bigArrays, maxSeries, maxSeries);
+        this(bigArrays, maxSeries, maxSeries, DEFAULT_HISTOGRAM_BUCKETS);
     }
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream) {
+        this(bigArrays, maxSeries, maxSeriesPerStream, DEFAULT_HISTOGRAM_BUCKETS);
+    }
+
+    public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream, int histogramBuckets) {
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
+        this.histogramBuckets = histogramBuckets;
+        this.histogramBreaker = histogramBreaker(bigArrays);
+    }
+
+    /**
+     * The bucket capacity of a histogram series, matching the OpenTelemetry default. It is what bounds a histogram series' size, and
+     * therefore also its precision.
+     */
+    public static final int DEFAULT_HISTOGRAM_BUCKETS = 160;
+
+    /**
+     * Adapts the same breaker the rest of the buffer allocates against to the one-method interface the histogram library expects, so a
+     * distribution is accounted exactly like the scalar columns beside it.
+     */
+    private static ExponentialHistogramCircuitBreaker histogramBreaker(BigArrays bigArrays) {
+        if (bigArrays.breakerService() == null) {
+            return ExponentialHistogramCircuitBreaker.noop();
+        }
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(DerivedMetricsService.BREAKER_NAME);
+        return bytes -> {
+            if (bytes > 0) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes, "derived_metrics_histogram");
+            } else {
+                breaker.addWithoutBreaking(bytes);
+            }
+        };
     }
 
     /**
@@ -138,7 +172,15 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     private DerivedMetricsSeriesTable openTable(TableKey key) {
         try {
-            return tables.computeIfAbsent(key, unused -> new DerivedMetricsSeriesTable(bigArrays));
+            return tables.computeIfAbsent(
+                key,
+                unused -> new DerivedMetricsSeriesTable(
+                    bigArrays,
+                    key.metric().reduction().isHistogram(),
+                    histogramBuckets,
+                    histogramBreaker
+                )
+            );
         } catch (CircuitBreakingException e) {
             droppedSeries.increment();
             return null;

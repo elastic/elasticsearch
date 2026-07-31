@@ -53,7 +53,8 @@ public class DerivedMetricsFlushEarlyIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class);
+        // the destination maps metric.histogram as exponential_histogram, whose mapper ships in x-pack-analytics
+        return List.of(DataStreamsPlugin.class, DerivedMetricsHistogramMapperPlugin.class);
     }
 
     @Override

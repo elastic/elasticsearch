@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +61,8 @@ public class DerivedMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class);
+        // the destination maps metric.histogram as exponential_histogram, whose mapper ships in x-pack-analytics
+        return List.of(DataStreamsPlugin.class, DerivedMetricsHistogramMapperPlugin.class);
     }
 
     @Override
@@ -131,6 +133,58 @@ public class DerivedMetricsIT extends ESIntegTestCase {
             // only the two 5xx documents match the predicate
             assertThat(metrics.get("http.errors"), equalTo(2.0));
             assertThat(metrics.get("queue.depth"), equalTo(9.0));
+        });
+    }
+
+    /**
+     * A histogram metric emits a distribution rather than a value. The assertions read the emitted documents back rather than
+     * aggregating over them: the destination really is mapped as {@code exponential_histogram}, so the document round tripping through
+     * synthetic source at all is the proof it was accepted as one, and the totals are what a consumer merging the partials would get.
+     */
+    public void testHistogramMetricsAreEmittedAsDistributions() throws Exception {
+        String dataStream = createDataStream(
+            new DataStreamDerivedMetrics.Template(
+                null,
+                List.of(),
+                INTERVAL,
+                null,
+                null,
+                List.of(
+                    new DataStreamDerivedMetrics.Metric(
+                        "latency.distribution",
+                        DataStreamDerivedMetrics.MetricType.HISTOGRAM,
+                        null,
+                        DataStreamDerivedMetrics.MetricValue.field("event.duration"),
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+
+        for (int duration = 1; duration <= 100; duration++) {
+            index(dataStream, Map.of("service.name", "checkout", "event.duration", duration));
+        }
+
+        assertBusy(() -> {
+            double sum = 0.0;
+            long observations = 0L;
+            double slowest = Double.NEGATIVE_INFINITY;
+            for (Map<String, Object> document : metricDocuments(dataStream, "latency.distribution")) {
+                assertThat(document, not(hasKey("metric.value")));
+                sum += ((Number) field(document, "metric.histogram.sum")).doubleValue();
+                slowest = Math.max(slowest, ((Number) field(document, "metric.histogram.max")).doubleValue());
+                for (Object count : (List<?>) field(document, "metric.histogram.positive.counts")) {
+                    observations += ((Number) count).longValue();
+                }
+            }
+            // every observation is in the distribution, however many partials it ended up split across
+            assertThat(observations, equalTo(100L));
+            // the histogram carries the sum exactly, which is why no separate metric.value travels with it
+            assertThat(sum, closeTo(5050.0, 1e-6));
+            // bucket boundaries are approximate, so an individual value only comes back to within the bucket that holds it
+            assertThat(slowest, closeTo(100.0, 1.0));
         });
     }
 

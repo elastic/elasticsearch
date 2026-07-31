@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -250,6 +251,38 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             drainForPressure(buffer);
             assertTrue(record(buffer, key, "c", 1.0));
         }
+    }
+
+    /**
+     * A histogram series keeps the whole distribution rather than a handful of primitives, and it is charged against the same breaker as
+     * everything else. Closing the table has to give all of it back, which is the part that is easy to get wrong: the accumulators are
+     * objects held in an array rather than array memory the buffer released on its own.
+     */
+    public void testHistogramSeriesAccumulateAndReleaseTheirMemory() {
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofMb(64));
+        CircuitBreaker breaker = breakerService.getBreaker(DerivedMetricsService.BREAKER_NAME);
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, 10)) {
+            TableKey key = key(Reduction.HISTOGRAM, 0L);
+            for (int value = 1; value <= 100; value++) {
+                assertTrue(record(buffer, key, "checkout", value));
+            }
+            assertThat("a histogram series should have taken real memory", breaker.getUsed(), greaterThan(0L));
+
+            var drained = buffer.drainAll();
+            try {
+                try (var histogram = drained.get(0).table().histogramOf(0)) {
+                    assertEquals(100L, histogram.valueCount());
+                    assertEquals(5050.0, histogram.sum(), 1e-6);
+                    assertEquals(1.0, histogram.min(), 1e-6);
+                    assertEquals(100.0, histogram.max(), 1e-6);
+                }
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+        assertEquals("closing the buffer must give every byte back", 0L, breaker.getUsed());
     }
 
     /**

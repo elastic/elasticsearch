@@ -37,7 +37,7 @@ public final class DerivedMetricsDestination {
     /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 2L;
+    public static final long TEMPLATE_VERSION = 3L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
@@ -47,6 +47,11 @@ public final class DerivedMetricsDestination {
      * a re-aggregatable SUM(value)/SUM(count) rather than an average of averages.
      */
     public static final String METRIC_COUNT_FIELD = "metric.count";
+    /**
+     * Carries a whole distribution rather than a single number, and so replaces {@link #METRIC_VALUE_FIELD} on histogram metrics rather
+     * than joining it. The field carries its own sum, count, min and max, which is why no scalar travels alongside it.
+     */
+    public static final String METRIC_HISTOGRAM_FIELD = "metric.histogram";
     public static final String SOURCE_FIELD = "derived_metrics.source";
     public static final String INTERVAL_FIELD = "derived_metrics.interval";
     public static final String NODE_FIELD = "derived_metrics.node";
@@ -90,6 +95,10 @@ public final class DerivedMetricsDestination {
                   "count": {
                     "type": "long",
                     "time_series_metric": "gauge"
+                  },
+                  "histogram": {
+                    "type": "exponential_histogram",
+                    "time_series_metric": "histogram"
                   }
                 }
               },

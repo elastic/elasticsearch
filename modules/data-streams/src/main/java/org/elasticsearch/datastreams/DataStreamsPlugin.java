@@ -33,6 +33,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
@@ -225,6 +226,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_STREAM);
         pluginSettings.add(DerivedMetricsService.MAX_IN_FLIGHT_BULKS);
         pluginSettings.add(DerivedMetricsService.MEMORY_PRESSURE_POLICY);
+        pluginSettings.add(DerivedMetricsService.HISTOGRAM_BUCKETS);
         return pluginSettings;
     }
 
@@ -274,7 +276,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 settings,
                 services.client(),
                 services.threadPool(),
-                services.bigArrays(),
+                // Everything the buffer allocates has to land on the derived metrics breaker rather than the request breaker it would
+                // otherwise share, which means a BigArrays bound to this breaker by name. The pages are long lived rather than
+                // per-request, so giving up the recycler costs nothing.
+                new BigArrays(null, services.bigArrays().breakerService(), DerivedMetricsService.BREAKER_NAME).withCircuitBreaking(),
                 services.clusterService().getNodeName()
             )
         );

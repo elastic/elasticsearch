@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -57,11 +62,13 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -673,5 +680,97 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return false;
         }
         return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "ScoreTokenStream", allNullsIsNull = false)
+    static double scoreTokenStream(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Analyzer analyzer,
+        @Fixed Map<BytesRef, Integer> queryTerms,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return 0;
+        }
+
+        int maxScore = queryTerms.values().stream().reduce(0, Integer::sum);
+        if (maxScore == 0) {
+            return 0;
+        }
+
+        final var valueCount = fieldBlock.getValueCount(position);
+        final var startIndex = fieldBlock.getFirstValueIndex(position);
+
+        int currentScore = 0;
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            int score = 0;
+            try (TokenStream stream = analyzer.tokenStream(RuntimeSearch.CONTENT_FIELD, scratch.utf8ToString())) {
+                stream.reset();
+
+                Set<BytesRef> foundTerms = new HashSet<>();
+
+                TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
+                while (stream.incrementToken()) {
+                    if (foundTerms.contains(term.getBytesRef()) == false && queryTerms.containsKey(term.getBytesRef())) {
+                        foundTerms.add(term.getBytesRef());
+                        score += queryTerms.get(term.getBytesRef());
+                        if (score >= maxScore) {
+                            break;
+                        }
+                    }
+                }
+
+                stream.end();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (score >= maxScore) {
+                return maxScore;
+            }
+            if (score > currentScore) {
+                currentScore = score;
+            }
+        }
+
+        return currentScore;
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
+        if (isRuntimeSearch() == false) {
+            return super.toScorer(toScorer);
+        }
+
+        if (field.dataType() == TEXT && options() == null) {
+
+            Map<BytesRef, Integer> queryTerms;
+            try {
+                queryTerms = RuntimeSearch.analyzeTermsWithCounts(Lucene.STANDARD_ANALYZER, (String) queryAsObject());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            return new MatchScoreTokenStreamEvaluator.Factory(
+                this.source(),
+                toScorer.toEvaluator(field()),
+                Lucene.STANDARD_ANALYZER,
+                queryTerms,
+                (driverContext -> new BytesRef())
+            );
+        }
+
+        if (field.dataType() == TEXT && options() != null) {
+            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
+            return RuntimeSearch.textScoreEvaluatorForQuery(source(), toScorer.toEvaluator(field()), matchQuery);
+        }
+        return new RuntimeSearchScoreTermEvaluator.Factory(this.source(), toScorer.toEvaluator(this));
     }
 }

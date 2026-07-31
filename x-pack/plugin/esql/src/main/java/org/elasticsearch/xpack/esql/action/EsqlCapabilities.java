@@ -3574,6 +3574,13 @@ public class EsqlCapabilities {
         FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
 
         /**
+         * Support for the {@code {"include_empty_buckets": true}} option on the {@code BUCKET} grouping function, which
+         * makes {@code STATS ... BY BUCKET(...)} emit empty buckets (filled with zero/null aggregate values) across the
+         * whole {@code from}..{@code to} range.
+         */
+        BUCKET_INCLUDE_EMPTY_BUCKETS,
+
+        /**
          * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an
          * {@code IS NOT NULL} predicate through null-propagating expressions (an allow-list).
          * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>

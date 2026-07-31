@@ -43,6 +43,65 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
         );
     }
 
+    /**
+     * A LIMIT BY grouping on a source field is pushed past both RENAME (Project) and EVAL.
+     */
+    public void testLimitByPushedPastRenameAndEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL doubled = salary * 2
+            | RENAME doubled AS x
+            | LIMIT 5 BY languages
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A LIMIT BY grouping on a field that is a renamed computed value must not be pushed past the RENAME.
+     * The field {@code x} traces back to an EVAL-introduced attribute; it does not exist before the Project.
+     */
+    public void testLimitByNotPushedPastRenameOfEvalField() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL doubled = salary * 2
+            | RENAME doubled AS x
+            | LIMIT 5 BY x
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A LIMIT BY whose grouping references a field introduced by an EVAL must not be pushed below the EVAL.
+     */
+    public void testLimitByNotPushedPastEvalWhenGroupingByEvalField() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL x = salary * 2
+            | LIMIT 5 BY x
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A LIMIT BY whose grouping references only source fields is pushed below an EVAL.
+     */
+    public void testLimitByPushedPastEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL x = salary * 2
+            | LIMIT 5 BY languages
+            """, STAGES, STATS);
+    }
+
+    /**
+     * A LIMIT BY above a Filter is not pushed past it: pushing would change which rows are eligible,
+     * so the rule correctly leaves LimitBy above Filter.
+     */
+    public void testLimitByNotPushedPastFilter() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE salary > 50000
+            | LIMIT 5 BY languages
+            """, STAGES, STATS);
+    }
+
     public void testLimitByNotPushedPastDissect() {
         runGoldenTest("""
             FROM web_logs
@@ -93,6 +152,22 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
             """, STAGES, STATS);
     }
 
+    public void testLimitByNotPushedPastUserAgent() {
+        runGoldenTest("""
+            FROM web_logs
+            | USER_AGENT ua = user_agent
+            | LIMIT 1 BY ua.name, domain
+            """, STAGES, STATS);
+    }
+
+    public void testLimitByPushedPastUserAgent() {
+        runGoldenTest("""
+            FROM web_logs
+            | USER_AGENT ua = user_agent
+            | LIMIT 1 BY domain
+            """, STAGES, STATS);
+    }
+
     public void testLimitByNotPushedPastRerank() {
         runGoldenTest("""
             FROM books
@@ -105,6 +180,22 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM books
             | RERANK "war and peace" ON title WITH { "inference_id" : "reranking-inference-id" }
+            | LIMIT 3 BY author
+            """, STAGES, STATS);
+    }
+
+    public void testLimitByNotPushedPastCompletion() {
+        runGoldenTest("""
+            FROM books
+            | COMPLETION result = title WITH { "inference_id": "completion-inference-id" }
+            | LIMIT 3 BY result, author
+            """, STAGES, STATS);
+    }
+
+    public void testLimitByPushedPastCompletion() {
+        runGoldenTest("""
+            FROM books
+            | COMPLETION result = title WITH { "inference_id": "completion-inference-id" }
             | LIMIT 3 BY author
             """, STAGES, STATS);
     }

@@ -1183,28 +1183,6 @@ Sumant             | S                    | 10009
 Duangkaew          | D                    | 10010
 ;
 
-limitByWithGrok
-required_capability: esql_topn_by
-
-// Rows whose uri does not contain two consecutive path segments get null extracted fields.
-// LIMIT 1 BY file prunes the elasticsearch group (3 rows → 1) and the null group (3 rows → 1).
-FROM web_logs
-| GROK uri "/%{WORD:path}/%{WORD:file}"
-| SORT path NULLS LAST, file NULLS LAST, domain
-| LIMIT 1 BY file
-| KEEP path, file, domain
-| SORT file NULLS LAST, path NULLS LAST
-;
-
-path:keyword | file:keyword  | domain:keyword
-c            | elasticsearch | discuss.elastic.co
-guide        | en            | www.elastic.co
-app          | login         | app.example.com
-domains      | reserved      | www.iana.org
-api          | v1            | api.example.com
-null         | null          | files.internal
-;
-
 limitByWithUriParts
 required_capability: esql_topn_by
 

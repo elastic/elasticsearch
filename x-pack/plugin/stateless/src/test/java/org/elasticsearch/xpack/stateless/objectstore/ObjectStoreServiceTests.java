@@ -1175,14 +1175,19 @@ public class ObjectStoreServiceTests extends ESTestCase {
         value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
     )
     public void testTranslogUploadTimesLogLevels() throws Exception {
-        boolean[] delayUpload = new boolean[] { false };
+        AtomicBoolean exceedThreshold = new AtomicBoolean(false);
 
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(200);
+
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
-                    .put(ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(), "200ms")
+                    .put(
+                        ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(),
+                        slowTranslogUploadLogThreshold
+                    )
                     .build();
             }
 
@@ -1197,8 +1202,13 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     @Override
                     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
                         throws IOException {
-                        if (purpose == OperationPurpose.TRANSLOG && delayUpload[0]) {
-                            safeSleep(500);
+                        if (purpose == OperationPurpose.TRANSLOG && exceedThreshold.get()) {
+                            safeSleep(
+                                randomLongBetween(
+                                    slowTranslogUploadLogThreshold.millis() + 100,
+                                    slowTranslogUploadLogThreshold.millis() + 300
+                                )
+                            );
                         }
                         super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
                     }
@@ -1211,7 +1221,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var future1 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
                 objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), future1);
-                future1.actionGet();
+                safeGet(future1);
             },
                 ObjectStoreService.class,
                 new MockLog.SeenEventExpectation(
@@ -1228,13 +1238,13 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 )
             );
 
-            delayUpload[0] = true;
+            exceedThreshold.set(true);
 
             // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
             var future2 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
                 objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), future2);
-                future2.actionGet();
+                safeGet(future2);
             },
                 ObjectStoreService.class,
                 new MockLog.UnseenEventExpectation(

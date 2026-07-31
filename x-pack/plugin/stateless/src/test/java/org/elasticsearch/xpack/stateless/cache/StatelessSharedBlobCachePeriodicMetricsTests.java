@@ -204,6 +204,11 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             clusterSettings.applySettings(Settings.builder().put(METRICS_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
             taskQueue.runTasksUpToTimeInOrder(t0 + initialInterval.millis() + newInterval.millis());
             assertThat(sampleCalls.get(), equalTo(1));
+            recording.getRecorder().collect();
+            // Publish zeros so a pending unconsumed sample is not retained after sampling is disabled.
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.PROTECTED_METRIC, 0L);
 
             // Re-enable with a different interval.
             final TimeValue reenabledInterval = TimeValue.timeValueSeconds(30);
@@ -211,6 +216,97 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED), notNullValue());
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + reenabledInterval.millis());
             assertThat(sampleCalls.get(), equalTo(2));
+        }
+    }
+
+    public void testUnsetMetricsIntervalTracksEvictionPolicyDynamically() throws IOException {
+        final int numRegions = randomIntBetween(4, 10);
+        final long regionSize = SharedBytes.PAGE_SIZE * 10L;
+        // Leave metrics_interval unset so its default follows the eviction-policy setting.
+        final Settings settings = Settings.builder()
+            .put(cacheSettings(numRegions, regionSize))
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.ALWAYS
+            )
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        final AtomicInteger sampleCalls = new AtomicInteger();
+        final EvictionPolicy<TestCacheKey> countingPolicy = new EvictionPolicy<>() {
+            @Override
+            public Predicate<CacheRegion<TestCacheKey>> createPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> true;
+            }
+
+            @Override
+            public void onCached(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public void onEvicted(CacheRegion<TestCacheKey> region) {}
+
+            @Override
+            public boolean isProtected(CacheRegion<TestCacheKey> region) {
+                sampleCalls.incrementAndGet();
+                return false;
+            }
+        };
+        final ClusterSettings clusterSettings = clusterSettings(settings);
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recording),
+                countingPolicy
+            );
+            var metrics = new StatelessSharedBlobCachePeriodicMetrics(cacheService, clusterSettings, taskQueue.getThreadPool(), recording)
+        ) {
+            SharedBlobCacheServiceTestUtils.cacheRegion(
+                cacheService,
+                new TestCacheKey(new ShardId("index", randomUUID(), 0), "file"),
+                regionSize - 1,
+                0
+            );
+
+            metrics.start();
+            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED), nullValue());
+            taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + TimeValue.timeValueMinutes(5).millis());
+            assertThat(sampleCalls.get(), equalTo(0));
+
+            // Switching to PINNED_WINDOW re-evaluates the unset metrics_interval default to 3m and starts sampling.
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.PINNED_WINDOW
+                    )
+                    .build()
+            );
+            assertThat(recording.getLongGauge(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED), notNullValue());
+            final TimeValue pinnedDefault = TimeValue.timeValueMinutes(3);
+            taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + pinnedDefault.millis());
+            assertThat(sampleCalls.get(), equalTo(1));
+            recording.getRecorder().collect();
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 1L);
+
+            // Switching away from PINNED_WINDOW disables sampling again and clears gauges.
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.ALWAYS
+                    )
+                    .build()
+            );
+            taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + pinnedDefault.millis());
+            assertThat(sampleCalls.get(), equalTo(1));
+            recording.getRecorder().collect();
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED, 0L);
+            assertGauge(recording, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL, 0L);
         }
     }
 
@@ -406,7 +502,16 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
     }
 
     private static ClusterSettings clusterSettings(Settings settings) {
-        return new ClusterSettings(settings, Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(METRICS_INTERVAL_SETTING)));
+        return new ClusterSettings(
+            settings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(
+                    METRICS_INTERVAL_SETTING,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING
+                )
+            )
+        );
     }
 
     private static Settings cacheSettings(int numRegions, long regionSize) {

@@ -47,7 +47,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
      * {@link StatelessSharedBlobCacheService#STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING}
      * resolves to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW}, otherwise {@link TimeValue#MINUS_ONE}
      * (disabled), so sampling is on by default only when the pinned-window policy these metrics primarily
-     * illuminate is selected.
+     * illuminate is selected. When this setting is unset, that default is re-evaluated on dynamic updates of the
+     * eviction-policy setting (and gauges are cleared when sampling becomes disabled).
      * <p>
      * Minutes frequency is cheap even at large cache sizes: a full sample walks occupied regions once without holding the
      * cache monitor. At a 2TiB cache with 16MiB regions that is at most ~131k entries of field reads and map lookups.
@@ -152,6 +153,8 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
             metricsTask = null;
         }
         if (TimeValue.MINUS_ONE.equals(metricsInterval)) {
+            // Keep instruments registered but publish zeros so Observability does not retain a stale last sample.
+            clearGauges();
             return;
         }
         ensureGaugesRegistered();
@@ -227,6 +230,22 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 "regions"
             )
         );
+    }
+
+    private void clearGauges() {
+        assert Thread.holdsLock(this);
+        final ConsumingLongGaugeMetric filled = filledRegionsMetric.get();
+        if (filled == null) {
+            return;
+        }
+        filled.set(0);
+        totalRegionsMetric.get().set(0);
+        protectedMetric.get().set(0);
+        protectedFreq0Metric.get().set(0);
+        protectedFreqPositiveMetric.get().set(0);
+        backfillMetric.get().set(0);
+        unknownMetric.get().set(0);
+        minimalMetric.get().set(0);
     }
 
     private void sample() {
@@ -319,6 +338,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 metricsTask.cancel();
                 metricsTask = null;
             }
+            clearGauges();
         }
     }
 

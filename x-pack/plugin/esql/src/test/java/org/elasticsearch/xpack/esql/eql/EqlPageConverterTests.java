@@ -514,6 +514,58 @@ public class EqlPageConverterTests extends ESTestCase {
         }
     }
 
+    public void testCompositeJoinKeysRenderAsMultivalue() {
+        // A sequence with more than one BY field carries several join keys; they render as one multivalue join_keys
+        // entry, not a single concatenated string. Only single-key sequences were exercised before.
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(List.of("host-a", "user-b"), List.of(fieldEvent("p0")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            BytesRefBlock joinKeys = page.getBlock(2);
+            assertEquals(2, joinKeys.getValueCount(0));
+            BytesRef scratch = new BytesRef();
+            int first = joinKeys.getFirstValueIndex(0);
+            assertEquals(new BytesRef("host-a"), joinKeys.getBytesRef(first, scratch));
+            assertEquals(new BytesRef("user-b"), joinKeys.getBytesRef(first + 1, scratch));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testFieldWithOnlyNullValuesRendersNull() {
+        // A field whose values list holds only nulls renders the position as null: norm is never called on a null,
+        // and an all-null multivalue collapses to null rather than an empty position.
+        List<Attribute> schema = List.of(fieldAttribute("single", KEYWORD), fieldAttribute("multi", KEYWORD));
+        Event e0 = event(Map.of("single", Collections.singletonList(null), "multi", Arrays.asList(null, null)));
+
+        Page page = convert(eventResponse(List.of(e0)), EqlRelation.Mode.EVENT, schema);
+        try {
+            assertTrue("single null value must render null", page.getBlock(0).isNull(0));
+            assertTrue("all-null multivalue must render null", page.getBlock(1).isNull(0));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNonConvertibleFieldTypeThrows() {
+        // norm() has a defensive default arm: the resolve-time CONVERTIBLE_TYPES gate turns any non-convertible field
+        // into an UnsupportedAttribute before it can reach the converter, so a FieldAttribute of an unconvertible type
+        // is a bug. DATE_NANOS has a block element type (so it gets a wrapper) but no norm arm; hand-build one to pin
+        // the tripwire.
+        List<Attribute> schema = List.of(fieldAttribute("nanos", DataType.DATE_NANOS));
+        EqlSearchResponse response = eventResponse(List.of(event(Map.of("nanos", List.of(123)))));
+        try {
+            EsqlIllegalArgumentException e = expectThrows(
+                EsqlIllegalArgumentException.class,
+                () -> EqlPageConverter.toPage(response, EqlRelation.Mode.EVENT, schema, TestBlockFactory.getNonBreakingInstance())
+            );
+            assertThat(e.getMessage(), containsString("EQL command cannot convert"));
+        } finally {
+            response.decRef();
+        }
+    }
+
     private static MetadataAttribute metadata(String name) {
         return (MetadataAttribute) MetadataAttribute.create(EMPTY, name);
     }

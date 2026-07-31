@@ -12,7 +12,7 @@ products:
 
 This guide walks you through connecting {{es}} to external data and querying it with {{esql}}. By the end, you have a working data source, a dataset, and a query returning results from external storage.
 
-The example uses the [Ookla Open Speedtest dataset](https://github.com/teamookla/ookla-open-data), a publicly accessible collection of internet performance metrics aggregated by geographic tile. Because the bucket allows anonymous access, you can follow along without AWS credentials.
+The example uses the [Ookla Open Speedtest dataset](https://github.com/teamookla/ookla-open-data), a publicly accessible collection of internet performance metrics aggregated by geographic tile (a small area on the map). It mirrors a common observability pattern: analyzing network performance data stored in cloud storage alongside operational data indexed in {{es}}. Because the bucket allows anonymous access, you can follow along without AWS credentials.
 
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
@@ -25,6 +25,10 @@ Make sure you have the following:
 - An [Enterprise subscription](https://www.elastic.co/subscriptions) for {{ech}}, {{ece}}, {{eck}}, or self-managed deployments.
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.
+
+:::{important}
+This quickstart queries a public S3 bucket. If queries return `503` errors, the bucket may be temporarily throttled due to high traffic. Wait a few minutes and try again.
+:::
 
 ## Quickstart
 
@@ -40,17 +44,6 @@ This example registers a data source that points at a public S3 bucket with anon
 ::::{tab-set}
 :group: surface
 
-:::{tab-item} UI
-:sync: ui
-1. Go to **Data management** > **{{esql}} Data Federation**.
-2. On the **Data sources** tab, click **Connect data source**.
-3. Set **Data source type** to **Amazon S3**.
-4. Enter `ookla_speedtest` as the **Name**.
-5. Set **Region** to `us-east-1`.
-6. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
-7. Click **Connect**.
-:::
-
 :::{tab-item} Console
 :sync: console
 ```console
@@ -63,7 +56,7 @@ PUT /_query/data_source/ookla_speedtest
   }
 }
 ```
-1. Enables anonymous access for public buckets. For private data, use `auth: 'static_credentials'` with `access_key` and `secret_key` instead.
+1. Enables anonymous access for public buckets. For private data, refer to the [authentication overview](esql-data-federation-sources.md#authentication).
 
 A successful request returns `{"acknowledged": true}`.
 :::
@@ -86,22 +79,23 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
 A successful request returns `{"acknowledged": true}`.
 :::
 
+:::{tab-item} UI
+:sync: ui
+1. Go to **Data management** > **{{esql}} Data Federation**.
+2. On the **Data sources** tab, click **Connect data source**.
+3. Set **Data source type** to **Amazon S3**.
+4. Enter `ookla_speedtest` as the **Name**.
+5. Set **Region** to `us-east-1`.
+6. Under **Authentication**, from the **Preferred method** menu, select **Anonymous**.
+7. Click **Connect**.
+:::
+
 ::::
 
 Confirm the data source was created:
 
 ::::{tab-set}
 :group: surface
-
-:::{tab-item} UI
-:sync: ui
-The new data source appears on the **Data sources** tab, showing its type and region:
-
-:::{image} images/data-federation/data-sources-list.png
-:alt: The Data sources tab listing the ookla_speedtest data source
-:width: 600px
-:::
-:::
 
 :::{tab-item} Console
 :sync: console
@@ -118,6 +112,16 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source/ookla_speedtest" \
 ```
 :::
 
+:::{tab-item} UI
+:sync: ui
+The new data source appears on the **Data sources** tab, showing its type and region:
+
+:::{image} images/data-federation/data-sources-list.png
+:alt: The Data sources tab listing the ookla_speedtest data source
+:width: 600px
+:::
+:::
+
 ::::
 
 :::{note}
@@ -130,33 +134,14 @@ A dataset points at specific files within a data source and makes them queryable
 
 This example creates a dataset over one quarter of Ookla's fixed-broadband performance data. Each Parquet file contains speedtest results aggregated into geographic tiles. The key columns are:
 
-- `avg_d_kbps`, `avg_u_kbps`: average download and upload throughput per tile, in kbps
-- `avg_lat_ms`: average latency per tile, in milliseconds
-- `tests`, `devices`: number of speedtests and unique devices per tile
+- `avg_d_kbps`, `avg_u_kbps`: average download and upload throughput per geographic tile, in kbps
+- `avg_lat_ms`: average latency per geographic tile, in milliseconds
+- `tests`, `devices`: number of speedtests and unique devices per geographic tile
+
+For the full column reference, refer to the [Ookla Open Data tile attributes](https://github.com/teamookla/ookla-open-data#tile-attributes).
 
 ::::{tab-set}
 :group: surface
-
-:::{tab-item} UI
-:sync: ui
-1. Select the **Datasets** tab, then click **Add dataset**.
-2. Select `ookla_speedtest` as the **Data source**.
-3. Enter `speedtest_fixed` as the **Name**.
-4. In **Resource**, enter the resource path that selects the files to read:
-
-   ```text
-   s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet
-   ```
-5. Set **Format** to **Parquet**.
-6. Click **Add**.
-
-:::{dropdown} Show the completed Add dataset flyout
-:::{image} images/data-federation/add-dataset.png
-:alt: Add dataset flyout configured for the Ookla Q1 2024 fixed-broadband Parquet files
-:width: 450px
-:::
-:::
-:::
 
 :::{tab-item} Console
 :sync: console
@@ -188,22 +173,33 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
 A successful request returns `{"acknowledged": true}`.
 :::
 
+:::{tab-item} UI
+:sync: ui
+1. Select the **Datasets** tab, then click **Add dataset**.
+2. Select `ookla_speedtest` as the **Data source**.
+3. Enter `speedtest_fixed` as the **Name**.
+4. In **Resource**, enter the resource path that selects the files to read:
+
+   ```text
+   s3://ookla-open-data/parquet/performance/type=fixed/year=2024/quarter=1/*.parquet
+   ```
+5. Set **Format** to **Parquet**.
+6. Click **Add**.
+
+:::{dropdown} Show the completed Add dataset flyout
+:::{image} images/data-federation/add-dataset.png
+:alt: Add dataset flyout configured for the Ookla Q1 2024 fixed-broadband Parquet files
+:width: 450px
+:::
+:::
+:::
+
 ::::
 
 Confirm the dataset was created:
 
 ::::{tab-set}
 :group: surface
-
-:::{tab-item} UI
-:sync: ui
-The new dataset appears on the **Datasets** tab, showing its data source and resource:
-
-:::{image} images/data-federation/datasets-list.png
-:alt: The Datasets tab listing the speedtest_fixed dataset
-:width: 600px
-:::
-:::
 
 :::{tab-item} Console
 :sync: console
@@ -220,6 +216,16 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/speedtest_fixed" \
 ```
 :::
 
+:::{tab-item} UI
+:sync: ui
+The new dataset appears on the **Datasets** tab, showing its data source and resource:
+
+:::{image} images/data-federation/datasets-list.png
+:alt: The Datasets tab listing the speedtest_fixed dataset
+:width: 600px
+:::
+:::
+
 ::::
 
 ::::::
@@ -229,14 +235,6 @@ Before writing queries, check what field mappings {{es}} inferred from the Parqu
 
 ::::{tab-set}
 :group: surface
-
-:::{tab-item} {{esql}}
-:sync: esql
-```esql
-FROM speedtest_fixed
-| LIMIT 1
-```
-:::
 
 :::{tab-item} Console
 :sync: console
@@ -260,11 +258,19 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 ```
 :::
 
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed
+| LIMIT 1
+```
+:::
+
 ::::
 
 The response lists every column name and its inferred type:
 
-:::{dropdown} View response
+:::{dropdown} View column names and types
 ```json
 { "name": "quadkey", "type": "keyword" }
 { "name": "tile", "type": "keyword" }
@@ -290,30 +296,22 @@ If a column has an unexpected type, you can override it with a [dataset mapping]
 :::
 ::::::
 
-::::::{step} Query the dataset
-Once a dataset exists, query it with `FROM` just like any {{es}} index. This query summarizes the Q1 2024 fixed-broadband data across all geographic tiles:
+::::::{step} Run your first query
+Once a dataset exists, query it with `FROM` just like any {{es}} index. This query selects the key performance columns and returns five rows:
 
 ::::{tab-set}
 :group: surface
-
-:::{tab-item} {{esql}}
-:sync: esql
-```esql
-FROM speedtest_fixed
-| STATS
-    total_tiles        = COUNT(*),    // Geographic tiles in the dataset
-    total_tests        = SUM(tests),  // Speedtests recorded in Q1 2024
-    total_devices      = SUM(devices), // Unique devices that contributed
-    max_tests_per_tile = MAX(tests)   // Busiest single tile
-```
-:::
 
 :::{tab-item} Console
 :sync: console
 ```console
 POST /_query
 {
-  "query": "FROM speedtest_fixed | STATS total_tiles = COUNT(*), total_tests = SUM(tests), total_devices = SUM(devices), max_tests_per_tile = MAX(tests)"
+  "query": """
+    FROM speedtest_fixed
+    | KEEP avg_d_kbps, avg_u_kbps, avg_lat_ms, tests
+    | LIMIT 5
+  """
 }
 ```
 :::
@@ -325,42 +323,195 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM speedtest_fixed | STATS total_tiles = COUNT(*), total_tests = SUM(tests), total_devices = SUM(devices), max_tests_per_tile = MAX(tests)"
+  "query": "FROM speedtest_fixed | KEEP avg_d_kbps, avg_u_kbps, avg_lat_ms, tests | LIMIT 5"
 }'
+```
+:::
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed
+| KEEP avg_d_kbps, avg_u_kbps, avg_lat_ms, tests
+| LIMIT 5
 ```
 :::
 
 ::::
 
-The response includes execution metadata, followed by the result columns and values. Execution metadata is omitted here because it varies by cluster:
+If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
+::::::
 
-```json
+::::::{step} Explore the data
+Now that the dataset is working, try some more expressive queries.
+
+**Convert units and filter for the fastest geographic tiles**
+
+[`EVAL`](/reference/query-languages/esql/commands/eval.md) creates new columns from expressions. Here it converts the raw kbps values to Mbps using [`ROUND`](/reference/query-languages/esql/functions-operators/math-functions/round.md), then [`WHERE`](/reference/query-languages/esql/commands/where.md) filters for geographic tiles with a meaningful sample size. [`KEEP`](/reference/query-languages/esql/commands/keep.md) selects only the columns you need in the output, which also reduces the data read from storage for Parquet files.
+
+::::{tab-set}
+:group: surface
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query
 {
-  "columns": [
-    {
-      "name": "total_tiles",
-      "type": "long"
-    },
-    {
-      "name": "total_tests",
-      "type": "long"
-    },
-    {
-      "name": "total_devices",
-      "type": "long"
-    },
-    {
-      "name": "max_tests_per_tile",
-      "type": "long"
-    }
-  ],
-  "values": [
-    [6655986, 118589626, 34467251, 35873]
-  ]
+  "query": """
+    FROM speedtest_fixed
+    | EVAL download_mbps = ROUND(avg_d_kbps / 1000.0, 1),
+           upload_mbps = ROUND(avg_u_kbps / 1000.0, 1)
+    | WHERE tests > 100
+    | SORT download_mbps DESC
+    | KEEP download_mbps, upload_mbps, avg_lat_ms, tests, devices
+    | LIMIT 10
+  """
 }
 ```
+:::
 
-If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "query": "FROM speedtest_fixed | EVAL download_mbps = ROUND(avg_d_kbps / 1000.0, 1), upload_mbps = ROUND(avg_u_kbps / 1000.0, 1) | WHERE tests > 100 | SORT download_mbps DESC | KEEP download_mbps, upload_mbps, avg_lat_ms, tests, devices | LIMIT 10"
+}'
+```
+:::
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed
+| EVAL download_mbps = ROUND(avg_d_kbps / 1000.0, 1),
+       upload_mbps = ROUND(avg_u_kbps / 1000.0, 1)
+| WHERE tests > 100
+| SORT download_mbps DESC
+| KEEP download_mbps, upload_mbps, avg_lat_ms, tests, devices
+| LIMIT 10
+```
+:::
+
+::::
+
+**Break down speeds by test volume**
+
+[`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md) evaluates conditions in order and returns the first match, with the last argument as the default. [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md) groups the results and computes one row per bucket. You can nest scalar functions like [`ROUND`](/reference/query-languages/esql/functions-operators/math-functions/round.md) around aggregate functions like [`AVG`](/reference/query-languages/esql/functions-operators/aggregation-functions/avg.md) in the same expression. This query buckets geographic tiles by how many tests they recorded and compares average speeds across buckets.
+
+::::{tab-set}
+:group: surface
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query
+{
+  "query": """
+    FROM speedtest_fixed
+    | EVAL download_mbps = avg_d_kbps / 1000.0
+    | EVAL bucket = CASE(
+        tests < 10, "< 10 tests",
+        tests < 100, "10-99 tests",
+        tests < 1000, "100-999 tests",
+        ">= 1000 tests")
+    | STATS avg_download = ROUND(AVG(download_mbps), 1),
+            avg_latency = ROUND(AVG(avg_lat_ms), 1),
+            tile_count = COUNT(*)
+        BY bucket
+    | SORT avg_download DESC
+  """
+}
+```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "query": "FROM speedtest_fixed | EVAL download_mbps = avg_d_kbps / 1000.0 | EVAL bucket = CASE(tests < 10, \"< 10 tests\", tests < 100, \"10-99 tests\", tests < 1000, \"100-999 tests\", \">= 1000 tests\") | STATS avg_download = ROUND(AVG(download_mbps), 1), avg_latency = ROUND(AVG(avg_lat_ms), 1), tile_count = COUNT(*) BY bucket | SORT avg_download DESC"
+}'
+```
+:::
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed
+| EVAL download_mbps = avg_d_kbps / 1000.0
+| EVAL bucket = CASE(
+    tests < 10, "< 10 tests",
+    tests < 100, "10-99 tests",
+    tests < 1000, "100-999 tests",
+    ">= 1000 tests")
+| STATS avg_download = ROUND(AVG(download_mbps), 1),
+        avg_latency = ROUND(AVG(avg_lat_ms), 1),
+        tile_count = COUNT(*)
+    BY bucket
+| SORT avg_download DESC
+```
+:::
+
+::::
+
+**Analyze speed distributions with percentiles**
+
+[`MEDIAN`](/reference/query-languages/esql/functions-operators/aggregation-functions/median.md) returns the 50th percentile and [`PERCENTILE(field, 95)`](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md) returns the value at the 95th percentile, showing the speed that only 5% of geographic tiles exceed. Together they reveal how speeds are distributed, not just the average.
+
+::::{tab-set}
+:group: surface
+
+:::{tab-item} Console
+:sync: console
+```console
+POST /_query
+{
+  "query": """
+    FROM speedtest_fixed
+    | WHERE tests > 50
+    | STATS
+        median_down = ROUND(MEDIAN(avg_d_kbps) / 1000.0, 1),
+        p95_down = ROUND(PERCENTILE(avg_d_kbps, 95) / 1000.0, 1),
+        median_latency = ROUND(MEDIAN(avg_lat_ms), 0),
+        p95_latency = ROUND(PERCENTILE(avg_lat_ms, 95), 0),
+        tiles = COUNT(*)
+  """
+}
+```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_query" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "query": "FROM speedtest_fixed | WHERE tests > 50 | STATS median_down = ROUND(MEDIAN(avg_d_kbps) / 1000.0, 1), p95_down = ROUND(PERCENTILE(avg_d_kbps, 95) / 1000.0, 1), median_latency = ROUND(MEDIAN(avg_lat_ms), 0), p95_latency = ROUND(PERCENTILE(avg_lat_ms, 95), 0), tiles = COUNT(*)"
+}'
+```
+:::
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed
+| WHERE tests > 50
+| STATS
+    median_down = ROUND(MEDIAN(avg_d_kbps) / 1000.0, 1),
+    p95_down = ROUND(PERCENTILE(avg_d_kbps, 95) / 1000.0, 1),
+    median_latency = ROUND(MEDIAN(avg_lat_ms), 0),
+    p95_latency = ROUND(PERCENTILE(avg_lat_ms, 95), 0),
+    tiles = COUNT(*)
+```
+:::
+
+::::
 ::::::
 
 ::::::{step} Query federated and indexed data together
@@ -368,6 +519,11 @@ Datasets share the same namespace as regular indices, so you can query both in a
 
 First, create an index with a few sample documents to query alongside the dataset:
 
+::::{tab-set}
+:group: surface
+
+:::{tab-item} Console
+:sync: console
 ```console
 PUT /network_incidents
 {
@@ -380,9 +536,35 @@ PUT /network_incidents
   }
 }
 ```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X PUT "${ELASTICSEARCH_URL}/network_incidents" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "mappings": {
+    "properties": {
+      "category":     { "type": "keyword" },
+      "severity":     { "type": "keyword" },
+      "duration_min": { "type": "integer" }
+    }
+  }
+}'
+```
+:::
+
+::::
 
 Then index a few documents:
 
+::::{tab-set}
+:group: surface
+
+:::{tab-item} Console
+:sync: console
 ```console
 POST /_bulk
 {"index":{"_index":"network_incidents"}}
@@ -392,27 +574,43 @@ POST /_bulk
 {"index":{"_index":"network_incidents"}}
 {"category":"outage","severity":"low","duration_min":8}
 ```
+:::
+
+:::{tab-item} curl
+:sync: curl
+```bash
+curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
+  -H "Authorization: ApiKey ${API_KEY}" \
+  -H "Content-Type: application/x-ndjson" \
+  -d '
+{"index":{"_index":"network_incidents"}}
+{"category":"outage","severity":"high","duration_min":45}
+{"index":{"_index":"network_incidents"}}
+{"category":"degradation","severity":"medium","duration_min":12}
+{"index":{"_index":"network_incidents"}}
+{"category":"outage","severity":"low","duration_min":8}
+'
+```
+:::
+
+::::
 
 Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _index` to see where each row came from:
 
 ::::{tab-set}
 :group: surface
 
-:::{tab-item} {{esql}}
-:sync: esql
-```esql
-FROM speedtest_fixed, network_incidents METADATA _index
-| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-| LIMIT 5
-```
-:::
-
 :::{tab-item} Console
 :sync: console
 ```console
 POST /_query
 {
-  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | LIMIT 5"
+  "query": """
+    FROM speedtest_fixed, network_incidents METADATA _index
+    | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+    | SORT _index ASC, duration_min DESC NULLS LAST
+    | LIMIT 5
+  """
 }
 ```
 :::
@@ -424,14 +622,24 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | LIMIT 5"
+  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _index ASC, duration_min DESC NULLS LAST | LIMIT 5"
 }'
+```
+:::
+
+:::{tab-item} {{esql}}
+:sync: esql
+```esql
+FROM speedtest_fixed, network_incidents METADATA _index
+| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+| SORT _index ASC, duration_min DESC NULLS LAST
+| LIMIT 5
 ```
 :::
 
 ::::
 
-The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. Execution metadata is omitted here:
+The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
 
 ```json
 {
@@ -444,11 +652,11 @@ The `_index` column shows where each row came from. Columns that do not exist in
     { "name": "avg_lat_ms", "type": "long" }
   ],
   "values": [
-    ["network_incidents", "outage",      "high",   45, null, null],
-    ["network_incidents", "degradation", "medium", 12, null, null],
-    ["network_incidents", "outage",      "low",     8, null, null],
-    ["speedtest_fixed",   null,           null,   null, 8033,  70],
-    ["speedtest_fixed",   null,           null,   null, 10327,  8]
+    ["network_incidents", "outage",      "high",   45,   null, null],
+    ["network_incidents", "degradation", "medium", 12,   null, null],
+    ["network_incidents", "outage",      "low",     8,   null, null],
+    ["speedtest_fixed",   null,           null,   null, 158062, 223],
+    ["speedtest_fixed",   null,           null,   null,  64266, 165]
   ]
 }
 ```
@@ -516,6 +724,7 @@ curl -X DELETE "${ELASTICSEARCH_URL}/network_incidents" \
 
 Now that you have a working data source and dataset, you can:
 
-- **Speed up queries.** Learn how column selection, partition pruning, and filter pushdown reduce the data read from storage. Refer to [query external datasets](esql-data-federation-querying.md).
-- **Connect your own bucket.** The quickstart uses anonymous access. To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
-- **Tune dataset settings.** Override file formats, customize schema inference, and declare explicit column mappings. Refer to [select external datasets](esql-data-federation-datasets.md).
+- **Learn about querying external datasets.** To learn how the query engine reads external data, refer to [query external datasets](esql-data-federation-querying.md).
+  - For general {{esql}} query tuning, refer to [optimize {{esql}} query performance](esql-query-performance.md).
+- **Connect your own bucket.** To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
+- **Tune dataset settings.** To override file formats, customize schema inference, or declare explicit column mappings, refer to [select external datasets](esql-data-federation-datasets.md).

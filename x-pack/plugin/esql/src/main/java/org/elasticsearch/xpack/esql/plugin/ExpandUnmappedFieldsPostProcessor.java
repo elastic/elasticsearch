@@ -60,20 +60,31 @@ class ExpandUnmappedFieldsPostProcessor {
             return result;
         }
 
-        List<String> sortedFieldNames = new ArrayList<>(collectFieldNames(result, unmappedIdx));
-        // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
-        // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
-        List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
-        List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory);
+        // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
+        // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
+        boolean success = false;
+        try {
+            List<String> sortedFieldNames = new ArrayList<>(collectFieldNames(result, unmappedIdx));
+            // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
+            // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
+            List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
+            List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory);
 
-        return new Result(
-            newSchema,
-            newPages,
-            result.attributeMetadata(),
-            result.configuration(),
-            result.completionInfo(),
-            result.executionInfo()
-        );
+            Result expanded = new Result(
+                newSchema,
+                newPages,
+                result.attributeMetadata(),
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo()
+            );
+            success = true;
+            return expanded;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(result.pages());
+            }
+        }
     }
 
     /**

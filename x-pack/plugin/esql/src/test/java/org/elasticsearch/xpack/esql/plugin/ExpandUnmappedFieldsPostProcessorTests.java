@@ -35,7 +35,9 @@ import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -158,10 +160,21 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 Releasables.close(expanded.pages());
             } catch (CircuitBreakingException e) {
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-            } finally {
-                Releasables.close(result.pages());
             }
         });
+    }
+
+    public void testExpandReleasesInputPagesWhenExpansionFails() {
+        BlockFactory bf = blockFactory();
+        // Query column "a" collides with the "a" key discovered in the _unmapped_fields JSON, so buildSchema throws.
+        Result result = result(List.of(keywordAttr("a"), unmappedAttr()), List.of(page(bf, List.of(row("v", jsonObject("{'a':'x'}"))))));
+        assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
+
+        var e = expectThrows(IllegalStateException.class, () -> ExpandUnmappedFieldsPostProcessor.expand(result, bf));
+        assertThat(e.getMessage(), containsString("Conflict in unmapped field name"));
+
+        // No manual release here: the point is that expand must have released the input pages on its failure path.
+        assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
@@ -170,6 +183,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static Attribute intAttr() {
         return new ReferenceAttribute(Source.EMPTY, null, INT_ATTR, DataType.INTEGER);
+    }
+
+    private static Attribute keywordAttr(String name) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD);
     }
 
     private static UnmappedFieldsAttribute unmappedAttr() {

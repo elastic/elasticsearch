@@ -143,6 +143,10 @@ dependencies {
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
     implementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+    // gRPC server for MockApmServer's OTLP receiver.
+    implementation "io.grpc:grpc-stub:1.78.0"
+    implementation "io.grpc:grpc-protobuf:1.78.0"
+    runtimeOnly "io.grpc:grpc-netty-shaded:1.78.0"
 
     testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()

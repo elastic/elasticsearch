@@ -305,7 +305,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                     if (usingOtelSdk) {
-                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getPort());
+                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
                     } else {
                         node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                         node.setting("telemetry.agent.transaction_max_spans", "100");

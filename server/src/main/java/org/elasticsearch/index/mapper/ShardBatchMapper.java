@@ -27,7 +27,7 @@ import org.elasticsearch.sourcebatch.SourceSchema;
  *
  * <p>Workflow:
  * <ol>
- *     <li>{@link #resolveMappers(SourceSchema, MappingLookup)} runs once per batch. It walks the
+ *     <li>{@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} runs once per batch. It walks the
  *     schema leaves and binds each column to a {@link FieldMapper} (or records {@code null} for
  *     columns that are silently ignored under a {@code dynamic=false} parent). Any configuration
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
@@ -46,7 +46,7 @@ public final class ShardBatchMapper {
     private ShardBatchMapper() {}
 
     /**
-     * Result of {@link #resolveMappers(SourceSchema, MappingLookup)}. Holds one entry per schema
+     * Result of {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)}. Holds one entry per schema
      * leaf; a {@code null} entry means the column is silently ignored because its nearest
      * existing parent {@link ObjectMapper} has {@code dynamic=false}.
      */
@@ -57,7 +57,7 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
-    public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup) {
+    public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -71,6 +71,16 @@ public final class ShardBatchMapper {
         if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
             logger.debug("batch indexing disabled: slice-enabled index");
             return null;
+        }
+
+        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
+                    mapper.typeName()
+                );
+                return null;
+            }
         }
 
         final int leafCount = schema.leafCount();
@@ -101,7 +111,16 @@ public final class ShardBatchMapper {
                 logger.debug("batch indexing disabled: non-field mapper at [{}]", fullPath);
                 return null;
             }
-            columnMappers[leaf] = (FieldMapper) resolved;
+            final FieldMapper fieldMapper = (FieldMapper) resolved;
+            if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
+                    fullPath,
+                    fieldMapper.typeName()
+                );
+                return null;
+            }
+            columnMappers[leaf] = fieldMapper;
         }
 
         return new BatchMapperResolution(columnMappers);
@@ -125,15 +144,19 @@ public final class ShardBatchMapper {
                 return parent.dynamic();
             }
         }
+        // In COLUMNAR mode, objects are flattened (subobjects:DISABLED) and do not appear in
+        // objectMappers(). Their dynamic settings are instead stored in prefixProperties on
+        // RootObjectMapper. resolveDynamic() consults those when prefixProperties is non-empty,
+        // and returns the fallback unchanged when it is empty (non-COLUMNAR path).
         final ObjectMapper.Dynamic rootDynamic = lookup.getMapping().getRoot().dynamic();
-        return rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        final ObjectMapper.Dynamic rootFallback = rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
     }
 
     /**
      * Executes the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
-     * fallback signal — same contract as {@link #resolveMappers}) if any resolved field mapper or
-     * any sorted metadata mapper does not support columnar parsing, or if mapping hits an
-     * unexpected exception.
+     * fallback signal — same contract as {@link #resolveMappers}) if mapping hits an unexpected
+     * exception.
      */
     public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
@@ -144,25 +167,8 @@ public final class ShardBatchMapper {
         BatchMapperResolution resolution,
         Engine.Operation.Origin origin
     ) {
-        final IndexSettings indexSettings = shard.indexSettings();
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        for (MetadataFieldMapper mapper : metadataMappers) {
-            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
-                logger.debug(
-                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
-                    mapper.typeName()
-                );
-                return null;
-            }
-        }
-
-        for (FieldMapper mapper : resolution.columnMappers()) {
-            if (mapper != null && mapper.supportsColumnarParse(indexSettings) == false) {
-                logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
-                return null;
-            }
-        }
 
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
@@ -173,7 +179,7 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
-        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, indexSettings);
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings());
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {

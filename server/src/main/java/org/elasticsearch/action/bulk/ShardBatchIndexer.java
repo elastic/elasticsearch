@@ -109,7 +109,8 @@ public final class ShardBatchIndexer {
         // path (same contract as a later parseMappings returning null).
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
-            primary.mapperService().mappingLookup()
+            primary.mapperService().mappingLookup(),
+            primary.indexSettings()
         );
         if (resolution == null) {
             return;
@@ -152,7 +153,8 @@ public final class ShardBatchIndexer {
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
-            replica.mapperService().mappingLookup()
+            replica.mapperService().mappingLookup(),
+            replica.indexSettings()
         );
         if (resolution == null) {
             return new ReplicaBatchResult(0, null);

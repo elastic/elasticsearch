@@ -85,7 +85,11 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
      * Returns the {@link EngineBatch}, or {@code null} if the columnar path was not taken.
      */
     private static EngineBatch mapBatch(IndexShard shard, BulkItemRequest[] items, SourceBatch batch) {
-        final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+        final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+            batch.schema(),
+            shard.mapperService().mappingLookup(),
+            shard.indexSettings()
+        );
         if (resolution == null) {
             return null;
         }

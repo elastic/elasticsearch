@@ -111,9 +111,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
 
-    public static final String CHUNKS_FORMAT = "chunks";
-    public static final String EMBEDDINGS_FORMAT = "embeddings";
-
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
@@ -1067,29 +1064,16 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format == null) {
-                return valueFetcher(context);
+            if (format != null && "chunks".equals(format) == false) {
+                throw new IllegalArgumentException(
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                );
+            }
+            if (format != null) {
+                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
             }
 
-            return switch (format) {
-                case CHUNKS_FORMAT -> new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
-                case EMBEDDINGS_FORMAT -> new EmbeddingsSemanticFieldValueFetcher(
-                    this,
-                    getChunksField().bitsetProducer(),
-                    context.searcher()
-                );
-                default -> throw new IllegalArgumentException(
-                    "Unknown format ["
-                        + format
-                        + "] for field ["
-                        + name()
-                        + "], only ["
-                        + CHUNKS_FORMAT
-                        + "] and ["
-                        + EMBEDDINGS_FORMAT
-                        + "] are supported."
-                );
-            };
+            return valueFetcher(context);
         }
 
         @Override

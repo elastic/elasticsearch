@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -83,7 +82,6 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -161,169 +159,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private static final TransportVersion INDEX_RESHARDING_METADATA = TransportVersion.fromName("index_resharding_metadata");
     private static final TransportVersion INDEX_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("index_created_transport_version");
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
-    // Settings stores values in a TreeMap; these constants capture entry overhead without needing the map reference.
-    private static final long SETTINGS_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Settings.class);
-    private static final long SETTINGS_TREE_MAP_BYTES = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
-    // TreeMap.Entry: header + 5 refs (key, value, parent, left, right) + 1 byte (color flag)
-    private static final long SETTINGS_TREE_MAP_ENTRY_BYTES = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 1
-    );
-    private static final long COMPRESSED_XCONTENT_BASE = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
-    private static final long MAPPING_METADATA_BASE = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
-    private static final long ROLLOVER_INFO_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RolloverInfo.class);
-
-    private volatile long ramBytesUsed = -1;
-
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
-    }
-
-    /**
-     * Returns an estimated heap footprint for this index metadata instance. Counts all reference fields using
-     * {@link RamUsageEstimator}. Shared instances (e.g. deduplicated {@link MappingMetadata} in {@link ProjectMetadata})
-     * may be counted multiple times when summed across indices; callers that need accurate cross-index totals should
-     * use {@link #estimateMappingMetadataHeap} to subtract duplicate mapping costs.
-     */
-    @Override
-    public long ramBytesUsed() {
-        long value = ramBytesUsed;
-        if (value != -1L) {
-            return value;
-        }
-        long size = BASE_RAM_BYTES_USED;
-        size += sizeOfIndex(index);
-        size += estimateSettingsHeap(settings);
-        if (mapping != null) {
-            size += estimateMappingMetadataHeap(mapping);
-        }
-        size += RamUsageEstimator.sizeOf(primaryTerms);
-        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
-        size += RamUsageEstimator.sizeOfObject(aliases);
-        size += RamUsageEstimator.sizeOfMap(customData);
-        size += RamUsageEstimator.sizeOfObject(inferenceFields);
-        size += estimateRolloverInfosHeap(rolloverInfos);
-        size += sizeOfTransportVersion(transportVersion);
-        size += RamUsageEstimator.shallowSizeOf(state);
-        size += RamUsageEstimator.sizeOfCollection(routingPaths);
-        size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
-        size += RamUsageEstimator.shallowSizeOf(requireFilters);
-        size += RamUsageEstimator.shallowSizeOf(includeFilters);
-        size += RamUsageEstimator.shallowSizeOf(excludeFilters);
-        size += RamUsageEstimator.shallowSizeOf(initialRecoveryFilters);
-        size += sizeOfIndexVersion(indexCreatedVersion);
-        size += sizeOfIndexVersion(mappingsUpdatedVersion);
-        size += sizeOfIndexVersion(indexCompatibilityVersion);
-        size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
-        size += RamUsageEstimator.shallowSizeOf(timestampRange);
-        size += RamUsageEstimator.shallowSizeOf(eventIngestedRange);
-        size += RamUsageEstimator.sizeOfCollection(tierPreference);
-        size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
-        size += sizeOfLifecycleExecutionState(lifecycleExecutionState);
-        size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
-        size += RamUsageEstimator.shallowSizeOf(indexMode);
-        size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
-        size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
-        size += sizeOfIndexMetadataStats(stats);
-        size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
-        size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
-        size += RamUsageEstimator.shallowSizeOf(reshardingMetadata);
-        value = size;
-        ramBytesUsed = value;
-        return value;
-    }
-
-    private static long sizeOfIndex(Index index) {
-        return RamUsageEstimator.shallowSizeOf(index) + RamUsageEstimator.sizeOf(index.getName()) + RamUsageEstimator.sizeOf(
-            index.getUUID()
-        );
-    }
-
-    private static long estimateSettingsHeap(Settings settings) {
-        if (settings.isEmpty()) {
-            return SETTINGS_BASE_RAM_BYTES_USED;
-        }
-        // Keys and string values are interned via Settings.internKeyOrValue — not counted to avoid 4x over-counting.
-        // List-value overhead is minor and omitted for simplicity.
-        // secureSettings omitted: never populated on index-level Settings.
-        return SETTINGS_BASE_RAM_BYTES_USED + SETTINGS_TREE_MAP_BYTES + (long) settings.size() * SETTINGS_TREE_MAP_ENTRY_BYTES;
-    }
-
-    private static long estimateCompressedXContentHeap(CompressedXContent content) {
-        return COMPRESSED_XCONTENT_BASE + RamUsageEstimator.sizeOf(content.compressed()) + RamUsageEstimator.sizeOf(content.getSha256());
-    }
-
-    /**
-     * Estimates the heap footprint of a {@link MappingMetadata} instance using its public API.
-     * Exposed for callers (e.g. {@code StatelessMemoryMetricsService}) that need to subtract
-     * duplicate mapping costs when summing across indices that share a mapping instance.
-     */
-    public static long estimateMappingMetadataHeap(MappingMetadata mapping) {
-        return MAPPING_METADATA_BASE + RamUsageEstimator.sizeOf(mapping.type()) + estimateCompressedXContentHeap(mapping.source());
-    }
-
-    private static long estimateRolloverInfosHeap(ImmutableOpenMap<String, RolloverInfo> rolloverInfos) {
-        long size = RamUsageEstimator.sizeOfObject(rolloverInfos);
-        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
-            size += estimateRolloverInfoHeap(rolloverInfo);
-        }
-        return size;
-    }
-
-    private static long estimateRolloverInfoHeap(RolloverInfo rolloverInfo) {
-        return ROLLOVER_INFO_BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(rolloverInfo.getAlias()) + RamUsageEstimator.sizeOfObject(
-            rolloverInfo.getMetConditions()
-        );
-    }
-
-    private static long sizeOfTransportVersion(@Nullable TransportVersion version) {
-        if (version == null) {
-            return 0L;
-        }
-        long size = RamUsageEstimator.shallowSizeOf(version);
-        size += RamUsageEstimator.sizeOf(version.name());
-        size += sizeOfTransportVersion(version.nextPatchVersion());
-        return size;
-    }
-
-    private static long sizeOfIndexVersion(IndexVersion indexVersion) {
-        return RamUsageEstimator.shallowSizeOf(indexVersion) + RamUsageEstimator.shallowSizeOf(indexVersion.luceneVersion());
-    }
-
-    private static long sizeOfLifecycleExecutionState(@Nullable LifecycleExecutionState state) {
-        if (state == null) {
-            return 0L;
-        }
-        long size = RamUsageEstimator.shallowSizeOf(state);
-        size += RamUsageEstimator.sizeOf(state.phase());
-        size += RamUsageEstimator.sizeOf(state.action());
-        size += RamUsageEstimator.sizeOf(state.step());
-        size += RamUsageEstimator.sizeOf(state.failedStep());
-        size += RamUsageEstimator.shallowSizeOf(state.isAutoRetryableError());
-        size += RamUsageEstimator.shallowSizeOf(state.failedStepRetryCount());
-        size += RamUsageEstimator.sizeOf(state.stepInfo());
-        size += RamUsageEstimator.sizeOf(state.previousStepInfo());
-        size += RamUsageEstimator.sizeOf(state.phaseDefinition());
-        size += RamUsageEstimator.shallowSizeOf(state.lifecycleDate());
-        size += RamUsageEstimator.shallowSizeOf(state.phaseTime());
-        size += RamUsageEstimator.shallowSizeOf(state.actionTime());
-        size += RamUsageEstimator.shallowSizeOf(state.stepTime());
-        size += RamUsageEstimator.sizeOf(state.snapshotRepository());
-        size += RamUsageEstimator.sizeOf(state.snapshotName());
-        size += RamUsageEstimator.sizeOf(state.shrinkIndexName());
-        size += RamUsageEstimator.sizeOf(state.snapshotIndexName());
-        size += RamUsageEstimator.sizeOf(state.downsampleIndexName());
-        size += RamUsageEstimator.sizeOf(state.forceMergeCloneIndexName());
-        return size;
-    }
-
-    private static long sizeOfIndexMetadataStats(@Nullable IndexMetadataStats stats) {
-        if (stats == null) {
-            return 0L;
-        }
-        return RamUsageEstimator.shallowSizeOf(stats) + RamUsageEstimator.shallowSizeOf(stats.writeLoad()) + RamUsageEstimator
-            .shallowSizeOf(stats.averageShardSize());
     }
 
     public enum State implements Writeable {
@@ -1362,6 +1200,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.primaryTerms[shardId];
     }
 
+    long[] getPrimaryTerms() {
+        return primaryTerms;
+    }
+
     /**
      * Return the {@link IndexVersion} on which this index has been created. This
      * information is typically useful for backward compatibility.
@@ -1544,6 +1386,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
+    }
+
+    @Nullable
+    Double getWriteLoadForecast() {
+        return writeLoadForecast;
+    }
+
+    @Nullable
+    Long getShardSizeInBytesForecast() {
+        return shardSizeInBytesForecast;
     }
 
     /**
@@ -3556,5 +3408,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Float weight
     ) {
         matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
+    }
+
+    private volatile long ramBytesUsed = -1;
+
+    /**
+     * Returns an estimated heap footprint for this index metadata instance. Counts all reference fields using
+     * {@link org.apache.lucene.util.RamUsageEstimator}. Shared instances (e.g. deduplicated {@link MappingMetadata} in
+     * {@link ProjectMetadata}) may be counted multiple times when summed across indices; callers that need accurate cross-index totals
+     * should use {@link #estimateMappingMetadataHeap} to subtract duplicate mapping costs.
+     */
+    @Override
+    public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = IndexMetadataRamUsageEstimator.estimate(this);
+        }
+        return ramBytesUsed;
+    }
+
+    /**
+     * Estimates the heap footprint of a {@link MappingMetadata} instance using its public API.
+     * Exposed for callers (e.g. {@code StatelessMemoryMetricsService}) that need to subtract
+     * duplicate mapping costs when summing across indices that share a mapping instance.
+     */
+    public static long estimateMappingMetadataHeap(MappingMetadata mapping) {
+        return IndexMetadataRamUsageEstimator.estimateMappingMetadataHeap(mapping);
     }
 }

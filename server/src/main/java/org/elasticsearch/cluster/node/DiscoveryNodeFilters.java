@@ -255,6 +255,13 @@ public class DiscoveryNodeFilters {
     }
 
     /**
+     * @return the attribute filters configured on this instance. The returned map is unmodifiable.
+     */
+    public Map<String, String[]> getFilters() {
+        return filters;
+    }
+
+    /**
      * Generates a human-readable string for the DiscoverNodeFilters.
      * Example: {@code _id:"id1 OR blah",name:"blah OR name2"}
      */

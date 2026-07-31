@@ -73,6 +73,13 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         return isComplete() && this != IndexLongFieldRange.UNKNOWN;
     }
 
+    /**
+     * @return the number of shard ids tracked while this range is {@linkplain #isComplete() incomplete}, or {@code 0} otherwise.
+     */
+    public int numberOfTrackedShards() {
+        return shards == null ? 0 : shards.length;
+    }
+
     // exposed for testing
     int[] getShards() {
         return shards;

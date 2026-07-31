@@ -1014,4 +1014,56 @@ public class IndexMetadataTests extends ESTestCase {
 
         assertThat(withPaths.ramBytesUsed(), greaterThan(withoutPaths.ramBytesUsed()));
     }
+
+    public void testRamBytesUsedIncludesAliasMetadata() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutAlias = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata withAlias = IndexMetadata.builder("test")
+            .settings(settings)
+            .putAlias(
+                AliasMetadata.builder("alias")
+                    .filter("{\"term\":{\"field\":\"value\"}}")
+                    .indexRouting("routing")
+                    .searchRouting("sr1,sr2")
+                    .writeIndex(true)
+                    .build()
+            )
+            .build();
+
+        assertThat(withAlias.ramBytesUsed(), greaterThan(withoutAlias.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesRolloverMetConditions() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutRollover = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata withRollover = IndexMetadata.builder("test")
+            .settings(settings)
+            .putRolloverInfo(
+                new RolloverInfo(
+                    "alias",
+                    List.of(
+                        new MaxDocsCondition(1_000L),
+                        new MaxAgeCondition(TimeValue.timeValueDays(1)),
+                        new MaxSizeCondition(ByteSizeValue.ofMb(1))
+                    ),
+                    System.currentTimeMillis()
+                )
+            )
+            .build();
+
+        assertThat(withRollover.ramBytesUsed(), greaterThan(withoutRollover.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesDiscoveryNodeFilters() {
+        Settings base = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutFilters = IndexMetadata.builder("test").settings(base).build();
+        Settings withFilterSettings = Settings.builder()
+            .put(base)
+            .put("index.routing.allocation.require._id", "node-1,node-2")
+            .put("index.routing.allocation.require.rack", "r1")
+            .build();
+        IndexMetadata withFilters = IndexMetadata.builder("test").settings(withFilterSettings).build();
+
+        assertThat(withFilters.ramBytesUsed(), greaterThan(withoutFilters.ramBytesUsed()));
+    }
 }

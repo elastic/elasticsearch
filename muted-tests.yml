@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: testEvaluateBlockWithNulls
-  issue: https://github.com/elastic/elasticsearch/issues/147773
 
 # Examples:
 #
@@ -247,9 +244,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
-  issue: https://github.com/elastic/elasticsearch/issues/151992
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/152005
@@ -586,3 +580,12 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
   issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.ccr.RestartIT
+  method: testRestart {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/155609
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testMultiValueViolationRestoredIdenticallyAcrossSourceModes
+  issue: https://github.com/elastic/elasticsearch/issues/155610
+- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
+  method: testCurrentlyRunningSnapshotNotRecordedAsFailure
+  issue: https://github.com/elastic/elasticsearch/issues/155621

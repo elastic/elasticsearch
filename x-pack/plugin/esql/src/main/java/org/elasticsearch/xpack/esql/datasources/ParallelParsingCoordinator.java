@@ -595,32 +595,17 @@ public final class ParallelParsingCoordinator {
         // own cancel signal through that ambient scope, which a supplier here would displace.
         List<Long> boundaries;
         if (strided) {
-            boundaries = new ArrayList<>();
-            boundaries.add(0L);
-            // Unlike planning's fixed offsets, each stride here is re-anchored on the boundary the previous probe
-            // found, so an offset that yields nothing ends the walk rather than merging two segments: the segments
-            // after it would be measured from a boundary that does not exist.
-            long pos = nominalSize;
-            while (pos < fileLength) {
-                if (fileLength - pos < minSegment) {
-                    break;
-                }
-                RecordBoundaryProbe.Outcome outcome = RecordBoundaryProbe.probeAt(
-                    splitter,
-                    storageObject,
-                    pos,
-                    fileLength,
-                    minSegment,
-                    nominalSize,
-                    () -> false
-                );
-                if (outcome.found() == false) {
-                    break;
-                }
-                assert outcome.boundary() > boundaries.get(boundaries.size() - 1) : "segment boundary must be strictly increasing";
-                boundaries.add(outcome.boundary());
-                pos = outcome.boundary() + nominalSize;
+            // Fixed offsets, like planning's newline macro-splits: a probe that yields no boundary merges the
+            // spans either side of it rather than stopping the walk, so a record longer than the probe window
+            // mid-file costs one segment rather than all remaining in-node parallelism after it.
+            // probeAt is called directly (not via probeStridedSerially) so as not to overwrite the ambient
+            // StorageRetryCancellation scope the read installed, which is what lets backoff sleeps abort on cancel.
+            List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, nominalSize, minSegment);
+            List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(positions.size());
+            for (long pos : positions) {
+                outcomes.add(RecordBoundaryProbe.probeAt(splitter, storageObject, pos, fileLength, minSegment, nominalSize, () -> false));
             }
+            boundaries = RecordBoundaryProbe.reduce(outcomes, minSegment);
         } else {
             boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false);
         }

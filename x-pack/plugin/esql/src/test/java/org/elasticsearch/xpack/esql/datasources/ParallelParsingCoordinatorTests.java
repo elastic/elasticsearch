@@ -116,21 +116,19 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * A record longer than the probe window ends the segmentation walk where it is met. Each stride here is
-     * re-anchored on the boundary the previous probe found, so an offset that finds nothing cannot be stepped
-     * over: every offset after it would be measured against a boundary that does not exist. The rest of the file
-     * past such a record is parsed as a single segment, which trades in-node parallelism for a probe read that
-     * stays bounded whatever the record size. What holds either way is coverage: the segments still tile the file
-     * exactly, so the long record is parsed once and no row is dropped or parsed twice.
+     * A record longer than the probe window costs only its own split: the probe at its offset yields no boundary,
+     * so the spans either side of it merge into one, but the walk continues at fixed offsets past it and the
+     * probes after the record find boundaries normally. Coverage is preserved exactly, and the long record is
+     * contained in one segment that spans it without stopping in-node parallelism for the rest of the file.
      */
-    public void testARecordLongerThanTheProbeWindowEndsSegmentation() throws IOException {
+    public void testARecordLongerThanTheProbeWindowCostsOnlyItsOwnSegment() throws IOException {
         String row = "0123456789,0123456789,012345678\n";
         long minSegment = 512 * 1024;
         // Parallelism high enough that fileLength / parallelism falls under minSegment, which pins the stride to
         // minSegment and so the probe window to the full PROBE_WINDOW_BYTES ceiling rather than a stride-capped one.
         int parallelism = 64;
-        // The first probe sits at one stride and resolves to the row boundary just past it, putting the second
-        // probe one row into the second stride. Start the long record there and make it outrun the window.
+        // Place the long record at exactly two strides in so the probe at that offset lands on the record start
+        // and cannot find a boundary within its window; the probe at three strides (after the record ends) can.
         long longRecordStart = 2 * minSegment;
         int longRecordBytes = Math.toIntExact(RecordBoundaryProbe.PROBE_WINDOW_BYTES + 128 * 1024);
 
@@ -153,11 +151,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             minSegment
         );
 
-        assertEquals("the walk stops at the record no probe window can span", 2, segments.size());
-        long tailStart = segments.get(1)[0];
-        assertThat("the surviving boundary precedes the long record", tailStart, Matchers.lessThan(longRecordStart));
-        assertEquals("the tail segment runs to end of file", payload.length - tailStart, segments.get(1)[1]);
-        assertEquals("so one segment holds the whole long record", 0, segments.get(0)[0]);
+        // The probe at the long record's stride yields nothing; the spans either side merge into one larger
+        // segment, but the walk continues and the probes past the record still find boundaries.
+        assertThat("the walk continues past the long record", segments.size(), Matchers.greaterThan(2));
+
         long covered = 0;
         for (long[] segment : segments) {
             covered += segment[1];
@@ -170,8 +167,20 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             );
         }
 
-        // The same payload length without the long record segments further, so the truncation above is the record's
-        // doing and not the stride arithmetic's.
+        long longRecordEnd = longRecordStart + longRecordBytes;
+        boolean longRecordInOneSeg = false;
+        for (long[] segment : segments) {
+            long segStart = segment[0];
+            long segEnd = segStart + segment[1];
+            if (segStart <= longRecordStart && segEnd >= longRecordEnd) {
+                longRecordInOneSeg = true;
+                break;
+            }
+        }
+        assertTrue("the long record must be fully contained in one segment", longRecordInOneSeg);
+
+        // The same payload length without the long record segments further (its probe yields nothing, merging
+        // the spans either side), so the reduction above is the record's doing and not the stride arithmetic's.
         byte[] shortRowsOnly = row.repeat(payload.length / row.length()).getBytes(StandardCharsets.UTF_8);
         assertEquals(payload.length, shortRowsOnly.length);
         List<long[]> unobstructed = ParallelParsingCoordinator.computeSegments(

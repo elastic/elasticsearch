@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -1036,10 +1038,21 @@ public class FileSplitProviderTests extends ESTestCase {
 
         ExecutorService executor = Executors.newFixedThreadPool(4);
         List<ExternalSplit> splits;
-        try {
-            splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), stride, executor, tracking);
-        } finally {
-            executor.shutdown();
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "no-boundary warning",
+                    FileSplitProvider.class.getName(),
+                    Level.WARN,
+                    "no record boundary found*"
+                )
+            );
+            try {
+                splits = discoverPlainCsvSplits(Map.of("long-lines.csv", payload), stride, executor, tracking);
+            } finally {
+                executor.shutdown();
+            }
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertEquals("a file with no usable boundary is read whole", 1, splits.size());
@@ -1847,7 +1860,8 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testReduceProbeOutcomesSkipsAnOffsetThatFoundNoBoundary() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.NONE, RecordBoundaryProbe.Outcome.at(360))
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.NONE, RecordBoundaryProbe.Outcome.at(360)),
+            1L
         );
         assertEquals(List.of(0L, 120L, 360L), boundaries);
     }
@@ -1855,9 +1869,21 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
     public void testReduceProbeOutcomesDropsBoundariesThatDoNotAdvance() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240))
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240)),
+            1L
         );
         assertEquals(List.of(0L, 120L, 240L), boundaries);
+    }
+
+    /** A boundary whose gap from the previous is below minSegment is dropped, merging into the next span. */
+    public void testReduceDropsBoundaryBelowMinSegment() {
+        // 120 is 120 past the seed (0), so it is kept. 125 is only 5 past 120, below the 50-byte minimum, so it
+        // is dropped. 200 is 80 past the last kept boundary (120), so it is kept.
+        List<Long> boundaries = RecordBoundaryProbe.reduce(
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(125), RecordBoundaryProbe.Outcome.at(200)),
+            50L
+        );
+        assertEquals(List.of(0L, 120L, 200L), boundaries);
     }
 
     /**

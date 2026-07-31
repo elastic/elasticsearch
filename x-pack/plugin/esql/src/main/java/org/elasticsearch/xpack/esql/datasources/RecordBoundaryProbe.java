@@ -197,9 +197,13 @@ final class RecordBoundaryProbe {
         }
 
         /** Consumes the rest of the window so that closing the stream returns its connection to the pool. */
-        void drain() throws IOException {
-            stream.transferTo(OutputStream.nullOutputStream());
-            drained = true;
+        void drain() {
+            try {
+                stream.transferTo(OutputStream.nullOutputStream());
+                drained = true;
+            } catch (IOException ignored) {
+                // Drain is a connection-pool optimization; on failure close() aborts the stream instead
+            }
         }
 
         @Override
@@ -233,14 +237,16 @@ final class RecordBoundaryProbe {
      * <p>
      * An offset that yielded nothing contributes nothing, so the spans either side of it merge into one that
      * covers it: an unsplittable stretch of the file costs one span rather than every span after it. A boundary
-     * that does not advance past the previous one is dropped, which is what adjacent offsets landing inside the
-     * same record produce.
+     * whose gap from the preceding one is below {@code minSegment} is also dropped: with fixed-offset probing,
+     * consecutive probes can resolve near the end and start of their windows respectively, leaving a gap of
+     * roughly {@code stride - window} that can fall below the reader minimum when the stride is close to it.
      */
-    static List<Long> reduce(List<Outcome> outcomes) {
+    static List<Long> reduce(List<Outcome> outcomes, long minSegment) {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         for (Outcome outcome : outcomes) {
-            if (outcome.found() && outcome.boundary() > boundaries.get(boundaries.size() - 1)) {
+            long last = boundaries.get(boundaries.size() - 1);
+            if (outcome.found() && outcome.boundary() - last >= minSegment) {
                 boundaries.add(outcome.boundary());
             }
         }
@@ -270,7 +276,7 @@ final class RecordBoundaryProbe {
             for (long pos : positions) {
                 outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
             }
-            return reduce(outcomes);
+            return reduce(outcomes, minSegment);
         });
     }
 

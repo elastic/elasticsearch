@@ -539,7 +539,8 @@ public class FileSplitProvider implements SplitProvider {
                     outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
                 }
                 for (Map.Entry<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> entry : outcomesByFile.entrySet()) {
-                    boundariesByFile.put(entry.getKey(), RecordBoundaryProbe.reduce(entry.getValue()));
+                    DeferredNewlineSplits deferred = entry.getKey();
+                    boundariesByFile.put(deferred, RecordBoundaryProbe.reduce(entry.getValue(), deferred.minSegment()));
                 }
             }
             // A cancel landing after the last probe has read is seen by no probe, so check once more here rather
@@ -1189,10 +1190,14 @@ public class FileSplitProvider implements SplitProvider {
         StorageObject object = provider.newObject(filePath, fileLength);
         RecordSplitter splitter = segmentableReader.recordSplitter(maxRecordBytes);
         long minSegment = segmentableReader.minimumSegmentSize();
+        // Floor to minSegment so a tiny target_split_size cannot materialize an unbounded number of probe
+        // positions and ProbeTask objects before any I/O. minSegment is the natural floor: the reader will
+        // merge segments below it anyway, so probing at a finer granularity buys nothing.
+        long effectiveStride = Math.max(targetStrideBytes, minSegment);
         // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
         // Anything else keeps the sequential walk and carries no positions.
         List<Long> positions = splitter.supportsStridedProbing()
-            ? RecordBoundaryProbe.stridedPositions(fileLength, targetStrideBytes, minSegment)
+            ? RecordBoundaryProbe.stridedPositions(fileLength, effectiveStride, minSegment)
             : List.of();
         return new DeferredNewlineSplits(
             filePath,
@@ -1205,7 +1210,7 @@ public class FileSplitProvider implements SplitProvider {
             object,
             splitter,
             minSegment,
-            targetStrideBytes,
+            effectiveStride,
             positions
         );
     }

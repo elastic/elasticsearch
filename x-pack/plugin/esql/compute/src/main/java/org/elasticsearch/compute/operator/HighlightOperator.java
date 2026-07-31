@@ -167,33 +167,37 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * matches, so dropping them would turn an excluded row into a match.
      */
     private static CharArraySet termsToKeep(Query query) {
-        CharArraySet terms = new CharArraySet(8, false);
-        boolean[] unfilterable = new boolean[1];
-        query.visit(new QueryVisitor() {
-            @Override
-            public void consumeTerms(Query q, Term... queryTerms) {
-                for (Term term : queryTerms) {
-                    terms.add(term.text());
-                }
-            }
+        TermCollector collector = new TermCollector();
+        query.visit(collector);
+        return collector.unfilterable || collector.terms.isEmpty() ? null : collector.terms;
+    }
 
-            @Override
-            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
-                unfilterable[0] = true; // wildcard/prefix/regexp, whose terms cannot be enumerated
-            }
+    private static final class TermCollector extends QueryVisitor {
+        private final CharArraySet terms = new CharArraySet(8, false);
+        private boolean unfilterable;
 
-            @Override
-            public void visitLeaf(Query q) {
-                unfilterable[0] = true; // leaf that reported no terms, we don't know what it matches
+        @Override
+        public void consumeTerms(Query query, Term... queryTerms) {
+            for (Term term : queryTerms) {
+                terms.add(term.text());
             }
+        }
 
-            @Override
-            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                // QueryVisitor's default returns EMPTY_VISITOR for MUST_NOT, which would skip its terms.
-                return this;
-            }
-        });
-        return unfilterable[0] || terms.isEmpty() ? null : terms;
+        @Override
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            unfilterable = true; // wildcard/prefix/regexp, whose terms cannot be enumerated
+        }
+
+        @Override
+        public void visitLeaf(Query query) {
+            unfilterable = true; // leaf that reported no terms, we don't know what it matches
+        }
+
+        @Override
+        public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+            // QueryVisitor's default returns EMPTY_VISITOR for MUST_NOT, which would skip its terms.
+            return this;
+        }
     }
 
     // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.

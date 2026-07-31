@@ -190,16 +190,16 @@ The connector service has the following known issues:
 
     With SSL enabled, the connector wrote the configured CA to a fixed file on disk (`outlook_cert.cer`) shared across the process. Concurrent or overlapping syncs raced on it, causing an intermittent `SSLError: [X509] no certificate or crl found (NO_CERTIFICATE_OR_CRL_FOUND)` that aborted syncs with no configuration change between runs.
 
-    **Affected versions**: 8.11.0–8.19.17, 9.0.0–9.3.6, and 9.4.0–9.4.2. On-prem Exchange with SSL enabled only.
+    **Affected versions**: 8.11.0–8.19.18, 9.0.0–9.3.7, and 9.4.0–9.4.3. On-prem Exchange with SSL enabled only.
 
-    **Fix**: [elastic/connectors#4094](https://github.com/elastic/connectors/pull/4094), shipped in 8.19.18, 9.3.7, 9.4.3, and 9.5.0.
+    **Fix**: [elastic/connectors#4094](https://github.com/elastic/connectors/pull/4094), shipped in 8.19.19, 9.3.8, 9.4.4, and 9.5.0.
 
 
 * **Confluence Data Center / Server syncs can fail with HTTP 500 and require site-admin credentials**
 
     Content search expanded unused `space.permissions` on Data Center / Server. That expansion can return HTTP 500 for non-administrator accounts (CONFSERVER-99908), which forced customers to over-grant site admin to the functional user. Confluence Cloud is not affected.
 
-    **Affected versions**: 8.13.0–8.19.18, 9.0.0–9.3.7, and 9.4.0–9.4.3. Confluence Data Center / Server only.
+    **Affected versions**: 8.7.0–8.19.18, 9.0.0–9.3.7, and 9.4.0–9.4.3. Confluence Data Center / Server only.
 
     **Fix**: [elastic/connectors#4118](https://github.com/elastic/connectors/pull/4118), shipped in 8.19.19, 9.3.8, 9.4.4, and 9.5.0.
 
@@ -264,18 +264,18 @@ The connector service has the following known issues:
 
     With document-level security enabled, access control documents grant prefixed identities (`email:user@example.com`) while content documents stored the raw SMTP address. The DLS `terms` query intersection is empty, so mailbox owners see none of their own documents.
 
-    **Affected versions**: All versions with Outlook DLS enabled, through 8.19.19, 9.3.8, 9.4.4, and 9.5.0.
+    **Affected versions**: All versions with Outlook DLS enabled, through 8.19.19, 9.3.8, and 9.4.4.
 
-    **Fix**: [elastic/connectors#4291](https://github.com/elastic/connectors/pull/4291), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.1, and 9.6.0. After upgrading, run a **full content sync** so `_allow_access_control` is rewritten on existing documents; an access control sync alone is not enough.
+    **Fix**: [elastic/connectors#4291](https://github.com/elastic/connectors/pull/4291), shipped in 9.3.9, 9.4.5, 9.5.0, and 9.6.0. After upgrading, run a **full content sync** so `_allow_access_control` is rewritten on existing documents; an access control sync alone is not enough.
 
 
 * **Confluence connector DLS over-grants access on pages with inherited restrictions**
 
     When a page inherits view restrictions from ancestors (or must satisfy both its own and parent restrictions), the connector ignored or incompletely applied the ancestor chain and fell back to broad space permissions. Users could see pages in Elasticsearch that they cannot view in Confluence.
 
-    **Affected versions**: All versions with Confluence DLS enabled, through 8.19.19, 9.3.8, 9.4.4, and 9.5.0. Cloud, Server, and Data Center.
+    **Affected versions**: All versions with Confluence DLS enabled, through 8.19.19, 9.3.8, and 9.4.4. Cloud, Server, and Data Center.
 
-    **Fix**: [elastic/connectors#4297](https://github.com/elastic/connectors/pull/4297), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.1, and 9.6.0. After upgrading, run a **full content sync** to rewrite `_allow_access_control`.
+    **Fix**: [elastic/connectors#4297](https://github.com/elastic/connectors/pull/4297), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.0, and 9.6.0. After upgrading, run a **full content sync** to rewrite `_allow_access_control`.
 
 
 * **SharePoint Online syncs abort on the system list `SharePointHomeCacheList`**
@@ -284,7 +284,7 @@ The connector service has the following known issues:
 
     **Affected versions**: 8.9.0–8.19.19, 9.0.0–9.3.8, and 9.4.0–9.4.4.
 
-    **Fix**: [elastic/connectors#4306](https://github.com/elastic/connectors/pull/4306), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.1, and 9.6.0.
+    **Fix**: [elastic/connectors#4306](https://github.com/elastic/connectors/pull/4306), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.0, and 9.6.0.
 
 
 ## Individual connector known issues [es-connectors-known-issues-specific]

@@ -70,125 +70,125 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator> generators = suggestion.generators();
         final int numGenerators = generators.size();
+        SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
 
-        final SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
-        // CandidateScorer builds a Lucene PriorityQueue sized to shard_size and each DirectCandidateGenerator builds
-        // a Lucene SuggestWordQueue sized to its generator size. Both pre-allocate a heap array of length size + 1,
-        // which is the dominant cost, so we reserve them on the request circuit breaker around the correction lookup.
-        long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
-        for (PhraseSuggestionContext.DirectCandidateGenerator generator : generators) {
-            collectorBytes += priorityQueueRamBytesUsed(generator.size());
+        final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
+        long maxGeneratorQueueBytes = 0L;
+        for (int i = 0; i < numGenerators; i++) {
+            PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
+            DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
+            Terms terms = MultiTerms.getTerms(indexReader, generator.field());
+            if (terms != null) {
+                maxGeneratorQueueBytes = Math.max(
+                    maxGeneratorQueueBytes,
+                    directSpellCheckerQueueRamBytesUsed(generator.size(), generator.maxInspections())
+                );
+                gens.add(
+                    new DirectCandidateGenerator(
+                        directSpellChecker,
+                        generator.field(),
+                        generator.suggestMode(),
+                        indexReader,
+                        realWordErrorLikelihood,
+                        generator.size(),
+                        generator.preFilter(),
+                        generator.postFilter(),
+                        terms
+                    )
+                );
+            }
         }
-        searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
-
-        // Release CB memory early after the correction lookup (before collate) so collate's no-arg
-        // releaseQueryConstructionMemory() does not double-release. The outer finally covers the
-        // else branch and any exception thrown before the lookup runs.
-        boolean collectorMemoryReleased = false;
-        try {
-            final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
-            for (int i = 0; i < numGenerators; i++) {
-                PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
-                DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
-                Terms terms = MultiTerms.getTerms(indexReader, generator.field());
-                if (terms != null) {
-                    gens.add(
-                        new DirectCandidateGenerator(
-                            directSpellChecker,
-                            generator.field(),
-                            generator.suggestMode(),
-                            indexReader,
-                            realWordErrorLikelihood,
-                            generator.size(),
-                            generator.preFilter(),
-                            generator.postFilter(),
-                            terms
-                        )
-                    );
+        final String suggestField = suggestion.getField();
+        final Terms suggestTerms = MultiTerms.getTerms(indexReader, suggestField);
+        if (gens.size() > 0 && suggestTerms != null) {
+            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(
+                realWordErrorLikelihood,
+                suggestion.getRequireUnigram(),
+                suggestion.getTokenLimit()
+            );
+            final BytesRef separator = suggestion.separator();
+            WordScorer wordScorer = suggestion.model()
+                .newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+            // CandidateScorer eagerly allocates a Lucene PriorityQueue sized to shard_size. DirectSpellChecker uses a
+            // growable candidate queue bounded by generator size * max_inspections. These queues are built sequentially,
+            // so reserve the largest backing-array estimate as a coarse guard against oversized configuration values.
+            final long collectorBytes = Math.max(priorityQueueRamBytesUsed(suggestion.getShardSize()), maxGeneratorQueueBytes);
+            boolean collectorBytesReserved = searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            Result checkerResult;
+            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+                checkerResult = checker.getCorrections(
+                    stream,
+                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                    suggestion.maxErrors(),
+                    suggestion.getShardSize(),
+                    wordScorer,
+                    suggestion.confidence(),
+                    suggestion.gramSize()
+                );
+            } finally {
+                // These queues are local to getCorrections: CandidateScorer drains its queue into the result and
+                // DirectSpellChecker does not retain its candidate queues.
+                if (collectorBytesReserved) {
+                    searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+                    collectorBytesReserved = false;
                 }
             }
-            final String suggestField = suggestion.getField();
-            final Terms suggestTerms = MultiTerms.getTerms(indexReader, suggestField);
-            if (gens.size() > 0 && suggestTerms != null) {
-                final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(
-                    realWordErrorLikelihood,
-                    suggestion.getRequireUnigram(),
-                    suggestion.getTokenLimit()
-                );
-                final BytesRef separator = suggestion.separator();
-                WordScorer wordScorer = suggestion.model()
-                    .newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
-                Result checkerResult;
-                try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
-                    checkerResult = checker.getCorrections(
-                        stream,
-                        new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
-                        suggestion.maxErrors(),
-                        suggestion.getShardSize(),
-                        wordScorer,
-                        suggestion.confidence(),
-                        suggestion.gramSize()
-                    );
-                } finally {
-                    searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
-                    collectorMemoryReleased = true;
-                }
 
-                PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
-                response.addTerm(resultEntry);
+            PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
+            response.addTerm(resultEntry);
 
-                final BytesRefBuilder byteSpare = new BytesRefBuilder();
-                final TemplateScript.Factory scriptFactory = suggestion.getCollateQueryScript();
-                final boolean collatePrune = (scriptFactory != null) && suggestion.collatePrune();
-                for (int i = 0; i < checkerResult.corrections.length; i++) {
-                    Correction correction = checkerResult.corrections[i];
-                    spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
-                    boolean collateMatch = true;
-                    if (scriptFactory != null) {
-                        // Checks if the template query collateScript yields any documents
-                        // from the index for a correction, collateMatch is updated
-                        final Map<String, Object> vars = suggestion.getCollateScriptParams();
-                        vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                        final String querySource = scriptFactory.newInstance(vars).execute();
-                        try (
-                            XContentParser parser = XContentFactory.xContent(querySource)
-                                .createParser(searchExecutionContext.getParserConfig(), querySource)
-                        ) {
-                            QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
-                            try {
-                                final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
-                                collateMatch = Lucene.exists(searcher, parsedQuery.query());
-                            } finally {
-                                searchExecutionContext.releaseQueryConstructionMemory();
-                            }
+            final BytesRefBuilder byteSpare = new BytesRefBuilder();
+            final TemplateScript.Factory scriptFactory = suggestion.getCollateQueryScript();
+            final boolean collatePrune = (scriptFactory != null) && suggestion.collatePrune();
+            for (int i = 0; i < checkerResult.corrections.length; i++) {
+                Correction correction = checkerResult.corrections[i];
+                spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
+                boolean collateMatch = true;
+                if (scriptFactory != null) {
+                    // Checks if the template query collateScript yields any documents
+                    // from the index for a correction, collateMatch is updated
+                    final Map<String, Object> vars = suggestion.getCollateScriptParams();
+                    vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
+                    final String querySource = scriptFactory.newInstance(vars).execute();
+                    try (
+                        XContentParser parser = XContentFactory.xContent(querySource)
+                            .createParser(searchExecutionContext.getParserConfig(), querySource)
+                    ) {
+                        QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
+                        try {
+                            final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
+                            collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        } finally {
+                            searchExecutionContext.releaseQueryConstructionMemory();
                         }
                     }
-                    if (collateMatch == false && collatePrune == false) {
-                        continue;
-                    }
-                    Text phrase = new Text(spare.toString());
-                    Text highlighted = null;
-                    if (suggestion.getPreTag() != null) {
-                        spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()));
-                        highlighted = new Text(spare.toString());
-                    }
-                    if (collatePrune) {
-                        resultEntry.addOption(
-                            new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch)
-                        );
-                    } else {
-                        resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
-                    }
                 }
-            } else {
-                response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));
+                if (collateMatch == false && collatePrune == false) {
+                    continue;
+                }
+                Text phrase = new Text(spare.toString());
+                Text highlighted = null;
+                if (suggestion.getPreTag() != null) {
+                    spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()));
+                    highlighted = new Text(spare.toString());
+                }
+                if (collatePrune) {
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
+                } else {
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+                }
             }
-            return response;
-        } finally {
-            if (false == collectorMemoryReleased) {
-                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
-            }
+        } else {
+            response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));
         }
+        return response;
+    }
+
+    private static long directSpellCheckerQueueRamBytesUsed(int size, int maxInspections) {
+        // Lucene multiplies these values using int arithmetic. Compute in long and saturate so an overflowing
+        // configuration still receives the largest possible preflight estimate.
+        long maxCandidates = Math.max(size, (long) size * maxInspections);
+        return priorityQueueRamBytesUsed((int) Math.min(maxCandidates, Integer.MAX_VALUE));
     }
 
     private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {

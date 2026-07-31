@@ -16,7 +16,6 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
@@ -42,12 +41,18 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
         final IndexReader indexReader = searcher.getIndexReader();
         TermSuggestion response = new TermSuggestion(name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort());
         List<Token> tokens = queryTerms(suggestion, spare);
-        final SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
-        // DirectSpellChecker#suggestSimilar builds a Lucene SuggestWordQueue (a PriorityQueue) sized to shard_size,
-        // pre-allocating an Object[shard_size + 1] backing array per token. This is the dominant cost, so we reserve it
-        // on the request circuit breaker first.
-        final long collectorBytes = priorityQueueRamBytesUsed(suggestion.getShardSize());
-        searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+        if (tokens.isEmpty()) {
+            return response;
+        }
+
+        // DirectSpellChecker uses a growable candidate queue bounded by shard_size * max_inspections. Reserve its
+        // backing-array estimate as a coarse guard against an oversized shard_size before processing any token.
+        final long collectorBytes = directSpellCheckerQueueRamBytesUsed(
+            suggestion.getShardSize(),
+            suggestion.getDirectSpellCheckerSettings().maxInspections()
+        );
+        boolean collectorBytesReserved = suggestion.getSearchExecutionContext()
+            .addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
         try {
             for (Token token : tokens) {
                 // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
@@ -69,8 +74,18 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
             }
             return response;
         } finally {
-            searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            if (collectorBytesReserved) {
+                suggestion.getSearchExecutionContext().releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
+            }
         }
+    }
+
+    private static long directSpellCheckerQueueRamBytesUsed(int size, int maxInspections) {
+        // Lucene multiplies these values using int arithmetic. Compute in long and saturate so an overflowing
+        // configuration still receives the largest possible preflight estimate.
+        long maxCandidates = Math.max(size, (long) size * maxInspections);
+        int queueSize = (int) Math.min(maxCandidates, Integer.MAX_VALUE);
+        return priorityQueueRamBytesUsed(queueSize);
     }
 
     private static List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {

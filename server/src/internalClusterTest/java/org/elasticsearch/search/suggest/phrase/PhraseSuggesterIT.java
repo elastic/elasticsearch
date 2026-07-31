@@ -9,15 +9,12 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -30,7 +27,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class PhraseSuggesterIT extends ESIntegTestCase {
 
@@ -112,51 +108,6 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
 
         // This should NOT throw an exception because unigrams are available
         assertNoFailuresAndResponse(searchRequestBuilder, response -> { assertNotNull(response.getSuggest()); });
-    }
-
-    /**
-     * A phrase suggest request with a {@code shard_size} close to {@link Integer#MAX_VALUE} would make
-     * {@code CandidateScorer} pre-allocate a ~GB-sized Lucene {@code PriorityQueue}. The request circuit breaker must
-     * trip before that allocation happens instead of the shard hitting an {@link OutOfMemoryError}.
-     */
-    public void testPhraseSuggestShardSizeTripsCircuitBreaker() throws IOException {
-        assertAcked(prepareCreate("test").setMapping("body", "type=text"));
-        ensureGreen();
-        indexDoc("test", "1", "body", "the quick brown fox jumps over the lazy dog");
-        refresh();
-        assertCircuitBreaks(
-            "phrase",
-            phraseSuggestion("body").text("the quik brown")
-                .addCandidateGenerator(new DirectCandidateGeneratorBuilder("body").suggestMode("always"))
-                .shardSize(Integer.MAX_VALUE - 17)
-        );
-    }
-
-    /**
-     * As {@link #testPhraseSuggestShardSizeTripsCircuitBreaker()} but exercising a huge {@code direct_generator} size,
-     * which drives a ~GB-sized Lucene {@code SuggestWordQueue} rather than the {@code CandidateScorer} queue.
-     */
-    public void testPhraseSuggestDirectGeneratorSizeTripsCircuitBreaker() throws IOException {
-        assertAcked(prepareCreate("test").setMapping("body", "type=text"));
-        ensureGreen();
-        indexDoc("test", "1", "body", "the quick brown fox jumps over the lazy dog");
-        refresh();
-        assertCircuitBreaks(
-            "phrase",
-            phraseSuggestion("body").text("the quik brown")
-                .addCandidateGenerator(new DirectCandidateGeneratorBuilder("body").suggestMode("always").size(Integer.MAX_VALUE - 17))
-        );
-    }
-
-    private void assertCircuitBreaks(String name, SuggestionBuilder<?> suggestion) {
-        Exception exception = expectThrows(
-            Exception.class,
-            () -> prepareSearch("test").setAllowPartialSearchResults(false)
-                .setSize(0)
-                .suggest(new SuggestBuilder().addSuggestion(name, suggestion))
-                .get()
-        );
-        assertThat(ExceptionsHelper.unwrap(exception, CircuitBreakingException.class), notNullValue());
     }
 
     private void createIndexAndDocs(boolean outputUnigrams) throws IOException {

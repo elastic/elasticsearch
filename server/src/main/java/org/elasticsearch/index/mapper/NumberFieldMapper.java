@@ -19,10 +19,13 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
@@ -41,6 +44,11 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneLongColumn;
+import org.elasticsearch.escf.NumberColumnTransform;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -83,6 +91,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -128,9 +137,19 @@ public class NumberFieldMapper extends FieldMapper {
      * Encodes an integer into the term used by the {@code index_terms} inverted index, such that
      * unsigned byte-wise (lexicographic) term order matches numeric order.
      */
-    static BytesRef encodeIndexTerm(int value) {
+    static BytesRef encodeIntIndexTerm(int value) {
         byte[] bytes = new byte[Integer.BYTES];
         NumericUtils.intToSortableBytes(value, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * Encodes a long into the term used by the {@code index_terms} inverted index, such that
+     * unsigned byte-wise (lexicographic) term order matches numeric order.
+     */
+    static BytesRef encodeLongIndexTerm(long value) {
+        byte[] bytes = new byte[Long.BYTES];
+        NumericUtils.longToSortableBytes(value, bytes, 0);
         return new BytesRef(bytes);
     }
 
@@ -168,6 +187,24 @@ public class NumberFieldMapper extends FieldMapper {
         private final int numericVal;
 
         IndexTermsIntegerField(String name, int value, BytesRef term) {
+            super(name, term, INDEX_TERMS_FIELD_TYPE);
+            this.numericVal = value;
+        }
+
+        @Override
+        public Number numericValue() {
+            return numericVal;
+        }
+    }
+
+    /**
+     * A Lucene field that stores a sortable-bytes term in the inverted index and the original
+     * long value in sorted numeric doc values, using a single consistent field type.
+     */
+    private static class IndexTermsLongField extends Field {
+        private final long numericVal;
+
+        IndexTermsLongField(String name, long value, BytesRef term) {
             super(name, term, INDEX_TERMS_FIELD_TYPE);
             this.numericVal = value;
         }
@@ -287,8 +324,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             this.indexTerms = Parameter.boolParam("index_terms", false, m -> toType(m).indexTerms, false).addValidator(v -> {
                 if (v) {
-                    if (type != NumberType.INTEGER) {
-                        throw new IllegalArgumentException("[index_terms] is only supported on [integer] fields");
+                    if (type != NumberType.INTEGER && type != NumberType.LONG) {
+                        throw new IllegalArgumentException("[index_terms] is only supported on [integer] and [long] fields");
                     }
                     if (indexed.getValue() == false) {
                         throw new IllegalArgumentException("[index_terms] requires that [index] is true");
@@ -1461,6 +1498,32 @@ public class NumberFieldMapper extends FieldMapper {
                 return IntPoint.newSetQuery(field, v);
             }
 
+            /**
+             * Byte, Short, Integer and Long values are handled directly, since none of them can
+             * carry a decimal part; other types (Double, Float, BigDecimal, String, BytesRef, ...)
+             * are routed through a double, which is exact across the whole integer range.
+             */
+            @Override
+            BytesRef encodeIndexTermOrNull(Object value) {
+                if (value instanceof Integer i) {
+                    return encodeIntIndexTerm(i);
+                }
+                if (value instanceof Byte b) {
+                    return encodeIntIndexTerm(b);
+                }
+                if (value instanceof Short s) {
+                    return encodeIntIndexTerm(s);
+                }
+                if (value instanceof Long l) {
+                    return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) ? encodeIntIndexTerm(l.intValue()) : null;
+                }
+                double doubleValue = NumberType.objectToDouble(value);
+                if (doubleValue % 1 != 0 || doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                    return null;
+                }
+                return encodeIntIndexTerm((int) doubleValue);
+            }
+
             @Override
             public Query rangeQuery(
                 String field,
@@ -1505,7 +1568,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // index_terms has no BKD points, so range queries go through the terms
                     // dictionary directly instead of falling back to doc values -- this also
                     // means range queries work even when doc_values is disabled.
-                    query = new TermRangeQuery(field, encodeIndexTerm(l), encodeIndexTerm(u), true, true);
+                    query = new TermRangeQuery(field, encodeIntIndexTerm(l), encodeIntIndexTerm(u), true, true);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
                         query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -1682,6 +1745,33 @@ public class NumberFieldMapper extends FieldMapper {
                 return LongPoint.newSetQuery(field, v);
             }
 
+            /**
+             * Byte, Short, Integer and Long values are handled directly, since none of them can
+             * carry a decimal part. Every other type goes through {@link #parse(Object, boolean)}
+             * rather than a double: a double cannot represent every long exactly above 2^53, so
+             * routing large values through one would round them onto a term that either matches
+             * the wrong documents or none at all.
+             */
+            @Override
+            BytesRef encodeIndexTermOrNull(Object value) {
+                if (value instanceof Long l) {
+                    return encodeLongIndexTerm(l);
+                }
+                if (value instanceof Integer i) {
+                    return encodeLongIndexTerm(i);
+                }
+                if (value instanceof Short s) {
+                    return encodeLongIndexTerm(s);
+                }
+                if (value instanceof Byte b) {
+                    return encodeLongIndexTerm(b);
+                }
+                if (hasDecimalPart(value) || isOutOfRange(value)) {
+                    return null;
+                }
+                return encodeLongIndexTerm(parse(value, true));
+            }
+
             @Override
             public Query rangeQuery(
                 String field,
@@ -1696,7 +1786,16 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query;
-                    if (hasPoints) {
+                    if (hasTerms) {
+                        // index_terms has no BKD points, so range queries go through the terms
+                        // dictionary directly instead of falling back to doc values -- this also
+                        // means range queries work even when doc_values is disabled.
+                        query = new TermRangeQuery(field, encodeLongIndexTerm(l), encodeLongIndexTerm(u), true, true);
+                        if (hasDocValues) {
+                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                            query = new IndexOrDocValuesQuery(query, dvQuery);
+                        }
+                    } else if (hasPoints) {
                         query = LongPoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
                             Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
@@ -1863,6 +1962,19 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Query termQuery(String field, Object value, IndexType indexType);
 
         public abstract Query termsQuery(String field, Collection<?> values);
+
+        /**
+         * Maps a query value to the sortable-bytes term used by an {@code index_terms} field of
+         * this type, or returns {@code null} if the value cannot match any document. A value with
+         * a fractional part, or one outside this type's range, can never match and so is excluded
+         * rather than raising an error.
+         * <p>
+         * Only the types that accept {@code index_terms} implement this; the term width has to
+         * match the width the values were indexed at, so there is no meaningful default.
+         */
+        BytesRef encodeIndexTermOrNull(Object value) {
+            throw new UnsupportedOperationException("[index_terms] is not supported on [" + name + "] fields");
+        }
 
         public abstract Query rangeQuery(
             String field,
@@ -2384,9 +2496,11 @@ public class NumberFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexTerms) {
                 assert indexType.hasTerms() : "[index_terms] requires a terms index";
-                BytesRef term = indexTermOrNull(value);
+                BytesRef term = type.encodeIndexTermOrNull(value);
                 if (term == null) {
-                    return Queries.newMatchNoDocsQuery("Value [" + value + "] cannot match an [index_terms] integer field");
+                    return Queries.newMatchNoDocsQuery(
+                        "Value [" + value + "] cannot match an [index_terms] [" + type.typeName() + "] field"
+                    );
                 }
                 return new TermQuery(new Term(name(), term));
             }
@@ -2400,13 +2514,13 @@ public class NumberFieldMapper extends FieldMapper {
                 assert indexType.hasTerms() : "[index_terms] requires a terms index";
                 List<BytesRef> terms = new ArrayList<>(values.size());
                 for (Object value : values) {
-                    BytesRef term = indexTermOrNull(value);
+                    BytesRef term = type.encodeIndexTermOrNull(value);
                     if (term != null) {
                         terms.add(term);
                     }
                 }
                 if (terms.isEmpty()) {
-                    return Queries.newMatchNoDocsQuery("No values can match an [index_terms] integer field");
+                    return Queries.newMatchNoDocsQuery("No values can match an [index_terms] [" + type.typeName() + "] field");
                 }
                 return new TermInSetQuery(name(), terms);
             }
@@ -2430,34 +2544,6 @@ public class NumberFieldMapper extends FieldMapper {
         /** Returns {@code true} if this field uses an inverted index for terms ({@code index_terms: true}). */
         public boolean isIndexedWithTerms() {
             return indexType.hasTerms();
-        }
-
-        /**
-         * Maps a query value to the sortable-bytes term used by an {@code index_terms} integer
-         * field, or returns {@code null} if the value cannot match any document. Byte, Short,
-         * Integer and Long values are handled directly, since none of them can carry a decimal
-         * part; other types (Double, Float, BigDecimal, String, BytesRef, ...) are checked for a
-         * decimal part and range, since a value with a fractional part or outside the integer
-         * range can never match a document and is excluded rather than raising an error.
-         */
-        private BytesRef indexTermOrNull(Object value) {
-            if (value instanceof Integer i) {
-                return encodeIndexTerm(i);
-            }
-            if (value instanceof Byte b) {
-                return encodeIndexTerm(b);
-            }
-            if (value instanceof Short s) {
-                return encodeIndexTerm(s);
-            }
-            if (value instanceof Long l) {
-                return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) ? encodeIndexTerm(l.intValue()) : null;
-            }
-            double doubleValue = NumberType.objectToDouble(value);
-            if (doubleValue % 1 != 0 || doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                return null;
-            }
-            return encodeIndexTerm((int) doubleValue);
         }
 
         @Override
@@ -2763,6 +2849,65 @@ public class NumberFieldMapper extends FieldMapper {
             && dimension == false;
     }
 
+    // FieldType constants for the two SortedNumericDocValuesField variants emitted by dvFactory.addNumericField.
+    // The compat harness compares frozen FieldType, so the column must carry exactly the same type.
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
+        .fieldType();
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return indexSettings.getMode().isStrictColumnar()
+            && docValuesParameters.enabled()
+            && docValuesParameters.multiValue() == false
+            && indexed == false
+            && stored == false
+            && indexTerms == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && dimension == false
+            && ignoreMalformed.value() == false
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        switch (source.kind()) {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
+            } // handled below
+            default -> throw new UnsupportedOperationException(
+                "mapColumnBatch: ESCF column kind ["
+                    + EscfColumnKind.name(source.kind())
+                    + "] is not yet supported for field ["
+                    + fullPath()
+                    + "]"
+            );
+        }
+        Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
+            source,
+            type,
+            coerce(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            nullSortableLong
+        );
+        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
+            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
+            : SORTED_NUMERIC_DV_FIELD_TYPE;
+        ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+    }
+
+    private static LongColumn.NumericKind numericKind(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> LongColumn.NumericKind.INT;
+            case HALF_FLOAT -> LongColumn.NumericKind.FLOAT;
+            case LONG -> LongColumn.NumericKind.LONG;
+            case FLOAT -> LongColumn.NumericKind.FLOAT;
+            case DOUBLE -> LongColumn.NumericKind.DOUBLE;
+        };
+    }
+
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
@@ -2870,9 +3015,9 @@ public class NumberFieldMapper extends FieldMapper {
         final var indexType = fieldType.indexType();
         if (indexTerms) {
             if (indexType.hasDocValues()) {
-                document.add(new IndexTermsIntegerField(name, i, encodeIndexTerm(i)));
+                document.add(new IndexTermsIntegerField(name, i, encodeIntIndexTerm(i)));
             } else {
-                document.add(new Field(name, encodeIndexTerm(i), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
+                document.add(new Field(name, encodeIntIndexTerm(i), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
             }
         } else {
             if (indexType.hasPoints() && indexType.hasDocValues()) {
@@ -2890,12 +3035,20 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void addLongFields(LuceneDocument document, String name, long l) {
         final var indexType = fieldType.indexType();
-        if (indexType.hasPoints() && indexType.hasDocValues()) {
-            document.add(new LongField(name, l, Field.Store.NO));
-        } else if (indexType.hasDocValues()) {
-            dvFactory.addNumericField(document, name, l);
-        } else if (indexType.hasPoints()) {
-            document.add(new LongPoint(name, l));
+        if (indexTerms) {
+            if (indexType.hasDocValues()) {
+                document.add(new IndexTermsLongField(name, l, encodeLongIndexTerm(l)));
+            } else {
+                document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
+            }
+        } else {
+            if (indexType.hasPoints() && indexType.hasDocValues()) {
+                document.add(new LongField(name, l, Field.Store.NO));
+            } else if (indexType.hasDocValues()) {
+                dvFactory.addNumericField(document, name, l);
+            } else if (indexType.hasPoints()) {
+                document.add(new LongPoint(name, l));
+            }
         }
         if (stored) {
             document.add(new StoredField(name, l));

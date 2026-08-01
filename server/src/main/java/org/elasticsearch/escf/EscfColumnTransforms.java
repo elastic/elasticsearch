@@ -27,6 +27,23 @@ public final class EscfColumnTransforms {
     private EscfColumnTransforms() {}
 
     /**
+     * Writes all present values from {@code source} with doc-id &lt; {@code beforeDoc} into
+     * {@code dest} via a fresh cursor. No filtering is applied.
+     *
+     * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
+     */
+    public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc) {
+        if (beforeDoc > source.docCount()) {
+            throw new IllegalArgumentException("beforeDoc (" + beforeDoc + ") exceeds source docCount (" + source.docCount() + ")");
+        }
+        // We could always reach down and copy offsets and data directly. We don't need to use cursors.
+        final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source);
+        for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
+            dest.setString(d, replayCursor.value());
+        }
+    }
+
+    /**
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.

@@ -204,7 +204,10 @@ es GET "/_data_stream/${DATA_STREAM}/_options" | python3 -m json.tool
 
 # Kibana is optional: the demo is usable through the ES API without it, and it may still be starting.
 # Its bootstrap lives in its own script so it can be re-run on demand with ./demo.sh bootstrap-kibana.
-if ! bash "$HERE/bootstrap-kibana.sh"; then
+if [[ "${KIBANA:-}" == "skip" ]]; then
+  # Without this the bootstrap waits its full timeout for a Kibana that was never started.
+  echo "==> KIBANA=skip, so no data views or dashboards"
+elif ! bash "$HERE/bootstrap-kibana.sh"; then
   echo "==> Skipping Kibana for now; run ./demo.sh bootstrap-kibana once it is ready"
 fi
 

@@ -500,6 +500,113 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         }
     }
 
+    /**
+     * The accounting invariant the whole budget rests on: whatever the buffer took, it gives back exactly, so a node that has been under
+     * breaker pressure still knows how much room it has.
+     *
+     * <p>This used to fail. The series table interned a dimension tuple before it grew the columns behind it, so a refusal in between
+     * left a tuple in the hash that the buffer had never counted. On drain the table reported its hash size, the buffer subtracted that,
+     * and the node-wide count drifted below zero — which then let it exceed the very cap the count exists to enforce.
+     */
+    public void testTheSeriesCountReturnsToZeroEvenWhenTheBreakerRefusedSeriesAlongTheWay() {
+        // small enough that growing the columns fails partway through, which is the window the bug lived in
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofKb(16));
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, 100_000)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            int accepted = 0;
+            for (int i = 0; i < 2_000; i++) {
+                if (record(buffer, key, "service-" + i, 1.0)) {
+                    accepted++;
+                }
+            }
+            assertThat("the breaker should have refused something, or this test proves nothing", accepted, lessThan(2_000));
+            assertThat("a refusal should have retired the table it poisoned", buffer.tablesRetired(), greaterThan(0L));
+
+            var drained = buffer.drainAll();
+            try {
+                // a retired table is handed to the next flush rather than dropped, so every series the buffer accepted still comes out
+                long emitted = drained.stream().mapToLong(d -> d.table().size()).sum();
+                assertEquals("every accepted series should still be emitted", accepted, (int) emitted);
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+            assertEquals("draining everything must return the count to exactly zero", 0, buffer.size());
+        }
+    }
+
+    /**
+     * A series the breaker refused must leave no trace at all. If it were interned without its columns, emission would walk ordinals up
+     * to the hash size and read past the end of those columns, turning one refused observation into a flush that throws.
+     */
+    public void testARefusedSeriesIsNotLeftBehindForEmissionToTripOver() {
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofKb(16));
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, 100_000)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            for (int i = 0; i < 2_000; i++) {
+                record(buffer, key, "service-" + i, 1.0);
+            }
+            var drained = buffer.drainAll();
+            try {
+                for (var entry : drained) {
+                    DerivedMetricsSeriesTable table = entry.table();
+                    // reading every ordinal the table claims to have is exactly what emission does
+                    for (long ordinal = 0; ordinal < table.size(); ordinal++) {
+                        assertEquals(1.0, table.reduce(ordinal, Reduction.SUM, TEN_SECONDS.millis()), 0.0);
+                    }
+                }
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * Two projects may each have a data stream of the same name. They are different streams, so they must not share a budget — otherwise
+     * one tenant's cardinality silently refuses another tenant's series.
+     */
+    public void testTwoProjectsWithTheSameStreamNameDoNotShareABudget() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 1)) {
+            ProjectId other = ProjectId.fromId("other-project");
+            TableKey mine = key(Reduction.SUM, 0L);
+            TableKey theirs = key(other, "logs-my_app-default", Reduction.SUM, 0L);
+
+            assertTrue(record(buffer, mine, "checkout", 1.0));
+            // the per-stream cap is one, and the default project has now spent it — the other project's identically named stream has not
+            assertTrue("a second project must have its own budget", record(buffer, theirs, "checkout", 1.0));
+
+            assertEquals(1, buffer.seriesFor(ProjectId.DEFAULT, "logs-my_app-default"));
+            assertEquals(1, buffer.seriesFor(other, "logs-my_app-default"));
+        }
+    }
+
+    /**
+     * Knowing that something was refused is not enough to act on: raising the node budget and finding the one noisy stream are different
+     * responses, so the two caps are counted apart.
+     */
+    public void testTheNodeCapAndTheStreamCapAreCountedSeparately() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 1)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertFalse(record(buffer, key, "search", 1.0));
+
+            assertEquals(1L, buffer.droppedSeriesAtStreamCap());
+            assertEquals(0L, buffer.droppedSeriesAtNodeCap());
+        }
+
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1, 100)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertFalse(record(buffer, key, "search", 1.0));
+
+            assertEquals(1L, buffer.droppedSeriesAtNodeCap());
+            assertEquals(0L, buffer.droppedSeriesAtStreamCap());
+        }
+    }
+
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
         return buffer.record(key, new String[] { service }, new Scratch(), value);
     }
@@ -508,8 +615,16 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         return key("logs-my_app-default", reduction, bucketStart);
     }
 
+    private static TableKey key(ProjectId project, String sourceDataStream, Reduction reduction, long bucketStart) {
+        return new TableKey(project, sourceDataStream, metric(reduction), bucketStart, TEN_SECONDS.millis());
+    }
+
     private static TableKey key(String sourceDataStream, Reduction reduction, long bucketStart) {
-        CompiledMetric metric = new CompiledMetric(
+        return key(ProjectId.DEFAULT, sourceDataStream, reduction, bucketStart);
+    }
+
+    private static CompiledMetric metric(Reduction reduction) {
+        return new CompiledMetric(
             "ingest.docs.count",
             Trigger.SUCCESS,
             reduction,
@@ -520,6 +635,5 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             0,
             TEN_SECONDS
         );
-        return new TableKey(ProjectId.DEFAULT, sourceDataStream, metric, bucketStart, TEN_SECONDS.millis());
     }
 }

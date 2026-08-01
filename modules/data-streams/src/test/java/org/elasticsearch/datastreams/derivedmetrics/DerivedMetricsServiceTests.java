@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 /**
  * Covers the decisions the service makes about whether to emit at all, which is the part of it that sheds work and had no tests.
  *
@@ -172,6 +174,64 @@ public class DerivedMetricsServiceTests extends ESTestCase {
         try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
             service.flushEverything("nothing has been observed yet");
             assertEquals(0, client.documentsSent());
+        }
+    }
+
+    /**
+     * A metric that reads a field the documents do not have emits nothing. That is correct, but it is also exactly what a misspelled
+     * field name looks like, and until it was counted there was no signal anywhere that a metric had been configured and never fired.
+     */
+    public void testAMetricWhoseValueFieldIsMissingIsCountedRatherThanSilentlySkipped() throws Exception {
+        CompiledDerivedMetrics misspelled = CompiledDerivedMetrics.compile(
+            new DataStreamDerivedMetrics(
+                true,
+                List.of(),
+                TimeValue.timeValueSeconds(10),
+                null,
+                List.of(),
+                List.of(
+                    new DataStreamDerivedMetrics.Metric(
+                        "queue.depth",
+                        DataStreamDerivedMetrics.MetricType.GAUGE,
+                        null,
+                        // the documents this test indexes carry service.name, never this
+                        DataStreamDerivedMetrics.MetricValue.field("queue.dpeth"),
+                        DataStreamDerivedMetrics.GaugeAggregation.MAX,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+        try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
+            for (int i = 0; i < 3; i++) {
+                service.record(ProjectId.DEFAULT, "logs-my_app-default", misspelled, document("checkout"), true);
+            }
+            service.flushEverything("a test asked it to");
+
+            assertEquals("a metric reading a field nothing has cannot emit", 0, client.documentsSent());
+            assertEquals("but it must not do so silently", 3L, service.skippedForMissingValue());
+        }
+    }
+
+    /**
+     * Under flush_early a refused observation is retried after making room. The buffer counts a drop on each refusal, so a retry that
+     * succeeded left a loss recorded that never happened — which made the policy look worse than it is precisely when someone would be
+     * looking at it.
+     */
+    public void testAnObservationRecoveredByAnEarlyFlushIsNotReportedAsLost() throws Exception {
+        // one series per node, so the second distinct series is refused and has to be recovered by flushing the first out
+        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_SERIES_PER_NODE.getKey(), 1).build();
+        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
+            observeService(service, "checkout");
+            observeService(service, "search");
+
+            assertEquals("the retry succeeded, so nothing was lost", 1L, service.recoveredAfterRelief());
+            assertThat(
+                "and the buffer counted a drop that has to be taken back",
+                service.buffer().droppedSeries(),
+                greaterThanOrEqualTo(1L)
+            );
         }
     }
 

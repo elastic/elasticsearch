@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.DoubleArray;
@@ -67,6 +68,11 @@ public class DerivedMetricsSeriesTable implements Releasable {
     private final ExponentialHistogramMerger.Factory histogramMergers;
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
+    /** How many series the columns can hold, cached so the common path does not re-check every column. See {@link #reserveOneMore}. */
+    private long capacity;
+    private long histogramsRefused;
+    /** Set when the dimension hash refused an insert and can therefore no longer be probed safely. See {@link #record}. */
+    private boolean poisoned;
     private boolean sealed;
     private boolean closed;
 
@@ -112,12 +118,27 @@ public class DerivedMetricsSeriesTable implements Releasable {
      *         whether a new series was created without a second lookup.
      */
     public long record(BytesRef encodedDimensions, double value) {
-        long ordinal = dimensions.add(encodedDimensions);
+        // Room for one more series is reserved before the tuple is interned, so that a breaker refusal leaves the table exactly as it
+        // was. Interning first and growing second leaves a tuple in the hash with no columns behind it: the caller does not count the
+        // series because the exception reached it, seal() gives it back anyway because it reports dimensions.size(), and emit walks
+        // ordinals up to that same size and reads past the end of the columns — turning a refused observation into a failed flush.
+        reserveOneMore();
+        long ordinal;
+        try {
+            ordinal = dimensions.add(encodedDimensions);
+        } catch (CircuitBreakingException e) {
+            // BytesRefHash is not exception safe. add() points a hash slot at the new id, then appends the key, then increments its
+            // size; and the append itself records the entry's end offset before copying the bytes. A refusal in between leaves a slot
+            // referring to an entry whose bytes were never written, so any later add or find that probes that slot reads past the end
+            // of the byte storage and throws. The series already interned are still intact — size was never incremented, so they are
+            // exactly the ordinals below size() — but nothing may touch this hash again.
+            poisoned = true;
+            throw e;
+        }
         boolean created = ordinal >= 0;
         if (created == false) {
             ordinal = -1 - ordinal;
         } else {
-            grow(ordinal);
             min.set(ordinal, Double.POSITIVE_INFINITY);
             max.set(ordinal, Double.NEGATIVE_INFINITY);
         }
@@ -130,7 +151,16 @@ public class DerivedMetricsSeriesTable implements Releasable {
             // pays for one. It is charged against the same breaker as everything else here.
             ExponentialHistogramGenerator generator = histograms.get(ordinal);
             if (generator == null) {
-                generator = ExponentialHistogramGenerator.create(histogramBuckets, histogramMergers, histogramBreaker);
+                try {
+                    generator = ExponentialHistogramGenerator.create(histogramBuckets, histogramMergers, histogramBreaker);
+                } catch (CircuitBreakingException e) {
+                    // The series itself is already interned and its scalar columns already updated, so throwing here would strand it in
+                    // the same uncounted state the reservation above exists to prevent. The series keeps its place and reports an empty
+                    // distribution; the refusal is counted rather than hidden, because an empty histogram is otherwise indistinguishable
+                    // from a series that genuinely observed nothing.
+                    histogramsRefused++;
+                    return created ? ordinal : -1 - ordinal;
+                }
                 histograms.set(ordinal, generator);
             }
             generator.add(value);
@@ -138,15 +168,43 @@ public class DerivedMetricsSeriesTable implements Releasable {
         return created ? ordinal : -1 - ordinal;
     }
 
-    private void grow(long ordinal) {
-        long size = ordinal + 1;
-        sum = bigArrays.grow(sum, size);
-        min = bigArrays.grow(min, size);
-        max = bigArrays.grow(max, size);
-        count = bigArrays.grow(count, size);
-        if (histograms != null) {
-            histograms = bigArrays.grow(histograms, size);
+    /**
+     * Makes sure the columns can hold one more series than they currently do. Called before interning rather than after, so that the hash
+     * and the columns can never disagree about how many series exist; see {@link #record}.
+     *
+     * <p>The capacity is cached so that the common path — an observation for a series that already exists — costs one comparison rather
+     * than one growth check per column.
+     */
+    private void reserveOneMore() {
+        long required = dimensions.size() + 1;
+        if (required <= capacity) {
+            return;
         }
+        sum = bigArrays.grow(sum, required);
+        min = bigArrays.grow(min, required);
+        max = bigArrays.grow(max, required);
+        count = bigArrays.grow(count, required);
+        if (histograms != null) {
+            histograms = bigArrays.grow(histograms, required);
+        }
+        // every column is grown to at least `required`, so the smallest of them is what the table can actually hold
+        capacity = Math.min(Math.min(sum.size(), min.size()), Math.min(max.size(), count.size()));
+        if (histograms != null) {
+            capacity = Math.min(capacity, histograms.size());
+        }
+    }
+
+    /** How many distributions this table could not accumulate because the breaker refused them. */
+    long histogramsRefused() {
+        return histogramsRefused;
+    }
+
+    /**
+     * Whether this table's dimension hash has been left in a state that cannot be probed again. The series it already holds are still
+     * readable and worth emitting; it simply must not receive another observation. See {@link #record}.
+     */
+    boolean poisoned() {
+        return poisoned;
     }
 
     /** Whether this table already holds the series, so the caller can charge its budget before interning a new one. */

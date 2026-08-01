@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
@@ -66,6 +67,13 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public record Drained(TableKey key, DerivedMetricsSeriesTable table, int partial) {}
 
+    /** Identifies a source data stream within its project, which is what the per-stream budget is keyed on. */
+    private record StreamKey(ProjectId project, String sourceDataStream) {}
+
+    private static StreamKey streamKey(TableKey key) {
+        return new StreamKey(key.project(), key.sourceDataStream());
+    }
+
     private final BigArrays bigArrays;
     private final ConcurrentHashMap<TableKey, DerivedMetricsSeriesTable> tables = new ConcurrentHashMap<>();
     /**
@@ -73,8 +81,21 @@ public class DerivedMetricsBuffer implements Releasable {
      * once the bucket is closed.
      */
     private final ConcurrentHashMap<TableKey, AtomicInteger> partials = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, AtomicInteger> perStream = new ConcurrentHashMap<>();
-    private final LongAdder droppedSeries = new LongAdder();
+    /**
+     * Series held per source data stream, scoped to the project the stream belongs to. Two projects may each have a data stream of the
+     * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
+     */
+    private final ConcurrentHashMap<StreamKey, AtomicInteger> perStream = new ConcurrentHashMap<>();
+    private final LongAdder droppedSeriesAtNodeCap = new LongAdder();
+    private final LongAdder droppedSeriesAtStreamCap = new LongAdder();
+    private final LongAdder droppedSeriesAtBreaker = new LongAdder();
+    private final LongAdder partialsExhausted = new LongAdder();
+    private final LongAdder tablesRetired = new LongAdder();
+    /**
+     * Tables removed mid-bucket because they could no longer accept observations. They still hold real series, so they are handed to the
+     * next flush rather than dropped.
+     */
+    private final ConcurrentLinkedQueue<Drained> retired = new ConcurrentLinkedQueue<>();
     private final AtomicInteger totalSeries = new AtomicInteger();
     private final int maxSeries;
     private final int maxSeriesPerStream;
@@ -145,7 +166,7 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public boolean record(TableKey key, String[] values, Scratch scratch, double value) {
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
-        AtomicInteger held = perStream.computeIfAbsent(key.sourceDataStream(), unused -> new AtomicInteger());
+        AtomicInteger held = perStream.computeIfAbsent(streamKey(key), unused -> new AtomicInteger());
         while (true) {
             DerivedMetricsSeriesTable table = tables.get(key);
             if (table == null) {
@@ -162,9 +183,17 @@ public class DerivedMetricsBuffer implements Releasable {
                 // Probing the table is the expensive part of this critical section, so the common path does it once: record and let
                 // the returned sign say whether a series was created. Only when a cap is already reached does it cost a second probe,
                 // because there we must know before interning — the table has no way to remove a series it should not have taken.
-                if (totalSeries.get() >= maxSeries || held.get() >= maxSeriesPerStream) {
+                boolean atNodeCap = totalSeries.get() >= maxSeries;
+                boolean atStreamCap = held.get() >= maxSeriesPerStream;
+                if (atNodeCap || atStreamCap) {
                     if (table.contains(encoded) == false) {
-                        droppedSeries.increment();
+                        // Which cap refused is the first thing an operator needs to know: one says raise the node budget, the other says
+                        // go and find the stream. Counted separately rather than conflated into a single "dropped" number.
+                        if (atNodeCap) {
+                            droppedSeriesAtNodeCap.increment();
+                        } else {
+                            droppedSeriesAtStreamCap.increment();
+                        }
                         return false;
                     }
                 }
@@ -174,12 +203,39 @@ public class DerivedMetricsBuffer implements Releasable {
                         held.incrementAndGet();
                     }
                 } catch (CircuitBreakingException e) {
-                    droppedSeries.increment();
+                    droppedSeriesAtBreaker.increment();
+                    if (table.poisoned()) {
+                        // The hash cannot be probed again, so this table has to leave the map now rather than wait for its bucket to
+                        // close. What it already holds is intact and still worth emitting, so it is set aside for the next flush rather
+                        // than thrown away, and the next observation for this bucket opens a fresh table.
+                        retire(key, table);
+                    }
                     return false;
                 }
             }
             return true;
         }
+    }
+
+    /**
+     * Removes a table that can no longer accept observations and keeps it for the next flush, so the series it already accumulated are
+     * emitted rather than discarded. Called with the table's monitor held.
+     */
+    private void retire(TableKey key, DerivedMetricsSeriesTable table) {
+        if (tables.remove(key, table) == false) {
+            return;
+        }
+        long released = table.seal();
+        totalSeries.addAndGet(-(int) released);
+        StreamKey stream = streamKey(key);
+        AtomicInteger held = perStream.get(stream);
+        if (held != null && held.addAndGet(-(int) released) <= 0) {
+            perStream.remove(stream, held);
+        }
+        AtomicInteger counter = partials.get(key);
+        retired.add(new Drained(key, table, counter == null ? partialSeed : counter.get()));
+        partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
+        tablesRetired.increment();
     }
 
     /**
@@ -192,7 +248,7 @@ public class DerivedMetricsBuffer implements Releasable {
                 unused -> new DerivedMetricsSeriesTable(bigArrays, key.metric().reduction(), histogramBuckets, histogramBreaker)
             );
         } catch (CircuitBreakingException e) {
-            droppedSeries.increment();
+            droppedSeriesAtBreaker.increment();
             return null;
         }
     }
@@ -206,6 +262,7 @@ public class DerivedMetricsBuffer implements Releasable {
     public List<Drained> drainClosed(long nowMillis, long graceMillis) {
         Predicate<TableKey> closed = key -> key.bucketStartMillis() + key.intervalMillis() + graceMillis <= nowMillis;
         List<Drained> drained = drain(closed, false);
+        drainRetired(drained);
         // A closed bucket receives nothing further, so its partial count has nothing left to keep it honest. Sweeping here rather than in
         // drain covers buckets that were flushed early and then never saw another write.
         partials.keySet().removeIf(key -> closed.test(key) && tables.containsKey(key) == false);
@@ -229,7 +286,7 @@ public class DerivedMetricsBuffer implements Releasable {
         AtomicInteger counter = partials.get(key);
         if (counter != null && counter.get() >= maxPartials(key) - 1) {
             // no offset left inside the interval, so a further partial would collide or land in the next bucket
-            droppedSeries.increment();
+            partialsExhausted.increment();
             return null;
         }
         return take(key, table, true);
@@ -240,8 +297,17 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public List<Drained> drainAll() {
         List<Drained> drained = drain(key -> true, false);
+        drainRetired(drained);
         partials.clear();
         return drained;
+    }
+
+    /** Adds anything set aside by {@link #retire} to this flush. */
+    private void drainRetired(List<Drained> drained) {
+        Drained taken;
+        while ((taken = retired.poll()) != null) {
+            drained.add(taken);
+        }
     }
 
     private List<Drained> drain(Predicate<TableKey> take, boolean reopening) {
@@ -278,9 +344,10 @@ public class DerivedMetricsBuffer implements Releasable {
             released = table.seal();
         }
         totalSeries.addAndGet(-(int) released);
-        AtomicInteger held = perStream.get(key.sourceDataStream());
+        StreamKey stream = streamKey(key);
+        AtomicInteger held = perStream.get(stream);
         if (held != null && held.addAndGet(-(int) released) <= 0) {
-            perStream.remove(key.sourceDataStream(), held);
+            perStream.remove(stream, held);
         }
         AtomicInteger counter = partials.get(key);
         int partial = counter == null ? partialSeed : counter.get();
@@ -295,8 +362,33 @@ public class DerivedMetricsBuffer implements Releasable {
         return totalSeries.get();
     }
 
+    /** Series refused because the node-wide budget was already spent. */
+    public long droppedSeriesAtNodeCap() {
+        return droppedSeriesAtNodeCap.sum();
+    }
+
+    /** Series refused because one source stream had already taken its share. */
+    public long droppedSeriesAtStreamCap() {
+        return droppedSeriesAtStreamCap.sum();
+    }
+
+    /** Series refused because the circuit breaker would not give the memory they needed. */
+    public long droppedSeriesAtBreaker() {
+        return droppedSeriesAtBreaker.sum();
+    }
+
+    /** Tables removed mid-bucket because their dimension hash could no longer be probed. */
+    public long tablesRetired() {
+        return tablesRetired.sum();
+    }
+
+    /** Buckets that could not be flushed early because no timestamp offset was left inside the interval. */
+    public long partialsExhausted() {
+        return partialsExhausted.sum();
+    }
+
     public long droppedSeries() {
-        return droppedSeries.sum();
+        return droppedSeriesAtNodeCap.sum() + droppedSeriesAtStreamCap.sum() + droppedSeriesAtBreaker.sum();
     }
 
     // visible for testing
@@ -306,7 +398,12 @@ public class DerivedMetricsBuffer implements Releasable {
 
     // visible for testing
     int seriesFor(String sourceDataStream) {
-        AtomicInteger held = perStream.get(sourceDataStream);
+        return seriesFor(ProjectId.DEFAULT, sourceDataStream);
+    }
+
+    // visible for testing
+    int seriesFor(ProjectId project, String sourceDataStream) {
+        AtomicInteger held = perStream.get(new StreamKey(project, sourceDataStream));
         return held == null ? 0 : held.get();
     }
 

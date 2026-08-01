@@ -208,6 +208,19 @@ public class DerivedMetricsService implements Closeable {
     private final AtomicLong droppedForIndexingPressure = new AtomicLong();
     private final AtomicLong lostSeries = new AtomicLong();
     private final AtomicLong emissionFailures = new AtomicLong();
+    /**
+     * Documents the destination itself rejected. Distinct from {@link #emissionFailures}, which counts whole requests that never landed:
+     * this is where a duplicate {@code _id} or a mapping conflict shows up, and both are invisible without it.
+     */
+    private final AtomicLong emissionRejections = new AtomicLong();
+    /** Observations skipped because the metric reads a field the document did not have, or had as something non-numeric. */
+    private final AtomicLong skippedForMissingValue = new AtomicLong();
+    /** Observations skipped because the metric needs a predicate evaluated against a {@code _source} that could not be read. */
+    private final AtomicLong skippedForUnreadableSource = new AtomicLong();
+    /** Observations the buffer refused once and accepted after an early flush; the buffer counted a drop that did not happen. */
+    private final AtomicLong recoveredAfterRelief = new AtomicLong();
+    /** Observations the buffer refused twice; the buffer counted two drops for one lost observation. */
+    private final AtomicLong doubleCountedDrops = new AtomicLong();
     private final IndexingPressure indexingPressure;
     private final double indexingPressureCeiling;
     private final Executor executor;
@@ -278,7 +291,51 @@ public class DerivedMetricsService implements Closeable {
             "es.derived_metrics.series.dropped.total",
             "observations dropped because a series cap or the circuit breaker refused them",
             "count",
-            buffer::droppedSeries
+            // the retry after an early flush is counted by the buffer as a drop whether or not it succeeded, so both outcomes are
+            // subtracted back out here: one for an observation that was not lost at all, one for the second count of one that was
+            () -> buffer.droppedSeries() - recoveredAfterRelief.get() - doubleCountedDrops.get()
+        );
+        register(
+            "es.derived_metrics.series.dropped.node_cap.total",
+            "series refused because this node had already spent its budget",
+            "count",
+            buffer::droppedSeriesAtNodeCap
+        );
+        register(
+            "es.derived_metrics.series.dropped.stream_cap.total",
+            "series refused because one source data stream had already taken its share",
+            "count",
+            buffer::droppedSeriesAtStreamCap
+        );
+        register(
+            "es.derived_metrics.series.dropped.breaker.total",
+            "series refused because the circuit breaker would not give them the memory they needed",
+            "count",
+            buffer::droppedSeriesAtBreaker
+        );
+        register(
+            "es.derived_metrics.observations.skipped.missing_value.total",
+            "observations skipped because the metric's value field was absent or not numeric",
+            "count",
+            skippedForMissingValue::get
+        );
+        register(
+            "es.derived_metrics.observations.skipped.unreadable_source.total",
+            "observations skipped because the metric's predicate needed a _source that could not be read",
+            "count",
+            skippedForUnreadableSource::get
+        );
+        register(
+            "es.derived_metrics.documents.rejected.total",
+            "documents the destination rejected, which is where a duplicate _id or a mapping conflict appears",
+            "count",
+            emissionRejections::get
+        );
+        register(
+            "es.derived_metrics.partials.exhausted.total",
+            "buckets that could not be flushed early because no timestamp offset was left inside the interval",
+            "count",
+            buffer::partialsExhausted
         );
         register(
             "es.derived_metrics.series.lost.total",
@@ -341,10 +398,14 @@ public class DerivedMetricsService implements Closeable {
             }
             if (haveSource == false && metric.predicate() != DerivedMetricsPredicate.MATCH_ALL) {
                 // the predicate needs a source we could not read, so the metric cannot be said to match
+                skippedForUnreadableSource.incrementAndGet();
                 continue;
             }
             double value = valueOf(metric, source, haveSource, documentSize);
             if (Double.isNaN(value)) {
+                // The configured value field is absent or not a number. This is what a misspelled field name looks like, and left
+                // uncounted it produces a metric that silently emits nothing forever with no signal anywhere.
+                skippedForMissingValue.incrementAndGet();
                 continue;
             }
             String[] values = scratch.dimensionValues(metric, source, haveSource);
@@ -354,8 +415,15 @@ public class DerivedMetricsService implements Closeable {
             if (buffer.record(key, values, scratch.encoding, value) == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
                 // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
                 // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
+                //
+                // The buffer counts a drop on each refusal, so a retry that succeeds has already been counted as a loss and a retry that
+                // fails has been counted twice. Neither is true, so the retry's answer is used to put the count back.
                 relievePressure(key);
-                buffer.record(key, values, scratch.encoding, value);
+                if (buffer.record(key, values, scratch.encoding, value)) {
+                    recoveredAfterRelief.incrementAndGet();
+                } else {
+                    doubleCountedDrops.incrementAndGet();
+                }
             }
         }
     }
@@ -602,12 +670,17 @@ public class DerivedMetricsService implements Closeable {
                 if (response.hasFailures() == false) {
                     return;
                 }
+                boolean reported = false;
                 for (BulkItemResponse item : response.getItems()) {
                     if (item.isFailed()) {
-                        // one message is enough to diagnose a systematic problem, and the destination is managed so failures are not
-                        // expected to be per-document
-                        logger.warn(() -> "failed to write derived metrics to [" + item.getIndex() + "]", item.getFailure().getCause());
-                        return;
+                        emissionRejections.incrementAndGet();
+                        if (reported == false) {
+                            // one message is enough to diagnose a systematic problem, and the destination is managed so failures are not
+                            // expected to be per-document — but every rejection is still counted, because this is where a duplicate _id
+                            // would land and that is the failure the partial offset scheme exists to prevent
+                            reported = true;
+                            logger.warn(() -> "failed to write derived metrics to [" + item.getIndex() + "]", item.getFailure().getCause());
+                        }
                     }
                 }
             }
@@ -689,6 +762,24 @@ public class DerivedMetricsService implements Closeable {
         long moved = total - lastReported[0];
         lastReported[0] = total;
         return moved;
+    }
+
+    /** Observations skipped because the metric's value field was absent or not numeric — what a misspelled field name looks like. */
+    public long skippedForMissingValue() {
+        return skippedForMissingValue.get();
+    }
+
+    /** Documents the destination rejected, as opposed to whole requests that failed. */
+    public long emissionRejections() {
+        return emissionRejections.get();
+    }
+
+    /**
+     * Observations the buffer refused and then accepted after an early flush. The buffer counted a drop for the first refusal that did
+     * not turn out to be one, which is why the published drop total subtracts this.
+     */
+    public long recoveredAfterRelief() {
+        return recoveredAfterRelief.get();
     }
 
     // visible for testing

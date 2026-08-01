@@ -11,9 +11,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.DimsPacker;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -145,7 +147,23 @@ public final class ReadDimsOperator implements Operator {
                 firstPos[ord] = p;
             }
         }
-        return docBlock.filter(false, firstPos, 0, dictSize);
+        IntVector shards = null;
+        IntVector segments = null;
+        IntVector docs = null;
+        boolean success = false;
+        try {
+            DocVector docVector = docBlock.asVector();
+            shards = docVector.shards().filter(false, firstPos, 0, dictSize);
+            segments = docVector.segments().filter(false, firstPos, 0, dictSize);
+            docs = docVector.docs().filter(false, firstPos, 0, dictSize);
+            var filtered = new DocVector(AlwaysReferencedIndexedByShardId.INSTANCE, shards, segments, docs, DocVector.config()).asBlock();
+            success = true;
+            return filtered;
+        } finally {
+            if (success == false) {
+                Releasables.close(shards, segments, docs);
+            }
+        }
     }
 
     Block[] readFields(DocBlock docBlock) {

@@ -106,6 +106,9 @@ def main():
                     "aggs": {"value": {"sum": {"field": "metric.value"}}},
                 },
                 "latest": {"max_bucket": {"buckets_path": "per_bucket>value"}},
+                # A histogram metric carries a distribution rather than a value, so metric.value is
+                # absent and summing it yields nothing. Its p99 is the interesting number anyway.
+                "p99": {"percentiles": {"field": "metric.histogram", "percents": [99]}},
             },
         }},
     })
@@ -127,8 +130,15 @@ def main():
         print("    no derived metrics yet; give it an interval or two")
     for bucket in buckets:
         latest = bucket.get("latest", {}).get("value")
-        latest = 0.0 if latest is None else latest
-        print(f"    {bucket['key']:<24} {latest:>16,.2f}   ({bucket['doc_count']} series-buckets)")
+        p99 = (bucket.get("p99", {}).get("values") or {}).get("99.0")
+        if p99 is not None:
+            # a distribution, so report the shape rather than a sum that does not exist
+            print(f"    {bucket['key']:<24} {p99:>16,.2f}   ({bucket['doc_count']} series-buckets, p99)")
+        else:
+            print(
+                f"    {bucket['key']:<24} {0.0 if latest is None else latest:>16,.2f}"
+                f"   ({bucket['doc_count']} series-buckets)"
+            )
     print()
 
 

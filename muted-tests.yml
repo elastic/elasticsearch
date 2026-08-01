@@ -349,6 +349,21 @@ tests:
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/155449
+- class: org.elasticsearch.xpack.eql.EqlDateNanosIT
+  method: test {sequenceManyManyCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/155659
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155532
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:stats_sample.Sample geo_point}
+  issue: https://github.com/elastic/elasticsearch/issues/155661
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:stats_sample.Sample cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/issues/155662
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155541
 
 # Examples:
 #

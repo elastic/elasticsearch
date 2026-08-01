@@ -74,9 +74,6 @@ public class NativeLibraryTests extends PackagingTestCase {
             // Retrieve the document — this exercises zstd decompression of the stored _source field
             String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/zstd_test/_doc/1"));
             assertThat(response, containsString("zstd native library smoke test for packaging"));
-
-            // Cleanup
-            ServerUtils.makeRequest(Request.Delete("http://localhost:9200/zstd_test"));
         } finally {
             stopElasticsearch();
         }

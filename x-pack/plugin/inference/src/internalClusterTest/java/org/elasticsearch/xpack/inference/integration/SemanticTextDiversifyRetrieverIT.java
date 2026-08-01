@@ -86,19 +86,21 @@ public class SemanticTextDiversifyRetrieverIT extends ESIntegTestCase {
         XContentBuilder mapping = IntegrationTestUtils.generateSemanticTextMapping(Map.of(fieldName, INFERENCE_ID));
         assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mapping));
 
-        // Index enough documents so the diversify retriever has something to actually trim.
-        String[] docs = {
-            "Wireless noise cancelling headphones with deep bass",
-            "Over-ear headphones with active noise cancellation and long battery",
-            "Bluetooth earbuds with transparency mode and spatial audio",
-            "Premium studio monitor headphones, wired, flat frequency response",
-            "Sport earbuds with secure fit and sweat resistance",
-            "Open-back audiophile headphones with wide soundstage",
-            "True wireless earbuds with adaptive noise cancelling",
-            "Gaming headset with surround sound and detachable mic" };
+        // Index documents with multiple chunks (arrays of strings) so the diversify retriever has something to trim
+        // and so that the best embedding code path is exercised.
+        List<List<String>> docs = List.of(
+            List.of("Wireless noise cancelling headphones with deep bass", "Powerful 40mm drivers and 30-hour battery life"),
+            List.of("Over-ear headphones with active noise cancellation", "Foldable design with premium carrying case"),
+            List.of("Bluetooth earbuds with transparency mode", "Spatial audio and adaptive EQ for immersive listening"),
+            List.of("Premium studio monitor headphones, wired", "Flat frequency response for accurate audio mixing"),
+            List.of("Sport earbuds with secure fit and sweat resistance", "IPX5 rating and six-hour playback"),
+            List.of("Open-back audiophile headphones with wide soundstage", "Velour ear cushions and detachable cable"),
+            List.of("True wireless earbuds with adaptive noise cancelling", "Wireless charging case with 24-hour total battery"),
+            List.of("Gaming headset with surround sound", "Detachable boom mic and RGB lighting")
+        );
 
         BulkRequestBuilder bulk = client().prepareBulk(indexName);
-        for (String doc : docs) {
+        for (List<String> doc : docs) {
             bulk.add(client().prepareIndex(indexName).setSource(Map.of(fieldName, doc)));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

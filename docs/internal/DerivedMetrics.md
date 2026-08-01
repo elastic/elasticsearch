@@ -167,7 +167,22 @@ at least as much as the time. This path runs once per document on the indexing t
 | built-in plus a predicate-guarded counter, five dimensions | 2,473 | 2,328 |
 | one histogram metric over a field | 1,269 | 1,932 |
 
-The shape of that table is the important part, and it is close to flat. A stream that only wants the built-in ingest metrics never reads
+Those figures are single-threaded. Under contention, with every thread recording into one metric and
+one series — the worst case, since each metric has its own table and its own lock:
+
+| threads | ns/op | observations/sec |
+|---|---|---|
+| 1 | 2,490 | 402,000 |
+| 2 | 2,780 | 719,000 |
+| 4 | 4,169 | 959,000 |
+| 8 | 6,430 | 1,244,000 |
+
+Throughput scales 3.1x from one thread to eight rather than the ideal 8x, so the per-table monitor is
+real and measurable. It is also not currently the binding constraint: a node doing 70,000 documents a
+second with seven configured metrics generates about 490,000 observations a second, spread over seven
+tables rather than concentrated on one. The ceiling above is the pessimistic reading of that.
+
+The shape of the single-threaded table is the important part, and it is close to flat. A stream that only wants the built-in ingest metrics never reads
 `_source` at all and costs essentially nothing. Every configuration that does read it pays about the same, because what dominates is
 touching the source at all rather than how much of it is wanted: creating a parser and scanning the document with *nothing* configured
 already costs about 1,850 bytes, which is 89% of the five-dimension figure. Adding four more dimensions and a predicate on top of one

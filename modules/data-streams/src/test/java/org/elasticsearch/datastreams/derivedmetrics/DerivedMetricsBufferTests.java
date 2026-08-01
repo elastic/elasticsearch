@@ -414,6 +414,92 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         return drained;
     }
 
+    /**
+     * Every write thread touching one metric on a node serialises through that table's monitor, and until now nothing had ever run two
+     * threads through it. This asserts the part that would break silently: that concurrent recording loses no observations and leaves the
+     * series budget exactly where it started.
+     */
+    public void testConcurrentRecordingLosesNothing() throws Exception {
+        int threads = 8;
+        int perThread = 2000;
+        int services = 16;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            // one scratch per thread, as on the write path, since a scratch buffer is explicitly not shareable
+            runInParallel(threads, thread -> {
+                Scratch scratch = new Scratch();
+                for (int i = 0; i < perThread; i++) {
+                    buffer.record(key, new String[] { "service-" + (i % services) }, scratch, 1.0);
+                }
+            });
+
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).table();
+                assertEquals("every distinct dimension value should be one series", services, (int) table.size());
+                double total = 0;
+                for (long ordinal = 0; ordinal < table.size(); ordinal++) {
+                    total += table.reduce(ordinal, Reduction.SUM, 10_000L);
+                }
+                assertEquals("no observation may be lost or double counted", (double) threads * perThread, total, 0.0);
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+            assertEquals("draining must return the whole budget", 0, buffer.size());
+        }
+    }
+
+    /**
+     * The nastier interleaving: a drain seals a table while writers are still recording into it. A writer that finds its table sealed has
+     * to notice and start again on the replacement, or its observation vanishes.
+     */
+    public void testRecordingRacingADrainLosesNothing() throws Exception {
+        int threads = 6;
+        int perThread = 1500;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            java.util.concurrent.atomic.AtomicReference<Double> drainedTotal = new java.util.concurrent.atomic.AtomicReference<>(0.0);
+
+            runInParallel(threads + 1, worker -> {
+                if (worker == threads) {
+                    // the drainer, taking the bucket out from under the writers repeatedly
+                    for (int i = 0; i < 40; i++) {
+                        for (var entry : buffer.drainAll()) {
+                            try {
+                                for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
+                                    double value = entry.table().reduce(ordinal, Reduction.SUM, 10_000L);
+                                    drainedTotal.updateAndGet(current -> current + value);
+                                }
+                            } finally {
+                                entry.table().close();
+                            }
+                        }
+                    }
+                    return;
+                }
+                Scratch scratch = new Scratch();
+                for (int i = 0; i < perThread; i++) {
+                    buffer.record(key, new String[] { "checkout" }, scratch, 1.0);
+                }
+            });
+
+            // whatever the drainer did not take is still buffered; the two together must account for every observation
+            double remaining = 0;
+            var drained = buffer.drainAll();
+            try {
+                for (var entry : drained) {
+                    for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
+                        remaining += entry.table().reduce(ordinal, Reduction.SUM, 10_000L);
+                    }
+                }
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+            assertEquals((double) threads * perThread, drainedTotal.get() + remaining, 0.0);
+            assertEquals(0, buffer.size());
+        }
+    }
+
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
         return buffer.record(key, new String[] { service }, new Scratch(), value);
     }

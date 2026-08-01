@@ -70,6 +70,10 @@ Every user metric has:
 - `dimensions`: optional extra dimensions added to global dimensions.
 - `interval`: optional override of `default_interval`. The metric is accumulated separately and written to that interval's own
   destination, so the interval must have an entry in `destinations`.
+- `preference`: optional, 1 to 10,000, relative to a default of 100. Biases which bucket the node gives up first under memory pressure,
+  for the case where cost and importance disagree. Raising it makes a metric proportionally less likely to be flushed early. Because
+  flushing early is lossless, this trades extra documents rather than data. Two templates defining the same metric with different
+  preferences is an error, as it is for every other field of a metric.
 
 Counters default `value` to `1` when omitted.
 
@@ -281,12 +285,37 @@ was reached or because the circuit breaker refused the memory a new series neede
 partials of one bucket are reduced together at query time exactly as partials from different nodes already are. The costs are more
 documents while the pressure lasts, and a timestamp that sits a few milliseconds after its bucket start rather than exactly on it.
 
+**Which bucket is given up is chosen, not arbitrary.** The node flushes whichever bucket is holding the most memory, so relieving
+pressure actually frees something; previously it flushed whichever bucket happened to receive the refused observation, which could be one
+holding a single series. Size is measured in bytes rather than series, because a histogram series is worth roughly thirty scalar ones and
+a table with far fewer series can be the larger one. A table reports its own size by asking the structures that hold it, so the number
+cannot drift away from what is really allocated.
+
+Scope follows the cap that refused: a node-wide refusal considers every bucket, while a stream that has spent its own per-stream share
+considers only its own, since freeing another stream's memory gives it none of its share back.
+
+Because flushing early is lossless, this decides which metric pays in **extra documents**, not which one loses data. A metric may set an
+optional `preference` to bias the ranking where cost and importance disagree; a stream that configures nothing is ranked purely by size.
+
 The offset is not cosmetic. A time series `_id` is `createId(routingHash, tsid, timestamp)` and the destination is written with
 `op_type=create`, so two partials of the same series in the same bucket would produce the same `_id` and the second would be silently
-rejected. Partial *N* is therefore stamped at `bucketStart + N` milliseconds. The alternative — putting the partial number in a dimension —
+rejected. That rejection is now counted as `es.derived_metrics.documents.rejected.total`; before it was logged once and otherwise
+invisible, which meant the mechanism guarded against a failure nobody could detect. Partial *N* is therefore stamped at `bucketStart + N` milliseconds. The alternative — putting the partial number in a dimension —
 was rejected because the tsid *is* the series identity: partials would become separate series, downsampling would keep them apart, and
 tsid cardinality would grow precisely when the node is already under pressure. The offset keeps one logical series one series, keeps the
 document inside the same `date_histogram` bucket. Intervals are at least one second, so up to a thousand partials fit before the offset could reach the next bucket.
+
+The partial number is seeded per service instance from the wall clock, so a node restarting inside a bucket it had already emitted for
+does not resume at zero and collide with itself. **That seeding is probabilistic, and it is worth being precise about what it does not
+do.** With 128 slots, two nodes picking the same seed is likely in any cluster of a dozen or more — across 20 nodes the birthday
+probability is around 78%. It is `derived_metrics.node` in the tsid that actually guarantees two nodes never collide; the offset only
+separates partials emitted by the *same* node. Anyone tempted to remove the node dimension on the grounds that the offset already
+prevents collisions should read that sentence twice.
+
+The same seeding is why derived metrics output is not replayable. Re-emitting an identical aggregate produces an identical `_id`, which
+`op_type=create` rejects — at-most-once, no double counting. But a replay after a restart picks a different seed, lands the same data at a
+different timestamp as a different partial, and partials sum. Making the seed deterministic would fix replay and break restart, which is
+the case that actually exists today; see the backfill discussion below.
 
 `drop` discards the observation instead. Document volume stays perfectly flat and timestamps stay exactly on bucket boundaries, at the
 cost of losing data. This is what Micrometer and the Prometheus Java client do, and it is the right choice for anyone aligning query
@@ -423,12 +452,88 @@ grouped by anything other than node is unaffected: the dead series simply contri
 buckets after they stopped.
 
 Whether node identity belongs in the tsid at all is a real design question and is deliberately left
-open. It is there so that two nodes emitting the same series in the same bucket do not collide on the
-deterministic time series `_id` — and the partial-offset mechanism above now addresses that same
-collision for a different reason. Removing the dimension would eliminate the churn entirely and let
-partials of one series from different nodes share a series. It would also mean a query could no
-longer attribute a value to a node, and it needs the offset scheme to carry more weight than it
-currently does. Not attempted here.
+open — but one argument for removing it has been checked and does not hold.
+
+The dimension exists so that two nodes emitting the same series in the same bucket do not collide on
+the deterministic `_id`. The partial-offset mechanism looks like it addresses the same collision, so
+the tempting conclusion is that the dimension is now redundant. **It is not.** The offset is seeded
+from the wall clock into 128 slots, which separates partials from one node reliably but separates two
+*different* nodes only by chance — across 20 nodes the odds that some pair collides are around 78%.
+The node dimension is what actually guarantees it.
+
+Removing the dimension would end the churn and let partials of one series from different nodes share
+a series. It would also cost per-node attribution in queries, and it would first require the offset to
+separate nodes deterministically — which is a different scheme than the one that exists. Not attempted
+here, and not to be attempted on the assumption that the offset already covers it.
+
+### Designing against bad cardinality
+
+Cardinality is this feature's weak point, so it is worth being explicit about what can and cannot be done about it.
+
+**It cannot be validated at configuration time.** Nothing in a template knows how many distinct values `user.id` will take. The
+configuration limits that do exist — 16 global dimensions, 16 per-metric dimensions, 64 user metrics, 8 destinations — bound the *number*
+of dimensions and say nothing about the cardinality of their values. Any design that claims to catch a bad dimension before it has seen
+data is theatre.
+
+So the work divides into making the runtime signal attributable, and degrading gracefully rather than failing.
+
+**Two budgets, not one, and they measure different things.** The series caps are a *cardinality* guard: every series, scalar or histogram,
+becomes exactly one time series in the destination and costs one tsid. The circuit breaker is a *memory* guard, and there a histogram
+series is worth about thirty scalar ones.
+
+It is tempting to weight the series cap by memory so that a histogram series counts for more. That would be wrong, and the arithmetic says
+so: at the default cap of 10,000, a full complement of histogram series is about 46 MB, against a breaker of 5% of heap — 200 MB on a 4 GB
+node. The cap binds first, not the breaker. Weighting it would cut configurable histogram capacity roughly thirtyfold for no cardinality
+reason, since those series cost exactly as many tsids as scalar ones. Memory asymmetry belongs to the breaker and to what gets shed first,
+not to the cardinality cap.
+
+**What the runtime now tells you.** Refusals are counted by cause rather than lumped together: `series.dropped.node_cap` and
+`series.dropped.stream_cap` say whether to raise the budget or go and find the stream, and `series.dropped.breaker` says the problem is
+memory rather than cardinality. `observations.skipped.missing_value` catches the case that used to be silent — a metric configured against
+a field that does not exist, which is what a misspelled field name looks like and which otherwise emits nothing forever with no signal.
+
+**Not built, and worth knowing why.** Two things would materially improve this and are deliberately deferred:
+
+- *Which dimension is the problem* is still unanswerable. A `HyperLogLogPlusPlus` per (metric, dimension) would answer it directly — it is
+  breaker-aware, `BigArrays`-backed, and starts in a cheap linear-counting mode, about 256 bytes per sketch at `p=8`, so 64 metrics by 16
+  dimensions is a quarter of a megabyte. The reason to wait is that nothing surfaces it yet.
+- *A stats API*. There is none: every counter is node-wide with no attributes, so nothing breaks down by metric, stream or project.
+  `RestDataStreamLifecycleStatsAction` in the same module is the precedent.
+
+A third idea is recorded here because it is the right shape and not obvious. Elasticsearch already prefers graceful degradation to
+rejection for mapping explosions: `index.mapping.total_fields.ignore_dynamic_beyond_limit` drops the *field* and keeps indexing the
+document. The analogue would be to collapse a runaway dimension to a placeholder rather than dropping the metric — the metric stays
+bounded and aggregable, and only the breakdown by the offending dimension is lost. That is a much better failure mode than one dimension
+starving every other metric on the node through a shared cap.
+
+### Backfilling history
+
+Derived metrics only ever sees writes as they happen, so it cannot produce metrics for data that arrived before it was configured. This is
+the clearest thing a transform still does better, and a backfill is feasible — the seam is shallow, since
+`DerivedMetricsService.record(...)` is the single entry point and the indexing listener is a thin adapter over it.
+
+The reusable pieces already exist. `ReindexDataStreamPersistentTaskExecutor` is the closest structural template: a persistent task
+orchestrating per-index sub-jobs, with a durable cursor, a status API and cancellation — the two-level shape a data stream backfill wants.
+Downsampling is the closest analogue for the scan itself, and its entire resume cursor is a single tsid in cluster state, because
+`TimeSeriesIndexSearcher` gives it a total order to resume from.
+
+Two prerequisites, and the first is the interesting one.
+
+**The backfill must number its own partials.** Live emission seeds partial numbering from the wall clock so that a node restarting inside a
+bucket does not collide with what it already emitted. That seeding is what makes output non-replayable: the same data processed twice lands
+at different timestamps as different partials, and partials sum. The instinct is to make the seed deterministic — and it is wrong, because
+a deterministic seed makes a restarting node collide with itself and lose that data, trading a problem that exists today for one that does
+not. The two jobs are separable. A backfill processes a closed range in one pass and is not responding to memory pressure, so it can emit
+exactly one partial per series and bucket at offset zero, replay-safe by construction, with live emission untouched.
+
+**`record` would need to accept raw source.** It takes a `ParsedDocument` today but only uses it for `source().parser(...)` and
+`estimatedSizeInBytes()`; every bulk reader produces `BytesReference` and an `XContentType`.
+
+One thing to design around rather than discover: slices run on different nodes, and series state is node-local and node-capped. Slicing by
+document multiplies memory without splitting series correctly, so a backfill has to partition by dimension hash.
+
+Worth being honest that this changes what the feature is. Today it is best-effort telemetry about writes. A backfill makes it a
+recomputable aggregate, which is a different and stronger promise.
 
 ### Retention
 

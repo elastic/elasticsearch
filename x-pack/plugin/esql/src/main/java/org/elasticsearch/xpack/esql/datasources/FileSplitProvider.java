@@ -192,11 +192,13 @@ public class FileSplitProvider implements SplitProvider {
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
 
     /**
-     * Ceiling on the record-boundary probe offsets a single file may contribute, and so on the macro-splits it
-     * may be cut into. At the default {@link #DEFAULT_TARGET_SPLIT_SIZE} reaching it takes a file of over 6 TB,
-     * so in practice only a {@code target_split_size} orders of magnitude below the file size gets there.
+     * Ceiling on the macro-splits one file may be cut into, and so on the record-boundary probe offsets it
+     * contributes: a file's offsets are all materialized before any read, and each one becomes a probe task and
+     * a queued gather listener after that, so an unbounded count costs planning-time heap and a probe read per
+     * offset for splits too small to pay for either. At the default {@link #DEFAULT_TARGET_SPLIT_SIZE} a file
+     * has to exceed 64 GB to reach it.
      */
-    static final int MAX_PROBE_OFFSETS_PER_FILE = 100_000;
+    static final int MAX_SPLITS_PER_FILE = 1_000;
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
@@ -466,7 +468,7 @@ public class FileSplitProvider implements SplitProvider {
                             deferred.filePath(),
                             deferred.fileLength(),
                             deferred.positions().size(),
-                            deferred.targetStrideBytes()
+                            deferred.strideBytes()
                         );
                     }
                     splits.addAll(buildNewlineMacroSplits(deferred, starts));
@@ -520,7 +522,7 @@ public class FileSplitProvider implements SplitProvider {
                             deferred.fileLength(),
                             deferred.positions(),
                             deferred.minSegment(),
-                            deferred.targetStrideBytes(),
+                            deferred.strideBytes(),
                             isCancelled
                         )
                     );
@@ -579,7 +581,7 @@ public class FileSplitProvider implements SplitProvider {
                 probe.position(),
                 deferred.fileLength(),
                 deferred.minSegment(),
-                deferred.targetStrideBytes(),
+                deferred.strideBytes(),
                 isCancelled
             )
         );
@@ -642,6 +644,10 @@ public class FileSplitProvider implements SplitProvider {
      * {@code positions} holds the fixed stride offsets to probe, and is empty for a splitter that cannot be
      * probed at a fixed offset (quoted/escaped CSV/TSV) and must use the sequential proven walk instead.
      * <p>
+     * {@code strideBytes} is the spacing those offsets were laid out at, which is the requested
+     * {@code target_split_size} unless {@link #strideBoundedBySplitCeiling} widened it, and is what the probes
+     * cap their read windows at. The requested size is not carried: nothing past planning needs it.
+     * <p>
      * {@code splitter} is shared by every probe of this file, which the {@link RecordSplitter} contract allows:
      * implementations are immutable and safe to call concurrently. {@code storageObject} is shared too, and holds
      * no open resources of its own; each probe owns only the stream it opens.
@@ -657,7 +663,7 @@ public class FileSplitProvider implements SplitProvider {
         StorageObject storageObject,
         RecordSplitter splitter,
         long minSegment,
-        long targetStrideBytes,
+        long strideBytes,
         List<Long> positions
     ) {}
 
@@ -828,7 +834,7 @@ public class FileSplitProvider implements SplitProvider {
             splitter,
             deferred.storageObject(),
             deferred.fileLength(),
-            deferred.targetStrideBytes(),
+            deferred.strideBytes(),
             deferred.minSegment(),
             isCancelled
         );
@@ -1196,13 +1202,12 @@ public class FileSplitProvider implements SplitProvider {
         StorageObject object = provider.newObject(filePath, fileLength);
         RecordSplitter splitter = segmentableReader.recordSplitter(maxRecordBytes);
         long minSegment = segmentableReader.minimumSegmentSize();
+        long stride = strideBoundedBySplitCeiling(filePath, fileLength, targetStrideBytes);
         // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
         // Anything else keeps the sequential walk and carries no positions.
-        List<Long> positions = List.of();
-        if (splitter.supportsStridedProbing()) {
-            checkProbeOffsetCount(filePath, fileLength, targetStrideBytes);
-            positions = RecordBoundaryProbe.stridedPositions(fileLength, targetStrideBytes, minSegment);
-        }
+        List<Long> positions = splitter.supportsStridedProbing()
+            ? RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment)
+            : List.of();
         return new DeferredNewlineSplits(
             filePath,
             fileLength,
@@ -1214,32 +1219,39 @@ public class FileSplitProvider implements SplitProvider {
             object,
             splitter,
             minSegment,
-            targetStrideBytes,
+            stride,
             positions
         );
     }
 
     /**
-     * Rejects a {@code target_split_size} that would ask a single file for more probe offsets than
-     * {@link #MAX_PROBE_OFFSETS_PER_FILE}.
+     * The stride to cut a file at: the requested one, or the smallest stride that keeps the file within
+     * {@link #MAX_SPLITS_PER_FILE} splits when the requested one asks for more than that.
      * <p>
-     * A strided file's offsets are all materialized up front, and each one later becomes a probe task and a
-     * queued gather listener, so an extreme value would exhaust the heap at planning time before a single byte
-     * is read. Failing here reports that as the client error it is; widening the stride instead would honour
-     * neither the requested split size nor the user's ability to find out that it was not honoured.
+     * Consecutive boundaries are at least a stride apart on both walks (the strided one probes
+     * {@code stride, 2 * stride, ...}, the proven one resumes a stride past each boundary it finds), so a stride
+     * of {@code ceil(fileLength / MAX_SPLITS_PER_FILE)} bounds the boundaries below end-of-file at
+     * {@code MAX_SPLITS_PER_FILE - 1}, and the file start adds the one split that makes up the ceiling.
+     * <p>
+     * Widening rather than failing keeps a {@code target_split_size} that suits most of a scan from being
+     * rejected because one file in it is far larger than the rest; the warning is what tells the user that the
+     * size they asked for is not the size they got.
      */
-    private static void checkProbeOffsetCount(StoragePath filePath, long fileLength, long targetStrideBytes) {
-        long offsets = fileLength / targetStrideBytes;
-        Check.clientError(
-            offsets <= MAX_PROBE_OFFSETS_PER_FILE,
-            "[{}] of [{}] would split [{}] ({} bytes) into more than {} parts; raise [{}]",
+    private static long strideBoundedBySplitCeiling(StoragePath filePath, long fileLength, long targetStrideBytes) {
+        long minStride = Math.ceilDiv(fileLength, MAX_SPLITS_PER_FILE);
+        if (targetStrideBytes >= minStride) {
+            return targetStrideBytes;
+        }
+        LOGGER.warn(
+            "[{}] of [{}] would cut [{}] ({} bytes) into more than {} splits; using [{}] instead",
             CONFIG_TARGET_SPLIT_SIZE,
             ByteSizeValue.ofBytes(targetStrideBytes),
             filePath,
             fileLength,
-            MAX_PROBE_OFFSETS_PER_FILE,
-            CONFIG_TARGET_SPLIT_SIZE
+            MAX_SPLITS_PER_FILE,
+            ByteSizeValue.ofBytes(minStride)
         );
+        return minStride;
     }
 
     /**

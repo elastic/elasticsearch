@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1088,22 +1089,41 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * A stride small enough to ask one file for more offsets than the ceiling fails the query. Every offset of a
-     * strided file is materialized before any read, and each becomes a probe task and a queued listener after
-     * that, so an extreme target split size would exhaust the heap during planning. The error must name the
-     * setting that caused it and read as the client error it is, rather than a server fault or an out-of-memory.
+     * A stride small enough to cut one file into more than the ceiling of splits is widened to the stride that
+     * lands on the ceiling, and the file is cut at that. Every offset of a strided file is materialized before
+     * any read and each becomes a probe task and a queued listener after that, so an extreme target split size
+     * would otherwise cost planning-time heap and a probe read per offset for splits too small to pay for it.
+     * The widening is what the user did not ask for, so it must be warned about.
      */
-    public void testATargetStrideAskingForTooManyOffsetsIsRejected() {
-        Map<String, byte[]> payloads = Map.of("swarm.csv", delimitedPayload("a,b,c\n"));
-        long stride = payloads.get("swarm.csv").length / (FileSplitProvider.MAX_PROBE_OFFSETS_PER_FILE + 1);
+    public void testATargetStrideAskingForTooManySplitsIsWidened() {
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = Map.of("swarm.csv", payload);
+        long stride = payload.length / (4 * FileSplitProvider.MAX_SPLITS_PER_FILE);
         assertThat("the stride under test must be usable at all", stride, greaterThan(0L));
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> discoverPlainCsvSplits(payloads, stride, null, null)
+        assertThat(
+            "the stride under test must ask for more splits than the ceiling",
+            RecordBoundaryProbe.stridedPositions(payload.length, stride, CSV_MIN_SEGMENT_BYTES).size(),
+            greaterThan(FileSplitProvider.MAX_SPLITS_PER_FILE)
         );
-        assertThat(e.getMessage(), containsString(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+
+        List<ExternalSplit> splits;
+        try (MockLog mockLog = MockLog.capture(FileSplitProvider.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "widened stride warning",
+                    FileSplitProvider.class.getName(),
+                    Level.WARN,
+                    "*would cut*into more than 1000 splits*"
+                )
+            );
+            splits = discoverPlainCsvSplits(payloads, stride, null, null);
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        long widened = Math.ceilDiv(payload.length, FileSplitProvider.MAX_SPLITS_PER_FILE);
+        int probes = RecordBoundaryProbe.stridedPositions(payload.length, widened, CSV_MIN_SEGMENT_BYTES).size();
+        assertEquals("the file must be cut at the widened stride, not the requested one", probes + 1, splits.size());
+        assertThat(splits.size(), lessThanOrEqualTo(FileSplitProvider.MAX_SPLITS_PER_FILE));
     }
 
     /**

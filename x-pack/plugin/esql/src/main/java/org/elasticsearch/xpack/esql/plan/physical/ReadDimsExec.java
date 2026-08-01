@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -30,6 +31,8 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute tsidAttribute;
     private final List<Attribute> dims;
     private final MappedFieldType.FieldExtractPreference fieldExtractPreference;
+    @Nullable
+    private final Attribute packedDims;
     private List<Attribute> lazyOutput;
 
     public ReadDimsExec(
@@ -38,12 +41,14 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         Attribute docAttribute,
         Attribute tsidAttribute,
         List<Attribute> dims,
+        @Nullable Attribute packedDims,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         super(source, child);
         this.docAttribute = docAttribute;
         this.tsidAttribute = tsidAttribute;
         this.dims = dims;
+        this.packedDims = packedDims;
         this.fieldExtractPreference = fieldExtractPreference;
     }
 
@@ -63,6 +68,11 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         return fieldExtractPreference;
     }
 
+    @Nullable
+    public Attribute packedDims() {
+        return packedDims;
+    }
+
     @Override
     protected AttributeSet computeReferences() {
         return AttributeSet.of(docAttribute, tsidAttribute);
@@ -71,9 +81,14 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = CollectionUtils.concatLists(child().output(), dims);
+            lazyOutput = CollectionUtils.concatLists(child().output(), generatingFields());
+
         }
         return lazyOutput;
+    }
+
+    public List<Attribute> generatingFields() {
+        return packedDims != null ? List.of(packedDims) : dims;
     }
 
     @Override
@@ -84,12 +99,12 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new ReadDimsExec(source(), newChild, docAttribute, tsidAttribute, dims, fieldExtractPreference);
+        return new ReadDimsExec(source(), newChild, docAttribute, tsidAttribute, dims, packedDims, fieldExtractPreference);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, ReadDimsExec::new, child(), docAttribute, tsidAttribute, dims, fieldExtractPreference);
+        return NodeInfo.create(this, ReadDimsExec::new, child(), docAttribute, tsidAttribute, dims, packedDims, fieldExtractPreference);
     }
 
     @Override
@@ -104,7 +119,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(docAttribute, tsidAttribute, dims, fieldExtractPreference, child());
+        return Objects.hash(docAttribute, tsidAttribute, dims, fieldExtractPreference, packedDims, child());
     }
 
     @Override
@@ -119,6 +134,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(docAttribute, other.docAttribute)
             && Objects.equals(tsidAttribute, other.tsidAttribute)
             && Objects.equals(dims, other.dims)
+            && Objects.equals(packedDims, other.packedDims)
             && fieldExtractPreference == other.fieldExtractPreference
             && Objects.equals(child(), other.child());
     }

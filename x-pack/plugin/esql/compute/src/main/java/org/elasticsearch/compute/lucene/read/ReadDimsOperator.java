@@ -8,13 +8,13 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DimsPacker;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
@@ -26,34 +26,42 @@ import java.util.Arrays;
  */
 public final class ReadDimsOperator implements Operator {
 
-    public record Factory(ValuesSourceReaderOperator.Factory valuesSourceReader, int docChannel, int tsidChannel)
+    public record Factory(ValuesSourceReaderOperator.Factory valuesSourceReader, int docChannel, int tsidChannel, boolean packed)
         implements
             OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ReadDimsOperator(valuesSourceReader.get(driverContext), docChannel, tsidChannel, driverContext.blockFactory());
+            return new ReadDimsOperator(valuesSourceReader.get(driverContext), docChannel, tsidChannel, driverContext, packed);
         }
 
         @Override
         public String describe() {
-            return "ReadDimsOperator[tsidChannel=" + tsidChannel + ", valuesSourceReader=" + valuesSourceReader.describe() + "]";
+            return "ReadDimsOperator[tsidChannel="
+                + tsidChannel
+                + ", packed="
+                + packed
+                + ", valuesSourceReader="
+                + valuesSourceReader.describe()
+                + "]";
         }
     }
 
     private final Operator valuesReader;
     private final int docChannel;
     private final int tsidChannel;
-    private final BlockFactory blockFactory;
+    private final DriverContext driverContext;
+    private final boolean packed;
     private Page prevPage;
     private int[] firstPos = new int[0];
     private int[] ordsArray = new int[0];
 
-    ReadDimsOperator(Operator valuesReader, int docChannel, int tsidChannel, BlockFactory blockFactory) {
+    ReadDimsOperator(Operator valuesReader, int docChannel, int tsidChannel, DriverContext driverContext, boolean packed) {
         this.valuesReader = valuesReader;
         this.docChannel = docChannel;
         this.tsidChannel = tsidChannel;
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
+        this.packed = packed;
     }
 
     @Override
@@ -99,21 +107,26 @@ public final class ReadDimsOperator implements Operator {
 
     Page process(Page page) {
         DocBlock docBlock = page.getBlock(docChannel);
-        OrdinalBytesRefVector tsidOrdinals = tsidOrdinalVector((BytesRefBlock) page.getBlock(tsidChannel));
+        Block[] fields;
+        OrdinalBytesRefVector tsidOrdinals = tsidOrdinalVector(page.getBlock(tsidChannel));
         if (tsidOrdinals == null) {
-            return page.appendBlocks(readFields(docBlock));
+            fields = readFields(docBlock);
+            if (packed) {
+                return page.appendBlock(packFields(fields).asBlock());
+            } else {
+                return page.appendBlocks(fields);
+            }
         }
         IntVector ords = tsidOrdinals.getOrdinalsVector();
         int dictSize = tsidOrdinals.getDictionaryVector().getPositionCount();
-        int positionCount = ords.getPositionCount();
-        if (dictSize >= positionCount) {
-            return page.appendBlocks(readFields(docBlock));
-        }
-        final Block[] fields;
         try (var filteredDocs = filterDocBlock(docBlock, dictSize, ords)) {
             fields = readFields(filteredDocs);
         }
-        return page.appendBlocks(expand(fields, ords, positionCount));
+        if (packed) {
+            return page.appendBlock(expandPacked(packFields(fields), ords).asBlock());
+        } else {
+            return page.appendBlocks(expand(fields, ords));
+        }
     }
 
     private OrdinalBytesRefVector tsidOrdinalVector(BytesRefBlock tsidBlock) {
@@ -150,17 +163,35 @@ public final class ReadDimsOperator implements Operator {
         return fields;
     }
 
-    private Block[] expand(Block[] fields, IntVector ords, int n) {
-        if (n > ordsArray.length) {
-            ordsArray = new int[n];
+    BytesRefVector packFields(Block[] fields) {
+        try {
+            if (fields.length == 1) {
+                return DimsPacker.packSingleColumn(driverContext, fields[0]);
+            } else {
+                return DimsPacker.packMultiColumns(driverContext, fields);
+            }
+        } finally {
+            Releasables.close(fields);
         }
-        ords.copyTo(0, ordsArray, 0, n);
+    }
+
+    private Block[] expand(Block[] fields, IntVector ords) {
+        int positionCount = ords.getPositionCount();
+        if (positionCount > ordsArray.length) {
+            ordsArray = new int[positionCount];
+        }
+        ords.copyTo(0, ordsArray, 0, positionCount);
         for (int f = 0; f < fields.length; f++) {
             Block block = fields[f];
-            fields[f] = block.filter(true, ordsArray, 0, n);
+            fields[f] = block.filter(true, ordsArray, 0, positionCount);
             block.close();
         }
         return fields;
+    }
+
+    private OrdinalBytesRefVector expandPacked(BytesRefVector packed, IntVector ords) {
+        ords.incRef();
+        return new OrdinalBytesRefVector(ords, packed);
     }
 
     @Override
@@ -175,6 +206,6 @@ public final class ReadDimsOperator implements Operator {
 
     @Override
     public String toString() {
-        return "ReadDimsOperator[tsidChannel=" + tsidChannel + ", valuesSourceReader=" + valuesReader + "]";
+        return "ReadDimsOperator[tsidChannel=" + tsidChannel + ", packed=" + packed + ", valuesSourceReader=" + valuesReader + "]";
     }
 }

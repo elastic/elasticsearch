@@ -287,10 +287,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int docChannel = source.layout.get(readDimsExec.docAttribute().id()).channel();
         int tsidChannel = source.layout.get(readDimsExec.tsidAttribute().id()).channel();
         Layout.Builder layout = source.layout.builder();
-        for (Attribute attr : readDimsExec.dims()) {
-            layout.append(attr);
-        }
-        return source.with(new ReadDimsOperator.Factory(valuesSourceReader, docChannel, tsidChannel), layout.build());
+        readDimsExec.generatingFields().forEach(layout::append);
+        boolean packed = readDimsExec.packedDims() != null;
+        return source.with(new ReadDimsOperator.Factory(valuesSourceReader, docChannel, tsidChannel, packed), layout.build());
     }
 
     private static String getFieldName(Attribute attr) {

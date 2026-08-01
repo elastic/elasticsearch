@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
@@ -79,7 +78,6 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             }
             List<NamedExpression> newAggregates = new ArrayList<>();
             List<Attribute> readDims = new ArrayList<>();
-            List<Attribute> packDims = new ArrayList<>();
             List<Alias> aliases = new ArrayList<>();
             Attribute packedAttr = null;
             Set<AggregateFunction> seen = new HashSet<>();
@@ -102,7 +100,6 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             for (Expression dim : packDimsAgg.dims()) {
                                 Attribute attr = readDimAttribute((Attribute) dim);
                                 readDims.add(attr);
-                                packDims.add(attr);
                             }
                             intermediateOffset += size;
                         }
@@ -158,11 +155,9 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                     docAttr,
                     tsidAttr,
                     readDims,
+                    packedAttr,
                     context.configuration().pragmas().fieldExtractPreference()
                 );
-            }
-            if (packedAttr != null) {
-                plan = new PackDimsExec(oldAgg.source(), plan, packDims, packedAttr);
             }
             if (aliases.isEmpty() == false) {
                 plan = new EvalExec(oldAgg.source(), plan, aliases);

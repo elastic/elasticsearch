@@ -85,7 +85,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
@@ -2854,14 +2853,16 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var limit = as(project.child(), LimitExec.class);
         var unpack = as(limit.child(), UnpackDimsExec.class);
         var secondAgg = as(unpack.child(), AggregateExec.class);
-        var pack = as(secondAgg.child(), PackDimsExec.class);
-        var finalAgg = as(pack.child(), TimeSeriesAggregateExec.class);
+        // PackDimsExec is removed by PackReadDimsOperator; the FINAL TimeSeriesAggregateExec replaces it directly
+        var finalAgg = as(secondAgg.child(), TimeSeriesAggregateExec.class);
         var sink = as(finalAgg.child(), ExchangeExec.class);
         ProjectExec projectExec = as(sink.child(), ProjectExec.class);
         EvalExec evalExec = as(projectExec.child(), EvalExec.class);
         ReadDimsExec readDimensions = as(evalExec.child(), ReadDimsExec.class);
         assertThat(Expressions.names(readDimensions.dims()), containsInAnyOrder("cluster", "pod"));
         assertThat(readDimensions.tsidAttribute().name(), equalTo("_tsid"));
+        // Dimension packing happens on the data node: ReadDimsExec must carry a packed attribute
+        assertNotNull(readDimensions.packedDims());
         TimeSeriesAggregateExec partialAgg = as(readDimensions.child(), TimeSeriesAggregateExec.class);
         assertThat(partialAgg.aggregates(), hasSize(2));
         assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));

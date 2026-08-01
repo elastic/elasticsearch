@@ -3588,6 +3588,15 @@ public class EsqlCapabilities {
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
         /**
+         * A {@code TS} aggregation whose time bucket is named after the timestamp field, e.g.
+         * {@code TS metrics | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, no longer fails with
+         * {@code optimized incorrectly due to missing references [@timestamp]}: the internal first-pass bucket alias no
+         * longer shadows the field that the per-time-series aggregation reads.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
+         */
+        FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
+
+        /**
          * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
          * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
          * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via

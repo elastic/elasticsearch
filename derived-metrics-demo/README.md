@@ -31,6 +31,13 @@ cd derived-metrics-demo
 
 The first `up` can take a while if the distribution is not built yet. Everything after that is fast.
 
+The node runs from a real tar distribution, not `./gradlew run`, and gets its own copy of it under
+`.run/elasticsearch` so gradle never owns the running cluster. That is not incidental: `./gradlew
+run` caps the JVM at two processors and enables assertions and paranoid Netty leak detection, which
+together starve the collector badly enough that this demo's 4,000/s spike OOMs a 512 MB node within
+minutes. On a real distribution the same heap and the same spike are comfortable — see
+`ES_HEAP` in `config.env`.
+
 To skip Kibana entirely: `KIBANA=skip ./demo.sh up`.
 
 | | |

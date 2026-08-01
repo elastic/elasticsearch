@@ -7,6 +7,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 RUN_DIR="$HERE/.run"
+# The node runs from its own copy of the distribution, so gradle never owns the running cluster.
+ES_HOME="$RUN_DIR/elasticsearch"
 # shellcheck source=config.env
 source "$HERE/config.env"
 
@@ -46,29 +48,84 @@ require_docker() {
   fi
 }
 
+# The platform-specific tar distribution, which is what `installDist` lays out under build/install.
+es_distribution() {
+  local os arch
+  case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux)  os=linux ;;
+    *) die "unsupported OS $(uname -s)" ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch=aarch64 ;;
+    x86_64) arch="" ;;
+    *) die "unsupported architecture $(uname -m)" ;;
+  esac
+  # the x86_64 projects are named without the architecture, e.g. darwin-tar
+  [[ -n "$arch" ]] && echo "${os}-${arch}-tar" || echo "${os}-tar"
+}
+
 start_elasticsearch() {
   if es_up; then
     log "Elasticsearch is already running on ${ES}"
     return 0
   fi
-  log "Building and starting Elasticsearch from ${REPO} (first build can take a while)"
-  # http.host beyond loopback so the Kibana container can reach us. The transport layer stays on
-  # loopback, which keeps the node out of production bootstrap checks.
-  (
-    cd "$REPO"
-    nohup ./gradlew run \
-      -Drun.license_type="${ES_LICENSE}" \
-      -Dtests.es.http.host="${ES_BIND_HOST}" \
-      -Dtests.es.data_streams.derived_metrics.flush_interval="${FLUSH_INTERVAL}" \
-      -Dtests.es.data_streams.derived_metrics.flush_grace_period="${FLUSH_GRACE_PERIOD}" \
-      -Dtests.es.xpack.ml.enabled=false \
-      > "$RUN_DIR/elasticsearch.log" 2>&1 &
-    echo $! > "$RUN_DIR/elasticsearch.pid"
-  )
+
+  local project install
+  project="$(es_distribution)"
+  install="${REPO}/distribution/archives/${project}/build/install"
+
+  if [[ ! -d "$install" ]]; then
+    log "Building the ${project} distribution (first build can take a while)"
+    (cd "$REPO" && ./gradlew ":distribution:archives:${project}:installDist" > "$RUN_DIR/build.log" 2>&1) \
+      || die "could not build the distribution; see $RUN_DIR/build.log"
+  fi
+
+  local source
+  source="$(find "$install" -maxdepth 1 -type d -name 'elasticsearch-*' | head -1)"
+  [[ -n "$source" ]] || die "no distribution found under $install"
+
+  # A fresh copy each time, so a run never inherits data or config from the last one. This is also
+  # why the node is not started from the build directory itself: gradle owns that.
+  log "Preparing a node from ${source##*/}"
+  rm -rf "$ES_HOME"
+  cp -r "$source" "$ES_HOME"
+
+  cat > "$ES_HOME/config/elasticsearch.yml" <<YAML
+cluster.name: derived-metrics-demo
+node.name: derived-metrics-demo-0
+discovery.type: single-node
+# Beyond loopback so the Kibana container can reach the node through host.docker.internal.
+network.host: ${ES_BIND_HOST}
+http.port: ${ES_PORT}
+xpack.security.enabled: true
+# A local playground over plain HTTP; there is nothing here worth encrypting and TLS would mean
+# distributing a CA to the Kibana container.
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+# Machine learning is off: under a trial licence ES otherwise deploys a default ELSER endpoint,
+# which downloads and indexes the model through the heap for no benefit to this demo.
+xpack.ml.enabled: false
+data_streams.derived_metrics.flush_interval: ${FLUSH_INTERVAL}
+data_streams.derived_metrics.flush_grace_period: ${FLUSH_GRACE_PERIOD}
+YAML
+  printf -- "-Xms%s\n-Xmx%s\n" "${ES_HEAP}" "${ES_HEAP}" > "$ES_HOME/config/jvm.options.d/heap.options"
+
+  "$ES_HOME/bin/elasticsearch-users" useradd "${ES_USER}" -p "${ES_PASSWORD}" -r superuser >/dev/null 2>&1 \
+    || die "could not create the ${ES_USER} user"
+
+  log "Starting Elasticsearch (${ES_HEAP} heap, ${ES_LICENSE} license)"
+  ES_JAVA_OPTS="" nohup "$ES_HOME/bin/elasticsearch" > "$RUN_DIR/elasticsearch.log" 2>&1 &
+  echo $! > "$RUN_DIR/elasticsearch.pid"
+
   log "Waiting for Elasticsearch (tail -f $RUN_DIR/elasticsearch.log)"
-  wait_for "elasticsearch" 900 es_up \
-    || die "Elasticsearch did not start within 15m; see $RUN_DIR/elasticsearch.log"
-  log "Elasticsearch is up on ${ES} (${ES_LICENSE} license)"
+  wait_for "elasticsearch" 300 es_up \
+    || die "Elasticsearch did not start within 5m; see $RUN_DIR/elasticsearch.log"
+
+  if [[ "${ES_LICENSE}" == "trial" ]]; then
+    curl -sS -X POST "${AUTH[@]}" "${ES}/_license/start_trial?acknowledge=true" >/dev/null 2>&1 || true
+  fi
+  log "Elasticsearch is up on ${ES}"
 }
 
 start_kibana() {
@@ -200,23 +257,25 @@ cmd_logs() { tail -f "$RUN_DIR/loadgen.log"; }
 cmd_eslogs() { tail -f "$RUN_DIR/elasticsearch.log"; }
 
 stop_elasticsearch() {
-  # ./gradlew run launches the node from the gradle daemon, so the pid we recorded for the gradle
-  # client is not the node's parent and killing its children does not reach it. Match the node by
-  # the distribution path inside this checkout, which cannot collide with another cluster.
+  if [[ -f "$RUN_DIR/elasticsearch.pid" ]]; then
+    local pid
+    pid="$(cat "$RUN_DIR/elasticsearch.pid")"
+    if kill -0 "$pid" 2>/dev/null; then
+      log "Stopping Elasticsearch (pid ${pid})"
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$RUN_DIR/elasticsearch.pid"
+  fi
+  # Belt and braces: match by this demo's own node home, which cannot collide with another cluster.
   local pids
-  pids=$(pgrep -f "es.path.home=${REPO}/distribution" || true)
+  pids=$(pgrep -f "es.path.home=${ES_HOME}" || true)
   if [[ -n "$pids" ]]; then
-    log "Stopping the Elasticsearch node (${pids//$'\n'/ })"
     # shellcheck disable=SC2086
     kill $pids 2>/dev/null || true
   fi
-  if [[ -f "$RUN_DIR/elasticsearch.pid" ]]; then
-    kill "$(cat "$RUN_DIR/elasticsearch.pid")" 2>/dev/null || true
-    rm -f "$RUN_DIR/elasticsearch.pid"
-  fi
   local deadline=$((SECONDS + 60))
   while ((SECONDS < deadline)); do
-    pgrep -f "es.path.home=${REPO}/distribution" >/dev/null || return 0
+    es_up || return 0
     sleep 2
   done
   warn "the Elasticsearch node is still running; kill it manually if needed"

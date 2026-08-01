@@ -583,3 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155663
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  method: testLookupJoinSame {p0=null}
+  issue: https://github.com/elastic/elasticsearch/issues/155665

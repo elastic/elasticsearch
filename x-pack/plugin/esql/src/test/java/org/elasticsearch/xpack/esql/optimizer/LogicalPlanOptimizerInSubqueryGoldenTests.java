@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -22,15 +21,6 @@ import java.util.Map;
 public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
-
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    private static void requireInSubqueryViewSupport() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
-    }
 
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
@@ -315,7 +305,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // -- IN / NOT IN subqueries referencing views --
 
     public void testInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view)
@@ -324,7 +313,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM emps_view)
@@ -333,7 +321,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithInSubqueryInDefinition() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM filtered_emps)
@@ -342,7 +329,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithSortLimit() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM sorted_emps)
@@ -351,7 +337,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM emps_view) OR salary > 50000
@@ -360,7 +345,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMainFromAndNotInSubqueryEachReferenceMultipleViewSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)

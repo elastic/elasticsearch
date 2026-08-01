@@ -1485,8 +1485,7 @@ public class EsqlCapabilities {
         /**
          * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
          * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
-         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} evaluator found no Lucene shard
-         * contexts.
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
          */
         PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
 

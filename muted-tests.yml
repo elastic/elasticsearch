@@ -349,6 +349,9 @@ tests:
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/155449
+- class: org.elasticsearch.xpack.eql.EqlDateNanosIT
+  method: test {sequenceManyManyCondition}
+  issue: https://github.com/elastic/elasticsearch/issues/155659
 
 # Examples:
 #

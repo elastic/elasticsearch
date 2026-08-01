@@ -3419,6 +3419,16 @@ public class FieldNameUtilsTests extends ESTestCase {
               )
             | SORT first_name
             | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no NOT IN (
+                FROM employees
+                | RENAME emp_no AS id
+                | KEEP id
+              )
+            | SORT first_name
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testNotInSubquery() {

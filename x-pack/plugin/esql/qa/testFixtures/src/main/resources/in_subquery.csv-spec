@@ -3314,3 +3314,18 @@ FROM employees
 
 first_name:keyword
 ;
+
+inSubqueryWithRenameKeepMainQueryKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| WHERE emp_no NOT IN ( FROM employees
+                        | RENAME emp_no AS id
+                        | KEEP id)
+| KEEP first_name
+;
+
+first_name:keyword
+;

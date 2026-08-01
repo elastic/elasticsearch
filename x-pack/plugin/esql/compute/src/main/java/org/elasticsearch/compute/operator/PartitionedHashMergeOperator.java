@@ -602,10 +602,15 @@ public class PartitionedHashMergeOperator implements Operator {
                 Integer.MAX_VALUE,
                 GroupingAggregatorPageBuilder.NO_CUSTOMIZATION
             );
+            var partitioner = noneOp.blockHash.partitioner(partitionCount);
+            // anyPartitionsSeen is true (caller's precondition), meaning PHAO produced tagged pages,
+            // which requires blockHash.partitioner() to be non-null. noneOp is built from the same
+            // groupSpecs as PHAO's blockHash, so its partitioner() must also be non-null.
+            assert partitioner != null : "noneOp partitioner is null but anyPartitionsSeen is true";
             try (
                 var pages = pageBuilder.buildPartitioned(
                     partitionCount,
-                    noneOp.blockHash.partitioner(partitionCount),
+                    partitioner,
                     new GroupingAggregatorEvaluationContext(driverContext)
                 )
             ) {

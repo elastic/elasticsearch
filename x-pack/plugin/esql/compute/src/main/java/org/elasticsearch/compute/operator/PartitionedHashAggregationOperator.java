@@ -281,15 +281,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             if (numKeys > 0) {
                 boolean shouldPartition = usePartitioning || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
-                IntUnaryOperator partitioner = shouldPartition
-                    ? BlockHash.resolvePartitioner(
-                        blockHash,
-                        groupSpecs,
-                        driverContext.blockFactory(),
-                        aggregationBatchSize,
-                        partitionCount
-                    )
-                    : null;
+                IntUnaryOperator partitioner = shouldPartition ? blockHash.partitioner(partitionCount) : null;
                 output = partitioner != null
                     ? pageBuilder.buildPartitioned(partitionCount, partitioner, new GroupingAggregatorEvaluationContext(driverContext))
                     : pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));

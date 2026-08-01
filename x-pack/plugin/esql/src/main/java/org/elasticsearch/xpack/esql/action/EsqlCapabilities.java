@@ -1488,6 +1488,14 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
         /**
          * Support for views in cluster state (and REST API).
          */

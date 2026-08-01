@@ -586,3 +586,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinSame {p0=null}
   issue: https://github.com/elastic/elasticsearch/issues/155665
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test50CredentialAutogenerationOnlyOnce
+  issue: https://github.com/elastic/elasticsearch/issues/155669

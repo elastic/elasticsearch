@@ -23,6 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
@@ -202,6 +203,13 @@ final class ShardResultCache {
      * entries survive. A hot write shard would pay the serialization and evict useful entries to hold something that
      * dies before it is read again.
      * <p>
+     * The check uses two mechanisms. First, if the local checkpoint has not advanced past the committed
+     * {@code max_seq_no} the shard has had no writes since the last flush and is admitted immediately regardless of
+     * {@code Engine.lastWriteNanos}. This matters because {@code lastWriteNanos} is initialized to
+     * {@code System.nanoTime()} at engine construction, so a shard just closed and reopened (for example by a
+     * {@code _cache/clear} operation) looks "just written" for up to {@code minIdleNanos} even with no indexing
+     * activity. Second, when uncommitted writes do exist, {@code lastWriteNanos} gates on the configured idle window.
+     * <p>
      * Advisory, and separately switchable, because it does not hold on a stateless search-tier shard: there
      * {@code index()} throws, so the last write time never advances even while the index tier is busy. That wastes work
      * rather than returning wrong rows.
@@ -211,8 +219,22 @@ final class ShardResultCache {
         if (minIdleNanos == 0) {
             return true;
         }
-        Long lastWriteNanos = shard.tryWithEngineOrNull(engine -> engine == null ? null : engine.getLastWriteNanos());
-        return lastWriteNanos != null && System.nanoTime() - lastWriteNanos >= minIdleNanos;
+        // Read the local checkpoint before entering the engine block; it comes from the replication
+        // tracker which is independent of the engine lifecycle.
+        long localCheckpoint = shard.getLocalCheckpoint();
+        return Boolean.TRUE.equals(shard.tryWithEngineOrNull(engine -> {
+            if (engine == null) {
+                return false;
+            }
+            // If the local checkpoint has not advanced past the committed max_seq_no, no real writes
+            // have occurred since the last flush — admit immediately rather than relying on
+            // lastWriteNanos, which is reset to now at engine construction.
+            String committedMaxSeqNoStr = engine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO);
+            if (committedMaxSeqNoStr != null && localCheckpoint <= Long.parseLong(committedMaxSeqNoStr)) {
+                return true;
+            }
+            return System.nanoTime() - engine.getLastWriteNanos() >= minIdleNanos;
+        }));
     }
 
     void store(ShardProbe probe, BytesReference value) {

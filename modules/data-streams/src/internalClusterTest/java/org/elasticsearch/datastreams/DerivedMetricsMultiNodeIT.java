@@ -38,7 +38,9 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.in;
 
 /**
  * The one thing the rest of the suite never exercises: more than one node observing the same data stream.
@@ -91,11 +93,17 @@ public class DerivedMetricsMultiNodeIT extends ESIntegTestCase {
         assertBusy(() -> {
             List<Map<String, Object>> emitted = metricDocuments(dataStream, "ingest.docs.count");
             Set<String> nodes = new HashSet<>();
+            Set<String> names = new HashSet<>();
             double total = 0.0;
             for (Map<String, Object> document : emitted) {
                 nodes.add((String) field(document, "derived_metrics.node"));
+                names.add((String) field(document, "derived_metrics.node_name"));
                 total += ((Number) field(document, "metric.value")).doubleValue();
             }
+            // the dimension is the persistent ID, and the name rides along so a dashboard is legible; the two must agree on how many
+            // nodes there were, or one of them is not identifying what it claims to
+            assertThat(names, everyItem(in(Set.of(internalCluster().getNodeNames()))));
+            assertThat(names.size(), equalTo(nodes.size()));
             // the point of the test: the work really was spread, so the sum really is a cross-node sum
             assertThat("expected partials from more than one node", nodes.size(), greaterThan(1));
             assertThat(total, equalTo((double) documents));

@@ -290,6 +290,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 new BigArrays(null, services.bigArrays().breakerService(), DerivedMetricsService.BREAKER_NAME).withCircuitBreaking(),
                 services.indexingPressure(),
                 services.telemetryProvider().getMeterRegistry(),
+                // The persistent node ID rather than the node name: node.name is typically the pod name in a containerised deployment
+                // and changes on every restart, and this is a tsid dimension, so every rename would mint a fresh set of series.
+                services.nodeEnvironment().nodeId(),
                 services.clusterService().getNodeName()
             )
         );

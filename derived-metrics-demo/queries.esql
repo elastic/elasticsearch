@@ -116,7 +116,7 @@ FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE metric.name == "ingest.docs.count"
     AND @timestamp > NOW() - 5 minutes
 | STATS docs = SUM(metric.value), series = COUNT(*)
-    BY node = derived_metrics.node, source = derived_metrics.source
+    BY node = derived_metrics.node_name, source = derived_metrics.source
 
 
 // ---------------------------------------------------------------------------------------------

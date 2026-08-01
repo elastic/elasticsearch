@@ -186,7 +186,7 @@ public class DerivedMetricsServiceTests extends ESTestCase {
             .put(DerivedMetricsService.FLUSH_GRACE_PERIOD.getKey(), TimeValue.timeValueHours(1))
             .put(settings)
             .build();
-        return new DerivedMetricsService(merged, client, threadPool, bigArrays, pressure, MeterRegistry.NOOP, "node-1");
+        return new DerivedMetricsService(merged, client, threadPool, bigArrays, pressure, MeterRegistry.NOOP, "node-id-1", "node-1");
     }
 
     private void observe(DerivedMetricsService service, int documents) {

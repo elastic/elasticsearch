@@ -56,7 +56,7 @@ public final class DerivedMetricsDestination {
     /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 6L;
+    public static final long TEMPLATE_VERSION = 7L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
@@ -73,7 +73,24 @@ public final class DerivedMetricsDestination {
     public static final String METRIC_HISTOGRAM_FIELD = "metric.histogram";
     public static final String SOURCE_FIELD = "derived_metrics.source";
     public static final String INTERVAL_FIELD = "derived_metrics.interval";
+    /**
+     * Which node produced this partial, as the node's persistent ID.
+     *
+     * <p>It has to be a dimension: two nodes emitting the same series for the same bucket would otherwise collide on the deterministic
+     * time series {@code _id}, and one of them would be silently dropped.
+     *
+     * <p>The ID rather than the name, because this is part of the tsid and {@code node.name} is typically a pod name that changes on
+     * every restart — each rename would mint a fresh set of series for every series the node emits. The ID is persisted in the data path,
+     * so it survives a restart wherever the data path does. Where it does not, on a fully ephemeral node, it churns exactly as the name
+     * would; see the capacity planning section of the design note for what that costs and why destination retention bounds it.
+     */
     public static final String NODE_FIELD = "derived_metrics.node";
+
+    /**
+     * The node's name, carried alongside the ID so that a dashboard grouped by node is legible. Deliberately not a dimension: it adds no
+     * tsid cardinality and is free to change when a node is renamed.
+     */
+    public static final String NODE_NAME_FIELD = "derived_metrics.node_name";
     /**
      * How the metric reduces its observations, so that a consumer can pick the right aggregation without having to go and read the source
      * stream's configuration. Without it {@code metric.value} is a number whose correct combination is unknowable from the data.
@@ -139,6 +156,9 @@ public final class DerivedMetricsDestination {
                   "node": {
                     "type": "keyword",
                     "time_series_dimension": true
+                  },
+                  "node_name": {
+                    "type": "keyword"
                   },
                   "reduction": {
                     "type": "keyword",
@@ -237,7 +257,14 @@ public final class DerivedMetricsDestination {
         // counts are in the settings component instead, where derived-metrics@custom can override them.
         Settings settings = Settings.builder()
             .put("index.mode", "time_series")
-            .putList("index.routing_path", List.of("metric.name", "derived_metrics.*", "dimensions.*"))
+            // The internal dimensions are listed one by one rather than as derived_metrics.*, because everything a routing_path matches
+            // must be a dimension — a wildcard here would mean no field could ever be added to that namespace without becoming part of
+            // the tsid. derived_metrics.node_name is exactly such a field. dimensions.* stays a wildcard because it is user data and
+            // every field under it genuinely is a dimension.
+            .putList(
+                "index.routing_path",
+                List.of(METRIC_NAME_FIELD, SOURCE_FIELD, INTERVAL_FIELD, NODE_FIELD, REDUCTION_FIELD, DIMENSION_PREFIX + "*")
+            )
             .build();
         final CompressedXContent mappings;
         try {

@@ -44,7 +44,19 @@ public class DerivedMetricsDestinationTests extends ESTestCase {
 
         var settings = template.template().settings();
         assertEquals("time_series", settings.get("index.mode"));
-        assertEquals(List.of("metric.name", "derived_metrics.*", "dimensions.*"), settings.getAsList("index.routing_path"));
+        // The internal dimensions are listed individually rather than as derived_metrics.*: everything a routing_path matches has to be
+        // a dimension, so a wildcard would make the namespace closed to any field that is not one.
+        assertEquals(
+            List.of(
+                "metric.name",
+                "derived_metrics.source",
+                "derived_metrics.interval",
+                "derived_metrics.node",
+                "derived_metrics.reduction",
+                "dimensions.*"
+            ),
+            settings.getAsList("index.routing_path")
+        );
     }
 
     @SuppressWarnings("unchecked")

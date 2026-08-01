@@ -51,6 +51,7 @@ public final class DerivedMetricsEmitter {
         DerivedMetricsSeriesTable table,
         long ordinal,
         BytesRef spare,
+        String nodeId,
         String nodeName,
         int partial
     ) {
@@ -67,7 +68,10 @@ public final class DerivedMetricsEmitter {
             document.field(DerivedMetricsDestination.METRIC_NAME_FIELD, metric.name());
             document.field(DerivedMetricsDestination.SOURCE_FIELD, key.sourceDataStream());
             document.field(DerivedMetricsDestination.INTERVAL_FIELD, metric.interval().name());
-            document.field(DerivedMetricsDestination.NODE_FIELD, nodeName);
+            document.field(DerivedMetricsDestination.NODE_FIELD, nodeId);
+            // Not a dimension, so it costs no tsid cardinality and changes freely as a node is renamed. It is here purely so that a
+            // dashboard grouped by node reads as something a human recognises.
+            document.field(DerivedMetricsDestination.NODE_NAME_FIELD, nodeName);
             // Makes the destination self-describing: without this the correct way to combine metric.value across nodes and buckets is
             // knowable only from the source stream's configuration, and a consumer that guesses wrong is wrong invisibly.
             document.field(DerivedMetricsDestination.REDUCTION_FIELD, metric.reduction().name().toLowerCase(Locale.ROOT));

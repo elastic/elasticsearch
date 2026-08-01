@@ -196,6 +196,11 @@ public class DerivedMetricsService implements Closeable {
     private final int bulkSize;
     private final int maxInFlightDocuments;
     private final MemoryPressurePolicy memoryPressurePolicy;
+    /**
+     * The node's persistent ID, which is what identifies a partial. See {@link DerivedMetricsDestination#NODE_FIELD} for why this rather
+     * than the node name.
+     */
+    private final String nodeId;
     private final String nodeName;
     private final AtomicInteger inFlightDocuments = new AtomicInteger();
     private final AtomicLong droppedForBackpressure = new AtomicLong();
@@ -225,6 +230,7 @@ public class DerivedMetricsService implements Closeable {
         BigArrays bigArrays,
         IndexingPressure indexingPressure,
         MeterRegistry meterRegistry,
+        String nodeId,
         String nodeName
     ) {
         this.client = new OriginSettingClient(client, DataStreamDerivedMetrics.DERIVED_METRICS_ORIGIN);
@@ -247,6 +253,7 @@ public class DerivedMetricsService implements Closeable {
         this.bulkSize = BULK_SIZE.get(settings);
         this.maxInFlightDocuments = MAX_IN_FLIGHT_BULKS.get(settings) * this.bulkSize;
         this.memoryPressurePolicy = MEMORY_PRESSURE_POLICY.get(settings);
+        this.nodeId = nodeId;
         this.nodeName = nodeName;
     }
 
@@ -561,7 +568,7 @@ public class DerivedMetricsService implements Closeable {
                 for (long ordinal = 0; ordinal < series; ordinal++) {
                     ProjectId project = key.project();
                     BulkRequest bulk = pending.computeIfAbsent(project, unused -> new BulkRequest());
-                    bulk.add(DerivedMetricsEmitter.toIndexRequest(key, table, ordinal, spare, nodeName, entry.partial()));
+                    bulk.add(DerivedMetricsEmitter.toIndexRequest(key, table, ordinal, spare, nodeId, nodeName, entry.partial()));
                     if (bulk.numberOfActions() >= bulkSize) {
                         pending.remove(project);
                         send(project, bulk);

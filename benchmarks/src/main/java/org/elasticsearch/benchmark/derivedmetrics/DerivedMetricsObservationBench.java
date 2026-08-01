@@ -118,6 +118,7 @@ public class DerivedMetricsObservationBench {
             BigArrays.NON_RECYCLING_INSTANCE,
             new IndexingPressure(Settings.EMPTY),
             MeterRegistry.NOOP,
+            "node-id-1",
             "node-1"
         );
         compiled = CompiledDerivedMetrics.compile(configFor(shape));

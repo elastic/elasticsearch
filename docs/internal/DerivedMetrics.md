@@ -406,6 +406,30 @@ Two other things to size at that scale: the destination's shard count, which def
 overridable through `derived-metrics@custom`, and `max_in_flight_bulks`, since every node flushes its
 whole series set once per interval.
 
+**Node identity churns, and it is a dimension.** `derived_metrics.node` is a tsid component, so every
+value it has ever taken is a distinct set of series — one per series the node emitted. It carries the
+node's persistent ID rather than its name, which is strictly better: `node.name` is typically the pod
+name in a containerised deployment and changes on every restart and every scale event, whereas the ID
+is written into the data path and survives a restart wherever that data path does. On a fully
+ephemeral node it churns exactly as the name would.
+
+The consequence is worth stating plainly rather than hoping it away: at daily pod churn over 30 days
+of retention, the destination holds 30× the series the configuration implies, and 29/30 of them are
+dead. Three things bound the damage. Retention is the main one — the destination's own lifecycle
+sweeps old series out, which is why the destination is given a lifecycle at creation rather than left
+to grow. Dead series cost index size but not memory on the write path, since the buffer only ever
+holds the series *this* node is currently emitting. And a `date_histogram` over `metric.value`
+grouped by anything other than node is unaffected: the dead series simply contribute nothing to
+buckets after they stopped.
+
+Whether node identity belongs in the tsid at all is a real design question and is deliberately left
+open. It is there so that two nodes emitting the same series in the same bucket do not collide on the
+deterministic time series `_id` — and the partial-offset mechanism above now addresses that same
+collision for a different reason. Removing the dimension would eliminate the churn entirely and let
+partials of one series from different nodes share a series. It would also mean a query could no
+longer attribute a value to a node, and it needs the offset scheme to carry more weight than it
+currently does. Not attempted here.
+
 ### Retention
 
 Each destination is given a lifecycle once, when it is first created, from the `destinations` entry for its interval. Without one it
@@ -459,7 +483,8 @@ Emitted documents look like this:
 | `metric.histogram` | `exponential_histogram` | the whole distribution; present on histogram metrics **instead of** `metric.value` |
 | `derived_metrics.source` | keyword dimension | the source data stream |
 | `derived_metrics.interval` | keyword dimension | the interval, matching the destination's suffix |
-| `derived_metrics.node` | keyword dimension | the emitting node |
+| `derived_metrics.node` | keyword dimension | the emitting node's persistent ID |
+| `derived_metrics.node_name` | keyword, **not** a dimension | the emitting node's name, for legibility |
 | `derived_metrics.reduction` | keyword dimension | how to combine `metric.value`; see [The destination describes itself](#the-destination-describes-itself) |
 | `dimensions.*` | keyword dimensions | user dimensions, dynamically mapped |
 

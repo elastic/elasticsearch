@@ -55,7 +55,9 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         assertEquals("ingest.docs.count", document.get("metric.name"));
         assertEquals("logs-my_app-default", document.get("derived_metrics.source"));
         assertEquals("10s", document.get("derived_metrics.interval"));
-        assertEquals("node-1", document.get("derived_metrics.node"));
+        // the dimension is the persistent ID; the name rides alongside it and is not a dimension
+        assertEquals("node-id-1", document.get("derived_metrics.node"));
+        assertEquals("node-1", document.get("derived_metrics.node_name"));
         assertEquals("checkout", document.get("dimensions.service.name"));
         assertEquals("eu-west-1", document.get("dimensions.cloud.region"));
         assertEquals(6.0, (Double) document.get("metric.value"), 0.0);
@@ -189,7 +191,7 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
             }
             var drained = buffer.drainAll();
             try {
-                return DerivedMetricsEmitter.toIndexRequest(key, drained.get(0).table(), 0, new BytesRef(), "node-1", partial);
+                return DerivedMetricsEmitter.toIndexRequest(key, drained.get(0).table(), 0, new BytesRef(), "node-id-1", "node-1", partial);
             } finally {
                 drained.forEach(d -> d.table().close());
             }

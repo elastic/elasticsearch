@@ -164,7 +164,7 @@ In Discover on *demo derived metrics*, useful things to break down by:
 - `derived_metrics.interval` — `10s` here. The demo configures a single interval to keep things
   simple; add more in `setup.sh` and every query then needs to filter on one of them, or it sums the
   same data at two resolutions.
-- `derived_metrics.node` — the emitting node. Each node emits its own partial; sum across this
+- `derived_metrics.node` — the emitting node's persistent ID. Each node emits its own partial; sum across this
   dimension for a stream-wide value.
 - `dimensions.*` — the configured user dimensions.
 

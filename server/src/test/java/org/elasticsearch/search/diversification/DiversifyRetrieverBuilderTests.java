@@ -26,7 +26,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.InferenceEmbeddingsMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -577,7 +576,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         List<float[]> embeddings
     ) {
         SearchHit hit = new SearchHit(docId);
-        hit.setDocumentField(new DocumentField(InferenceEmbeddingsMetadataFieldsMapper.NAME + ".dense_vector_field", List.of(embeddings)));
+        hit.setDocumentField(new DocumentField("dense_vector_field", List.copyOf(embeddings)));
         DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
         doc.rank = rank;
         return doc;

@@ -290,6 +290,66 @@ configured counts them as its own.
 flushed early, bulks that failed, and series lost because they could not be flushed in time are all `es.derived_metrics.*` metrics, not
 just log lines.
 
+### Capacity planning
+
+Derived document volume does not depend on write rate. It is:
+
+```
+derived docs/sec  =  series × nodes ÷ interval
+```
+
+Series is the number of distinct dimension combinations a metric sees; nodes appears because each
+node emits its own partial for every series it observes, which is what keeps the write path
+coordination-free. So the reduction ratio is:
+
+```
+reduction  =  write rate ÷ (series × nodes ÷ interval)
+```
+
+It improves linearly with write rate, degrades linearly with fleet size, and improves linearly with
+interval. **The feature is insensitive to volume and sensitive to cardinality.**
+
+**Measured inputs**, all from the demo in `derived-metrics-demo` on one node with a 512 MB heap:
+
+| | value | configuration |
+|---|---|---|
+| derived docs | 47/sec/node | 12 metrics, 4 dimensions, one histogram |
+| | 3/sec/node | 3 metrics, 1 dimension |
+| observation cost | 398 ns, 160 B | built-in ingest metrics, no dimensions |
+| | 2,473 ns, 2,328 B | five dimensions plus a predicate |
+| series memory | 152 B | counter or gauge |
+| | 4,616 B | histogram |
+| reduction | 21× / 348× | rich / lean, at ~4k writes/sec |
+
+The property that matters was measured directly: across a load cycle the source rate varied **40.6×**
+while the derived rate varied **1.2×**.
+
+**Per-node overhead is small.** At 10,000 documents/sec with five dimensions, observation costs about
+2.5% of one core and allocates ~23 MB/sec. Series state is negligible until cardinality is large:
+100,000 scalar series is 15 MB, against a breaker defaulting to 5% of heap.
+
+**A worked example, with its extrapolation flagged.** At 1M documents/sec:
+
+- One demo node sustained **7,926 writes/sec at 11% CPU** on 12 cores with a 512 MB heap — and the
+  load generator was competing for those cores. That is the only per-node throughput figure here that
+  was measured.
+- Extrapolating linearly gives a ceiling near 70,000 writes/sec/node, so 1M/sec is **tens of nodes,
+  not hundreds**. Treat this as an order of magnitude only: GC, merge and refresh pressure do not
+  scale linearly, a 512 MB heap would bind before CPU does, these are ~400-byte documents with a
+  simple mapping, and there are no replicas.
+- At ~15 nodes and the rich configuration, derived volume is roughly 700 docs/sec against 1M — a
+  reduction in the low thousands, an order of magnitude better than the demo's 21× because the
+  numerator grows and the denominator does not.
+
+**What breaks first is cardinality, not volume.** A dimension like `host.name` or `pod` across a
+large fleet multiplies series directly. The caps and the breaker hold, but under `flush_early` memory
+pressure becomes document count, which erodes the reduction exactly when it is most wanted. Budget
+dimensions by their cardinality product, not by how many there are.
+
+Two other things to size at that scale: the destination's shard count, which defaults to one and is
+overridable through `derived-metrics@custom`, and `max_in_flight_bulks`, since every node flushes its
+whole series set once per interval.
+
 ### Retention
 
 Each destination is given a lifecycle once, when it is first created, from the `destinations` entry for its interval. Without one it

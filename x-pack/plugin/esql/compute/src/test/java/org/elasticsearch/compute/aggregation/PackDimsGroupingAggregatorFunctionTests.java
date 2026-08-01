@@ -215,10 +215,7 @@ public class PackDimsGroupingAggregatorFunctionTests extends ComputeTestCase {
             dict = b.build();
         }
         // positions: group 0 → ord 0, group 1 → ord 1, group 2 → ord 0, group 3 → ord 1
-        OrdinalBytesRefVector ordinalVec = new OrdinalBytesRefVector(
-            blockFactory.newIntArrayVector(new int[] { 0, 1, 0, 1 }, 4),
-            dict
-        );
+        OrdinalBytesRefVector ordinalVec = new OrdinalBytesRefVector(blockFactory.newIntArrayVector(new int[] { 0, 1, 0, 1 }, 4), dict);
         Page page = new Page(ordinalVec.asBlock());
         IntVector groups = blockFactory.newIntArrayVector(new int[] { 0, 1, 2, 3 }, 4);
 

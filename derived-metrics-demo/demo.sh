@@ -61,6 +61,7 @@ start_elasticsearch() {
       -Dtests.es.http.host="${ES_BIND_HOST}" \
       -Dtests.es.data_streams.derived_metrics.flush_interval="${FLUSH_INTERVAL}" \
       -Dtests.es.data_streams.derived_metrics.flush_grace_period="${FLUSH_GRACE_PERIOD}" \
+      -Dtests.es.xpack.ml.enabled=false \
       > "$RUN_DIR/elasticsearch.log" 2>&1 &
     echo $! > "$RUN_DIR/elasticsearch.pid"
   )
@@ -167,6 +168,15 @@ cmd_health() {
     | python3 "$HERE/health.py"
 }
 
+# The same question asked off the derived metrics and off the raw stream, timed cold and warm. This is
+# the query-side half of the argument; ./demo.sh status is the storage-side half.
+cmd_bench() {
+  es_up || die "Elasticsearch is not running"
+  python3 "$HERE/bench.py" \
+    --url "${ES}" --user "${ES_USER}" --password "${ES_PASSWORD}" \
+    --data-stream "${DATA_STREAM}" --interval "${DEFAULT_INTERVAL}"
+}
+
 # A closed, 10s-aligned window, for the side-by-side queries in compare.console. Closed because the
 # most recent interval may not have been flushed yet; aligned because derived documents are stamped
 # at the start of their interval.
@@ -228,11 +238,12 @@ case "${1:-up}" in
   down)    cmd_down ;;
   status)  cmd_status ;;
   health)  cmd_health ;;
+  bench)   cmd_bench ;;
   logs)    cmd_logs ;;
   window)  cmd_window "${2:-5}" ;;
   eslogs)  cmd_eslogs ;;
   setup)   bash "$HERE/setup.sh" ;;
   bootstrap-kibana) bash "$HERE/bootstrap-kibana.sh" ;;
   load)    start_load ;;
-  *)       die "usage: $0 [up|down|status|health|window|logs|eslogs|setup|bootstrap-kibana|load]" ;;
+  *)       die "usage: $0 [up|down|status|health|bench|window|logs|eslogs|setup|bootstrap-kibana|load]" ;;
 esac

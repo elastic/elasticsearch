@@ -214,6 +214,10 @@ they would in production. `./demo.sh health` shows the two that move.
 - The transport layer stays on loopback, which keeps the node out of production bootstrap checks.
 - `KIBANA_IMAGE` must match `build-tools-internal/version.properties`. It is pinned to
   `9.6.0-SNAPSHOT` here.
+- **Machine learning is disabled** (`xpack.ml.enabled=false`). A trial licence otherwise creates a
+  default ELSER inference endpoint and deploys the model, which downloads it and indexes it in
+  chunks — hundreds of megabytes through the heap of a dev node that has a few hundred megabytes to
+  work with. It OOMs within minutes, and it has nothing to do with derived metrics.
 - The `exponential_histogram` mapper the destination uses for histogram metrics ships in
   `x-pack-analytics`, which the default distribution always bundles. Nothing to install.
 - State lives in `.run/` — logs and pid files. `./demo.sh down` cleans up the processes; the data

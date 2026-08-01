@@ -760,3 +760,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityIT
   method: testEnrich
   issue: https://github.com/elastic/elasticsearch/issues/155672
+- class: org.elasticsearch.cluster.routing.OperationRoutingTests
+  method: testARSStatsAdjustment
+  issue: https://github.com/elastic/elasticsearch/issues/155673

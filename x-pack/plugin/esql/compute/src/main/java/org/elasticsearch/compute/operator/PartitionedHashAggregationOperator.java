@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntUnaryOperator;
 
 import static java.util.stream.Collectors.joining;
 
@@ -53,7 +54,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * which {@link PartitionedHashMergeOperator} handles on its driver thread without spawning
      * workers. Above it the operator partitions just as it would for an intermediate emit.
      */
-    public static final int DEFAULT_PARTITION_THRESHOLD = 1_000;
+    public static final int DEFAULT_PARTITION_THRESHOLD = 100;
 
     /**
      * Returns true if the given group specs support output-side partitioning.
@@ -196,6 +197,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     // ---- Instance fields (beyond those inherited from HashAggregationOperator) ----
 
+    private final List<BlockHash.GroupSpec> groupSpecs;
+    private final int aggregationBatchSize;
     private final int partitionCount;
     private final int emitKeysThreshold;
     private final int partitionThreshold;
@@ -232,6 +235,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (emitKeysThreshold <= 0) {
             throw new IllegalArgumentException("emitKeysThreshold must be greater than 0; got " + emitKeysThreshold);
         }
+        this.groupSpecs = groupSpecs;
+        this.aggregationBatchSize = aggregationBatchSize;
         this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
         this.partitionThreshold = partitionThreshold;
@@ -276,12 +281,17 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             if (numKeys > 0) {
                 boolean shouldPartition = usePartitioning || numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
-                output = shouldPartition
-                    ? pageBuilder.buildPartitioned(
-                        partitionCount,
-                        blockHash.partitioner(partitionCount),
-                        new GroupingAggregatorEvaluationContext(driverContext)
+                IntUnaryOperator partitioner = shouldPartition
+                    ? BlockHash.resolvePartitioner(
+                        blockHash,
+                        groupSpecs,
+                        driverContext.blockFactory(),
+                        aggregationBatchSize,
+                        partitionCount
                     )
+                    : null;
+                output = partitioner != null
+                    ? pageBuilder.buildPartitioned(partitionCount, partitioner, new GroupingAggregatorEvaluationContext(driverContext))
                     : pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
             }
         } finally {

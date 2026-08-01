@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 import org.elasticsearch.core.ReleasableIterator;
 
+import java.util.function.IntUnaryOperator;
+
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.TRUE_ORD;
@@ -156,6 +158,12 @@ final class BooleanBlockHash extends BlockHash {
             }
         }
         return seen;
+    }
+
+    @Override
+    public IntUnaryOperator partitioner(int partitionCount) {
+        // Group ids 0=null, 1=false, 2=true are globally fixed constants across all workers.
+        return groupId -> Math.floorMod(groupId, partitionCount);
     }
 
     @Override

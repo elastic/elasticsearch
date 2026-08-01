@@ -20,6 +20,8 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -28,6 +30,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -127,12 +130,104 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * <p>Group ids representing {@code null} keys (always group id {@code 0} in single-type hashes)
      * are mapped to partition {@code 0}.
      *
-     * <p>Returns a constant {@code groupId -> 0} when ordinal-based partitioning is unsupported
-     * (e.g. the underlying Swiss-hash implementation is unavailable on this JVM), routing all
-     * groups to partition 0.
+     * <p>Returns {@code null} when the implementation does not support key-space partitioning
+     * (e.g. the underlying Swiss-hash is unavailable on this JVM). Callers should use
+     * {@link #resolvePartitioner} to get a partitioner with automatic fallback.
      */
     public IntUnaryOperator partitioner(int partitionCount) {
-        return groupId -> 0;
+        return null;
+    }
+
+    /**
+     * Resolves a partitioner for {@code blockHash}, with a fallback when the hash's own
+     * {@link #partitioner} returns {@code null}. The fallback inserts all current keys into a
+     * temporary {@link PackedValuesBlockHash} and uses its partitioner to assign partitions by
+     * hashing the actual key bytes — guaranteeing that the same key always maps to the same
+     * partition regardless of the local group-id assigned by {@code blockHash}.
+     *
+     * <p>Returns {@code null} only when no partitioning is possible at all (e.g. no Swiss-hash
+     * implementation is available on this JVM).
+     */
+    public static IntUnaryOperator resolvePartitioner(
+        BlockHash blockHash,
+        List<GroupSpec> groupSpecs,
+        BlockFactory blockFactory,
+        int emitBatchSize,
+        int partitionCount
+    ) {
+        IntUnaryOperator p = blockHash.partitioner(partitionCount);
+        if (p != null) {
+            return p;
+        }
+        return buildPackedFallbackPartitioner(blockHash, groupSpecs, blockFactory, emitBatchSize, partitionCount);
+    }
+
+    private static IntUnaryOperator buildPackedFallbackPartitioner(
+        BlockHash blockHash,
+        List<GroupSpec> groupSpecs,
+        BlockFactory blockFactory,
+        int emitBatchSize,
+        int partitionCount
+    ) {
+        IntVector nonEmpty = blockHash.nonEmpty();
+        try {
+            int numGroups = nonEmpty.getPositionCount();
+            if (numGroups == 0) {
+                return groupId -> 0;
+            }
+            // Remap specs to channels 0..n-1 to match the extracted key blocks
+            List<GroupSpec> routingSpecs = new ArrayList<>(groupSpecs.size());
+            for (int i = 0; i < groupSpecs.size(); i++) {
+                routingSpecs.add(new GroupSpec(i, groupSpecs.get(i).elementType()));
+            }
+            Block[] keyBlocks = blockHash.getKeys(nonEmpty);
+            Page keyPage = new Page(keyBlocks);
+            int[] routingGroupIds = new int[numGroups];
+            try (BlockHash routingHash = buildPackedValuesBlockHash(routingSpecs, blockFactory, emitBatchSize)) {
+                routingHash.add(keyPage, new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        for (int i = 0; i < groupIds.getPositionCount(); i++) {
+                            routingGroupIds[positionOffset + i] = groupIds.getInt(i);
+                        }
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                        for (int i = 0; i < groupIds.getPositionCount(); i++) {
+                            routingGroupIds[positionOffset + i] = groupIds.getInt(groupIds.getFirstValueIndex(i));
+                        }
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        for (int i = 0; i < groupIds.getPositionCount(); i++) {
+                            routingGroupIds[positionOffset + i] = groupIds.getInt(groupIds.getFirstValueIndex(i));
+                        }
+                    }
+
+                    @Override
+                    public void close() {}
+                });
+                IntUnaryOperator routingPartitioner = routingHash.partitioner(partitionCount);
+                if (routingPartitioner == null) {
+                    return null;
+                }
+                int maxGroupId = 0;
+                for (int i = 0; i < numGroups; i++) {
+                    maxGroupId = Math.max(maxGroupId, nonEmpty.getInt(i));
+                }
+                int[] partitionOf = new int[maxGroupId + 1];
+                for (int i = 0; i < numGroups; i++) {
+                    partitionOf[nonEmpty.getInt(i)] = routingPartitioner.applyAsInt(routingGroupIds[i]);
+                }
+                return groupId -> partitionOf[groupId];
+            } finally {
+                keyPage.releaseBlocks();
+            }
+        } finally {
+            nonEmpty.close();
+        }
     }
 
     /**

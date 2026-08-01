@@ -22,8 +22,11 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.Locale;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Maps two {@link BytesRefBlock}s to group ids.
@@ -173,6 +176,19 @@ final class BytesRef2BlockHash extends BlockHash {
                 Releasables.close(outputBlocks);
             }
         }
+    }
+
+    @Override
+    public IntUnaryOperator partitioner(int partitionCount) {
+        BytesRef scratch = new BytesRef();
+        return groupId -> {
+            long packed = finalHash.get(groupId);
+            int k1 = (int) (packed & 0xffffffffL);
+            int k2 = (int) (packed >>> 32);
+            long h1 = k1 == 0 ? 0 : BytesRefSwissHash.hash64(hash1.hash.get(k1 - 1, scratch));
+            long h2 = k2 == 0 ? 0 : BytesRefSwissHash.hash64(hash2.hash.get(k2 - 1, scratch));
+            return Math.floorMod((int) LongLongSwissHash.hash(h1, h2), partitionCount);
+        };
     }
 
     @Override

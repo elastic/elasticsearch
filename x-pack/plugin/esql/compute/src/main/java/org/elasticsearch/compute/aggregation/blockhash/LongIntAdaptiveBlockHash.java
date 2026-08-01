@@ -59,11 +59,6 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
     }
 
     @Override
-    public IntUnaryOperator partitioner(int partitionCount) {
-        return current.partitioner(partitionCount);
-    }
-
-    @Override
     protected void prepareAddInput(Page page) {
         if (current instanceof LongIntVectorOnlyBlockHash vectorHash) {
             if (longVector(page) == null || intVector(page) == null) {

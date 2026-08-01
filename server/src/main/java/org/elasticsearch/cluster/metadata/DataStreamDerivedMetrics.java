@@ -61,6 +61,16 @@ public record DataStreamDerivedMetrics(
     public static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     public static final ParseField METRICS_FIELD = new ParseField("metrics");
     public static final TimeValue DEFAULT_INTERVAL = TimeValue.timeValueSeconds(10);
+
+    /**
+     * What a metric's preference is worth when it does not state one, as a percentage. A node under memory pressure gives up whichever
+     * buffered bucket is holding the most, divided by this: at the default every metric is ranked purely by size, and raising it makes a
+     * metric proportionally less likely to be the one given up.
+     */
+    public static final int DEFAULT_PREFERENCE = 100;
+
+    private static final int MAX_PREFERENCE = 10_000;
+
     public static final List<String> DEFAULT_BUILTIN = List.of("ingest.*");
 
     private static final int MAX_DESTINATIONS = 8;
@@ -425,7 +435,13 @@ public record DataStreamDerivedMetrics(
         MetricValue value,
         @Nullable GaugeAggregation aggregation,
         List<String> dimensions,
-        @Nullable TimeValue interval
+        @Nullable TimeValue interval,
+        /**
+         * How strongly this metric would rather keep its memory when the node has to give some up, relative to
+         * {@link #DEFAULT_PREFERENCE}. Null means no preference, which is the normal case: shedding then ranks purely by what each
+         * metric is actually costing.
+         */
+        @Nullable Integer preference
     ) implements Writeable, ToXContentObject {
 
         public static final ParseField NAME_FIELD = new ParseField("name");
@@ -433,6 +449,7 @@ public record DataStreamDerivedMetrics(
         public static final ParseField WHEN_FIELD = new ParseField("when");
         public static final ParseField VALUE_FIELD = new ParseField("value");
         public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation");
+        public static final ParseField PREFERENCE_FIELD = new ParseField("preference");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Metric, Void> PARSER = new ConstructingObjectParser<>(
@@ -445,7 +462,8 @@ public record DataStreamDerivedMetrics(
                 (MetricValue) args[3],
                 args[4] == null ? null : GaugeAggregation.fromString((String) args[4]),
                 (List<String>) args[5],
-                parseInterval((String) args[6], INTERVAL_FIELD.getPreferredName())
+                parseInterval((String) args[6], INTERVAL_FIELD.getPreferredName()),
+                (Integer) args[7]
             )
         );
 
@@ -462,6 +480,25 @@ public record DataStreamDerivedMetrics(
             PARSER.declareString(optionalConstructorArg(), AGGREGATION_FIELD);
             PARSER.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
             PARSER.declareString(optionalConstructorArg(), INTERVAL_FIELD);
+            PARSER.declareInt(optionalConstructorArg(), PREFERENCE_FIELD);
+        }
+
+        /** A metric that states no shedding preference, which is the normal case. */
+        public Metric(
+            String name,
+            MetricType type,
+            @Nullable Map<String, Object> when,
+            MetricValue value,
+            @Nullable GaugeAggregation aggregation,
+            List<String> dimensions,
+            @Nullable TimeValue interval
+        ) {
+            this(name, type, when, value, aggregation, dimensions, interval, null);
+        }
+
+        /** This metric's preference, or the default when it does not state one. */
+        public int preferenceOrDefault() {
+            return preference == null ? DEFAULT_PREFERENCE : preference;
         }
 
         public Metric {
@@ -480,6 +517,18 @@ public record DataStreamDerivedMetrics(
             dimensions = dimensions == null ? List.of() : List.copyOf(dimensions);
             validatePredicate(when, "when");
             validateDimensions(dimensions, MAX_METRIC_DIMENSIONS, "metrics.dimensions");
+            if (preference != null && (preference < 1 || preference > MAX_PREFERENCE)) {
+                throw new IllegalArgumentException(
+                    "derived metric ["
+                        + name
+                        + "] preference ["
+                        + preference
+                        + "] must be between 1 and "
+                        + MAX_PREFERENCE
+                        + "; it is relative to the default of "
+                        + DEFAULT_PREFERENCE
+                );
+            }
             if (type == MetricType.GAUGE) {
                 aggregation = aggregation == null ? GaugeAggregation.MAX : aggregation;
             } else if (aggregation != null) {
@@ -498,7 +547,11 @@ public record DataStreamDerivedMetrics(
                 new MetricValue(in),
                 in.readOptionalEnum(GaugeAggregation.class),
                 in.readStringCollectionAsList(),
-                in.readOptionalTimeValue()
+                in.readOptionalTimeValue(),
+                // No version guard of its own. A Metric only ever crosses the wire inside DataStreamDerivedMetrics, which
+                // DataStreamOptions already guards with DERIVED_METRICS_IN_DATA_STREAM_OPTIONS, so any node that can read one at all is
+                // a node that has this field too.
+                in.readOptionalVInt()
             );
         }
 
@@ -515,6 +568,7 @@ public record DataStreamDerivedMetrics(
             out.writeOptionalEnum(aggregation);
             out.writeStringCollection(dimensions);
             out.writeOptionalTimeValue(interval);
+            out.writeOptionalVInt(preference);
         }
 
         @Override
@@ -534,6 +588,9 @@ public record DataStreamDerivedMetrics(
             }
             if (interval != null) {
                 builder.field(INTERVAL_FIELD.getPreferredName(), interval.getStringRep());
+            }
+            if (preference != null) {
+                builder.field(PREFERENCE_FIELD.getPreferredName(), preference);
             }
             builder.endObject();
             return builder;

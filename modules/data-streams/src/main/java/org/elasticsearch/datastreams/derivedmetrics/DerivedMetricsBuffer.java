@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
@@ -67,8 +68,23 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public record Drained(TableKey key, DerivedMetricsSeriesTable table, int partial) {}
 
+    /**
+     * What became of one observation. Which cap refused it decides what would actually help: giving up the biggest table anywhere on the
+     * node frees the node budget, but a stream that has spent its own share is only helped by giving up one of <em>its</em> tables.
+     */
+    public enum Outcome {
+        RECORDED,
+        REFUSED_NODE_CAP,
+        REFUSED_STREAM_CAP,
+        REFUSED_BREAKER;
+
+        public boolean recorded() {
+            return this == RECORDED;
+        }
+    }
+
     /** Identifies a source data stream within its project, which is what the per-stream budget is keyed on. */
-    private record StreamKey(ProjectId project, String sourceDataStream) {}
+    public record StreamKey(ProjectId project, String sourceDataStream) {}
 
     private static StreamKey streamKey(TableKey key) {
         return new StreamKey(key.project(), key.sourceDataStream());
@@ -164,7 +180,7 @@ public class DerivedMetricsBuffer implements Releasable {
      *
      * @param values one entry per dimension the metric configures, null where the document did not have it
      */
-    public boolean record(TableKey key, String[] values, Scratch scratch, double value) {
+    public Outcome record(TableKey key, String[] values, Scratch scratch, double value) {
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
         AtomicInteger held = perStream.computeIfAbsent(streamKey(key), unused -> new AtomicInteger());
         while (true) {
@@ -172,7 +188,7 @@ public class DerivedMetricsBuffer implements Releasable {
             if (table == null) {
                 table = openTable(key);
                 if (table == null) {
-                    return false;
+                    return Outcome.REFUSED_BREAKER;
                 }
             }
             synchronized (table) {
@@ -191,10 +207,10 @@ public class DerivedMetricsBuffer implements Releasable {
                         // go and find the stream. Counted separately rather than conflated into a single "dropped" number.
                         if (atNodeCap) {
                             droppedSeriesAtNodeCap.increment();
-                        } else {
-                            droppedSeriesAtStreamCap.increment();
+                            return Outcome.REFUSED_NODE_CAP;
                         }
-                        return false;
+                        droppedSeriesAtStreamCap.increment();
+                        return Outcome.REFUSED_STREAM_CAP;
                     }
                 }
                 try {
@@ -210,11 +226,64 @@ public class DerivedMetricsBuffer implements Releasable {
                         // than thrown away, and the next observation for this bucket opens a fresh table.
                         retire(key, table);
                     }
-                    return false;
+                    return Outcome.REFUSED_BREAKER;
                 }
             }
-            return true;
+            return Outcome.RECORDED;
         }
+    }
+
+    /**
+     * Removes whichever buffered bucket is holding the most memory, so that relieving pressure gives up the table actually filling the
+     * node rather than whichever one happened to ask last. Bytes rather than series count, because a histogram series is worth roughly
+     * thirty scalar ones and a table with far fewer series can be the larger one.
+     *
+     * @param within when set, only tables belonging to this stream are considered — which is what helps when it was the per-stream cap
+     *               that refused, since freeing another stream's memory would not give this one any of its share back
+     * @return the drained bucket, or null when there was nothing worth taking
+     */
+    public Drained drainLargest(@Nullable StreamKey within) {
+        TableKey largestKey = null;
+        DerivedMetricsSeriesTable largest = null;
+        long mostBytes = -1;
+        for (Map.Entry<TableKey, DerivedMetricsSeriesTable> entry : tables.entrySet()) {
+            TableKey key = entry.getKey();
+            if (within != null && within.equals(streamKey(key)) == false) {
+                continue;
+            }
+            if (partialsLeft(key) == false) {
+                continue;
+            }
+            long bytes = entry.getValue().bytesHeld() * 100 / Math.max(1, preferenceOf(key));
+            if (bytes > mostBytes) {
+                mostBytes = bytes;
+                largestKey = key;
+                largest = entry.getValue();
+            }
+        }
+        if (largest == null) {
+            return null;
+        }
+        return take(largestKey, largest, true);
+    }
+
+    /**
+     * How strongly a metric would rather keep its memory, as a percentage. A metric with no preference sits at 100, so an unconfigured
+     * stream ranks purely by size; raising it makes a metric proportionally less likely to be the one given up.
+     */
+    private static int preferenceOf(TableKey key) {
+        return key.metric().preference();
+    }
+
+    /** Whether a bucket can still be split into another partial without its timestamp offset running into the next bucket. */
+    private boolean partialsLeft(TableKey key) {
+        AtomicInteger counter = partials.get(key);
+        return counter == null || counter.get() < maxPartials(key) - 1;
+    }
+
+    /** The stream a table belongs to, for scoping {@link #drainLargest}. */
+    public StreamKey streamOf(TableKey key) {
+        return streamKey(key);
     }
 
     /**

@@ -24,6 +24,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
+import java.util.concurrent.atomic.LongAdder;
+
 /**
  * Every series of one metric within one interval bucket.
  *
@@ -70,6 +72,11 @@ public class DerivedMetricsSeriesTable implements Releasable {
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
     /** How many series the columns can hold, cached so the common path does not re-check every column. See {@link #reserveOneMore}. */
     private long capacity;
+    /**
+     * Bytes this table's distributions currently hold. A {@link LongAdder} because it is written on the indexing thread as observations
+     * arrive and again on the flush thread as distributions are handed away, and read by whoever is deciding what to flush next.
+     */
+    private final LongAdder histogramBytes = new LongAdder();
     private long histogramsRefused;
     /** Set when the dimension hash refused an insert and can therefore no longer be probed safely. See {@link #record}. */
     private boolean poisoned;
@@ -88,7 +95,14 @@ public class DerivedMetricsSeriesTable implements Releasable {
     ) {
         this.bigArrays = bigArrays;
         this.histogramBuckets = histogramBuckets;
-        this.histogramBreaker = histogramBreaker;
+        // Distributions are the one part of a table whose size cannot be read back from the structure holding it, so it is tallied on
+        // the way through. Everything else is Accountable and reports itself; see bytesHeld.
+        LongAdder histogramTally = this.histogramBytes;
+        ExponentialHistogramCircuitBreaker delegate = histogramBreaker;
+        this.histogramBreaker = bytes -> {
+            histogramTally.add(bytes);
+            delegate.adjustBreaker(bytes);
+        };
         boolean histogram = reduction.isHistogram();
         BytesRefHash hash = null;
         ExponentialHistogramMerger.Factory mergers = null;
@@ -99,7 +113,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
             max = bigArrays.newDoubleArray(1, false);
             count = bigArrays.newLongArray(1, true);
             histograms = histogram ? bigArrays.newObjectArray(1) : null;
-            mergers = histogram ? ExponentialHistogramMerger.createFactory(histogramBuckets, histogramBreaker) : null;
+            mergers = histogram ? ExponentialHistogramMerger.createFactory(histogramBuckets, this.histogramBreaker) : null;
             this.dimensions = hash;
             this.histogramMergers = mergers;
             hash = null;
@@ -215,6 +229,21 @@ public class DerivedMetricsSeriesTable implements Releasable {
     /** How many distinct series this table holds. */
     public long size() {
         return dimensions.size();
+    }
+
+    /**
+     * How many bytes this table is responsible for, which is what makes one metric comparable with another when the node has to decide
+     * what to give up first. Series counts cannot do that job: a histogram series is roughly thirty times the size of a scalar one, so a
+     * table with far fewer series can be the one actually filling the node.
+     *
+     * <p>Read from the structures themselves rather than tracked separately, so it cannot drift out of step with what is really held.
+     */
+    public long bytesHeld() {
+        long bytes = dimensions.ramBytesUsed() + sum.ramBytesUsed() + min.ramBytesUsed() + max.ramBytesUsed() + count.ramBytesUsed();
+        if (histograms != null) {
+            bytes += histograms.ramBytesUsed() + histogramBytes.sum();
+        }
+        return bytes;
     }
 
     /**

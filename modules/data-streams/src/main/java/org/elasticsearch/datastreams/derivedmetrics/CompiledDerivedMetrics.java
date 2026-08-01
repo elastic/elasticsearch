@@ -116,8 +116,40 @@ public record CompiledDerivedMetrics(
         List<String> dimensions,
         int[] dimensionSlots,
         int dimensionSet,
-        Interval interval
-    ) {}
+        Interval interval,
+        /**
+         * How strongly this metric would rather keep its memory when the node has to give some up, as a percentage of the default. A
+         * metric that says nothing sits at {@link DataStreamDerivedMetrics#DEFAULT_PREFERENCE}, so an unconfigured stream is ranked
+         * purely by size.
+         */
+        int preference
+    ) {
+        /** A metric whose stream expressed no shedding preference, which is the normal case. */
+        public CompiledMetric(
+            String name,
+            Trigger trigger,
+            Reduction reduction,
+            DerivedMetricsPredicate predicate,
+            Source source,
+            List<String> dimensions,
+            int[] dimensionSlots,
+            int dimensionSet,
+            Interval interval
+        ) {
+            this(
+                name,
+                trigger,
+                reduction,
+                predicate,
+                source,
+                dimensions,
+                dimensionSlots,
+                dimensionSet,
+                interval,
+                DataStreamDerivedMetrics.DEFAULT_PREFERENCE
+            );
+        }
+    }
 
     private static final String INGEST_DOCS_COUNT = "ingest.docs.count";
     private static final String INGEST_DOCS_RATE = "ingest.docs.rate";
@@ -163,7 +195,8 @@ public record CompiledDerivedMetrics(
                     dimensions,
                     slotsFor(dimensions, paths),
                     0,
-                    intervalOf(config.intervalOf(metric))
+                    intervalOf(config.intervalOf(metric)),
+                    metric.preferenceOrDefault()
                 )
             );
         }
@@ -213,7 +246,8 @@ public record CompiledDerivedMetrics(
                     metric.dimensions(),
                     metric.dimensionSlots(),
                     set,
-                    metric.interval()
+                    metric.interval(),
+                    metric.preference()
                 )
             );
         }
@@ -309,7 +343,8 @@ public record CompiledDerivedMetrics(
             copy,
             slotsFor(copy, paths),
             0,
-            interval
+            interval,
+            DataStreamDerivedMetrics.DEFAULT_PREFERENCE
         );
     }
 

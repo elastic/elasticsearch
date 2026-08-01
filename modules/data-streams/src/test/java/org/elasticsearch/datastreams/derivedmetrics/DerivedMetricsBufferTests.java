@@ -23,6 +23,7 @@ import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Inter
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Reduction;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Source;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Drained;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec.Scratch;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -607,8 +608,142 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         }
     }
 
+    /**
+     * Series counts cannot rank one metric against another, because a histogram series is worth roughly thirty scalar ones. Bytes can,
+     * which is what makes it possible to give up the table that is actually filling the node rather than whichever one asked last.
+     */
+    public void testATableReportsTheBytesItHolds() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey scalar = key("logs-scalar-default", Reduction.SUM, 0L);
+            TableKey histogram = key("logs-histogram-default", Reduction.HISTOGRAM, 0L);
+            for (int i = 0; i < 20; i++) {
+                assertTrue(record(buffer, scalar, "service-" + i, i));
+                assertTrue(record(buffer, histogram, "service-" + i, i));
+            }
+
+            var drained = buffer.drainAll();
+            try {
+                long scalarBytes = 0;
+                long histogramBytes = 0;
+                for (var entry : drained) {
+                    long bytes = entry.table().bytesHeld();
+                    assertThat("every table holds something", bytes, greaterThan(0L));
+                    if (entry.key().metric().reduction().isHistogram()) {
+                        histogramBytes = bytes;
+                    } else {
+                        scalarBytes = bytes;
+                    }
+                }
+                // the same number of series either way, so any difference is the distributions themselves
+                assertThat(
+                    "a histogram table of the same cardinality must report far more than a scalar one",
+                    histogramBytes,
+                    greaterThan(scalarBytes * 5)
+                );
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * Under pressure the node should give up whatever is actually filling it, not whichever bucket happened to ask last. Flushing a
+     * bucket early loses nothing — partials sum at query time — so this is a choice about which metric pays in extra documents.
+     */
+    public void testTheLargestBucketIsTheOneGivenUp() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey small = key("logs-small-default", Reduction.SUM, 0L);
+            TableKey large = key("logs-large-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, small, "only-one", 1.0));
+            for (int i = 0; i < 200; i++) {
+                assertTrue(record(buffer, large, "service-" + i, 1.0));
+            }
+
+            Drained given = buffer.drainLargest(null);
+            try {
+                assertNotNull(given);
+                assertEquals("the bucket holding the most is the one to give up", "logs-large-default", given.key().sourceDataStream());
+            } finally {
+                given.table().close();
+            }
+        }
+    }
+
+    /**
+     * When it was the per-stream cap that refused, freeing another stream's memory gives the refused stream none of its share back, so
+     * the choice has to be made within that stream even if a bigger bucket exists elsewhere.
+     */
+    public void testGivingUpMemoryForAStreamStaysWithinThatStream() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey mine = key("logs-mine-default", Reduction.SUM, 0L);
+            TableKey bigger = key("logs-someone-elses-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, mine, "a", 1.0));
+            for (int i = 0; i < 200; i++) {
+                assertTrue(record(buffer, bigger, "service-" + i, 1.0));
+            }
+
+            Drained given = buffer.drainLargest(buffer.streamOf(mine));
+            try {
+                assertNotNull(given);
+                assertEquals(
+                    "only the refusing stream's own buckets may be considered",
+                    "logs-mine-default",
+                    given.key().sourceDataStream()
+                );
+            } finally {
+                given.table().close();
+            }
+        }
+    }
+
+    /**
+     * Cost and importance are not the same thing. A metric may say it would rather keep its memory, and that has to be able to outrank
+     * being the biggest — otherwise the busiest metric is always the one sacrificed.
+     */
+    public void testAPreferenceCanOutrankBeingTheLargest() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 1000)) {
+            TableKey guarded = keyWithPreference("logs-guarded-default", 10_000);
+            TableKey ordinary = key("logs-ordinary-default", Reduction.SUM, 0L);
+            // the guarded stream is by far the bigger of the two
+            for (int i = 0; i < 200; i++) {
+                assertTrue(record(buffer, guarded, "service-" + i, 1.0));
+            }
+            for (int i = 0; i < 20; i++) {
+                assertTrue(record(buffer, ordinary, "service-" + i, 1.0));
+            }
+
+            Drained given = buffer.drainLargest(null);
+            try {
+                assertNotNull(given);
+                assertEquals(
+                    "a metric that asked to be kept should not be sacrificed for being busy",
+                    "logs-ordinary-default",
+                    given.key().sourceDataStream()
+                );
+            } finally {
+                given.table().close();
+            }
+        }
+    }
+
+    private static TableKey keyWithPreference(String sourceDataStream, int preference) {
+        CompiledMetric metric = new CompiledMetric(
+            "ingest.docs.count",
+            Trigger.SUCCESS,
+            Reduction.SUM,
+            DerivedMetricsPredicate.MATCH_ALL,
+            new Source.Constant(1.0),
+            List.of("service.name"),
+            new int[] { 0 },
+            0,
+            TEN_SECONDS,
+            preference
+        );
+        return new TableKey(ProjectId.DEFAULT, sourceDataStream, metric, 0L, TEN_SECONDS.millis());
+    }
+
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
-        return buffer.record(key, new String[] { service }, new Scratch(), value);
+        return buffer.record(key, new String[] { service }, new Scratch(), value).recorded();
     }
 
     private static TableKey key(Reduction reduction, long bucketStart) {

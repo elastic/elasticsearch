@@ -28,6 +28,7 @@ import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Compi
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Interval;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.Trigger;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Drained;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.Outcome;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsBuffer.TableKey;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -412,14 +413,15 @@ public class DerivedMetricsService implements Closeable {
             Interval interval = metric.interval();
             long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
             TableKey key = scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis());
-            if (buffer.record(key, values, scratch.encoding, value) == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
+            Outcome outcome = buffer.record(key, values, scratch.encoding, value);
+            if (outcome.recorded() == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
                 // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
                 // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
                 //
                 // The buffer counts a drop on each refusal, so a retry that succeeds has already been counted as a loss and a retry that
                 // fails has been counted twice. Neither is true, so the retry's answer is used to put the count back.
-                relievePressure(key);
-                if (buffer.record(key, values, scratch.encoding, value)) {
+                relievePressure(outcome, key);
+                if (buffer.record(key, values, scratch.encoding, value).recorded()) {
                     recoveredAfterRelief.incrementAndGet();
                 } else {
                     doubleCountedDrops.incrementAndGet();
@@ -437,8 +439,17 @@ public class DerivedMetricsService implements Closeable {
      * {@code flush_early}; a wider drain would free memory this observation does not need. Building and sending the documents is handed
      * to the derived metrics pool.
      */
-    private void relievePressure(TableKey key) {
-        Drained drained = buffer.drainForPressure(key);
+    private void relievePressure(Outcome outcome, TableKey key) {
+        // Give up whichever bucket is holding the most rather than the one that happened to ask, so the node frees the memory actually
+        // filling it. Scoped to the refusing stream when it was the per-stream cap that bit, because freeing another stream's memory
+        // would not give this one any of its share back.
+        Drained largest = switch (outcome) {
+            case REFUSED_STREAM_CAP -> buffer.drainLargest(buffer.streamOf(key));
+            case REFUSED_NODE_CAP, REFUSED_BREAKER -> buffer.drainLargest(null);
+            case RECORDED -> throw new AssertionError("relieving pressure for an observation that was recorded");
+        };
+        // nothing could be given up, so fall back to the bucket that refused: it may still have room for another partial
+        final Drained drained = largest != null ? largest : buffer.drainForPressure(key);
         if (drained == null) {
             return;
         }

@@ -218,6 +218,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/42_knn_search_bbq_flat_bfloat16/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/155667
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test50CreateKeystoreManually
+  issue: https://github.com/elastic/elasticsearch/issues/155335
 
 # Examples:
 #

@@ -757,3 +757,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
   method: testPutDatasetAllowedWithCreateDatasetPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/155671
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  method: testEnrich
+  issue: https://github.com/elastic/elasticsearch/issues/155672

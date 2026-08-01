@@ -210,7 +210,7 @@ public class DataStreamDerivedMetricsTests extends AbstractXContentSerializingTe
             assertThat(metric.aggregation(), equalTo(aggregation));
         }
         Metric defaulted = new Metric("app.queue.depth", MetricType.GAUGE, null, MetricValue.field("queue.depth"), null, List.of(), null);
-        assertThat(defaulted.aggregation(), equalTo(GaugeAggregation.LAST_VALUE));
+        assertThat(defaulted.aggregation(), equalTo(GaugeAggregation.MAX));
     }
 
     public void testCounterDefaultsValueToOne() {

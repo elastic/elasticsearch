@@ -46,8 +46,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
     private DoubleArray sum;
     private DoubleArray min;
     private DoubleArray max;
-    private DoubleArray first;
-    private DoubleArray last;
     private LongArray count;
     /**
      * One accumulator per series, and only for a histogram metric. Unlike the scalar columns this holds an object per series, because a
@@ -59,23 +57,13 @@ public class DerivedMetricsSeriesTable implements Releasable {
      * of what a histogram series costs — the rest of it is the distribution itself, which is inherently per-series.
      */
     private final ExponentialHistogramMerger.Factory histogramMergers;
-    /**
-     * When the observation behind {@link #first}/{@link #last} happened, allocated only for those reductions.
-     *
-     * <p>Without it a first or last value cannot be resolved across nodes: each node holds its own last observation and there is no
-     * ordering between them. Downsampling does not need this because it works on one shard of a TSDS, where a series is co-located by
-     * construction; a plain data stream spreads one entity across shards, so the ordering has to be carried explicitly.
-     */
-    private LongArray observedAt;
-    private final boolean keepEarliestObservation;
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
     private boolean sealed;
     private boolean closed;
 
     /**
-     * @param reduction        what this table's metric reduces to, which decides which columns it needs: a distribution for a histogram,
-     *                         an observation time for first and last, nothing extra for the rest
+     * @param reduction        what this table's metric reduces to, which decides whether it needs a distribution column
      * @param histogramBuckets the bucket capacity of each series' histogram, which is what bounds its size
      */
     public DerivedMetricsSeriesTable(
@@ -88,9 +76,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker;
         boolean histogram = reduction.isHistogram();
-        // first keeps the earliest observation, last the most recent; everything else needs no time at all
-        this.keepEarliestObservation = reduction == Reduction.FIRST;
-        boolean positional = reduction == Reduction.FIRST || reduction == Reduction.LAST;
         BytesRefHash hash = null;
         ExponentialHistogramMerger.Factory mergers = null;
         try {
@@ -98,11 +83,8 @@ public class DerivedMetricsSeriesTable implements Releasable {
             sum = bigArrays.newDoubleArray(1, true);
             min = bigArrays.newDoubleArray(1, false);
             max = bigArrays.newDoubleArray(1, false);
-            first = bigArrays.newDoubleArray(1, true);
-            last = bigArrays.newDoubleArray(1, true);
             count = bigArrays.newLongArray(1, true);
             histograms = histogram ? bigArrays.newObjectArray(1) : null;
-            observedAt = positional ? bigArrays.newLongArray(1, true) : null;
             mergers = histogram ? ExponentialHistogramMerger.createFactory(histogramBuckets, histogramBreaker) : null;
             this.dimensions = hash;
             this.histogramMergers = mergers;
@@ -110,7 +92,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
         } finally {
             // if any allocation above tripped the breaker, give back what we did take
             if (hash != null) {
-                Releasables.close(hash, sum, min, max, first, last, count, histograms, observedAt, mergers);
+                Releasables.close(hash, sum, min, max, count, histograms, mergers);
             }
         }
     }
@@ -121,7 +103,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
      * @return the ordinal the observation landed on, which is negative when the series already existed. Callers use the sign to know
      *         whether a new series was created without a second lookup.
      */
-    public long record(BytesRef encodedDimensions, double value, long observedAtMillis) {
+    public long record(BytesRef encodedDimensions, double value) {
         long ordinal = dimensions.add(encodedDimensions);
         boolean created = ordinal >= 0;
         if (created == false) {
@@ -130,15 +112,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
             grow(ordinal);
             min.set(ordinal, Double.POSITIVE_INFINITY);
             max.set(ordinal, Double.NEGATIVE_INFINITY);
-        }
-        boolean firstObservation = count.get(ordinal) == 0;
-        if (firstObservation) {
-            first.set(ordinal, value);
-        }
-        last.set(ordinal, value);
-        if (observedAt != null && (firstObservation || keepEarliestObservation == false)) {
-            // a first metric freezes the earliest observation time, a last metric tracks the most recent
-            observedAt.set(ordinal, observedAtMillis);
         }
         count.increment(ordinal, 1);
         sum.increment(ordinal, value);
@@ -162,12 +135,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
         sum = bigArrays.grow(sum, size);
         min = bigArrays.grow(min, size);
         max = bigArrays.grow(max, size);
-        first = bigArrays.grow(first, size);
-        last = bigArrays.grow(last, size);
         count = bigArrays.grow(count, size);
-        if (observedAt != null) {
-            observedAt = bigArrays.grow(observedAt, size);
-        }
         if (histograms != null) {
             histograms = bigArrays.grow(histograms, size);
         }
@@ -204,14 +172,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
         return DerivedMetricsDimensionCodec.decode(dimensions.get(ordinal, spare), dimensionCount);
     }
 
-    /**
-     * When the value this series would emit was observed. Only meaningful on a table backing a {@code first}/{@code last} reduction.
-     */
-    public long observedAtOf(long ordinal) {
-        assert observedAt != null : "observedAtOf on a table that does not track observation times";
-        return observedAt.get(ordinal);
-    }
-
     public long countOf(long ordinal) {
         return count.get(ordinal);
     }
@@ -234,8 +194,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
             case SUM, AVG -> sum.get(ordinal);
             case MIN -> min.get(ordinal);
             case MAX -> max.get(ordinal);
-            case FIRST -> first.get(ordinal);
-            case LAST -> last.get(ordinal);
             case RATE -> sum.get(ordinal) / (intervalMillis / 1000.0);
             case HISTOGRAM -> throw new AssertionError("a histogram metric is emitted through histogramOf, not reduced to a value");
         };
@@ -256,6 +214,6 @@ public class DerivedMetricsSeriesTable implements Releasable {
                 Releasables.close(histograms.get(ordinal));
             }
         }
-        Releasables.close(dimensions, sum, min, max, first, last, count, histograms, observedAt, histogramMergers);
+        Releasables.close(dimensions, sum, min, max, count, histograms, histogramMergers);
     }
 }

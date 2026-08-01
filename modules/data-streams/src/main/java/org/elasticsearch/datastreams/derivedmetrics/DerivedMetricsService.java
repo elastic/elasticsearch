@@ -344,12 +344,11 @@ public class DerivedMetricsService implements Closeable {
             Interval interval = metric.interval();
             long bucketStart = DerivedMetricsBuffer.bucketStart(now, interval.millis());
             TableKey key = scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis());
-            if (buffer.record(key, values, scratch.encoding, value, now) == false
-                && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
+            if (buffer.record(key, values, scratch.encoding, value) == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
                 // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
                 // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
                 relievePressure(key);
-                buffer.record(key, values, scratch.encoding, value, now);
+                buffer.record(key, values, scratch.encoding, value);
             }
         }
     }

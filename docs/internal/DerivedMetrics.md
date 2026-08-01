@@ -75,8 +75,6 @@ Counters default `value` to `1` when omitted.
 
 Gauges support `aggregation`:
 
-- `first_value`
-- `last_value`
 - `min`
 - `max`
 - `avg`
@@ -84,26 +82,20 @@ Gauges support `aggregation`:
 
 Non-gauge metrics reject `aggregation`.
 
-**`first_value` and `last_value` need care across nodes.** Every other reduction combines
-associatively — sums add, maxima take the maximum, and `avg` emits sum and count so the mean is a
-ratio. First and last do not: each node holds its own earliest or latest observation and there is no
-ordering between nodes. Elasticsearch downsampling provides the same semantic safely because it works
-on one shard of a TSDS, where a series is co-located by construction; a plain data stream spreads one
-entity across shards, so the ordering has to be carried explicitly.
+**`first_value` and `last_value` are deliberately not offered.** Every reduction here combines
+associatively across nodes — sums add, minima take the minimum, and `avg` emits sum and count so the
+mean is a ratio. First and last do not: each node holds its own earliest or latest observation and
+recovering the cluster-wide answer needs a global ordering, which a distributed system does not have.
+Timestamps do not rescue it — ordering would then be bounded by inter-node clock skew, and an
+approximate answer to "what was the last value" is exactly the kind of thing people build alerts on
+without realising it is approximate.
 
-These metrics therefore emit `metric.observed_at` alongside the value, and the cluster-wide answer is
-the value with the greatest (or least) observation time — an argmax, not an aggregation:
+Elasticsearch downsampling does offer this semantic safely, because it works on one shard of a TSDS
+where a series is co-located by construction. A plain data stream spreads one entity across shards,
+so the guarantee that makes it sound is absent.
 
-```
-FROM derived-metrics-logs-my_app-default-10s
-| WHERE metric.name == "queue.depth.last"
-| SORT metric.observed_at DESC
-| LIMIT 1
-```
-
-Summing or averaging these across nodes gives a number that is wrong and looks plausible. If that is
-too sharp an edge for your consumers, prefer `max` — it answers a slightly different question and
-combines correctly with no ceremony.
+Use `max` where you want a headline number, or model the entity as a dimension so that the series you
+read is produced by a single writer.
 
 Histograms keep the whole distribution of the observed values rather than reducing them to a number, so they take no `aggregation`. Each
 series accumulates into a bounded exponential histogram of `data_streams.derived_metrics.histogram_buckets` buckets, which is the knob
@@ -328,7 +320,6 @@ The rule it encodes:
 | `max` | `MAX(metric.value)` |
 | `avg` | `SUM(metric.value) / SUM(metric.count)` |
 | `histogram` | any aggregation on `metric.histogram` |
-| `first`, `last` | argmin/argmax on `metric.observed_at` — see above |
 
 ### Capacity planning
 

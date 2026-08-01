@@ -108,8 +108,6 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
     }
 
     public void testGaugeAggregationsMapToReductions() {
-        assertEquals(Reduction.FIRST, reductionOfGauge(GaugeAggregation.FIRST_VALUE));
-        assertEquals(Reduction.LAST, reductionOfGauge(GaugeAggregation.LAST_VALUE));
         assertEquals(Reduction.MIN, reductionOfGauge(GaugeAggregation.MIN));
         assertEquals(Reduction.MAX, reductionOfGauge(GaugeAggregation.MAX));
         assertEquals(Reduction.AVG, reductionOfGauge(GaugeAggregation.AVG));

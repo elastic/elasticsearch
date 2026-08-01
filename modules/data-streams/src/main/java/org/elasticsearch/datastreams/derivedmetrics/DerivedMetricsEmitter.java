@@ -44,7 +44,7 @@ public final class DerivedMetricsEmitter {
      * @param partial which partial of this bucket this is, normally zero. A time series {@code _id} is derived from the tsid and the
      *                timestamp, so two partials of the same series and bucket would collide and the second would be rejected. Offsetting
      *                the timestamp by the partial number keeps them distinct while leaving them in the same series and the same
-     *                date_histogram bucket, and orders them for first_value and last_value.
+     *                date_histogram bucket.
      */
     public static IndexRequest toIndexRequest(
         TableKey key,
@@ -87,14 +87,6 @@ public final class DerivedMetricsEmitter {
                     DerivedMetricsDestination.METRIC_VALUE_FIELD,
                     table.reduce(ordinal, metric.reduction(), key.intervalMillis())
                 );
-                if (metric.reduction() == Reduction.FIRST || metric.reduction() == Reduction.LAST) {
-                    // These are the only reductions whose cross-node value depends on ordering rather than on an associative combine, so
-                    // the observation time has to travel with the value for the cluster-wide answer to be recoverable at all.
-                    document.field(
-                        DerivedMetricsDestination.METRIC_OBSERVED_AT_FIELD,
-                        TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(table.observedAtOf(ordinal)))
-                    );
-                }
                 if (metric.reduction() == Reduction.AVG) {
                     // An avg gauge emits its sum in metric.value and its count alongside, so the mean is SUM(value)/SUM(count). Emitting
                     // the mean directly cannot be re-aggregated: averaging per-interval means weights every interval equally, which reads

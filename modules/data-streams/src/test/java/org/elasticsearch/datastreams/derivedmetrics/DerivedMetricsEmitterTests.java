@@ -154,22 +154,6 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         assertEquals("histogram", emit(Reduction.HISTOGRAM, List.of(), new String[0]).get("derived_metrics.reduction"));
     }
 
-    /**
-     * first and last are the only reductions whose cross-node answer depends on ordering rather than on an associative combine. Each node
-     * holds its own last observation and there is no ordering between nodes, so without the observation time the cluster-wide value is
-     * simply unrecoverable.
-     */
-    public void testFirstAndLastCarryTheirObservationTime() {
-        assertNotNull(emit(Reduction.FIRST, List.of(), new String[0]).get("metric.observed_at"));
-        assertNotNull(emit(Reduction.LAST, List.of(), new String[0]).get("metric.observed_at"));
-    }
-
-    public void testOnlyFirstAndLastCarryAnObservationTime() {
-        assertThat(emit(Reduction.SUM, List.of(), new String[0]), not(hasKey("metric.observed_at")));
-        assertThat(emit(Reduction.MAX, List.of(), new String[0]), not(hasKey("metric.observed_at")));
-        assertThat(emit(Reduction.HISTOGRAM, List.of(), new String[0]), not(hasKey("metric.observed_at")));
-    }
-
     public void testDestinationIsDerivedFromTheSourceDataStream() {
         IndexRequest request = request(Reduction.SUM, List.of(), 0, new String[0]);
         assertEquals("derived-metrics-logs-my_app-default-10s", request.index());
@@ -201,7 +185,7 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
             Scratch scratch = new Scratch();
             for (double value : new double[] { 1.0, 2.0, 3.0 }) {
-                buffer.record(key, values, scratch, value, 0L);
+                buffer.record(key, values, scratch, value);
             }
             var drained = buffer.drainAll();
             try {

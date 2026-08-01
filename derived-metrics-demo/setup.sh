@@ -60,12 +60,6 @@ DERIVED_METRICS=$(cat <<'JSON'
       "aggregation": "max"
     },
     {
-      "name": "queue.depth.last",
-      "type": "gauge",
-      "value": { "field": "queue.depth" },
-      "aggregation": "last_value"
-    },
-    {
       "name": "event.duration.avg",
       "type": "gauge",
       "value": { "field": "event.duration" },

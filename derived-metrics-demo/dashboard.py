@@ -194,10 +194,6 @@ def build_rows(derived_dv, source_dv, derived, source):
         row(CHART_HEIGHT,
             d_line("Peak queue depth", "queue.depth.max", "peak = MAX(metric.value)", "peak"),
             s_line("Peak queue depth", "peak = MAX(queue.depth)", "peak")),
-        # Deliberately absent: a last_value gauge cannot be charted per bucket without an argmax over
-        # metric.observed_at, which Lens cannot express. MAX(metric.value) used to stand in here and was
-        # simply a different quantity wearing the right label — the largest of the per-node lasts. See
-        # the first_value/last_value note in docs/internal/DerivedMetrics.md.
         # The avg gauge emits sum and count, so the mean is a straight ratio rather than the weighting
         # gymnastics this used to need.
         row(CHART_HEIGHT,

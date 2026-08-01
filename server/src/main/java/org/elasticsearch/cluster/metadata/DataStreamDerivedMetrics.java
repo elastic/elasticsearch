@@ -403,8 +403,6 @@ public record DataStreamDerivedMetrics(
     }
 
     public enum GaugeAggregation {
-        FIRST_VALUE,
-        LAST_VALUE,
         MIN,
         MAX,
         AVG,
@@ -483,7 +481,7 @@ public record DataStreamDerivedMetrics(
             validatePredicate(when, "when");
             validateDimensions(dimensions, MAX_METRIC_DIMENSIONS, "metrics.dimensions");
             if (type == MetricType.GAUGE) {
-                aggregation = aggregation == null ? GaugeAggregation.LAST_VALUE : aggregation;
+                aggregation = aggregation == null ? GaugeAggregation.MAX : aggregation;
             } else if (aggregation != null) {
                 throw new IllegalArgumentException("derived metric [" + name + "] only supports [aggregation] for gauge metrics");
             }

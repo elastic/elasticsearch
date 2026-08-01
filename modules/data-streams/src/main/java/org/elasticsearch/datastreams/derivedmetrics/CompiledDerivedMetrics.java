@@ -50,8 +50,6 @@ public record CompiledDerivedMetrics(
         MIN,
         MAX,
         AVG,
-        FIRST,
-        LAST,
         /**
          * Sum divided by the interval length in seconds. Used by the built-in {@code *.rate} metrics.
          */
@@ -319,8 +317,6 @@ public record CompiledDerivedMetrics(
         return switch (metric.type()) {
             case COUNTER -> Reduction.SUM;
             case GAUGE -> switch (metric.aggregation()) {
-                case FIRST_VALUE -> Reduction.FIRST;
-                case LAST_VALUE -> Reduction.LAST;
                 case MIN -> Reduction.MIN;
                 case MAX -> Reduction.MAX;
                 case AVG -> Reduction.AVG;

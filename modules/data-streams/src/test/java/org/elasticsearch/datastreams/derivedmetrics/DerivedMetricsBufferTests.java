@@ -69,8 +69,6 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 assertEquals(12.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
                 assertEquals(1.0, table.reduce(0, Reduction.MIN, 10_000L), 0.0);
                 assertEquals(7.0, table.reduce(0, Reduction.MAX, 10_000L), 0.0);
-                assertEquals(4.0, table.reduce(0, Reduction.FIRST, 10_000L), 0.0);
-                assertEquals(7.0, table.reduce(0, Reduction.LAST, 10_000L), 0.0);
                 // 12 observations worth of value spread over a ten second interval
                 assertEquals(1.2, table.reduce(0, Reduction.RATE, 10_000L), 0.0);
                 // an avg gauge emits its sum, and the count travels alongside it
@@ -277,39 +275,6 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     /**
-     * A first metric freezes the time of its earliest observation; a last metric tracks the most recent. Getting this backwards is easy —
-     * the table sees every observation and has to know which end it is keeping — and would silently mis-order values across nodes.
-     */
-    public void testObservationTimeTracksTheEndTheReductionKeeps() {
-        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
-            TableKey firstKey = key(Reduction.FIRST, 0L);
-            assertTrue(buffer.record(firstKey, new String[] { "checkout" }, new Scratch(), 1.0, 1_000L));
-            assertTrue(buffer.record(firstKey, new String[] { "checkout" }, new Scratch(), 2.0, 5_000L));
-
-            TableKey lastKey = key(Reduction.LAST, 0L);
-            assertTrue(buffer.record(lastKey, new String[] { "checkout" }, new Scratch(), 1.0, 1_000L));
-            assertTrue(buffer.record(lastKey, new String[] { "checkout" }, new Scratch(), 2.0, 5_000L));
-
-            var drained = buffer.drainAll();
-            try {
-                for (var entry : drained) {
-                    long observed = entry.table().observedAtOf(0);
-                    if (entry.key().metric().reduction() == Reduction.FIRST) {
-                        assertEquals("first keeps the earliest observation", 1_000L, observed);
-                        assertEquals(1.0, entry.table().reduce(0, Reduction.FIRST, 10_000L), 0.0);
-                    } else {
-                        assertEquals("last keeps the most recent observation", 5_000L, observed);
-                        assertEquals(2.0, entry.table().reduce(0, Reduction.LAST, 10_000L), 0.0);
-                    }
-                }
-                assertEquals(2, drained.size());
-            } finally {
-                drained.forEach(d -> d.table().close());
-            }
-        }
-    }
-
-    /**
      * Relieving pressure runs on the indexing thread, inside the shard's operation permit, so it has to touch exactly the bucket that
      * refused the observation and nothing else. Draining every bucket the node holds would be unbounded work in the one place that cannot
      * afford it.
@@ -450,7 +415,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
-        return buffer.record(key, new String[] { service }, new Scratch(), value, 0L);
+        return buffer.record(key, new String[] { service }, new Scratch(), value);
     }
 
     private static TableKey key(Reduction reduction, long bucketStart) {

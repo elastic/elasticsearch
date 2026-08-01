@@ -53,7 +53,7 @@ public final class DerivedMetricsDestination {
     /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 5L;
+    public static final long TEMPLATE_VERSION = 6L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
@@ -68,11 +68,6 @@ public final class DerivedMetricsDestination {
      * than joining it. The field carries its own sum, count, min and max, which is why no scalar travels alongside it.
      */
     public static final String METRIC_HISTOGRAM_FIELD = "metric.histogram";
-    /**
-     * When the value in {@link #METRIC_VALUE_FIELD} was observed. Only present on {@code first} and {@code last} metrics, which are the
-     * only ones whose cross-node value depends on ordering rather than on an associative combine.
-     */
-    public static final String METRIC_OBSERVED_AT_FIELD = "metric.observed_at";
     public static final String SOURCE_FIELD = "derived_metrics.source";
     public static final String INTERVAL_FIELD = "derived_metrics.interval";
     public static final String NODE_FIELD = "derived_metrics.node";
@@ -125,9 +120,6 @@ public final class DerivedMetricsDestination {
                   "histogram": {
                     "type": "exponential_histogram",
                     "time_series_metric": "histogram"
-                  },
-                  "observed_at": {
-                    "type": "date"
                   }
                 }
               },

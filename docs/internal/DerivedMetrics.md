@@ -84,6 +84,27 @@ Gauges support `aggregation`:
 
 Non-gauge metrics reject `aggregation`.
 
+**`first_value` and `last_value` need care across nodes.** Every other reduction combines
+associatively — sums add, maxima take the maximum, and `avg` emits sum and count so the mean is a
+ratio. First and last do not: each node holds its own earliest or latest observation and there is no
+ordering between nodes. Elasticsearch downsampling provides the same semantic safely because it works
+on one shard of a TSDS, where a series is co-located by construction; a plain data stream spreads one
+entity across shards, so the ordering has to be carried explicitly.
+
+These metrics therefore emit `metric.observed_at` alongside the value, and the cluster-wide answer is
+the value with the greatest (or least) observation time — an argmax, not an aggregation:
+
+```
+FROM derived-metrics-logs-my_app-default-10s
+| WHERE metric.name == "queue.depth.last"
+| SORT metric.observed_at DESC
+| LIMIT 1
+```
+
+Summing or averaging these across nodes gives a number that is wrong and looks plausible. If that is
+too sharp an edge for your consumers, prefer `max` — it answers a slightly different question and
+combines correctly with no ceremony.
+
 Histograms keep the whole distribution of the observed values rather than reducing them to a number, so they take no `aggregation`. Each
 series accumulates into a bounded exponential histogram of `data_streams.derived_metrics.histogram_buckets` buckets, which is the knob
 that trades a histogram series' precision against its size. A histogram series is by far the most expensive kind: hundreds of buckets
@@ -289,6 +310,25 @@ configured counts them as its own.
 **Everything shed is counted and published.** Series dropped at a cap, documents dropped for backpressure or indexing pressure, buckets
 flushed early, bulks that failed, and series lost because they could not be flushed in time are all `es.derived_metrics.*` metrics, not
 just log lines.
+
+### The destination describes itself
+
+Every emitted document carries `derived_metrics.reduction` — `sum`, `min`, `max`, `avg`, `first`,
+`last` or `histogram`. Without it, how to combine `metric.value` across nodes and buckets would be
+knowable only from the source stream's configuration, and a consumer that guessed wrong would be
+wrong invisibly. It is a dimension but adds no cardinality, since the reduction is functionally
+determined by `metric.name`.
+
+The rule it encodes:
+
+| reduction | combine across nodes and buckets with |
+|---|---|
+| `sum`, `rate` | `SUM(metric.value)` |
+| `min` | `MIN(metric.value)` |
+| `max` | `MAX(metric.value)` |
+| `avg` | `SUM(metric.value) / SUM(metric.count)` |
+| `histogram` | any aggregation on `metric.histogram` |
+| `first`, `last` | argmin/argmax on `metric.observed_at` — see above |
 
 ### Capacity planning
 

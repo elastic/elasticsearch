@@ -143,7 +143,7 @@ public class DerivedMetricsBuffer implements Releasable {
      *
      * @param values one entry per dimension the metric configures, null where the document did not have it
      */
-    public boolean record(TableKey key, String[] values, Scratch scratch, double value) {
+    public boolean record(TableKey key, String[] values, Scratch scratch, double value, long observedAtMillis) {
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
         AtomicInteger held = perStream.computeIfAbsent(key.sourceDataStream(), unused -> new AtomicInteger());
         while (true) {
@@ -169,7 +169,7 @@ public class DerivedMetricsBuffer implements Releasable {
                     held.incrementAndGet();
                 }
                 try {
-                    table.record(encoded, value);
+                    table.record(encoded, value, observedAtMillis);
                 } catch (CircuitBreakingException e) {
                     totalSeries.decrementAndGet();
                     held.decrementAndGet();
@@ -188,12 +188,7 @@ public class DerivedMetricsBuffer implements Releasable {
         try {
             return tables.computeIfAbsent(
                 key,
-                unused -> new DerivedMetricsSeriesTable(
-                    bigArrays,
-                    key.metric().reduction().isHistogram(),
-                    histogramBuckets,
-                    histogramBreaker
-                )
+                unused -> new DerivedMetricsSeriesTable(bigArrays, key.metric().reduction(), histogramBuckets, histogramBreaker)
             );
         } catch (CircuitBreakingException e) {
             droppedSeries.increment();

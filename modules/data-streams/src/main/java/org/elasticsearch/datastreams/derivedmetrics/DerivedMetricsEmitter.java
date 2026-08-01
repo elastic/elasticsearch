@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Turns one series of a closed bucket into the document that represents it in the destination time series data stream.
@@ -67,6 +68,9 @@ public final class DerivedMetricsEmitter {
             document.field(DerivedMetricsDestination.SOURCE_FIELD, key.sourceDataStream());
             document.field(DerivedMetricsDestination.INTERVAL_FIELD, metric.interval().name());
             document.field(DerivedMetricsDestination.NODE_FIELD, nodeName);
+            // Makes the destination self-describing: without this the correct way to combine metric.value across nodes and buckets is
+            // knowable only from the source stream's configuration, and a consumer that guesses wrong is wrong invisibly.
+            document.field(DerivedMetricsDestination.REDUCTION_FIELD, metric.reduction().name().toLowerCase(Locale.ROOT));
             for (int i = 0; i < names.size(); i++) {
                 if (values[i] != null) {
                     document.field(DerivedMetricsDestination.DIMENSION_PREFIX + names.get(i), values[i]);
@@ -83,6 +87,14 @@ public final class DerivedMetricsEmitter {
                     DerivedMetricsDestination.METRIC_VALUE_FIELD,
                     table.reduce(ordinal, metric.reduction(), key.intervalMillis())
                 );
+                if (metric.reduction() == Reduction.FIRST || metric.reduction() == Reduction.LAST) {
+                    // These are the only reductions whose cross-node value depends on ordering rather than on an associative combine, so
+                    // the observation time has to travel with the value for the cluster-wide answer to be recoverable at all.
+                    document.field(
+                        DerivedMetricsDestination.METRIC_OBSERVED_AT_FIELD,
+                        TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(table.observedAtOf(ordinal)))
+                    );
+                }
                 if (metric.reduction() == Reduction.AVG) {
                     // An avg gauge emits its sum in metric.value and its count alongside, so the mean is SUM(value)/SUM(count). Emitting
                     // the mean directly cannot be re-aggregated: averaging per-interval means weights every interval equally, which reads

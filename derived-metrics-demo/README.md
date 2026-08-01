@@ -113,7 +113,6 @@ from the raw data stream. Reading down:
 | 8 | 4xx client errors | count where 400 <= status < 500 |
 | 9 | response payload MB | `SUM(http.response.body.bytes)` |
 | 10 | peak queue depth | `MAX(queue.depth)` |
-| 11 | queue depth at close of interval | none — no cheap "last per bucket" |
 | 12 | mean latency (weighted) | `AVG(event.duration)` |
 
 Rows with no source equivalent span the full width. Row 12 weights the `avg` gauge by

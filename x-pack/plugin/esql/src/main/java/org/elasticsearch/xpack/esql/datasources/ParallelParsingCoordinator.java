@@ -605,7 +605,7 @@ public final class ParallelParsingCoordinator {
             for (long pos : positions) {
                 outcomes.add(RecordBoundaryProbe.probeAt(splitter, storageObject, pos, fileLength, minSegment, nominalSize, () -> false));
             }
-            boundaries = RecordBoundaryProbe.reduce(outcomes, minSegment);
+            boundaries = RecordBoundaryProbe.reduce(outcomes);
         } else {
             boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false);
         }

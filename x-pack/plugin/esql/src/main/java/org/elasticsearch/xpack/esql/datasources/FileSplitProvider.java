@@ -191,6 +191,13 @@ public class FileSplitProvider implements SplitProvider {
      */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
 
+    /**
+     * Ceiling on the record-boundary probe offsets a single file may contribute, and so on the macro-splits it
+     * may be cut into. At the default {@link #DEFAULT_TARGET_SPLIT_SIZE} reaching it takes a file of over 6 TB,
+     * so in practice only a {@code target_split_size} orders of magnitude below the file size gets there.
+     */
+    static final int MAX_PROBE_OFFSETS_PER_FILE = 100_000;
+
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
     private final StorageProviderRegistry storageRegistry;
@@ -539,8 +546,7 @@ public class FileSplitProvider implements SplitProvider {
                     outcomesByFile.computeIfAbsent(probeTasks.get(i).deferred(), k -> new ArrayList<>()).add(outcomes.get(i));
                 }
                 for (Map.Entry<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> entry : outcomesByFile.entrySet()) {
-                    DeferredNewlineSplits deferred = entry.getKey();
-                    boundariesByFile.put(deferred, RecordBoundaryProbe.reduce(entry.getValue(), deferred.minSegment()));
+                    boundariesByFile.put(entry.getKey(), RecordBoundaryProbe.reduce(entry.getValue()));
                 }
             }
             // A cancel landing after the last probe has read is seen by no probe, so check once more here rather
@@ -1190,15 +1196,13 @@ public class FileSplitProvider implements SplitProvider {
         StorageObject object = provider.newObject(filePath, fileLength);
         RecordSplitter splitter = segmentableReader.recordSplitter(maxRecordBytes);
         long minSegment = segmentableReader.minimumSegmentSize();
-        // Floor to minSegment so a tiny target_split_size cannot materialize an unbounded number of probe
-        // positions and ProbeTask objects before any I/O. minSegment is the natural floor: the reader will
-        // merge segments below it anyway, so probing at a finer granularity buys nothing.
-        long effectiveStride = Math.max(targetStrideBytes, minSegment);
         // A strided splitter probes fixed offsets, so its positions are known here without reading anything.
         // Anything else keeps the sequential walk and carries no positions.
-        List<Long> positions = splitter.supportsStridedProbing()
-            ? RecordBoundaryProbe.stridedPositions(fileLength, effectiveStride, minSegment)
-            : List.of();
+        List<Long> positions = List.of();
+        if (splitter.supportsStridedProbing()) {
+            checkProbeOffsetCount(filePath, fileLength, targetStrideBytes);
+            positions = RecordBoundaryProbe.stridedPositions(fileLength, targetStrideBytes, minSegment);
+        }
         return new DeferredNewlineSplits(
             filePath,
             fileLength,
@@ -1210,8 +1214,31 @@ public class FileSplitProvider implements SplitProvider {
             object,
             splitter,
             minSegment,
-            effectiveStride,
+            targetStrideBytes,
             positions
+        );
+    }
+
+    /**
+     * Rejects a {@code target_split_size} that would ask a single file for more probe offsets than
+     * {@link #MAX_PROBE_OFFSETS_PER_FILE}.
+     * <p>
+     * A strided file's offsets are all materialized up front, and each one later becomes a probe task and a
+     * queued gather listener, so an extreme value would exhaust the heap at planning time before a single byte
+     * is read. Failing here reports that as the client error it is; widening the stride instead would honour
+     * neither the requested split size nor the user's ability to find out that it was not honoured.
+     */
+    private static void checkProbeOffsetCount(StoragePath filePath, long fileLength, long targetStrideBytes) {
+        long offsets = fileLength / targetStrideBytes;
+        Check.clientError(
+            offsets <= MAX_PROBE_OFFSETS_PER_FILE,
+            "[{}] of [{}] would split [{}] ({} bytes) into more than {} parts; raise [{}]",
+            CONFIG_TARGET_SPLIT_SIZE,
+            ByteSizeValue.ofBytes(targetStrideBytes),
+            filePath,
+            fileLength,
+            MAX_PROBE_OFFSETS_PER_FILE,
+            CONFIG_TARGET_SPLIT_SIZE
         );
     }
 

@@ -1088,6 +1088,25 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A stride small enough to ask one file for more offsets than the ceiling fails the query. Every offset of a
+     * strided file is materialized before any read, and each becomes a probe task and a queued listener after
+     * that, so an extreme target split size would exhaust the heap during planning. The error must name the
+     * setting that caused it and read as the client error it is, rather than a server fault or an out-of-memory.
+     */
+    public void testATargetStrideAskingForTooManyOffsetsIsRejected() {
+        Map<String, byte[]> payloads = Map.of("swarm.csv", delimitedPayload("a,b,c\n"));
+        long stride = payloads.get("swarm.csv").length / (FileSplitProvider.MAX_PROBE_OFFSETS_PER_FILE + 1);
+        assertThat("the stride under test must be usable at all", stride, greaterThan(0L));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> discoverPlainCsvSplits(payloads, stride, null, null)
+        );
+        assertThat(e.getMessage(), containsString(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
      * A record too long for the probe window costs the one split its offset would have started, and no more: the
      * offsets past it are probed as usual and their boundaries stand, so the splits either side of the record
      * merge into one that spans it. Serial and concurrent discovery must agree, which they do because an offset's
@@ -1849,8 +1868,7 @@ public class FileSplitProviderTests extends ESTestCase {
     /** The file start is always a split start, and each probed boundary follows in probe order. */
     public void testReduceProbeOutcomesSeedsTheFileStart() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240)),
-            0
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240))
         );
         assertEquals(List.of(0L, 120L, 240L), boundaries);
     }
@@ -1861,8 +1879,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testReduceProbeOutcomesSkipsAnOffsetThatFoundNoBoundary() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.NONE, RecordBoundaryProbe.Outcome.at(360)),
-            1L
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.NONE, RecordBoundaryProbe.Outcome.at(360))
         );
         assertEquals(List.of(0L, 120L, 360L), boundaries);
     }
@@ -1870,21 +1887,9 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Two stride offsets landing inside one record resolve to the same boundary; only one split starts there. */
     public void testReduceProbeOutcomesDropsBoundariesThatDoNotAdvance() {
         List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240)),
-            1L
+            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(240))
         );
         assertEquals(List.of(0L, 120L, 240L), boundaries);
-    }
-
-    /** A boundary whose gap from the previous is below minSegment is dropped, merging into the next span. */
-    public void testReduceDropsBoundaryBelowMinSegment() {
-        // 120 is 120 past the seed (0), so it is kept. 125 is only 5 past 120, below the 50-byte minimum, so it
-        // is dropped. 200 is 80 past the last kept boundary (120), so it is kept.
-        List<Long> boundaries = RecordBoundaryProbe.reduce(
-            List.of(RecordBoundaryProbe.Outcome.at(120), RecordBoundaryProbe.Outcome.at(125), RecordBoundaryProbe.Outcome.at(200)),
-            50L
-        );
-        assertEquals(List.of(0L, 120L, 200L), boundaries);
     }
 
     /**

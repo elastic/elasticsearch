@@ -237,16 +237,20 @@ final class RecordBoundaryProbe {
      * <p>
      * An offset that yielded nothing contributes nothing, so the spans either side of it merge into one that
      * covers it: an unsplittable stretch of the file costs one span rather than every span after it. A boundary
-     * whose gap from the preceding one is below {@code minSegment} is also dropped: with fixed-offset probing,
-     * consecutive probes can resolve near the end and start of their windows respectively, leaving a gap of
-     * roughly {@code stride - window} that can fall below the reader minimum when the stride is close to it.
+     * that does not advance past the previous one is dropped, which is what adjacent offsets landing inside the
+     * same record produce.
+     * <p>
+     * Spans come out close to, but not exactly, a stride long. A probe resolves anywhere in its window, so two
+     * consecutive boundaries sit {@code stride ± record length} apart, bounded below by {@code stride - window}
+     * because {@link #probeWindow} caps the window at the stride. Holding out for spans of at least a stride
+     * would mean dropping every second boundary whenever the stride is within a window of the reader's minimum
+     * segment size, which costs more parallelism than the short span does.
      */
-    static List<Long> reduce(List<Outcome> outcomes, long minSegment) {
+    static List<Long> reduce(List<Outcome> outcomes) {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         for (Outcome outcome : outcomes) {
-            long last = boundaries.get(boundaries.size() - 1);
-            if (outcome.found() && outcome.boundary() - last >= minSegment) {
+            if (outcome.found() && outcome.boundary() > boundaries.get(boundaries.size() - 1)) {
                 boundaries.add(outcome.boundary());
             }
         }
@@ -276,7 +280,7 @@ final class RecordBoundaryProbe {
             for (long pos : positions) {
                 outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, isCancelled));
             }
-            return reduce(outcomes, minSegment);
+            return reduce(outcomes);
         });
     }
 

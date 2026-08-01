@@ -181,7 +181,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("_index"));
     }
 
-    public void testDontIncludeParentInfo() throws IOException {
+    public void testIncludeParentInfoForNoTypesProvided() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {
               "properties" : {
@@ -199,7 +199,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
             s -> true,
-            new String[] { "-parent" },
+            Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
             FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
@@ -207,7 +207,65 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         );
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
+        assertNotNull(response.get("parent"));
+    }
+
+    public void testDontIncludeParentInfoForTypesProvided() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "parent" : {
+                  "properties" : {
+                    "field1" : { "type" : "keyword" },
+                    "field2" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            new String[] { "keyword" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("parent.field1"));
+        assertNotNull(response.get("parent.field2"));
         assertNull(response.get("parent"));
+    }
+
+    public void testIncludeParentInfo() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "parent" : {
+                  "properties" : {
+                    "field1" : { "type" : "keyword" },
+                    "field2" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { "+parent" },
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("parent.field1"));
+        assertNotNull(response.get("parent.field2"));
+        assertNotNull(response.get("parent"));
     }
 
     public void testSecurityFilter() throws IOException {

@@ -4621,6 +4621,28 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(oneYear, literal);
     }
 
+    public void testBucketInvalidNumberOfArguments() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, {"include_empty_buckets": true})
+            """, containsString("expects between two and four positional arguments"));
+    }
+
+    public void testBucketInvalidOption() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+        basic().error("""
+            FROM test | STATS c = COUNT(*)
+                        BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_twoPositionalArgs() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
+            """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
+    }
+
     public void testProjectionForUnionTypeResolution() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));

@@ -39,9 +39,14 @@ public class TestApmIntegrationRestHandler extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        String metric = request.param("metric");
+        String valueParam = request.param("value");
         return channel -> {
-            testMeterUsages.get().testUponRequest();
-
+            if (metric != null && valueParam != null) {
+                testMeterUsages.get().recordMetric(metric, valueParam);
+            } else {
+                testMeterUsages.get().testUponRequest();
+            }
             try (XContentBuilder builder = channel.newBuilder()) {
                 channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }

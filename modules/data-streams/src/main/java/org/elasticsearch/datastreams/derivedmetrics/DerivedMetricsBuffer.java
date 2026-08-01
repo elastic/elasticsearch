@@ -159,20 +159,21 @@ public class DerivedMetricsBuffer implements Releasable {
                     // drained while we were waiting for the lock, so it will never be emitted again; start over on the fresh bucket
                     continue;
                 }
-                // Reserve before creating: a series that would exceed a cap must not be interned, or the table would hold it forever.
-                if (table.contains(encoded) == false) {
-                    if (totalSeries.get() >= maxSeries || held.get() >= maxSeriesPerStream) {
+                // Probing the table is the expensive part of this critical section, so the common path does it once: record and let
+                // the returned sign say whether a series was created. Only when a cap is already reached does it cost a second probe,
+                // because there we must know before interning — the table has no way to remove a series it should not have taken.
+                if (totalSeries.get() >= maxSeries || held.get() >= maxSeriesPerStream) {
+                    if (table.contains(encoded) == false) {
                         droppedSeries.increment();
                         return false;
                     }
-                    totalSeries.incrementAndGet();
-                    held.incrementAndGet();
                 }
                 try {
-                    table.record(encoded, value);
+                    if (table.record(encoded, value) >= 0) {
+                        totalSeries.incrementAndGet();
+                        held.incrementAndGet();
+                    }
                 } catch (CircuitBreakingException e) {
-                    totalSeries.decrementAndGet();
-                    held.decrementAndGet();
                     droppedSeries.increment();
                     return false;
                 }

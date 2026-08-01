@@ -172,13 +172,16 @@ one series — the worst case, since each metric has its own table and its own l
 
 | threads | ns/op | observations/sec |
 |---|---|---|
-| 1 | 2,490 | 402,000 |
-| 2 | 2,780 | 719,000 |
-| 4 | 4,169 | 959,000 |
-| 8 | 6,430 | 1,244,000 |
+| 1 | 2,211 | 452,000 |
+| 4 | 3,895 | 1,027,000 |
+| 8 | 5,518 | 1,450,000 |
 
-Throughput scales 3.1x from one thread to eight rather than the ideal 8x, so the per-table monitor is
-real and measurable. It is also not currently the binding constraint: a node doing 70,000 documents a
+Throughput scales 3.2x from one thread to eight rather than the ideal 8x, so the per-table monitor is
+real and measurable. The critical section probes the table once rather than twice — it records and
+reads the returned sign to learn whether a series was created, instead of asking first and then
+recording — which was worth about 17% under contention. Halving the probes did not halve the cost,
+because probing is only part of the critical section and the critical section is only part of the
+per-document work. It is also not currently the binding constraint: a node doing 70,000 documents a
 second with seven configured metrics generates about 490,000 observations a second, spread over seven
 tables rather than concentrated on one. The ceiling above is the pessimistic reading of that.
 

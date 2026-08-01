@@ -39,9 +39,13 @@ import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
  * The critical section is a hash lookup and a handful of array writes.
  *
  * <p>That lock has been measured rather than assumed. With every thread hammering a single metric and a single series — the worst case,
- * since each metric gets its own table — throughput scales about 3.1x from one thread to eight, topping out near 1.2M observations per
- * second. Real configurations spread observations over a table per metric, so they contend less than that. If a single hot metric ever
- * becomes the bottleneck the tables can be striped and merged at flush, but the numbers do not call for it yet.
+ * since each metric gets its own table — throughput scales about 3.2x from one thread to eight, topping out near 1.45M observations per
+ * second. Real configurations spread observations over a table per metric, so they contend less than that.
+ *
+ * <p>If a single hot metric ever does become the bottleneck, the cheap next step is striping the table by series hash: each series lives
+ * in exactly one stripe, so nothing is duplicated and flush just walks them all. Striping per <em>thread</em> rather than per series
+ * would be a mistake — every thread sees most series, so the state would be copied once per thread, and cardinality is already this
+ * feature's weak point.
  */
 public class DerivedMetricsSeriesTable implements Releasable {
 

@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.InferenceEmbeddingsMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -42,7 +41,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +53,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -334,8 +332,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .fetchField(InferenceEmbeddingsMetadataFieldsMapper.NAME + "." + diversificationField)
-            .fetchField(diversificationField);
+            .embeddingsField(diversificationField);
         return super.finalizeSourceBuilder(builder);
     }
 
@@ -387,13 +384,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         for (int i = 0; i < scoreDocs.length; i++) {
             RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
-            try {
-                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
-                if (vector != null) {
-                    fieldVectors.put(asRankDoc.rank, vector);
-                }
-            } catch (IOException ioEx) {
-                throw new UncheckedIOException(ioEx);
+            VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
+            if (vector != null) {
+                fieldVectors.put(asRankDoc.rank, vector);
             }
         }
 
@@ -470,36 +463,30 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 
-    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext)
-        throws IllegalArgumentException, IOException {
-
-        // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceEmbeddings(doc.hit, diversificationContext);
-        if (vector != null) {
-            return vector;
-        }
-
+    /**
+     * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if none is
+     * available.
+     */
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext) {
         DocumentField field = doc.hit.getFields().get(diversificationField);
-        return field == null ? null : extractVectorDataFromObject(field.getValues());
-    }
-
-    private VectorData tryGetVectorFromInferenceEmbeddings(SearchHit hit, ResultDiversificationContext diversificationContext)
-        throws IllegalArgumentException, IOException {
-        var inferenceEmbeddings = hit.getFields()
-            .getOrDefault(InferenceEmbeddingsMetadataFieldsMapper.NAME + "." + diversificationField, null);
-        if (inferenceEmbeddings == null) {
+        if (field == null) {
             return null;
         }
 
-        List<?> chunkEmbeddings = inferenceEmbeddings.getValues();
-        if (chunkEmbeddings == null || chunkEmbeddings.isEmpty()) {
+        List<VectorData> embeddings = extractDenseEmbeddings(field.getValues());
+        if (embeddings.isEmpty()) {
             return null;
         }
+        if (embeddings.size() == 1) {
+            return embeddings.getFirst();
+        }
 
-        if (diversificationContext.getQueryVector() == null) {
+        // Multiple embeddings: pick the one most similar to the query vector.
+        VectorData queryVector = diversificationContext.getQueryVector();
+        if (queryVector == null) {
             throw new IllegalArgumentException(
                 Strings.format(
-                    "[%s] or [%s] must be supplied when diversifying on inference field [%s].",
+                    "[%s] or [%s] must be supplied when diversifying on inference field [%s]",
                     QUERY_VECTOR_FIELD.getPreferredName(),
                     QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
                     diversificationField
@@ -509,18 +496,57 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         VectorData bestVector = null;
         float currentHighestScore = Float.NEGATIVE_INFINITY;
-        for (Object embeddingObj : chunkEmbeddings) {
-            VectorData vector = extractVectorDataFromObject(embeddingObj);
-            if (vector == null) {
-                continue;
-            }
-            float score = getVectorComparisonScore(QUERY_VECTOR_SIMILARITY_FUNCTION, vector, diversificationContext.getQueryVector());
+        for (VectorData embedding : embeddings) {
+            float score = getVectorComparisonScore(QUERY_VECTOR_SIMILARITY_FUNCTION, embedding, queryVector);
             if (score > currentHighestScore) {
-                bestVector = vector;
+                bestVector = embedding;
                 currentHighestScore = score;
             }
         }
-
         return bestVector;
+    }
+
+    /**
+     * Extracts a list of dense embeddings from a {@link DocumentField}'s raw values.
+     *
+     * <p>Two layouts are handled:
+     * <ul>
+     *   <li><em>Flat scalar list</em> ({@code List<Number>} — {@code dense_vector} source shape): treated as a single
+     *       embedding and returned as a singleton list.</li>
+     *   <li><em>List of individual embeddings</em> (e.g. {@code List<float[]>} — one entry per chunk for chunked
+     *       {@code semantic_text} fields): each element is converted independently.</li>
+     * </ul>
+     * Returns an empty list when the values are absent, when they represent a non-dense type (e.g. a sparse
+     * {@code Map<String, Float>}), or when any element of a multi-embedding list cannot be parsed as a dense vector.
+     */
+    private static List<VectorData> extractDenseEmbeddings(List<Object> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+
+        if (values.getFirst() instanceof Number) {
+            // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
+            float[] vec = new float[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                if (values.get(i) instanceof Number n) {
+                    vec[i] = n.floatValue();
+                } else {
+                    return List.of();
+                }
+            }
+            return List.of(new VectorData(vec));
+        }
+
+        // Each element is a separate embedding (e.g. one float[] per chunk for semantic_text).
+        List<VectorData> embeddings = new ArrayList<>(values.size());
+        for (Object value : values) {
+            // Inference fields always provide embeddings as float arrays
+            if (value instanceof float[] floatArray) {
+                embeddings.add(new VectorData(floatArray));
+            } else {
+                return List.of();
+            }
+        }
+        return embeddings;
     }
 }

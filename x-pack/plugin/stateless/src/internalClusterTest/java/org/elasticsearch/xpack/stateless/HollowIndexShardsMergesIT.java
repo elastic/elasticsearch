@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -27,6 +28,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -98,13 +100,14 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             return new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
+                clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                clusterService,
-                indicesService,
+                StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
                 threadPool::relativeTimeInNanos,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            ) {};
         }
 
         @Override

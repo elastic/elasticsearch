@@ -93,7 +93,11 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(true, dims);
+        if (packedDims != null) {
+            state.add(true, List.of(packedDims));
+        } else {
+            state.add(true, dims);
+        }
         return this;
     }
 

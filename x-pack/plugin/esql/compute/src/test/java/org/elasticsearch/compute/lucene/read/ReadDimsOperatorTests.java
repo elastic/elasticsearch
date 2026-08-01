@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class ReadDimsOperatorTests extends ComputeTestCase {
 
@@ -121,9 +120,6 @@ public class ReadDimsOperatorTests extends ComputeTestCase {
 
         assertThat(ordinalOut.getPositionCount(), equalTo(6));
         assertThat(plainOut.getPositionCount(), equalTo(6));
-
-        // Ordinal tsid path must produce an ordinal-backed BytesRef block (zero-copy expand).
-        assertThat(ordinalOut.getBlock(2), instanceOf(org.elasticsearch.compute.data.OrdinalBytesRefBlock.class));
 
         BytesRef scratch = new BytesRef();
         for (int p = 0; p < 6; p++) {

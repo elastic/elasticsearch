@@ -519,15 +519,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntUnaryOperator partitioner(int partitionCount) {
-        if ((batchWork instanceof FixedWidthBatchWork fw) && (bytesRefHash instanceof BytesRefSwissHash)) {
-            byte[] scratch = new byte[fw.keyLength];
-            BytesRef scratchRef = new BytesRef(scratch, 0, fw.keyLength);
-            return groupId -> {
-                bytesRefHash.get(groupId, scratchRef);
-                return Math.floorMod((int) BytesRefSwissHash.hash64(scratch, 0, fw.keyLength), partitionCount);
-            };
-        }
-        if ((batchWork instanceof VariableWidthBatchWork) && (bytesRefHash instanceof BytesRefSwissHash)) {
+        if (bytesRefHash instanceof BytesRefSwissHash) {
             BytesRef scratch = new BytesRef();
             return groupId -> {
                 bytesRefHash.get(groupId, scratch);

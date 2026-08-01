@@ -1,0 +1,5 @@
+pr: 102548
+summary: Change @timestamp field type to `date_nanos` in Logs data streams
+area: Data streams
+type: enhancement
+issues: []

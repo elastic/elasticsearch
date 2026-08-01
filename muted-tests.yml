@@ -352,6 +352,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.EqlDateNanosIT
   method: test {sequenceManyManyCondition}
   issue: https://github.com/elastic/elasticsearch/issues/155659
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155532
 
 # Examples:
 #

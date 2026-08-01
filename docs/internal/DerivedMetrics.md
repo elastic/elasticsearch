@@ -11,7 +11,7 @@ The V1 metadata model supports:
 - one default interval, overridable per metric, each writing to its own destination
 - additive global and per-metric dimensions
 - user-defined `counter`, `gauge`, and `histogram` metrics
-- gauge aggregations including `first_value` and `last_value`
+- gauge aggregations `min`, `max`, `avg` and `sum`
 - script-free predicates and values
 
 Counter, gauge and histogram metrics, along with the built-in ingest metrics, are collected and emitted at runtime.
@@ -162,10 +162,18 @@ at least as much as the time. This path runs once per document on the indexing t
 
 | configuration | ns/op | B/op |
 |---|---|---|
+| nothing configured | 2 | 0 |
 | built-in ingest metrics, no dimensions | 398 | 160 |
 | built-in ingest metrics, one dimension | 1,509 | 2,112 |
 | built-in plus a predicate-guarded counter, five dimensions | 2,473 | 2,328 |
 | one histogram metric over a field | 1,269 | 1,932 |
+
+The first row is the one almost every index in almost every cluster sits on, because the indexing listener is registered on every index
+and not only on the ones that asked for this. Two nanoseconds and no allocation: `record` compares the write's trigger against the
+configured set and returns. Be precise about what that number does and does not cover — it is the service's early-out, measured by
+calling `record` directly. Above it the listener does a volatile read and a cluster state version comparison before it gets that far, and
+measuring *that* needs a real `ClusterService` the benchmark project cannot easily stand up. So the honest statement is: the measured
+part is free, and the unmeasured part above it is a volatile read and an integer comparison.
 
 Those figures are single-threaded. Under contention, with every thread recording into one metric and
 one series — the worst case, since each metric has its own table and its own lock:
@@ -278,8 +286,7 @@ The offset is not cosmetic. A time series `_id` is `createId(routingHash, tsid, 
 rejected. Partial *N* is therefore stamped at `bucketStart + N` milliseconds. The alternative — putting the partial number in a dimension —
 was rejected because the tsid *is* the series identity: partials would become separate series, downsampling would keep them apart, and
 tsid cardinality would grow precisely when the node is already under pressure. The offset keeps one logical series one series, keeps the
-document inside the same `date_histogram` bucket, and orders the partials for `first_value` and `last_value`. Intervals are at least one
-second, so up to a thousand partials fit before the offset could reach the next bucket.
+document inside the same `date_histogram` bucket. Intervals are at least one second, so up to a thousand partials fit before the offset could reach the next bucket.
 
 `drop` discards the observation instead. Document volume stays perfectly flat and timestamps stay exactly on bucket boundaries, at the
 cost of losing data. This is what Micrometer and the Prometheus Java client do, and it is the right choice for anyone aligning query
@@ -323,8 +330,8 @@ just log lines.
 
 ### The destination describes itself
 
-Every emitted document carries `derived_metrics.reduction` — `sum`, `min`, `max`, `avg`, `first`,
-`last` or `histogram`. Without it, how to combine `metric.value` across nodes and buckets would be
+Every emitted document carries `derived_metrics.reduction` — `sum`, `rate`, `min`, `max`, `avg` or
+`histogram`. Without it, how to combine `metric.value` across nodes and buckets would be
 knowable only from the source stream's configuration, and a consumer that guessed wrong would be
 wrong invisibly. It is a dimension but adds no cardinality, since the reduction is functionally
 determined by `metric.name`.
@@ -435,6 +442,12 @@ managed template.
 
 The destination is hidden rather than dot-prefixed, so it stays out of ordinary wildcard expressions while remaining directly queryable.
 
+Because the name is a concatenation rather than a hash, a long source stream produces a destination whose backing indices would exceed the
+255-byte index name limit. `derived-metrics-`, the interval suffix and the `.ds-<date>-<generation>` a backing index adds leave roughly 213
+bytes for the source name at a 10s interval, and fewer at a longer one. Enabling derived metrics on a stream that does not fit is rejected
+by `PUT _data_stream/<name>/_options` with the number of bytes to remove, rather than being accepted and then silently emitting nothing
+forever. Templates match patterns rather than names, so this cannot be caught at template definition time.
+
 Emitted documents look like this:
 
 | field | type | meaning |
@@ -443,9 +456,11 @@ Emitted documents look like this:
 | `metric.name` | keyword dimension | the metric name |
 | `metric.value` | `double`, gauge | this node's partial value for the interval; for an `avg` gauge this is the **sum** |
 | `metric.count` | `long`, gauge | observation count, present only on `avg` gauges |
+| `metric.histogram` | `exponential_histogram` | the whole distribution; present on histogram metrics **instead of** `metric.value` |
 | `derived_metrics.source` | keyword dimension | the source data stream |
 | `derived_metrics.interval` | keyword dimension | the interval, matching the destination's suffix |
 | `derived_metrics.node` | keyword dimension | the emitting node |
+| `derived_metrics.reduction` | keyword dimension | how to combine `metric.value`; see [The destination describes itself](#the-destination-describes-itself) |
 | `dimensions.*` | keyword dimensions | user dimensions, dynamically mapped |
 
 A user dimension `service.name` is written as `dimensions.service.name`. Dimensions a document does not have are simply absent, rather

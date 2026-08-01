@@ -11,12 +11,15 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -161,6 +164,43 @@ public final class DerivedMetricsDestination {
      */
     public static String destinationFor(String sourceDataStream, String interval) {
         return DESTINATION_PREFIX + sourceDataStream + "-" + interval;
+    }
+
+    /**
+     * What a destination name costs on top of itself once it becomes a backing index: {@code .ds-}, a {@code uuuu.MM.dd} date and a six
+     * digit generation, each preceded by a separator. A stream that rolls over more than a million times exceeds the six digits, which
+     * would leave the last few generations unnameable; that is a limit every data stream shares and is not modelled here.
+     */
+    private static final int BACKING_INDEX_OVERHEAD = DataStream.BACKING_INDEX_PREFIX.length() + "-uuuu.MM.dd".length() + "-000001"
+        .length();
+
+    /**
+     * Rejects a source stream whose destination could never be created.
+     *
+     * <p>Names are concatenated rather than hashed, so a long enough source produces a destination whose backing indices exceed
+     * {@link MetadataCreateIndexService#MAX_INDEX_NAME_BYTES}. Without this check the configuration is accepted, nothing is emitted, and
+     * the only evidence is a warning in a log — so the failure is moved forward to the moment someone asks for it.
+     *
+     * @throws IllegalArgumentException if the destination for this source and interval would be unnameable
+     */
+    public static void validateDestinationName(String sourceDataStream, String interval) {
+        String destination = destinationFor(sourceDataStream, interval);
+        int bytes = destination.getBytes(StandardCharsets.UTF_8).length + BACKING_INDEX_OVERHEAD;
+        if (bytes > MetadataCreateIndexService.MAX_INDEX_NAME_BYTES) {
+            throw new IllegalArgumentException(
+                "derived metrics cannot be enabled on ["
+                    + sourceDataStream
+                    + "]: its destination ["
+                    + destination
+                    + "] would need backing indices of "
+                    + bytes
+                    + " bytes, over the limit of "
+                    + MetadataCreateIndexService.MAX_INDEX_NAME_BYTES
+                    + "; shorten the data stream name by at least "
+                    + (bytes - MetadataCreateIndexService.MAX_INDEX_NAME_BYTES)
+                    + " bytes"
+            );
+        }
     }
 
     /**

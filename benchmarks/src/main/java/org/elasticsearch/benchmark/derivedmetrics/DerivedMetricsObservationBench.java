@@ -82,8 +82,9 @@ public class DerivedMetricsObservationBench {
      * ONE_DIMENSION     the common shape: builtin ingest metrics broken down by service
      * FIVE_DIMENSIONS   five dimensions plus a predicate-guarded counter, a realistic busy configuration
      * HISTOGRAM         a histogram metric over a numeric field
+     * NOT_CONFIGURED    no metrics at all — what every index that never asked for this pays on every write
      */
-    @Param({ "BUILTIN_ONLY", "ONE_DIMENSION", "FIVE_DIMENSIONS", "HISTOGRAM" })
+    @Param({ "NOT_CONFIGURED", "BUILTIN_ONLY", "ONE_DIMENSION", "FIVE_DIMENSIONS", "HISTOGRAM" })
     String shape;
 
     private static final String DATA_STREAM = "logs-my_app-default";
@@ -148,6 +149,11 @@ public class DerivedMetricsObservationBench {
     private static DataStreamDerivedMetrics configFor(String shape) {
         TimeValue interval = TimeValue.timeValueSeconds(10);
         return switch (shape) {
+            // No metrics compile, so no trigger matches and record() returns on its first comparison. This is the floor of the floor:
+            // what the feature costs an index that has nothing configured. It is not the whole cost such an index pays — the indexing
+            // listener above this does a volatile read and a cluster state version comparison before it ever gets here, and that part
+            // needs a real ClusterService to measure — but it is the part that is measurable in isolation.
+            case "NOT_CONFIGURED" -> new DataStreamDerivedMetrics(false, List.of(), interval, null, List.of(), List.of());
             case "BUILTIN_ONLY" -> new DataStreamDerivedMetrics(true, List.of("ingest.*"), interval, null, List.of(), List.of());
             case "ONE_DIMENSION" -> new DataStreamDerivedMetrics(
                 true,

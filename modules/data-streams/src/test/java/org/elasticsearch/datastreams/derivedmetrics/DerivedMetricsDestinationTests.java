@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 
 public class DerivedMetricsDestinationTests extends ESTestCase {
@@ -71,5 +72,41 @@ public class DerivedMetricsDestinationTests extends ESTestCase {
         assertEquals("gauge", value.get("time_series_metric"));
 
         assertThat(properties, hasKey("dimensions"));
+    }
+
+    /**
+     * A destination is named after its source, so a source long enough pushes the backing index over the index name limit. Left
+     * unchecked the configuration is accepted and no metric is ever emitted, so the boundary is worth pinning down exactly.
+     */
+    public void testADestinationThatWouldBeUnnameableIsRejected() {
+        // ".ds-" + "-uuuu.MM.dd" + "-000001" is 22 bytes on top of the destination name, and the destination adds
+        // "derived-metrics-" and "-10s" on top of the source: 255 - 22 - 16 - 4 leaves 213 bytes of source name
+        String longestAllowed = "l".repeat(213);
+        DerivedMetricsDestination.validateDestinationName(longestAllowed, "10s");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DerivedMetricsDestination.validateDestinationName(longestAllowed + "x", "10s")
+        );
+        assertThat(e.getMessage(), containsString("over the limit of 255"));
+        assertThat(e.getMessage(), containsString("shorten the data stream name by at least 1 bytes"));
+    }
+
+    /**
+     * The limit is on bytes rather than characters, so a name of allowable length in characters can still be too long.
+     */
+    public void testTheLimitIsMeasuredInBytesNotCharacters() {
+        // each of these is three bytes in UTF-8, so 71 of them is 213 bytes: the longest allowed
+        DerivedMetricsDestination.validateDestinationName("\u00e9\u00e9\u00e9".repeat(0) + "\u4e2d".repeat(71), "10s");
+        expectThrows(IllegalArgumentException.class, () -> DerivedMetricsDestination.validateDestinationName("\u4e2d".repeat(72), "10s"));
+    }
+
+    /**
+     * A longer interval leaves less room for the name, so the check has to be made per interval rather than once per stream.
+     */
+    public void testALongerIntervalLeavesLessRoom() {
+        String source = "l".repeat(212);
+        DerivedMetricsDestination.validateDestinationName(source, "10s");
+        expectThrows(IllegalArgumentException.class, () -> DerivedMetricsDestination.validateDestinationName(source, "1440m"));
     }
 }

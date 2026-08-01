@@ -17,11 +17,15 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodePr
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -80,6 +84,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
         );
         for (String name : dataStreamNames) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+            validateDerivedMetricsDestinations(name, request.getOptions());
         }
         metadataDataStreamsService.setDataStreamOptions(
             state.projectId(),
@@ -89,6 +94,22 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
             request.masterNodeTimeout(),
             listener
         );
+    }
+
+    /**
+     * A destination data stream is named after its source, so a long source name can produce one whose backing indices exceed the index
+     * name limit. This is the first point at which both the configuration and the concrete stream names are known — a template matches
+     * patterns rather than names, so it cannot be checked there — and rejecting it here turns a silent, permanent absence of metrics into
+     * an error at the moment someone asks for them.
+     */
+    private static void validateDerivedMetricsDestinations(String dataStreamName, DataStreamOptions options) {
+        DataStreamDerivedMetrics derivedMetrics = options.derivedMetrics();
+        if (derivedMetrics == null || derivedMetrics.enabled() == false) {
+            return;
+        }
+        for (TimeValue interval : derivedMetrics.activeIntervals()) {
+            DerivedMetricsDestination.validateDestinationName(dataStreamName, interval.getStringRep());
+        }
     }
 
     @Override

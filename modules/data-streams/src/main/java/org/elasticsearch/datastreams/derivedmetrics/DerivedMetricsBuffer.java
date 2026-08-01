@@ -90,6 +90,21 @@ public class DerivedMetricsBuffer implements Releasable {
         return new StreamKey(key.project(), key.sourceDataStream());
     }
 
+    /**
+     * The per-stream budget for a table's stream, creating it if this is the first series.
+     *
+     * <p>Nested by project rather than keyed on a composite, because this runs once per metric per document and building a composite key
+     * would allocate on the write path — which is the one place this feature must not.
+     */
+    private AtomicInteger heldFor(TableKey key) {
+        return perStream.computeIfAbsent(key.project(), unused -> new ConcurrentHashMap<>())
+            .computeIfAbsent(key.sourceDataStream(), unused -> new AtomicInteger());
+    }
+
+    private static boolean sameStream(StreamKey within, TableKey key) {
+        return within.project().equals(key.project()) && within.sourceDataStream().equals(key.sourceDataStream());
+    }
+
     private final BigArrays bigArrays;
     private final ConcurrentHashMap<TableKey, DerivedMetricsSeriesTable> tables = new ConcurrentHashMap<>();
     /**
@@ -101,7 +116,7 @@ public class DerivedMetricsBuffer implements Releasable {
      * Series held per source data stream, scoped to the project the stream belongs to. Two projects may each have a data stream of the
      * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
      */
-    private final ConcurrentHashMap<StreamKey, AtomicInteger> perStream = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, ConcurrentHashMap<String, AtomicInteger>> perStream = new ConcurrentHashMap<>();
     private final LongAdder droppedSeriesAtNodeCap = new LongAdder();
     private final LongAdder droppedSeriesAtStreamCap = new LongAdder();
     private final LongAdder droppedSeriesAtBreaker = new LongAdder();
@@ -182,7 +197,7 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public Outcome record(TableKey key, String[] values, Scratch scratch, double value) {
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
-        AtomicInteger held = perStream.computeIfAbsent(streamKey(key), unused -> new AtomicInteger());
+        AtomicInteger held = heldFor(key);
         while (true) {
             DerivedMetricsSeriesTable table = tables.get(key);
             if (table == null) {
@@ -248,7 +263,7 @@ public class DerivedMetricsBuffer implements Releasable {
         long mostBytes = -1;
         for (Map.Entry<TableKey, DerivedMetricsSeriesTable> entry : tables.entrySet()) {
             TableKey key = entry.getKey();
-            if (within != null && within.equals(streamKey(key)) == false) {
+            if (within != null && sameStream(within, key) == false) {
                 continue;
             }
             if (partialsLeft(key) == false) {
@@ -296,11 +311,7 @@ public class DerivedMetricsBuffer implements Releasable {
         }
         long released = table.seal();
         totalSeries.addAndGet(-(int) released);
-        StreamKey stream = streamKey(key);
-        AtomicInteger held = perStream.get(stream);
-        if (held != null && held.addAndGet(-(int) released) <= 0) {
-            perStream.remove(stream, held);
-        }
+        releaseStreamBudget(key, released);
         AtomicInteger counter = partials.get(key);
         retired.add(new Drained(key, table, counter == null ? partialSeed : counter.get()));
         partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
@@ -413,17 +424,25 @@ public class DerivedMetricsBuffer implements Releasable {
             released = table.seal();
         }
         totalSeries.addAndGet(-(int) released);
-        StreamKey stream = streamKey(key);
-        AtomicInteger held = perStream.get(stream);
-        if (held != null && held.addAndGet(-(int) released) <= 0) {
-            perStream.remove(stream, held);
-        }
+        releaseStreamBudget(key, released);
         AtomicInteger counter = partials.get(key);
         int partial = counter == null ? partialSeed : counter.get();
         if (reopening) {
             partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
         }
         return new Drained(key, table, partial);
+    }
+
+    /** Gives a drained table's series back to its stream's budget, forgetting the stream once it holds nothing. */
+    private void releaseStreamBudget(TableKey key, long released) {
+        ConcurrentHashMap<String, AtomicInteger> forProject = perStream.get(key.project());
+        if (forProject == null) {
+            return;
+        }
+        AtomicInteger held = forProject.get(key.sourceDataStream());
+        if (held != null && held.addAndGet(-(int) released) <= 0) {
+            forProject.remove(key.sourceDataStream(), held);
+        }
     }
 
     /** Series currently held, across every table. */
@@ -472,7 +491,8 @@ public class DerivedMetricsBuffer implements Releasable {
 
     // visible for testing
     int seriesFor(ProjectId project, String sourceDataStream) {
-        AtomicInteger held = perStream.get(new StreamKey(project, sourceDataStream));
+        ConcurrentHashMap<String, AtomicInteger> forProject = perStream.get(project);
+        AtomicInteger held = forProject == null ? null : forProject.get(sourceDataStream);
         return held == null ? 0 : held.get();
     }
 

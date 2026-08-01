@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
@@ -127,6 +128,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // Full-text functions and `:` operator are not allowed after HIGHLIGHT
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -855,6 +858,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
                 if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case HighlightGenerator.HIGHLIGHT -> {
+                // An empty prefix overwrites an ON column. Mark generated columns as non-index-mapped even when names collide.
+                Object highlightColumns = command.context().get(HighlightGenerator.HIGHLIGHT_COLUMNS);
+                if (highlightColumns instanceof List<?> highlightColumnList) {
+                    highlightColumnList.forEach(name -> createdColumns.add((String) name));
                 }
             }
             case LookupJoinGenerator.LOOKUP_JOIN -> {

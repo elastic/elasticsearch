@@ -23,7 +23,7 @@ es() {
 # demo that is already running.
 DERIVED_METRICS=$(cat <<'JSON'
 {
-  "enabled": true,
+  "enabled": __ENABLED__,
   "builtin": ["ingest.*"],
   "default_interval": "__INTERVAL__",
   "dimensions": ["service.name", "cloud.region"],
@@ -81,6 +81,11 @@ DERIVED_METRICS=$(cat <<'JSON'
 JSON
 )
 DERIVED_METRICS=${DERIVED_METRICS/__INTERVAL__/${DEFAULT_INTERVAL}}
+DERIVED_METRICS=${DERIVED_METRICS/__ENABLED__/${DERIVED_METRICS_ENABLED}}
+
+if [[ "${DERIVED_METRICS_ENABLED}" != "true" ]]; then
+  echo "==> Derived metrics are DISABLED for this run (control)"
+fi
 
 echo "==> Creating index template [${INDEX_TEMPLATE}] for [${DATA_STREAM}]"
 # The derived metrics configuration lives in data_stream_options, so it is inherited by the data
@@ -134,7 +139,7 @@ es PUT "/_data_stream/${DATA_STREAM}/_options" -d "{\"derived_metrics\": ${DERIV
 # is the point of the comparison, while still being broken down per service.
 LEAN_DERIVED_METRICS=$(cat <<'JSON'
 {
-  "enabled": true,
+  "enabled": __ENABLED__,
   "builtin": ["ingest.docs.rate"],
   "default_interval": "__INTERVAL__",
   "dimensions": ["service.name"],
@@ -156,6 +161,7 @@ LEAN_DERIVED_METRICS=$(cat <<'JSON'
 JSON
 )
 LEAN_DERIVED_METRICS=${LEAN_DERIVED_METRICS/__INTERVAL__/${DEFAULT_INTERVAL}}
+LEAN_DERIVED_METRICS=${LEAN_DERIVED_METRICS/__ENABLED__/${DERIVED_METRICS_ENABLED}}
 
 echo "==> Creating index template [${LEAN_INDEX_TEMPLATE}] for [${LEAN_DATA_STREAM}]"
 es PUT "/_index_template/${LEAN_INDEX_TEMPLATE}" -d @- <<JSON | python3 -m json.tool

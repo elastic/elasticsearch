@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagate
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -58,9 +60,20 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         }
         if (plan instanceof Join join && join.left() instanceof LocalRelation lr && lr.hasEmptySupplier()) {
             var type = join.config().type();
-            if (type == JoinTypes.LEFT || type == JoinTypes.INNER || type == JoinTypes.CROSS) {
+            if (type == JoinTypes.LEFT
+                || type == JoinTypes.INNER
+                || type == JoinTypes.CROSS
+                || type == JoinTypes.SEMI
+                || type == JoinTypes.ANTI
+                || type == JoinTypes.MARK) {
                 return new LocalRelation(join.source(), join.output(), EmptyLocalSupplier.EMPTY);
             }
+        }
+        if (plan instanceof SemiJoin semiJoin && semiJoin.right() instanceof LocalRelation lr && lr.hasEmptySupplier()) {
+            return new LocalRelation(semiJoin.source(), semiJoin.output(), EmptyLocalSupplier.EMPTY);
+        }
+        if (plan instanceof AntiJoin antiJoin && antiJoin.right() instanceof LocalRelation lr && lr.hasEmptySupplier()) {
+            return antiJoin.left();
         }
         return plan;
     }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154608
+pr: 155042
+summary: Handle null-typed TOP output fields during planning
+type: bug

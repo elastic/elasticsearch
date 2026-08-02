@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -182,6 +183,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -222,6 +224,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -1423,7 +1426,8 @@ public class ComputeService {
                 operatorFactoryRegistry,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
-                grokMatcherWatchdog.get()
+                grokMatcherWatchdog.get(),
+                client
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

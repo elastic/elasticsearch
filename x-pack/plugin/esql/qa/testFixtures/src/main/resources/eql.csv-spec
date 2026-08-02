@@ -1,0 +1,273 @@
+// Tests for the EQL source command, which delegates execution to the EQL engine and exposes the results as
+// typed columns (the target index's field-caps mapping, one column per field). Assertions pipe the EQL output
+// through downstream ES|QL (WHERE / STATS / KEEP / SORT) to show that EQL composes as a regular typed source.
+// The command is snapshot-only.
+
+eventQueryCountsMatchingEvents
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+eventQueryAppliesTheEqlPredicate
+required_capability: eql_command
+
+EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+1
+;
+
+eventQueryHonorsCustomTimestampAndTiebreakerFields
+required_capability: eql_command
+
+// Uses a non-default timestamp field (ingested) and a tiebreaker field (pid) to exercise those options
+// end to end against the EQL engine; the query still resolves the two process events correctly.
+EQL eql_test "process where true" WITH {"event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+eventQueryExposesTypedColumns
+required_capability: eql_command
+
+// The EQL output is a typed table: WHERE filters and KEEP projects real columns, not an opaque _source.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| WHERE pid == 100
+| KEEP name, pid
+;
+
+name:keyword | pid:long
+cmd.exe      | 100
+;
+
+eventQueryExposesDateColumn
+required_capability: eql_command
+
+// Pins the date column end to end: the fields API renders @timestamp as epoch millis, the converter reads it
+// back into a datetime column.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP @timestamp, name
+| SORT name
+;
+
+@timestamp:datetime      | name:keyword
+2026-07-22T10:00:00.000Z | cmd.exe
+2026-07-22T10:00:02.000Z | powershell.exe
+;
+
+eventQueryGroupsByTypedColumn
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
+eventQueryHonorsLimit
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name
+| SORT name
+| LIMIT 1
+;
+
+name:keyword
+cmd.exe
+;
+
+sequenceQueryUnnestsToOneRowPerEvent
+required_capability: eql_command
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| KEEP join_keys, _sequence_stage
+| SORT join_keys, _sequence_stage
+;
+
+join_keys:keyword | _sequence_stage:integer
+100               | 0
+100               | 1
+200               | 0
+200               | 1
+;
+
+sequenceQueryCountsEventsAndSequences
+required_capability: eql_command
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)
+;
+
+events:long | sequences:long
+4           | 2
+;
+
+eventQueryMetadataIndexColumn
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+// METADATA is declared before WITH (grammar: pattern, query, METADATA, then the WITH tuning).
+EQL eql_test "process where true" METADATA _index WITH {"event_category_field": "category"}
+| KEEP name, _index
+| SORT name
+;
+
+name:keyword   | _index:keyword
+cmd.exe        | eql_test
+powershell.exe | eql_test
+;
+
+eventQueryMetadataAggregates
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _index, _id WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), idx = COUNT_DISTINCT(_index), ids = COUNT_DISTINCT(_id)
+;
+
+n:long | idx:long | ids:long
+2      | 1        | 2
+;
+
+eventQueryMetadataSourceIsNeverNull
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _source WITH {"event_category_field": "category"}
+| WHERE _source IS NOT NULL
+| STATS n = COUNT(*)
+;
+
+n:long
+2
+;
+
+sequenceQueryMetadataComposesWithSynthetics
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "sequence by pid [process where true] [network where true]" METADATA _index WITH {"event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY _index
+;
+
+events:long | sequences:long | _index:keyword
+4           | 2              | eql_test
+;
+
+nullifyUnmappedColumnDownstream
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name, unmapped_host
+| SORT name
+;
+
+name:keyword   | unmapped_host:null
+cmd.exe        | null
+powershell.exe | null
+;
+
+nullifyUnmappedStatsCountsZero
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), present = COUNT(unmapped_host)
+;
+
+n:long | present:long
+2      | 0
+;
+
+// -----------------------------------------------------------------------------------------------------
+// EQL as a first-class source command in composition contexts: subquery, WHERE IN (subquery), FORK
+// upstream, and a view whose body is an EQL command. All snapshot-only. Mixed/multi-cluster specs skip
+// on the eql_in_subquery / views capabilities.
+// -----------------------------------------------------------------------------------------------------
+
+subquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// A lone EQL subquery collapses to the EQL relation; downstream ES|QL composes over its typed columns.
+FROM (EQL eql_test "process where true" WITH {"event_category_field": "category"} | KEEP name, pid)
+| SORT name
+;
+
+name:keyword   | pid:long
+cmd.exe        | 100
+powershell.exe | 200
+;
+
+subquerySourceMixesEqlAndFromSiblings
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// One subquery branch is an EQL source, the sibling is a FROM source; the union merges typed rows.
+FROM (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP name, pid),
+     (FROM eql_test | WHERE category == "process" AND pid == 200 | KEEP name, pid)
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
+whereInSubquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: where_in_subquery_without_view
+required_capability: eql_in_subquery
+
+// The same subquery grammar rule feeds WHERE x IN (...); the EQL branch supplies the pid set {100}.
+FROM eql_test
+| WHERE pid IN (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP pid)
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+forkUpstreamIsEqlCommand
+required_capability: eql_command
+required_capability: fork_v9
+
+// EQL as the upstream source of FORK: the EQL leaf is replicated into each branch; the merge is typed.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| FORK ( WHERE pid == 100 ) ( WHERE pid == 200 )
+| KEEP name, pid, _fork
+| SORT pid
+;
+
+name:keyword   | pid:long | _fork:keyword
+cmd.exe        | 100      | fork1
+powershell.exe | 200      | fork2
+;
+
+// A view whose stored body is an EQL command — FROM <view> and FROM (FROM <view>) — is proven end to end by
+// EqlCompositionIT (internalClusterTest). It is intentionally NOT a csv-spec case here: the single-node QA
+// csv-spec cluster does not provision views (the PUT /_query/view endpoint is unavailable there, so no view
+// loads), which would fail such a case rather than skip it.

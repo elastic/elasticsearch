@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,10 +22,91 @@ import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
+import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.planner.Planner;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.util.DateUtils;
+
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 
 public class EqlSessionTests extends ESTestCase {
+
+    /**
+     * The engine self-defends: pre-resolved field-caps supplied by a caller are reused only when the request has no
+     * runtime mappings — those change the mapping the engine must plan against, so a request that defines them always
+     * self-resolves, regardless of what the caller supplied.
+     */
+    public void testRuntimeMappingsDisableFieldCapsReuse() {
+        try (var threadPool = createThreadPool()) {
+            LogicalPlan plan = new EqlParser().createStatement("process where true");
+            FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(new String[] { "idx" }, Map.of());
+
+            IndexResolver resolver = mock(IndexResolver.class);
+            // caps + runtime mappings -> self-resolve (the caps-reuse overload is never called)
+            session(threadPool, resolver, configuration(caps, singletonMap("rt", Map.of("type", "keyword")))).analyzedPlan(
+                plan,
+                ActionListener.noop()
+            );
+            verify(resolver, never()).resolveAsMergedMapping(any(FieldCapabilitiesResponse.class), anyString(), any());
+
+            // caps + no runtime mappings -> reuse (the caps-reuse overload is taken)
+            reset(resolver);
+            session(threadPool, resolver, configuration(caps, emptyMap())).analyzedPlan(plan, ActionListener.noop());
+            verify(resolver).resolveAsMergedMapping(any(FieldCapabilitiesResponse.class), anyString(), any());
+        }
+    }
+
+    private static EqlSession session(ThreadPool threadPool, IndexResolver indexResolver, EqlConfiguration cfg) {
+        return new EqlSession(
+            new NoOpClient(threadPool),
+            cfg,
+            indexResolver,
+            new PreAnalyzer(),
+            new PostAnalyzer(),
+            new EqlFunctionRegistry(),
+            new Verifier(new Metrics()),
+            new Optimizer(),
+            new Planner(),
+            new NoopCircuitBreaker("test")
+        );
+    }
+
+    private static EqlConfiguration configuration(FieldCapabilitiesResponse preResolvedFieldCaps, Map<String, Object> runtimeMappings) {
+        return new EqlConfiguration(
+            new String[] { "idx" },
+            new String[] { "idx" },
+            DateUtils.UTC,
+            "nobody",
+            "cluster",
+            null,
+            runtimeMappings,
+            null,
+            TimeValue.timeValueSeconds(30),
+            null,
+            123,
+            1,
+            false,
+            true,
+            null,
+            "",
+            new TaskId("test", 123),
+            EqlTestUtils.randomTask(),
+            false,
+            null,
+            preResolvedFieldCaps
+        );
+    }
 
     public void testAccumulateDirectoryMetricsSumsAcrossSubSearches() {
         try (var threadPool = createThreadPool()) {

@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
@@ -61,6 +62,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
@@ -137,6 +139,7 @@ public class IndexResolver {
             false,
             false,
             DO_NOT_GROUP,
+            null, /* lookup indices never feed the EQL delegate */
             listener.map(Versioned::inner)
         );
     }
@@ -173,6 +176,7 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -188,6 +192,7 @@ public class IndexResolver {
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
             ),
+            mergedCapsSink,
             listener
         );
     }
@@ -231,6 +236,7 @@ public class IndexResolver {
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
+            null, /* no field-caps retention for CPS/flat resolution */
             listener.delegateResponse((l, e) -> {
                 var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
                 l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
@@ -248,10 +254,26 @@ public class IndexResolver {
         boolean hasTimeSeriesAggregation,
         boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
             TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+            if (mergedCapsSink != null) {
+                // Retain the merged field-caps for reuse (the EQL source command), so the EQL engine skips its own
+                // resolution. ES|QL's own fetch is unmerged (setMergeResults(false)); merge here, once, on this pool.
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive on a transport worker
+                mergedCapsSink.accept(
+                    TransportFieldCapabilitiesAction.mergeToFieldCapsResponse(
+                        response.caps().getIndexResponses(),
+                        response.caps().getFailures(),
+                        responseMinimumVersion,
+                        request.fieldCapsRequest().includeUnmapped(),
+                        request.fieldCapsRequest().includeIndices(),
+                        () -> {}
+                    )
+                );
+            }
             // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
             // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
             TransportVersion overallMinimumVersion = responseMinimumVersion == null

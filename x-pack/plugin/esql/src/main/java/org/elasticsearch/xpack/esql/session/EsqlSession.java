@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -477,6 +479,19 @@ public class EsqlSession {
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
+                        return;
+                    }
+                    // The EQL delegate does not yet honor the out-of-band request filter, and applying it post-hoc would
+                    // strip events out of sequence matches (a wrong answer). Reject rather than silently ignore the
+                    // filter and return rows it should have excluded as complete. Lifts once the filter is bridged to
+                    // the delegate through a coordinator-local execution context.
+                    if (request.filter() != null && plan.anyMatch(EqlRelation.class::isInstance)) {
+                        listener.onFailure(
+                            new VerificationException(
+                                "[EQL] source command cannot yet be combined with a request filter; "
+                                    + "remove the filter or express it inside the EQL query"
+                            )
+                        );
                         return;
                     }
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
@@ -2072,6 +2087,11 @@ public class EsqlSession {
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             executionInfo.queryProfile().incFieldCapsCalls();
+            // Retain the merged field-caps only for a local, unfiltered, full-mapping EQL pattern, so the EQL delegate
+            // reuses it instead of re-resolving. Any other case (non-EQL, filtered, remote, narrowed) falls back.
+            Consumer<FieldCapabilitiesResponse> mergedCapsSink = shouldRetainEqlFieldCaps(indexPattern, preAnalysis, requestFilter, result)
+                ? caps -> result.eqlFieldCaps().put(indexPattern, caps)
+                : null;
             indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
@@ -2092,6 +2112,7 @@ public class EsqlSession {
                 preAnalysis.hasTimeSeriesAggregation(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
+                mergedCapsSink,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     EsqlCCSUtils.checkForRemoteResourceErrors(indexResolution.inner().failures());
@@ -2108,12 +2129,39 @@ public class EsqlSession {
                             false,
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
+                            mergedCapsSink,
                             retryListener
                         );
                     });
                 })
             );
         }
+    }
+
+    /**
+     * Whether to retain the merged field-caps of this pattern for reuse by the EQL delegate. Only for a pattern that is
+     * an EQL source, unfiltered (a filter narrows the index set), resolving the full mapping (ALL_FIELDS), and local
+     * (CCS is handled by the EQL engine's own cross-cluster support). Any other case falls back to the EQL engine's
+     * own field-caps resolution — never a wrong schema.
+     */
+    private static boolean shouldRetainEqlFieldCaps(
+        IndexPattern indexPattern,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        QueryBuilder requestFilter,
+        PreAnalysisResult result
+    ) {
+        if (preAnalysis.eqlPatterns().contains(indexPattern) == false || requestFilter != null) {
+            return false;
+        }
+        if (result.fieldNames().equals(IndexResolver.ALL_FIELDS) == false) {
+            return false;
+        }
+        for (String part : indexPattern.indexPattern().split(",")) {
+            if (RemoteClusterAware.isRemoteIndexName(part.trim())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -2447,7 +2495,11 @@ public class EsqlSession {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumTransportVersion,
+        // Merged field-caps retained (by pattern) for EQL source commands only, so the EQL delegate reuses this
+        // resolution instead of issuing its own _field_caps. Mutable, shared by reference across the with* copies
+        // (like indexResolution); empty for every non-EQL query.
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -2460,7 +2512,8 @@ public class EsqlSession {
                 null,
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
-                TransportVersion.current()
+                TransportVersion.current(),
+                new HashMap<>()
             );
         }
 
@@ -2489,7 +2542,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                eqlFieldCaps
             );
         }
 
@@ -2503,7 +2557,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                eqlFieldCaps
             );
         }
 
@@ -2517,7 +2572,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                eqlFieldCaps
             );
         }
 
@@ -2537,7 +2593,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                eqlFieldCaps
             );
         }
     }

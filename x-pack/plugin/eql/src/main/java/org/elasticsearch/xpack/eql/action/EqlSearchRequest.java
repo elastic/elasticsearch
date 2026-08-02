@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UntypedActionRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,6 +71,12 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
     private String projectRouting;
     private ResolvedIndexExpressions resolvedIndexExpressions;
     private transient TargetProjects resolvedTargetProjects;
+    // An already-resolved merged field-caps response for this request's indices, which the engine plans against instead
+    // of issuing its own _field_caps. A caller-supplied optimization (e.g. the ES|QL EQL source command reusing the caps
+    // it already fetched). Coordinator-local like resolvedTargetProjects above: never serialized (see the writeTo assert)
+    // because a proxied cross-cluster request must re-resolve on the executing cluster — a caller's resolution describes
+    // the caller's view of the mapping.
+    private transient FieldCapabilitiesResponse preResolvedFieldCaps;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -336,6 +343,25 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
         return resolvedTargetProjects;
     }
 
+    /**
+     * Supplies an already-resolved merged field-caps response for this request's indices; the engine plans against it
+     * instead of resolving its own. See {@link #preResolvedFieldCaps}.
+     */
+    public EqlSearchRequest preResolvedFieldCaps(FieldCapabilitiesResponse preResolvedFieldCaps) {
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
+        return this;
+    }
+
+    /**
+     * Transfers ownership of the supplied field-caps to the execution-scoped configuration (consume-once), so no plan-
+     * or operator-side reference pins the potentially large response beyond planning; {@code null} if none was set.
+     */
+    public FieldCapabilitiesResponse takePreResolvedFieldCaps() {
+        FieldCapabilitiesResponse caps = preResolvedFieldCaps;
+        preResolvedFieldCaps = null;
+        return caps;
+    }
+
     public QueryBuilder filter() {
         return this.filter;
     }
@@ -507,6 +533,7 @@ public class EqlSearchRequest extends UntypedActionRequest implements IndicesReq
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert preResolvedFieldCaps == null : "pre-resolved field caps are coordinator-local and must never be serialized";
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);

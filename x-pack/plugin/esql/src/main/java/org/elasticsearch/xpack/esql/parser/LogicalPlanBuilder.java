@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -447,8 +449,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return visitFromCommand(ctx.fromCommand());
         } else if (ctx.timeSeriesCommand() != null) {
             return visitTimeSeriesCommand(ctx.timeSeriesCommand());
-        } else {
+        } else if (ctx.eqlCommand() != null) {
+            // EQL is a first-class source command: legal wherever FROM is, including subquery source
+            // position (FROM (EQL ...)). The same subquery rule also feeds visitLogicalInSubquery, so with
+            // the IN_SUBQUERY_EQL_LP lexer rule this enables WHERE x IN (EQL ...) too. Delegated execution
+            // rides the coordinator (see UnresolvedEqlRelation).
+            return visitEqlCommand(ctx.eqlCommand());
+        } else if (ctx.rowCommand() != null) {
             return visitRowCommand(ctx.rowCommand());
+        } else {
+            throw new IllegalStateException("Unexpected subquery source command: " + ctx.getText());
         }
     }
 
@@ -1010,7 +1020,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals("EXTERNAL", options.keyFoldedMap()) : Map.of();
 
         // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
         // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
@@ -1035,13 +1045,43 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
     }
 
+    @Override
+    public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
+        Source source = source(ctx);
+        // Indices are a first-class leading argument (like FROM), not a WITH option; resolution rides the
+        // shared field-caps path in ResolveEqlRelation.
+        IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
+        Expression query = expression(ctx.stringOrParameter());
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+        Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
+        if (config.containsKey("indices")) {
+            throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
+        }
+        EqlRequests.validateOptions(source, config);
+        // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
+        // ones the EQL delegate can populate and appends them to the output. Same duplicate-declaration guard as FROM.
+        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
+        if (ctx.metadata() != null) {
+            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
+                String id = c.getText();
+                Source src = source(c);
+                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                if (a != null) {
+                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
+                }
+            }
+        }
+        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, metadataFields);
+    }
+
     /**
      * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
      * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
      * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
      * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
      */
-    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+    private static Map<String, Object> foldOptionLiterals(String commandName, Map<String, Expression> entries) {
         if (entries.isEmpty()) {
             return Map.of();
         }
@@ -1053,7 +1093,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 if (literalValue == null) {
                     throw new ParsingException(
                         value.source(),
-                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        "{} option [{}] has null value; null is not a valid option value",
+                        commandName,
                         entry.getKey()
                     );
                 }
@@ -1065,7 +1106,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             } else {
                 throw new ParsingException(
                     value.source(),
-                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    "{} options must be literal values; option [{}] has expression [{}]",
+                    commandName,
                     entry.getKey(),
                     value.sourceText()
                 );

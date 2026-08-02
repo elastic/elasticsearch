@@ -763,3 +763,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.OperationRoutingTests
   method: testARSStatsAdjustment
   issue: https://github.com/elastic/elasticsearch/issues/155673
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155532

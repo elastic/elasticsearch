@@ -31,6 +31,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -518,6 +519,141 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             }
             assertEquals((double) threads * perThread, drainedTotal.get() + remaining, 0.0);
             assertEquals(0, buffer.size());
+        }
+    }
+
+    /**
+     * The same race against a bucket that is striped per thread rather than shared. Striping adds two ways to lose an observation that a
+     * single table does not have: a thread can open a stripe in a bucket that has just been sealed, and the stripes have to be folded
+     * together before emission. Both would look like a slightly low count rather than a failure, so this counts every observation twice —
+     * once as it is accepted, once as it comes out — and requires the two to agree.
+     */
+    public void testConcurrentRecordingIntoAStripedBucketLosesNothing() throws Exception {
+        int threads = 8;
+        int perThread = 4000;
+        int services = 4;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, threads)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            LongAdder accepted = new LongAdder();
+            LongAdder emitted = new LongAdder();
+
+            runInParallel(threads + 1, worker -> {
+                if (worker == threads) {
+                    // the drainer, sealing and merging the stripes out from under the writers over and over
+                    for (int i = 0; i < 50; i++) {
+                        for (Drained entry : buffer.drainAll()) {
+                            try {
+                                for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
+                                    emitted.add(entry.table().countOf(ordinal));
+                                }
+                            } finally {
+                                entry.table().close();
+                            }
+                        }
+                    }
+                    return;
+                }
+                Scratch scratch = new Scratch();
+                for (int i = 0; i < perThread; i++) {
+                    if (buffer.record(key, new String[] { "service-" + (i % services) }, scratch, 1.0).recorded()) {
+                        accepted.increment();
+                    }
+                }
+            });
+
+            var drained = buffer.drainAll();
+            try {
+                for (Drained entry : drained) {
+                    for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
+                        emitted.add(entry.table().countOf(ordinal));
+                    }
+                }
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+
+            assertEquals(
+                "the budget is far wider than this test needs, so nothing may have been refused",
+                threads * perThread,
+                accepted.sum()
+            );
+            assertEquals("every observation must come back out of exactly one stripe", accepted.sum(), emitted.sum());
+            assertEquals("draining must return the whole budget", 0, buffer.size());
+
+            // and the bucket really was striped: four dimension values is well below the threshold, so the next one is too
+            TableKey next = key(Reduction.SUM, 10_000L);
+            assertTrue(record(buffer, next, "service-0", 1.0));
+            assertThat(buffer.stripesOf(next), greaterThan(1));
+        }
+    }
+
+    /**
+     * Merging the stripes has to reduce them the same way one shared table would have. A sum that is merely added up would hide a min or a
+     * max that was taken from one stripe instead of across all of them, so this checks each reduction with values that only agree if every
+     * stripe was folded in.
+     */
+    public void testMergingStripesReducesAcrossAllOfThem() throws Exception {
+        int threads = 4;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 100, 8, 0, threads)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            // one value per thread, so whichever stripes they land on, the extremes live in different ones unless they collided
+            runInParallel(threads, thread -> buffer.record(key, new String[] { "checkout" }, new Scratch(), thread + 1.0));
+
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).table();
+                assertEquals("the same dimension tuple in every stripe is one series once merged", 1L, table.size());
+                assertEquals(threads, table.countOf(0));
+                assertEquals(10.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(1.0, table.reduce(0, Reduction.MIN, 10_000L), 0.0);
+                assertEquals(4.0, table.reduce(0, Reduction.MAX, 10_000L), 0.0);
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+            assertEquals(0, buffer.size());
+        }
+    }
+
+    /**
+     * The decision striping rests on. A metric with few series is replicated per thread because a copy of it is free and its monitor is
+     * otherwise nearly the whole of an observation; a metric with many series keeps one shared table, because by then the observations are
+     * already spread across the series and replicating them would cost real memory. Which one a bucket gets is decided from what the
+     * metric's cardinality turned out to be last time, and a metric nobody has seen yet starts striped because a metric starts small.
+     */
+    public void testOnlyALowCardinalityMetricIsStriped() {
+        int stripes = 8;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, stripes)) {
+            TableKey low = key("logs-low-default", Reduction.SUM, 0L);
+            TableKey high = key("logs-high-default", Reduction.SUM, 0L);
+
+            assertTrue(record(buffer, low, "checkout", 1.0));
+            assertEquals("a metric with no history starts striped", stripes, buffer.stripesOf(low));
+            for (int i = 0; i <= DerivedMetricsBuffer.STRIPE_SERIES_THRESHOLD; i++) {
+                assertTrue(record(buffer, high, "service-" + i, 1.0));
+            }
+            // the first bucket of either is striped; only what it turned out to hold can change that
+            assertEquals(stripes, buffer.stripesOf(high));
+            buffer.drainClosed(20_000, 0).forEach(d -> d.table().close());
+
+            TableKey lowNext = key("logs-low-default", Reduction.SUM, 10_000L);
+            TableKey highNext = key("logs-high-default", Reduction.SUM, 10_000L);
+            assertTrue(record(buffer, lowNext, "checkout", 1.0));
+            assertTrue(record(buffer, highNext, "service-0", 1.0));
+
+            assertEquals("one series is nothing to replicate", stripes, buffer.stripesOf(lowNext));
+            assertEquals("past the threshold a bucket goes back to one shared table", 1, buffer.stripesOf(highNext));
+        }
+    }
+
+    /**
+     * A distribution costs roughly thirty times what a scalar series does, which puts it on the wrong side of the trade striping rests on:
+     * the whole point is that the buckets cheap enough to replicate are the ones that contend.
+     */
+    public void testAHistogramMetricIsNeverStriped() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 100, 8, 0, 8)) {
+            TableKey key = key(Reduction.HISTOGRAM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            assertEquals(1, buffer.stripesOf(key));
         }
     }
 

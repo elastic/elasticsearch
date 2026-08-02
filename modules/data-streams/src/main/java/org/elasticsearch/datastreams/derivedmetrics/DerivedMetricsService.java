@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -268,7 +269,9 @@ public class DerivedMetricsService implements Closeable {
             HISTOGRAM_BUCKETS.get(settings),
             // Vary the first partial's offset per service instance, so a node that restarts inside a bucket it had already emitted for
             // does not stamp a second partial at the same timestamp and have it silently rejected as a duplicate _id.
-            Math.floorMod(threadPool.absoluteTimeInMillis(), PARTIAL_SEED_RANGE)
+            Math.floorMod(threadPool.absoluteTimeInMillis(), PARTIAL_SEED_RANGE),
+            // A low-cardinality bucket is striped once per thread that can be inside an observation, which is the size of the write pool.
+            EsExecutors.allocatedProcessors(settings)
         );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();

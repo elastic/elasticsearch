@@ -41,21 +41,14 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>Not thread safe: {@link BytesRefHash} is not, and neither is growing a {@link BigArrays} array. Callers synchronize on the table.
  * The critical section is a hash lookup and a handful of array writes.
  *
- * <p>That lock has been measured rather than assumed, and it does not scale. On the default configuration — built-in ingest metrics with
- * no dimensions, so one series per metric — aggregate throughput peaks at four threads and regresses below the single-thread figure by
- * eight. It is not a live problem: even collapsed the node observes over two million documents a second, roughly thirty times an
- * optimistic per-node write rate, and a real write thread spends about 0.32% of its time in here rather than the benchmark's hundred
- * percent, so continuous contention cannot arise at realistic rates.
+ * <p>That lock was measured rather than assumed, and on its own it does not scale. On the default configuration — built-in ingest metrics
+ * with no dimensions, so one series per metric — aggregate throughput used to peak at four threads and regress below the single-thread
+ * figure by eight, because with no {@code _source} parse to do outside the monitor there is very little else to an observation. Which
+ * table a thread takes that monitor on is therefore decided a level up, by {@link DerivedMetricsStripedTable}: a low-cardinality bucket
+ * gives each thread its own table and the monitor stops being contended, a high-cardinality one keeps a single shared table because its
+ * observations already spread across many series and replicating them would cost real memory.
  *
- * <p>The collapse belongs specifically to configurations that never read {@code _source}. With a parse in the path roughly half the work
- * is lock-free and throughput scales monotonically; without one this monitor is very nearly the whole of an observation, so threads
- * convoy on it.
- *
- * <p>Note what would <em>not</em> fix it. Striping by series hash does nothing here, because the shape that contends worst has a single
- * series and could never occupy more than one stripe. Striping per <em>thread</em> fixes exactly that case, and it is viable precisely
- * because the two failure modes are inverse: the configuration that contends worst is the cheapest to replicate per thread, while the
- * high-cardinality configuration that would be expensive to replicate barely contends at all. It still has to be bounded rather than
- * unconditional — see the contention section of the design note for the threshold that separates them.
+ * <p>So this class stays single-threaded and cheap, and everything about the trade-off lives in the one place that can weigh it.
  */
 public class DerivedMetricsSeriesTable implements Releasable {
 
@@ -139,23 +132,7 @@ public class DerivedMetricsSeriesTable implements Releasable {
      *         whether a new series was created without a second lookup.
      */
     public long record(BytesRef encodedDimensions, double value) {
-        // Room for one more series is reserved before the tuple is interned, so that a breaker refusal leaves the table exactly as it
-        // was. Interning first and growing second leaves a tuple in the hash with no columns behind it: the caller does not count the
-        // series because the exception reached it, seal() gives it back anyway because it reports dimensions.size(), and emit walks
-        // ordinals up to that same size and reads past the end of the columns — turning a refused observation into a failed flush.
-        reserveOneMore();
-        long ordinal;
-        try {
-            ordinal = dimensions.add(encodedDimensions);
-        } catch (CircuitBreakingException e) {
-            // BytesRefHash is not exception safe. add() points a hash slot at the new id, then appends the key, then increments its
-            // size; and the append itself records the entry's end offset before copying the bytes. A refusal in between leaves a slot
-            // referring to an entry whose bytes were never written, so any later add or find that probes that slot reads past the end
-            // of the byte storage and throws. The series already interned are still intact — size was never incremented, so they are
-            // exactly the ordinals below size() — but nothing may touch this hash again.
-            poisoned = true;
-            throw e;
-        }
+        long ordinal = intern(encodedDimensions);
         boolean created = ordinal >= 0;
         if (created == false) {
             ordinal = -1 - ordinal;
@@ -190,8 +167,70 @@ public class DerivedMetricsSeriesTable implements Releasable {
     }
 
     /**
+     * Interns a dimension tuple, reserving the column space behind it first.
+     *
+     * @return the ordinal, negative when the tuple was already known, exactly as {@link BytesRefHash#add} reports it
+     */
+    private long intern(BytesRef encodedDimensions) {
+        // Room for one more series is reserved before the tuple is interned, so that a breaker refusal leaves the table exactly as it
+        // was. Interning first and growing second leaves a tuple in the hash with no columns behind it: the caller does not count the
+        // series because the exception reached it, seal() gives it back anyway because it reports dimensions.size(), and emit walks
+        // ordinals up to that same size and reads past the end of the columns — turning a refused observation into a failed flush.
+        reserveOneMore();
+        try {
+            return dimensions.add(encodedDimensions);
+        } catch (CircuitBreakingException e) {
+            // BytesRefHash is not exception safe. add() points a hash slot at the new id, then appends the key, then increments its
+            // size; and the append itself records the entry's end offset before copying the bytes. A refusal in between leaves a slot
+            // referring to an entry whose bytes were never written, so any later add or find that probes that slot reads past the end
+            // of the byte storage and throws. The series already interned are still intact — size was never incremented, so they are
+            // exactly the ordinals below size() — but nothing may touch this hash again.
+            poisoned = true;
+            throw e;
+        }
+    }
+
+    /**
+     * Folds another table's series into this one, which is how a bucket that was striped per thread becomes the single table it is
+     * emitted from: a series two threads each recorded has to be one series in one document, exactly as it would have been unstriped.
+     *
+     * <p>Only scalar tables are ever striped — a distribution is too expensive to replicate per thread — so this deliberately does not
+     * merge histograms rather than merging them approximately.
+     *
+     * <p>Returns rather than throws on a breaker refusal, because it runs while a drained bucket is being handed to the flush: throwing
+     * would strand the stripes it had not reached yet, and the caller has already given their budget back.
+     *
+     * @param spare scratch for reading the other table's tuples, owned by the caller so that merging a whole bucket allocates one
+     * @return how many of the other table's series could not be taken
+     */
+    long mergeFrom(DerivedMetricsSeriesTable other, BytesRef spare) {
+        assert histograms == null : "a histogram table is never striped, so its series are never merged";
+        assert poisoned == false : "merging into a table whose hash cannot be probed";
+        long series = other.dimensions.size();
+        for (long from = 0; from < series; from++) {
+            long ordinal;
+            try {
+                ordinal = intern(other.dimensions.get(from, spare));
+            } catch (CircuitBreakingException e) {
+                return series - from;
+            }
+            if (ordinal < 0) {
+                ordinal = -1 - ordinal;
+            } else {
+                min.set(ordinal, Double.POSITIVE_INFINITY);
+                max.set(ordinal, Double.NEGATIVE_INFINITY);
+            }
+            count.increment(ordinal, other.count.get(from));
+            sum.increment(ordinal, other.sum.get(from));
+            min.set(ordinal, Math.min(min.get(ordinal), other.min.get(from)));
+            max.set(ordinal, Math.max(max.get(ordinal), other.max.get(from)));
+        }
+        return 0;
+    }
+
+    /**
      * Makes sure the columns can hold one more series than they currently do. Called before interning rather than after, so that the hash
-     * and the columns can never disagree about how many series exist; see {@link #record}.
+     * and the columns can never disagree about how many series exist; see {@link #intern}.
      *
      * <p>The capacity is cached so that the common path — an observation for a series that already exists — costs one comparison rather
      * than one growth check per column.

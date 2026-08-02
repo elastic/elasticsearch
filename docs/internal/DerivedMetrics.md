@@ -266,22 +266,26 @@ calling `record` directly. Above it the listener does a volatile read and a clus
 measuring *that* needs a real `ClusterService` the benchmark project cannot easily stand up. So the honest statement is: the measured
 part is free, and the unmeasured part above it is a volatile read and an integer comparison.
 
-Those figures are single-threaded. The per-table monitor does not scale, and it is worth being blunt
-about that rather than reporting the flattering shape. Measured on the **default** configuration —
-`builtin: ["ingest.*"]` with no dimensions, which is four success-triggered metrics of one series
-each, so every write thread serialises on four monitors:
+Those figures are single-threaded. A single per-table monitor does not scale, and it is worth being
+blunt about that rather than reporting the flattering shape. Measured on the **default**
+configuration — `builtin: ["ingest.*"]` with no dimensions, which is four success-triggered metrics of
+one series each, so every write thread would serialise on four monitors:
 
-| threads | ns/op | aggregate documents/sec |
-|---|---|---|
-| 1 | 409 ± 7 | 2,450,000 |
-| 2 | 755 ± 151 | 2,650,000 |
-| 4 | 1,237 ± 354 | 3,230,000 |
-| 8 | 3,848 ± 549 | 2,080,000 |
+All figures below are one machine, one set of settings, so the before and after columns are comparable.
 
-Throughput peaks at four threads and then **regresses below the single-thread figure**. That is
-contention collapse, not sublinear scaling.
+| threads | before, ns/op | after, ns/op | before, docs/sec | after, docs/sec |
+|---|---|---|---|---|
+| 1 | 409 | 445 | 2,450,000 | 2,250,000 |
+| 2 | 755 | 724 | 2,650,000 | 2,760,000 |
+| 4 | 1,237 | 1,069 | 3,230,000 | 3,740,000 |
+| 8 | 3,848 | 2,002 | 2,080,000 | **4,000,000** |
 
-The cause is precise, and the contrast with a configuration that reads `_source` shows it:
+Before, throughput peaked at four threads and then **fell below the single-thread figure**. That is
+contention collapse, not sublinear scaling. After, it rises with every thread added and eight threads
+cost 48% less per observation.
+
+The cause is precise, and the contrast with a configuration that reads `_source` shows it — measured
+before striping:
 
 | threads | built-ins, no dimensions | five dimensions and a predicate |
 |---|---|---|
@@ -289,15 +293,15 @@ The cause is precise, and the contrast with a configuration that reads `_source`
 | 4 | 3,230,000 docs/sec | 1,070,000 docs/sec |
 | 8 | 2,080,000 docs/sec — collapsed | 1,296,000 docs/sec — still climbing |
 
-**The collapse belongs to configurations that never read `_source`.** With a parse in the path, half
+**The collapse belonged to configurations that never read `_source`.** With a parse in the path, half
 the work is lock-free and throughput scales monotonically, 2.9x from one thread to eight. Without one,
 `record` is essentially nothing but the monitor, so threads convoy on it. The default configuration is
 the shape that produces it, because the fewer dimensions a metric has the fewer series it spreads
 across, and a metric with no dimensions has exactly one.
 
-Two things keep this from being a live problem, and one keeps it on the list.
+Two things kept this from being a live problem, and one kept it on the list anyway.
 
-**The absolute ceiling is far above any real node.** Even collapsed, the node observes 2.08M
+**The absolute ceiling was far above any real node.** Even collapsed, the node observed 2.08M
 documents a second. The demo node sustained 7,926 writes/sec; an optimistic per-node ceiling is around
 70,000. That is 30x to 260x of headroom.
 
@@ -307,9 +311,9 @@ majority of its time in Lucene: at the demo's measured rate, all the time spent 
 up to **0.32% of one core**. Two write threads contending for the same table's monitor is a
 correspondingly rare event, and the collapse above requires them to contend continuously.
 
-**But the shape is still wrong**, and it will matter on a node with many more write threads than the
-eight measured here — the `write` pool is sized to the processor count, so a 64 core node has 64 of
-them.
+**But the shape was still wrong**, and it would have mattered on a node with many more write threads
+than the eight measured here — the `write` pool is sized to the processor count, so a 64 core node has
+64 of them.
 
 Striping by series hash does not fix it: the shape that contends worst has one series and could never
 occupy more than one stripe. Striping per *thread* fixes exactly that case, and the reason it is
@@ -322,12 +326,41 @@ because its observations already spread across many series.
 | built-ins, no dimensions | 4 | 39 KB — free |
 | at the 10,000 series cap | 10,000 | 97 MB against a 200 MB breaker — unacceptable |
 
-So striping has to be bounded rather than unconditional: a table is striped or shared, decided when it
-is created from that metric's cardinality in the previous bucket, with new metrics starting striped
-because they start small. Above roughly 64 series it stays shared, by which point observations are
-spread widely enough that the monitor is no longer hot. A cardinality spike then costs at most one
-bucket at `64 series x 64 threads x 152 bytes`, about 620 KB for that metric, before it flips.
-Not attempted here.
+So striping has to be bounded rather than unconditional, and it is: a bucket is striped or shared,
+decided when it is created from that metric's cardinality in the previous bucket, with new metrics
+starting striped because they start small. Above 64 series it stays shared, by which point
+observations are spread widely enough that the monitor is no longer hot. Histogram metrics are never
+striped — a distribution is about thirty times a scalar series, which puts it on the wrong side of the
+trade. `DerivedMetricsStripedTable` holds both sides: a shared bucket is a striped one with a single
+stripe, so there is one code path rather than two, and a thread's stripe is its thread id masked to
+the stripe count, which has to be cheaper than the monitor it avoids.
+
+What a spike costs is worth being exact about. Each stripe's copy of a series is charged to the node
+and per-stream budgets individually, so a metric that spikes inside a bucket it entered striped can
+never take more memory than those budgets already allow — what it spends is *budget*, biting up to the
+stripe count sooner in distinct-series terms, for the one bucket before it flips to shared. The stripe
+count is the processor count rounded up to a power of two, and only the stripes threads actually touch
+are ever allocated.
+
+At drain the stripes are merged into the single table the bucket is emitted from, so a series two
+threads recorded is one series in one document and striping is invisible downstream. The merge is the
+one place this can lose data, and only when the breaker is already exhausted: it re-interns the
+smaller stripes into the largest, which can be refused. Those series are counted as breaker drops like
+any other. When the largest stripe is one that was poisoned it is emitted as it stands and the others
+are given up instead, whenever that keeps more — a table poisoned holding hundreds of series next to
+empty neighbours must not be re-interned against a breaker with nothing left.
+
+Measured, same benchmark and machine as the collapse above:
+
+The result is the before-and-after table at the top of this section: throughput rises with every
+thread added instead of collapsing, and eight threads cost 48% less per observation.
+
+**The price is 36 ns on the single-threaded path**, about 9%, and it should be stated rather than
+buried — a masked thread id and one more indirection, paid four times over because this configuration
+has four metrics. A shared bucket is a striped one with a single stripe, so there is one code path
+rather than two, and everyone pays that indirection whether or not they benefit. The trade was taken
+deliberately: this path is 0.32% of a write thread's time, so 9% of it is not measurable against real
+indexing, and the shape at eight threads is what would have mattered on a 64 core node.
 
 The critical section probes the table once rather than twice — it records and reads the returned sign
 to learn whether a series was created, instead of asking first and then recording — which was worth

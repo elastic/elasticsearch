@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
@@ -44,6 +46,9 @@ import java.util.function.Predicate;
  * <p>Series count is the one thing that grows with the data, since dimension values come from documents. It is capped per node and per
  * source stream — the per-stream cap exists because a single node budget is first-come-first-served, and lets one high-cardinality
  * stream starve every other stream.
+ *
+ * <p>A bucket is held as a {@link DerivedMetricsStripedTable}, which is either one table shared by every write thread or one per thread,
+ * decided when the bucket is created. See {@link #stripesFor} for what decides it and that class for why the choice has to be made at all.
  */
 public class DerivedMetricsBuffer implements Releasable {
 
@@ -91,6 +96,26 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     /**
+     * Identifies one metric of one stream across every bucket it will ever have, which is the scope the cardinality memory behind
+     * {@link #stripesFor} is kept at.
+     *
+     * <p>By name rather than by the compiled metric, unlike {@link TableKey}: a configuration change recompiles every metric into fresh
+     * objects, and what a metric's cardinality turned out to be last interval is still true of the metric that replaced it.
+     */
+    private record MetricKey(ProjectId project, String sourceDataStream, String metric, long intervalMillis) {}
+
+    private static MetricKey metricKey(TableKey key) {
+        return new MetricKey(key.project(), key.sourceDataStream(), key.metric().name(), key.intervalMillis());
+    }
+
+    /**
+     * How many distinct series one metric was last seen holding, and the bucket that was measured in. The bucket travels with it so that a
+     * spike is remembered at its highest within a bucket rather than being overwritten by whatever the last partial of it happened to
+     * hold, and so that a stream that stopped writing can be forgotten.
+     */
+    private record Cardinality(long bucketStartMillis, long series) {}
+
+    /**
      * The per-stream budget for a table's stream, creating it if this is the first series.
      *
      * <p>Nested by project rather than keyed on a composite, because this runs once per metric per document and building a composite key
@@ -106,12 +131,17 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     private final BigArrays bigArrays;
-    private final ConcurrentHashMap<TableKey, DerivedMetricsSeriesTable> tables = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<TableKey, DerivedMetricsStripedTable> tables = new ConcurrentHashMap<>();
     /**
      * How many times each bucket has already been emitted. Only ever non-zero under {@code flush_early}, and swept alongside the tables
      * once the bucket is closed.
      */
     private final ConcurrentHashMap<TableKey, AtomicInteger> partials = new ConcurrentHashMap<>();
+    /**
+     * What each metric's cardinality last turned out to be, which is what a new bucket's striping decision is made from. One entry per
+     * metric per stream, swept once a stream has stopped writing; see {@link #forget}.
+     */
+    private final ConcurrentHashMap<MetricKey, Cardinality> cardinality = new ConcurrentHashMap<>();
     /**
      * Series held per source data stream, scoped to the project the stream belongs to. Two projects may each have a data stream of the
      * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
@@ -133,6 +163,7 @@ public class DerivedMetricsBuffer implements Releasable {
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
     private final int partialSeed;
+    private final int stripes;
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries) {
         this(bigArrays, maxSeries, maxSeries, DEFAULT_HISTOGRAM_BUCKETS, 0);
@@ -148,13 +179,44 @@ public class DerivedMetricsBuffer implements Releasable {
      *                    {@code _id} and be silently rejected by {@code op_type=create}.
      */
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries, int maxSeriesPerStream, int histogramBuckets, int partialSeed) {
+        this(bigArrays, maxSeries, maxSeriesPerStream, histogramBuckets, partialSeed, DEFAULT_STRIPES);
+    }
+
+    /**
+     * @param stripes how many per-thread copies a low-cardinality bucket may be split into. Sized to the write pool, since that is how
+     *                many threads can be inside an observation at once; one disables striping entirely.
+     */
+    public DerivedMetricsBuffer(
+        BigArrays bigArrays,
+        int maxSeries,
+        int maxSeriesPerStream,
+        int histogramBuckets,
+        int partialSeed,
+        int stripes
+    ) {
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker(bigArrays);
         this.partialSeed = partialSeed;
+        // rounded up so that choosing a stripe is a mask rather than a division; the stripes past the thread count are never allocated,
+        // since a stripe is only created by the thread that lands on it
+        this.stripes = Integer.highestOneBit(Math.max(1, stripes) * 2 - 1);
     }
+
+    /**
+     * The write pool is sized to the processor count, so that is how many threads can be recording at once and therefore how many stripes
+     * a contended bucket needs before another one buys nothing.
+     */
+    private static final int DEFAULT_STRIPES = EsExecutors.allocatedProcessors(Settings.EMPTY);
+
+    /**
+     * Above how many series a bucket is shared rather than striped. It is the point where the two costs cross: below it a per-thread copy
+     * of the table is a few tens of kilobytes and the monitor is very nearly the whole of an observation, above it the observations are
+     * already spread across enough series that the monitor is not hot and replicating them would be worth megabytes.
+     */
+    static final int STRIPE_SERIES_THRESHOLD = 64;
 
     /**
      * How many partials a bucket may be split into. A partial is stamped at {@code bucketStart + partial} milliseconds, so the offset has
@@ -199,12 +261,19 @@ public class DerivedMetricsBuffer implements Releasable {
         BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
         AtomicInteger held = heldFor(key);
         while (true) {
-            DerivedMetricsSeriesTable table = tables.get(key);
-            if (table == null) {
-                table = openTable(key);
-                if (table == null) {
+            DerivedMetricsStripedTable bucket = tables.get(key);
+            if (bucket == null) {
+                bucket = openTable(key);
+                if (bucket == null) {
                     return Outcome.REFUSED_BREAKER;
                 }
+            }
+            // On a striped bucket this is the thread's own table and the monitor below is uncontended; on a shared one it is the single
+            // table every thread convoys on, which is the pre-striping behaviour and what a high-cardinality metric keeps.
+            DerivedMetricsSeriesTable table = bucket.stripeForCurrentThread();
+            if (table == null) {
+                // the bucket was drained before this thread could take a stripe in it, so its replacement is the one to record into
+                continue;
             }
             synchronized (table) {
                 if (table.sealed()) {
@@ -230,6 +299,8 @@ public class DerivedMetricsBuffer implements Releasable {
                 }
                 try {
                     if (table.record(encoded, value) >= 0) {
+                        // A series interned by two stripes is charged twice, because it really is held twice. That is what makes the
+                        // budget bound the memory rather than the distinct series count, and what makes striping have to be bounded.
                         totalSeries.incrementAndGet();
                         held.incrementAndGet();
                     }
@@ -238,8 +309,9 @@ public class DerivedMetricsBuffer implements Releasable {
                     if (table.poisoned()) {
                         // The hash cannot be probed again, so this table has to leave the map now rather than wait for its bucket to
                         // close. What it already holds is intact and still worth emitting, so it is set aside for the next flush rather
-                        // than thrown away, and the next observation for this bucket opens a fresh table.
-                        retire(key, table);
+                        // than thrown away, and the next observation for this bucket opens a fresh table. The whole bucket goes, not just
+                        // the one stripe, so that the striping decision is made once per bucket and the stripes stay mergeable.
+                        retire(key, bucket);
                     }
                     return Outcome.REFUSED_BREAKER;
                 }
@@ -259,9 +331,9 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     public Drained drainLargest(@Nullable StreamKey within) {
         TableKey largestKey = null;
-        DerivedMetricsSeriesTable largest = null;
+        DerivedMetricsStripedTable largest = null;
         long mostBytes = -1;
-        for (Map.Entry<TableKey, DerivedMetricsSeriesTable> entry : tables.entrySet()) {
+        for (Map.Entry<TableKey, DerivedMetricsStripedTable> entry : tables.entrySet()) {
             TableKey key = entry.getKey();
             if (within != null && sameStream(within, key) == false) {
                 continue;
@@ -303,35 +375,80 @@ public class DerivedMetricsBuffer implements Releasable {
 
     /**
      * Removes a table that can no longer accept observations and keeps it for the next flush, so the series it already accumulated are
-     * emitted rather than discarded. Called with the table's monitor held.
+     * emitted rather than discarded. Called with one of the bucket's stripes' monitors held.
      */
-    private void retire(TableKey key, DerivedMetricsSeriesTable table) {
-        if (tables.remove(key, table) == false) {
+    private void retire(TableKey key, DerivedMetricsStripedTable table) {
+        Drained taken = take(key, table, true);
+        if (taken == null) {
+            // someone else drained the bucket first, and it is already on its way to being emitted
             return;
         }
-        long released = table.seal();
-        totalSeries.addAndGet(-(int) released);
-        releaseStreamBudget(key, released);
-        AtomicInteger counter = partials.get(key);
-        retired.add(new Drained(key, table, counter == null ? partialSeed : counter.get()));
-        partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
+        retired.add(taken);
         tablesRetired.increment();
     }
 
     /**
-     * Creates the table for a bucket, or returns null when the breaker refuses it.
+     * Creates the bucket, or returns null when the breaker refuses it.
      */
-    private DerivedMetricsSeriesTable openTable(TableKey key) {
+    private DerivedMetricsStripedTable openTable(TableKey key) {
         try {
             return tables.computeIfAbsent(
                 key,
-                unused -> new DerivedMetricsSeriesTable(bigArrays, key.metric().reduction(), histogramBuckets, histogramBreaker)
+                unused -> new DerivedMetricsStripedTable(
+                    bigArrays,
+                    key.metric().reduction(),
+                    histogramBuckets,
+                    histogramBreaker,
+                    stripesFor(key)
+                )
             );
         } catch (CircuitBreakingException e) {
             droppedSeriesAtBreaker.increment();
             return null;
         }
     }
+
+    /**
+     * Whether a new bucket is striped per thread or shared, from what its metric's cardinality last turned out to be.
+     *
+     * <p>A metric nobody has seen yet starts striped, because a metric starts small — and because the alternative, starting shared and
+     * flipping down, would leave the shape that contends worst contending for its first bucket every time the node restarts.
+     */
+    private int stripesFor(TableKey key) {
+        if (stripes == 1 || key.metric().reduction().isHistogram()) {
+            // a distribution is roughly thirty times a scalar series, which puts it on the wrong side of the trade striping rests on
+            return 1;
+        }
+        Cardinality known = cardinality.get(metricKey(key));
+        return known == null || known.series() <= STRIPE_SERIES_THRESHOLD ? stripes : 1;
+    }
+
+    /**
+     * Remembers how many distinct series a metric turned out to hold, which is what the next bucket's striping decision is made from.
+     * Within one bucket the highest figure wins, so that a bucket flushed early in several small pieces is not remembered as a small one.
+     */
+    private void remember(TableKey key, long series) {
+        cardinality.merge(metricKey(key), new Cardinality(key.bucketStartMillis(), series), DerivedMetricsBuffer::later);
+    }
+
+    private static Cardinality later(Cardinality existing, Cardinality fresh) {
+        if (fresh.bucketStartMillis() != existing.bucketStartMillis()) {
+            return fresh.bucketStartMillis() > existing.bucketStartMillis() ? fresh : existing;
+        }
+        return fresh.series() > existing.series() ? fresh : existing;
+    }
+
+    /**
+     * Drops what is remembered about metrics of streams that have stopped writing, so that the memory behind the striping decision is
+     * bounded by what is live rather than by everything the node has ever seen.
+     */
+    private void forget(long nowMillis) {
+        cardinality.entrySet()
+            .removeIf(entry -> entry.getValue().bucketStartMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() < nowMillis);
+    }
+
+    /** How many intervals a metric's cardinality is remembered for after it stops producing buckets. */
+    private static final int CARDINALITY_MEMORY = 10;
 
     /**
      * Removes every table that can no longer receive observations, that is every bucket whose interval ended at least
@@ -346,6 +463,7 @@ public class DerivedMetricsBuffer implements Releasable {
         // A closed bucket receives nothing further, so its partial count has nothing left to keep it honest. Sweeping here rather than in
         // drain covers buckets that were flushed early and then never saw another write.
         partials.keySet().removeIf(key -> closed.test(key) && tables.containsKey(key) == false);
+        forget(nowMillis);
         return drained;
     }
 
@@ -359,7 +477,7 @@ public class DerivedMetricsBuffer implements Releasable {
      * @return the drained bucket, or null if it had already been drained by someone else
      */
     public Drained drainForPressure(TableKey key) {
-        DerivedMetricsSeriesTable table = tables.get(key);
+        DerivedMetricsStripedTable table = tables.get(key);
         if (table == null) {
             return null;
         }
@@ -392,11 +510,11 @@ public class DerivedMetricsBuffer implements Releasable {
 
     private List<Drained> drain(Predicate<TableKey> take, boolean reopening) {
         List<Drained> drained = new ArrayList<>();
-        Iterator<Map.Entry<TableKey, DerivedMetricsSeriesTable>> iterator = tables.entrySet().iterator();
+        Iterator<Map.Entry<TableKey, DerivedMetricsStripedTable>> iterator = tables.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<TableKey, DerivedMetricsSeriesTable> entry = iterator.next();
+            Map.Entry<TableKey, DerivedMetricsStripedTable> entry = iterator.next();
             TableKey key = entry.getKey();
-            DerivedMetricsSeriesTable table = entry.getValue();
+            DerivedMetricsStripedTable table = entry.getValue();
             if (take.test(key) == false) {
                 continue;
             }
@@ -409,20 +527,26 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     /**
-     * Removes one table and gives its budget back, or returns null if someone else got there first.
+     * Removes one bucket and gives its budget back, or returns null if someone else got there first.
      *
-     * <p>The table is removed from the map <em>before</em> it is sealed, so a writer that finds it sealed is guaranteed to see the
+     * <p>The bucket is removed from the map <em>before</em> it is sealed, so a writer that finds it sealed is guaranteed to see the
      * replacement on its next lookup rather than spinning. It is removed by value rather than by key, so a bucket recreated by a
      * concurrent write survives.
+     *
+     * <p>Only the thread that wins the removal seals and merges, which is what lets the stripes be folded together without a lock.
      */
-    private Drained take(TableKey key, DerivedMetricsSeriesTable table, boolean reopening) {
+    private Drained take(TableKey key, DerivedMetricsStripedTable table, boolean reopening) {
         if (tables.remove(key, table) == false) {
             return null;
         }
-        long released;
-        synchronized (table) {
-            released = table.seal();
-        }
+        long released = table.seal();
+        // The stripes are folded into one table before anything downstream sees them, so a series two threads recorded is one series in
+        // one document — striping is invisible past this point.
+        DerivedMetricsSeriesTable merged = table.merge();
+        // Merging allocates, so the breaker can refuse partway through it. The budget for those series was already given back above, so
+        // the accounting stays exact; what is lost is the observations, which are counted where every other breaker loss is.
+        droppedSeriesAtBreaker.add(table.seriesLostMerging());
+        remember(key, merged.size());
         totalSeries.addAndGet(-(int) released);
         releaseStreamBudget(key, released);
         AtomicInteger counter = partials.get(key);
@@ -430,7 +554,7 @@ public class DerivedMetricsBuffer implements Releasable {
         if (reopening) {
             partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
         }
-        return new Drained(key, table, partial);
+        return new Drained(key, merged, partial);
     }
 
     /** Gives a drained table's series back to its stream's budget, forgetting the stream once it holds nothing. */
@@ -445,7 +569,10 @@ public class DerivedMetricsBuffer implements Releasable {
         }
     }
 
-    /** Series currently held, across every table. */
+    /**
+     * Series currently held, across every table. A series that several stripes of a striped bucket each interned counts once per stripe,
+     * because the point of this number is the memory it stands for rather than how many distinct series a query would see.
+     */
     public int size() {
         return totalSeries.get();
     }
@@ -482,6 +609,15 @@ public class DerivedMetricsBuffer implements Releasable {
     // visible for testing
     int partialsTracked() {
         return partials.size();
+    }
+
+    /**
+     * How many per-thread stripes the bucket for this key currently has, or zero if there is no such bucket. One means it is shared.
+     */
+    // visible for testing
+    int stripesOf(TableKey key) {
+        DerivedMetricsStripedTable table = tables.get(key);
+        return table == null ? 0 : table.stripeCount();
     }
 
     // visible for testing

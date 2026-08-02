@@ -510,7 +510,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 blobSizes.put(blobFile, bccSize);
                             },
                             l2.map(aVoid -> {
-                                Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
+                                var targetsToWarm = Maps.<BlobFile, WarmTarget>newHashMapWithExpectedSize(offsetsToWarmPerBlobFile.size());
                                 for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
                                     assert cacheTimestampPerBlobFile.containsKey(blobFile);
                                     assert blobSizes.containsKey(blobFile);

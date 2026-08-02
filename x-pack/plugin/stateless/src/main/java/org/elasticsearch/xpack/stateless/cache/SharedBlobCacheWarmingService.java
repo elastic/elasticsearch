@@ -96,6 +96,7 @@ import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUF
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY;
 
 public class SharedBlobCacheWarmingService {
 
@@ -125,9 +126,8 @@ public class SharedBlobCacheWarmingService {
         "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
-    public static final String BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC = "es.blob_cache_warming.blobs_warmed.total";
+    public static final String BLOB_CACHE_WARMING_RATIO_METRIC = "es.blob_cache_warming.ratio.histogram";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
-    public static final String WARMING_RATIO_ATTRIBUTE_KEY = "es_warming_ratio";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -382,7 +382,7 @@ public class SharedBlobCacheWarmingService {
     private final DoubleHistogram searchRecoveryWarmDurationMetric;
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final DoubleHistogram warmingDurationMetric;
-    private final LongCounter blobsWarmedMetric;
+    private final DoubleHistogram warmingRatioMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
@@ -475,12 +475,11 @@ public class SharedBlobCacheWarmingService {
                 "Time taken for a blob cache warming operation to complete, broken down by [" + WARMING_TYPE_ATTRIBUTE_KEY + "]",
                 "s"
             );
-        this.blobsWarmedMetric = telemetryProvider.getMeterRegistry()
-            .registerLongCounter(
-                BLOB_CACHE_WARMING_BLOBS_WARMED_TOTAL_METRIC,
-                "Total number of blobs warmed in cache, " +
-                    "broken down by their warming ratios (one decimal), see [" + WARMING_RATIO_ATTRIBUTE_KEY + "]",
-                "unit"
+        this.warmingRatioMetric = telemetryProvider.getMeterRegistry()
+            .registerDoubleHistogram(
+                BLOB_CACHE_WARMING_RATIO_METRIC,
+                "The warming ratio (between 0.0 and 1.0) of bcc blobs, broken down by the [" + BCC_SIZE_ATTRIBUTE_KEY + "] size bucket",
+                "1"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(

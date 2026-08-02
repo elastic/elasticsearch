@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 51691
+pr: 155039
+summary: Add linear interpolation mode to percentiles bucket aggregation
+type: enhancement

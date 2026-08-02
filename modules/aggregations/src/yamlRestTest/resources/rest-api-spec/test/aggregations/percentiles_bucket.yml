@@ -53,6 +53,32 @@ basic:
         99.0: 2.0
 
 ---
+interpolation=linear:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              percentiles_bucket:
+                buckets_path: "@timestamp>v"
+                percents: [ 25, 50, 75 ]
+                interpolation: linear
+  - match: { hits.total.value: 3 }
+  - match:
+      aggregations.d.values:
+        25.0: 1.0
+        50.0: 1.0
+        75.0: 1.5
+
+---
 format:
   - do:
       search:

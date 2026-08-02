@@ -22,6 +22,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
     private final double[] percents;
     private final boolean keyed;
+    private final PercentilesBucketPipelineAggregationBuilder.Interpolation interpolation;
     private List<Double> data;
 
     PercentilesBucketPipelineAggregator(
@@ -31,11 +32,13 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         String[] bucketsPaths,
         GapPolicy gapPolicy,
         DocValueFormat formatter,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        PercentilesBucketPipelineAggregationBuilder.Interpolation interpolation
     ) {
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.percents = percents;
         this.keyed = keyed;
+        this.interpolation = interpolation;
     }
 
     @Override
@@ -61,13 +64,30 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
             }
         } else {
             for (int i = 0; i < percents.length; i++) {
-                int index = (int) Math.round((percents[i] / 100.0) * (data.size() - 1));
-                percentiles[i] = data.get(index);
+                percentiles[i] = percentile(percents[i]);
             }
         }
 
         // todo need postCollection() to clean up temp sorted data?
 
         return new InternalPercentilesBucket(name(), percents, percentiles, keyed, format, metadata);
+    }
+
+    private double percentile(double percent) {
+        double rank = (percent / 100.0) * (data.size() - 1);
+        if (interpolation == PercentilesBucketPipelineAggregationBuilder.Interpolation.NONE) {
+            return data.get((int) Math.round(rank));
+        }
+
+        int lowerIndex = (int) Math.floor(rank);
+        int upperIndex = (int) Math.ceil(rank);
+        if (lowerIndex == upperIndex) {
+            return data.get(lowerIndex);
+        }
+
+        double lowerValue = data.get(lowerIndex);
+        double upperValue = data.get(upperIndex);
+        double weight = rank - lowerIndex;
+        return lowerValue + weight * (upperValue - lowerValue);
     }
 }

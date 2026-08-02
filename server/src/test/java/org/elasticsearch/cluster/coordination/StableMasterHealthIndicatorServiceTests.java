@@ -263,10 +263,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         // Include multiple projects to verify master stability health is unaffected by multi-project metadata.
         ProjectId project1 = randomUniqueProjectId();
         ProjectId project2 = randomUniqueProjectId();
-        Metadata metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(project1))
-            .put(ProjectMetadata.builder(project2))
-            .build();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(project1)).put(ProjectMetadata.builder(project2)).build();
         GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
             .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
             .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)

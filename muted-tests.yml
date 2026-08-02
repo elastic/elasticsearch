@@ -592,3 +592,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155670
+- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
+  method: testUploadIndicesDataWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/155680

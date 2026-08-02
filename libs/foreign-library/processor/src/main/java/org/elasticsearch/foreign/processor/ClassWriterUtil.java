@@ -33,6 +33,7 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemorySegment = ClassDesc.of("java.lang.foreign.MemorySegment");
     static final ClassDesc CD_StructLayout = ClassDesc.of("java.lang.foreign.StructLayout");
     static final ClassDesc CD_PaddingLayout = ClassDesc.of("java.lang.foreign.PaddingLayout");
+    static final ClassDesc CD_SequenceLayout = ClassDesc.of("java.lang.foreign.SequenceLayout");
     static final ClassDesc CD_MemoryLayoutPathElement = ClassDesc.of("java.lang.foreign.MemoryLayout$PathElement");
     static final ClassDesc CD_Arena = ClassDesc.of("java.lang.foreign.Arena");
     static final ClassDesc CD_VarHandle = ClassDesc.of("java.lang.invoke.VarHandle");
@@ -46,7 +47,15 @@ final class ClassWriterUtil {
     // Widely-used java.lang.foreign method type descriptors
     static final MethodTypeDesc MTD_structLayout = MethodTypeDesc.of(CD_StructLayout, CD_MemoryLayoutArray);
     static final MethodTypeDesc MTD_groupElement = MethodTypeDesc.of(CD_MemoryLayoutPathElement, CD_String);
+    static final MethodTypeDesc MTD_sequenceElement = MethodTypeDesc.of(CD_MemoryLayoutPathElement);
+    static final MethodTypeDesc MTD_sequenceLayout = MethodTypeDesc.of(CD_SequenceLayout, CD_long, CD_MemoryLayout);
     static final MethodTypeDesc MTD_varHandleWithoutOffset = MethodTypeDesc.of(CD_VarHandle, CD_MemoryLayout, CD_MemoryLayoutPathElement);
+    static final MethodTypeDesc MTD_varHandleSequenceWithoutOffset = MethodTypeDesc.of(
+        CD_VarHandle,
+        CD_MemoryLayout,
+        CD_MemoryLayoutPathElement,
+        CD_MemoryLayoutPathElement
+    );
     static final MethodTypeDesc MTD_Arena_ofAuto = MethodTypeDesc.of(CD_Arena);
     static final MethodTypeDesc MTD_allocate_layout = MethodTypeDesc.of(CD_MemorySegment, CD_MemoryLayout);
     static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);

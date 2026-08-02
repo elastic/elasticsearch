@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es95;
 
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -83,7 +84,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     @Override
-    protected int getNumberOfVectors(NextFieldEntry entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+    protected int getNumberOfVectors(NextFieldEntry entry, KnnVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
         int size = values.size();
         assert esAcceptDocs == null
@@ -131,13 +132,20 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        float[] targetQuery,
+        QueryTarget queryTarget,
         IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
-        FloatVectorValues values,
+        KnnVectorValues values,
         float visitRatio
     ) throws IOException {
+        // Extract float target for FlatCentroidIndex (byte queries are converted at the IVF search entry point)
+        float[] targetQuery = switch (queryTarget) {
+            case QueryTarget.FloatQuery fq -> fq.vector();
+            case QueryTarget.ByteQuery bq -> throw new UnsupportedOperationException(
+                "byte vector search not supported by this legacy format"
+            );
+        };
         ES950DiskBBQVectorsReader.NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         var iterator = new FlatCentroidIndex(
             fieldInfo,
@@ -223,6 +231,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public CentroidData readCentroidData(String fieldName) throws IOException {
         FieldInfo fieldInfo = fieldInfos.fieldInfo(fieldName);
         if (fieldInfo == null) {
@@ -234,8 +243,14 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         }
         int dimension = fieldInfo.getVectorDimension();
         int numCentroids = entry.numCentroids();
-        FloatVectorValues vectorValues = getFloatVectorValues(fieldInfo.name);
-        int numVectors = vectorValues != null ? vectorValues.size() : 0;
+        final int numVectors;
+        if (fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {
+            ByteVectorValues bvv = getByteVectorValues(fieldInfo.name);
+            numVectors = bvv != null ? bvv.size() : 0;
+        } else {
+            FloatVectorValues fvv = getFloatVectorValues(fieldInfo.name);
+            numVectors = fvv != null ? fvv.size() : 0;
+        }
         int[] clusterSizes = new int[numCentroids];
 
         long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
@@ -366,14 +381,21 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
-        FloatVectorValues values,
+        KnnVectorValues values,
         IndexInput indexInput,
-        float[] target,
+        QueryTarget queryTarget,
         Bits needsScoring,
         IndexInput centroidSlice,
         ESAcceptDocs acceptDocs
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
+        // Extract float target for QueryQuantizer (byte queries are widened at the search entry point)
+        float[] target = switch (queryTarget) {
+            case QueryTarget.FloatQuery fq -> fq.vector();
+            case QueryTarget.ByteQuery bq -> throw new UnsupportedOperationException(
+                "byte vector search not supported by this legacy format"
+            );
+        };
         if (entry.numSlices > 0) {
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);
             final long sizeLookup = DirectWriter.bytesRequired(entry.numSlices, bitsRequired);
@@ -530,7 +552,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
     private static class SlicedMemorySegmentPostingsVisitor extends MemorySegmentPostingsVisitor {
         final int startDocId;
         final int endDocId;
-        final FloatVectorValues floatVectorValues;
+        final KnnVectorValues vectorValues;
 
         SlicedMemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
@@ -539,21 +561,21 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             FieldEntry entry,
             FieldInfo fieldInfo,
             Bits acceptDocs,
-            FloatVectorValues values,
+            KnnVectorValues values,
             int startDocId,
             int endDocId
         ) throws IOException {
             super(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
             this.startDocId = startDocId;
             this.endDocId = endDocId;
-            this.floatVectorValues = values;
+            this.vectorValues = values;
         }
 
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
             int totalVectors = super.resetPostingsScorer(metadata);
             int totalBlocks = totalVectors / BULK_SIZE;
-            KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
             if (iterator.advance(startDocId) >= endDocId) {
                 this.vectors = 0;
                 return 0;
@@ -562,7 +584,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             int docId = iterator.advance(endDocId);
             int maxOrd;
             if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                maxOrd = floatVectorValues.size();
+                maxOrd = vectorValues.size();
             } else {
                 maxOrd = iterator.index();
             }
@@ -596,7 +618,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         @Override
         protected void readDocIds(int count) {
             for (int j = 0; j < count; j++) {
-                int docId = floatVectorValues.ordToDoc(docBase++);
+                int docId = vectorValues.ordToDoc(docBase++);
                 if (docId >= startDocId && docId < endDocId) {
                     docIdsScratch[j] = docId;
                 } else {

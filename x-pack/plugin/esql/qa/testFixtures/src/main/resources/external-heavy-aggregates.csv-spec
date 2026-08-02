@@ -74,3 +74,35 @@ distinct_emp:long | gender:keyword
 0                 | "F"
 57                | "M"
 ;
+
+// Empty buckets over the leaf UnionAll a multi-source FROM produces. This guards the interaction between
+// include_empty_buckets and PushAggregateThroughUnionAll
+emptyBucketsMergedAcrossDatasets
+required_capability: external_command
+required_capability: bucket_include_empty_buckets
+dataset: emp_a: "{{employees_no_mv}}"
+dataset: emp_b: "{{employees_no_mv}}"
+
+FROM emp_a, emp_b
+| WHERE languages IS NOT NULL
+| STATS c = COUNT(*) BY b = BUCKET(languages, 20, 1, 9, {"include_empty_buckets": true})
+| SORT b;
+
+c:long | b:double
+30     | 1.0
+0      | 1.5
+38     | 2.0
+0      | 2.5
+34     | 3.0
+0      | 3.5
+36     | 4.0
+0      | 4.5
+42     | 5.0
+0      | 5.5
+0      | 6.0
+0      | 6.5
+0      | 7.0
+0      | 7.5
+0      | 8.0
+0      | 8.5
+;

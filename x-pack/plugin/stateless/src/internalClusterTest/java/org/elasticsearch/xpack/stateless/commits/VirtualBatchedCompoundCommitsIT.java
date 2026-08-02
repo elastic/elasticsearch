@@ -1239,7 +1239,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     handler.messageReceived(request, new TransportChannel() {
                         @Override
                         public void sendResponse(Exception exception) {
-                            assertThat(chunk2Attempts.getCount(), greaterThan(0L));
                             final var rejectedException = ExceptionsHelper.unwrap(exception, EsRejectedExecutionException.class);
                             assertNotNull(rejectedException);
                             assertThat(
@@ -1313,7 +1312,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         }
 
         measurements = metricsPlugin.getLongCounterMeasurement(CHUNK_REQUESTS_REJECTED_METRIC);
-        assertThat(measurements.size(), equalTo(2));
+        // A BCC larger than one PAGE_SIZE produces multiple concurrent valid chunk2 requests. Those may overlap: a
+        // second request can call GetVirtualBatchedCompoundCommitChunksPressure#markChunkStarted after the first has
+        // gotten its GetVirtualBatchedCompoundCommitChunkResponse, but before the pressure is released (after onResponseSent).
+        // Extra rejections beyond the two we explicitly wait for are therefore possible, so only assert a lower bound.
+        assertThat(measurements.size(), greaterThanOrEqualTo(2));
         assertRejectionMeasurement(measurements.get(0));
         assertRejectionMeasurement(measurements.get(1));
     }

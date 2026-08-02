@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154758
+pr: 155010
+summary: Fix `VerificationException` when in subquery is used together with `QSTR`/`KQL`
+type: bug

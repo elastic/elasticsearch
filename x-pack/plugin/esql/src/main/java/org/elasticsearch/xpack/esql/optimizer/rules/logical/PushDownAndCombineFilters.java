@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -176,9 +177,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
     private static LogicalPlan pushDownPastJoin(Filter filter, Join join, FoldContext foldCtx) {
         LogicalPlan plan = filter;
-        // pushdown only through LEFT joins
+        // pushdown through LEFT joins and AbstractSubqueryJoins
         // TODO: generalize this for other join types
-        if (join.config().type() == JoinTypes.LEFT) {
+        if (join.config().type() == JoinTypes.LEFT || join instanceof AbstractSubqueryJoin) {
             LogicalPlan left = join.left();
             LogicalPlan right = join.right();
             var conjunctions = Predicates.splitAnd(filter.condition());
@@ -212,7 +213,11 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // motivation does not apply. The duplicate filter above the join already enforces the
             // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
-            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
+            // Skip push filters to the right side of an AbstractSubqueryJoin. The subquery executes independently.
+            if (scoped.rightFilters.isEmpty() == false
+                && join instanceof InlineJoin == false
+                && right instanceof LocalRelation == false
+                && join instanceof AbstractSubqueryJoin == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {

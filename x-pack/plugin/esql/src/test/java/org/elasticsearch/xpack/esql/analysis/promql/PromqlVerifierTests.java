@@ -452,6 +452,91 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testLabelReplaceWrongArity() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"x\", \"host\")",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [label_replace], required [5], found [4]")
+        );
+    }
+
+    public void testLabelJoinTooFewArguments() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_join(network.bytes_in, \"dst\")",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [label_join], required [3], found [2]")
+        );
+    }
+
+    public void testLabelReplaceNonStringArgumentRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in, 5, \"x\", \"host\", \".*\")",
+            containsString("expected string literal parameter in call to function [label_replace]")
+        );
+    }
+
+    public void testLabelReplaceRangeVectorChildRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in[5m], \"dst\", \"x\", \"host\", \".*\")",
+            containsString("expected type instant_vector in call to function [label_replace], got range_vector")
+        );
+    }
+
+    public void testLabelReplaceMalformedRegexRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"x\", \"host\", \"(\")",
+            containsString("invalid regular expression [(] in call to function [label_replace]")
+        );
+    }
+
+    public void testLabelReplaceBackreferenceRejected() {
+        // RE2 (and thus the RE2/J engine used for Prometheus parity) does not support backreferences, so a pattern
+        // that uses one fails to compile and is rejected at analysis time - matching Prometheus, which also rejects it.
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"x\", \"host\", \"(a)\\\\1\")",
+            containsString("invalid regular expression [(a)\\1] in call to function [label_replace]")
+        );
+    }
+
+    public void testLabelReplaceInvalidDestinationLabelRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace(network.bytes_in, \"1bad\", \"x\", \"host\", \".*\")",
+            containsString("invalid destination label name [1bad] in call to function [label_replace]")
+        );
+    }
+
+    public void testLabelJoinInvalidSourceLabelRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_join(network.bytes_in, \"dst\", \"-\", \"1bad\")",
+            containsString("invalid source label name [1bad] in call to function [label_join]")
+        );
+    }
+
+    public void testLabelJoinInvalidDestinationLabelRejected() {
+        tsdb.error(
+            "PROMQL index=test step=5m label_join(network.bytes_in, \"1bad\", \"-\", \"host\")",
+            containsString("invalid destination label name [1bad] in call to function [label_join]")
+        );
+    }
+
+    public void testLabelReplaceGroupingRejected() {
+        // label_replace is not an aggregation, so a by(...) grouping clause is invalid PromQL and must be rejected
+        // rather than silently dropped (mirroring the guard that already rejects grouping on other non-aggregation
+        // functions).
+        tsdb.error(
+            "PROMQL index=test step=5m label_replace by (host) (network.bytes_in, \"dst\", \"x\", \"host\", \".*\")",
+            containsString("[by] clause not allowed on non-aggregation function [label_replace]")
+        );
+    }
+
+    public void testLabelJoinGroupingRejected() {
+        // A without(...) grouping clause on label_join is likewise invalid PromQL and must be rejected, not dropped.
+        tsdb.error(
+            "PROMQL index=test step=5m label_join without (host) (network.bytes_in, \"dst\", \"-\", \"host\")",
+            containsString("[without] clause not allowed on non-aggregation function [label_join]")
+        );
+    }
+
     /**
      * Batch test for analysis-level invalid queries. Each bare PromQL expression is wrapped in
      * "PROMQL index=test step=5m (%s)" and expected to throw during analysis (either a

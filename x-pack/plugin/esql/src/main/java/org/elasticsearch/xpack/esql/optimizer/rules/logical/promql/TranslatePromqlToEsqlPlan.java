@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -41,6 +42,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlRegexExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlSetLabel;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -56,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
@@ -78,6 +84,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCollisionCheck;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
@@ -474,6 +482,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             case HistogramQuantile histogramQuantile -> translateHistogramQuantile(histogramQuantile, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
             case WithinSeriesAggregate withinAgg -> translateFunctionCall(withinAgg, currentPlan, ctx);
+            case MetadataManipulationFunction relabel -> translateMetadataManipulation(relabel, currentPlan, ctx);
             case PromqlFunctionCall functionCall -> translateFunctionCall(functionCall, currentPlan, ctx);
             case ScalarFunction scalarFunction -> translateScalarFunction(scalarFunction, currentPlan, ctx);
             case VectorBinaryOperator binaryOp -> translateBinaryOperator(binaryOp, currentPlan, ctx);
@@ -699,6 +708,213 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /**
+     * Translates the PromQL label-manipulation functions {@code label_replace} and {@code label_join}. The derived
+     * destination label is materialized once at the first-pass identity seam (one row per {@code _tsid}+bucket, from the
+     * aggregated source value - never per doc) and written into whichever identity representation is in play at this
+     * position: the opaque {@code _timeseries} blob (whole-identity output: bare/{@code without}/group-all) and/or a
+     * concrete groupable column (so an outer {@code by(dst)} or default vector matching can resolve it). The source
+     * label(s) are read from the concrete columns the seam exposes; an absent source reads as the empty string (except
+     * {@code __name__}, which falls back to the statically-known metric name). This reuses the {@code histogram_quantile}
+     * /{@code le} precedent for exposing a derived label; the delta is that the label value is computed rather than stored.
+     */
+    private TranslationResult translateMetadataManipulation(
+        MetadataManipulationFunction relabel,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        Source source = relabel.source();
+        boolean isReplace = relabel.definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE;
+        List<Expression> params = relabel.parameters();
+        // label_replace params: [dst, replacement, src, regex]; label_join params: [dst, separator, src_1..src_N].
+        String dstName = literalString(params.get(0));
+        List<String> srcNames = new ArrayList<>();
+        if (isReplace) {
+            srcNames.add(literalString(params.get(2)));
+        } else {
+            for (int i = 2; i < params.size(); i++) {
+                srcNames.add(literalString(params.get(i)));
+            }
+        }
+
+        // The identity representation the surrounding query consumes is fixed by this relabel's position: whole-identity
+        // output (bare / without / group-all above) keeps the opaque `_timeseries` blob, whereas an enclosing BY narrows
+        // the scope and drops `_timeseries`, consuming the destination as a concrete column instead.
+        boolean wholeIdentity = ctx.inheritedAttributes().requiresWholeIdentity();
+
+        // Descend keeping the full identity so the seam sees whole series - the blob survives for a rewrite, the value is
+        // wrapped for the second pass, and the source labels can be materialized alongside it as concrete columns.
+        // Preserve accumulated WITHOUT exclusions so an enclosing `without` still drops those dimensions at the leaf.
+        InheritedAttributes childInherited = InheritedAttributes.unconstrained().excluding(ctx.inheritedAttributes().pathExclusions());
+        TranslationContext childCtx = new TranslationContext(
+            ctx.promqlCommand,
+            ctx.analyzerContext,
+            ctx.stepBucketAlias,
+            childInherited,
+            ctx.time
+        );
+        TranslationResult childResult = translateNode(relabel.child(), currentPlan, childCtx);
+        if (childResult.constFolded()) {
+            return childResult;
+        }
+
+        // The concrete columns the seam must expose: the source labels the derivation reads, plus any concrete labels the
+        // enclosing BY still demands (e.g. an outer by(region, pod) where pod is a real label). The derived destination is
+        // produced below, not passed through, so it is excluded here. Absent labels read as "" at derive time.
+        List<Attribute> demandedColumns = new ArrayList<>();
+        for (String s : srcNames) {
+            Attribute col = findSupportedAttributeByLabelName(childResult.plan().output(), s);
+            if (col != null) {
+                demandedColumns.add(col);
+            }
+        }
+        for (Attribute required : ctx.inheritedAttributes().requiredLabels()) {
+            if (canonicalName(required).equals(dstName)) {
+                continue;
+            }
+            Attribute col = findSupportedAttributeByLabelName(childResult.plan().output(), canonicalName(required));
+            if (col != null) {
+                demandedColumns.add(col);
+            }
+        }
+
+        // Materialize the first-pass identity seam when the child is a raw vector; an already-aggregated child (from an
+        // inner aggregate, or straight out of a by(...) with columns-only identity) owns its own seam.
+        LogicalPlan seam = childResult.plan();
+        if (findAggregate(seam, Aggregate.class) == null) {
+            seam = createInnermostAggregatePlan(
+                ctx,
+                seam,
+                childResult.synthesizedAttributes(),
+                ctx.inheritedAttributes().pathExclusions(),
+                childResult.expression(),
+                demandedColumns
+            );
+        }
+
+        // Derive the destination value once at the seam (one row per _tsid+bucket, from the aggregated source value).
+        Expression derivation = isReplace
+            ? new PromqlRegexExtract(source, sourceValue(source, seam, srcNames.getFirst(), relabel), params.get(3), params.get(1))
+            : joinDerivation(source, seam, srcNames, literalString(params.get(1)), relabel);
+        NameId derivedId = new NameId();
+        Alias derived = new Alias(source, "$$relabel$" + derivedId, derivation, derivedId);
+        LogicalPlan plan = new Eval(source, seam, List.of(derived));
+
+        // Write the derived value into the representation(s) the position needs. The destination is always exposed as a
+        // concrete groupable column (for an outer by(dst)/default matching); the `_timeseries` blob is additionally
+        // rewritten only when whole-identity output keeps it. On a label_replace no-match the value is null: setLabel
+        // leaves the blob untouched and the column falls back to any pre-existing destination value - never the source.
+        // The `_timeseries` rewrite mints a fresh NameId and shadows the input blob by name (as `EVAL x = f(x)` does):
+        // reusing the input id would define the same attribute twice in one Eval and trip a duplicate-attribute assertion.
+        // The destination column uses the node's declared destination id so the derived label carries the same identity
+        // the analyzer bound `by(dst)`/`KEEP dst` to; that id is virtual (never produced below), so this Eval is its sole
+        // definer.
+        List<Alias> writes = new ArrayList<>();
+        Attribute timeseries = PromqlAttributesTranslationContext.findByFieldName(plan.output(), MetadataAttribute.TIMESERIES);
+        if (wholeIdentity && timeseries != null) {
+            Expression setLabel = new PromqlSetLabel(source, timeseries, derived.toAttribute(), params.get(0));
+            writes.add(new Alias(source, timeseries.name(), setLabel));
+        }
+        Attribute existingDst = findSupportedAttributeByLabelName(plan.output(), dstName);
+        Expression dstColumnValue = existingDst == null
+            ? derived.toAttribute()
+            : new Coalesce(source, derived.toAttribute(), List.of(existingDst));
+        Alias dstColumn = new Alias(source, relabel.destination().name(), dstColumnValue, relabel.destination().id());
+        writes.add(dstColumn);
+        plan = new Eval(source, plan, writes);
+
+        // Columns output: an enclosing by(dst) resolves the destination as a concrete column and never the whole-series
+        // identity, so drop `_timeseries` (mirroring how a by(...) drops it) - otherwise the outer aggregate would group
+        // on the opaque blob rather than the derived column.
+        if (wholeIdentity == false && timeseries != null) {
+            List<Attribute> kept = plan.output()
+                .stream()
+                .filter(attribute -> isTimeSeriesAttributeName(attribute.name()) == false)
+                .toList();
+            plan = new Project(source, plan, kept);
+        }
+
+        // Ascend: expose the (possibly rewritten) identity plus the derived destination column so an outer aggregate can
+        // group on it.
+        List<Attribute> exposed = new ArrayList<>();
+        Attribute exposedTimeseries = PromqlAttributesTranslationContext.findByFieldName(plan.output(), MetadataAttribute.TIMESERIES);
+        if (exposedTimeseries != null) {
+            exposed.add(exposedTimeseries);
+        }
+        exposed.addAll(concreteDimensionAttributes(plan.output()));
+        exposed.add(dstColumn.toAttribute());
+        SynthesizedAttributes synthesized = SynthesizedAttributes.of(exposed);
+
+        // Guard the relabel against ambiguous output: two distinct source series mapped onto the same identity at the same
+        // bucket would be silently merged by the consuming aggregate/collapse. A collision check at this seam - before any
+        // outer aggregate - fails the query on such a same-(identity, bucket) duplicate, mirroring PromQL's "vector cannot
+        // contain metrics with the same labelset" evaluation error. Its key is exactly the identity the downstream groups
+        // on (the exposed attributes) plus the time bucket, so it flags precisely the rows that would merge, while
+        // identities that coincide only at different buckets pass through untouched.
+        Attribute bucket = ctx.stepAttr();
+        if (exposed.isEmpty() == false && plan.output().stream().anyMatch(attribute -> attribute.id().equals(bucket.id()))) {
+            plan = new PromqlCollisionCheck(source, plan, new ArrayList<>(exposed), bucket);
+        }
+
+        return new TranslationResult(plan, getValueOutput(plan), childResult.pendingFilter(), synthesized);
+    }
+
+    /**
+     * The derivation value for a single source label: the concrete column coalesced to {@code ""} (an absent value reads
+     * as the empty string, so an empty regex still matches). {@code __name__} falls back to the statically-known metric
+     * name literal when the column is absent (OTel data, where {@code __name__} is not stored in the identity blob).
+     */
+    private Expression sourceValue(Source source, LogicalPlan plan, String srcName, MetadataManipulationFunction relabel) {
+        Attribute column = findSupportedAttributeByLabelName(plan.output(), srcName);
+        Expression fallback = srcName.equals(LabelMatcher.NAME) ? metricNameLiteral(source, relabel) : Literal.keyword(source, "");
+        return column == null ? fallback : new Coalesce(source, column, List.of(fallback));
+    }
+
+    /**
+     * The {@code label_join} derivation: {@code CONCAT(src_1, sep, src_2, sep, ..., src_N)} with each source coalesced to
+     * {@code ""}. For a single source this is just that source's value; with no sources the value is the empty string.
+     * An empty joined result deletes the destination.
+     */
+    private Expression joinDerivation(
+        Source source,
+        LogicalPlan plan,
+        List<String> srcNames,
+        String separator,
+        MetadataManipulationFunction relabel
+    ) {
+        // The source labels are variadic: with none, there is nothing to join, so the value is the empty string
+        // (which deletes the destination), matching Prometheus rather than failing on an empty source list.
+        if (srcNames.isEmpty()) {
+            return Literal.keyword(source, "");
+        }
+        Expression first = sourceValue(source, plan, srcNames.getFirst(), relabel);
+        if (srcNames.size() == 1) {
+            return first;
+        }
+        Literal sep = Literal.keyword(source, separator);
+        List<Expression> rest = new ArrayList<>((srcNames.size() - 1) * 2);
+        for (int i = 1; i < srcNames.size(); i++) {
+            rest.add(sep);
+            rest.add(sourceValue(source, plan, srcNames.get(i), relabel));
+        }
+        return new Concat(source, first, rest);
+    }
+
+    /** The statically-known metric name from the underlying selector, or {@code ""} if none carries a name matcher. */
+    private static Expression metricNameLiteral(Source source, MetadataManipulationFunction relabel) {
+        for (Selector selector : relabel.child().collect(Selector.class)) {
+            LabelMatcher nameLabel = selector.labelMatchers().nameLabel();
+            if (nameLabel != null) {
+                return Literal.keyword(source, nameLabel.getFirstValue());
+            }
+        }
+        return Literal.keyword(source, "");
+    }
+
+    private static String literalString(Expression literal) {
+        return BytesRefs.toString(((Literal) literal).value());
+    }
+
+    /**
      * Ensure {@code _timeseries} survives in the exported labels.
      * Without `le`, no {@link TimeSeriesWithout} is inserted and concrete-dimension grouping drops
      * {@code _timeseries} from the output, yet the command wrapper still projects it. Re-add it here
@@ -772,6 +988,27 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
         }
         return bareMatch;
+    }
+
+    /**
+     * Resolve a PromQL label name to a <b>supported</b> attribute usable in a scalar expression or as a materialized
+     * grouping column. For a Prometheus passthrough dimension the concrete field (e.g. {@code labels.zone}) is an
+     * {@link org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute} (its passthrough parent is not a scalar
+     * type), while the short alias ({@code zone}) is a plain keyword: read and {@code DimensionValues}-materialize the
+     * alias, mirroring how {@code by(zone)} resolves. This is the counterpart to {@link #findAttributeByLabelName}, which
+     * deliberately prefers the concrete field so {@code _timeseries} block-loader exclusions match the stored dimension.
+     */
+    private static Attribute findSupportedAttributeByLabelName(List<Attribute> attributes, String labelName) {
+        Attribute unsupportedFallback = null;
+        for (var attr : attributes) {
+            if (canonicalName(attr).equals(labelName)) {
+                if (attr.dataType() != DataType.UNSUPPORTED) {
+                    return attr;
+                }
+                unsupportedFallback = attr;
+            }
+        }
+        return unsupportedFallback;
     }
 
     private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {
@@ -1144,9 +1381,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         // Across-series reductions ({@code topk ... by}) demand partition labels as concrete columns alongside the
         // full `_timeseries` identity. Added as plain grouping/aggregate attributes: TranslateTimeSeriesAggregate
-        // applies DimensionValues/pack/unpack to any plain-attribute grouping key generically.
+        // applies DimensionValues/pack/unpack to any plain-attribute grouping key generically. Resolve to the supported
+        // attribute (the short alias for a passthrough dimension) so the materialized column can back a scalar/grouping.
         for (Attribute label : extraPassthrough) {
-            Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+            Attribute resolved = findSupportedAttributeByLabelName(plan.output(), canonicalName(label));
             Attribute key = resolved != null ? resolved : label;
             groupings.add(key);
             aggregates.add(key);
@@ -1258,7 +1496,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
         keys.addAll(translation.passthrough());
         for (Attribute label : extraPassthrough) {
-            Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+            Attribute resolved = findSupportedAttributeByLabelName(plan.output(), canonicalName(label));
             keys.add(resolved != null ? resolved : label);
         }
         if (translation.absent().isEmpty() == false) {

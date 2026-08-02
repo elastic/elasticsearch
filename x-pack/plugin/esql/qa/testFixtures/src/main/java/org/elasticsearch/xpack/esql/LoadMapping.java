@@ -51,30 +51,34 @@ public class LoadMapping {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, EsField> fromEs(Map<String, Object> asMap) {
+        return fromEs(asMap, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, EsField> fromEs(Map<String, Object> asMap, boolean inheritDimension) {
         Map<String, Object> props = null;
         if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
         }
-        return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(props, inheritDimension);
     }
 
-    private static Map<String, EsField> startWalking(Map<String, Object> mapping) {
+    private static Map<String, EsField> startWalking(Map<String, Object> mapping, boolean inheritDimension) {
         Map<String, EsField> types = new LinkedHashMap<>();
 
         if (mapping == null) {
             return emptyMap();
         }
         for (Map.Entry<String, Object> entry : mapping.entrySet()) {
-            walkMapping(entry.getKey(), entry.getValue(), types);
+            walkMapping(entry.getKey(), entry.getValue(), types, inheritDimension);
         }
 
         return types;
     }
 
     @SuppressWarnings("unchecked")
-    private static void walkMapping(String name, Object value, Map<String, EsField> mapping) {
+    private static void walkMapping(String name, Object value, Map<String, EsField> mapping, boolean inheritDimension) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
@@ -83,24 +87,35 @@ public class LoadMapping {
                 // Nested fields are entirely removed by IndexResolver so we mimic it.
                 return;
             }
+            // A `passthrough` object exposes its leaf subfields under their declared (scalar) types, mirroring how
+            // production field-caps resolves them: the object itself is not a usable scalar, but e.g. `labels.zone`
+            // is a plain keyword. When the passthrough carries `time_series_dimension`, every leaf below it is a
+            // dimension. Modelling this here (instead of treating the whole subtree as UNSUPPORTED) lets tests read
+            // and group by Prometheus/OTel labels exactly as a real cluster does.
+            boolean isPassthrough = "passthrough".equals(content.get("type"));
             // extract field type
-            DataType esDataType = getType(content);
+            DataType esDataType = isPassthrough ? OBJECT : getType(content);
+            boolean explicitDimension = boolSetting(content.get("time_series_dimension"), false);
+            // Dimension-ness applies to leaf fields and, for a passthrough (or an object nested beneath one), flows
+            // down to its leaves; the container object node itself is never a groupable dimension.
+            boolean dimensionScope = explicitDimension || inheritDimension;
+            boolean isDimension = dimensionScope && esDataType != OBJECT;
+            boolean childInherit = isPassthrough || (esDataType == OBJECT && inheritDimension);
             final Map<String, EsField> properties;
             if (esDataType == OBJECT) {
-                properties = fromEs(content);
+                properties = fromEs(content, childInherit && dimensionScope);
             } else if (content.containsKey("fields")) {
                 // Check for multifields
                 Object fields = content.get("fields");
                 if (fields instanceof Map) {
-                    properties = startWalking((Map<String, Object>) fields);
+                    properties = startWalking((Map<String, Object>) fields, false);
                 } else {
                     properties = Collections.emptyMap();
                 }
             } else {
-                properties = fromEs(content);
+                properties = fromEs(content, false);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
-            boolean isDimension = boolSetting(content.get("time_series_dimension"), false);
             boolean isMetric = content.containsKey("time_series_metric");
             if (isDimension && isMetric) {
                 throw new IllegalStateException("Field configured as both dimension and metric:" + value);

@@ -263,6 +263,20 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
+         * Whether the required scope is still the full universe ({@code G=T}): no enclosing {@code BY} has narrowed it to a
+         * finite set of concrete keys. A subtree in this state must preserve the whole-series identity (the opaque
+         * {@code _timeseries} blob); once narrowed, the surrounding query wants concrete grouping columns instead.
+         */
+        public boolean requiresWholeIdentity() {
+            return isTop(required);
+        }
+
+        /** The finite labels still required from below, or the empty list when the scope is the full universe. */
+        public List<Attribute> requiredLabels() {
+            return asList(required);
+        }
+
+        /**
          * {@code BY(W)}: the child scope becomes exactly {@code W}, and the accumulated exclusions are <b>cleared</b>. A
          * {@code BY} fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete
          * labels (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer

@@ -116,6 +116,9 @@ public class PromqlFunctionRegistry {
         //
         PromqlBuiltinFunctionDefinitions.TOPK,
         //
+        PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
+        PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
@@ -200,10 +203,6 @@ public class PromqlFunctionRegistry {
 
         // Time functions
         "timestamp",
-
-        // Label manipulation functions
-        "label_join",
-        "label_replace",
 
         // Histogram functions
         "histogram_fraction",

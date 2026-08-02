@@ -1,0 +1,3 @@
+PROMQL index=prom-metrics-name step=1h result=(
+  sum by (region) (label_replace(metrics.requests, "region", "$1", "zone", "(.+)"))
+)

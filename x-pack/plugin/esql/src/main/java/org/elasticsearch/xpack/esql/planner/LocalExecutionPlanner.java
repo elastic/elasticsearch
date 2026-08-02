@@ -52,6 +52,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.PromqlCollisionCheckOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -183,6 +184,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.PromqlCollisionCheckExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -399,6 +401,8 @@ public class LocalExecutionPlanner {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
+        } else if (node instanceof PromqlCollisionCheckExec collisionCheck) {
+            return planPromqlCollisionCheck(collisionCheck, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
@@ -2101,6 +2105,17 @@ public class LocalExecutionPlanner {
             .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
             .toList();
         return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source()), layout);
+    }
+
+    private PhysicalOperation planPromqlCollisionCheck(PromqlCollisionCheckExec check, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(check.child(), context);
+        Layout layout = source.layout;
+        List<Integer> keyChannels = new ArrayList<>(check.identity().size() + 1);
+        for (Attribute identity : check.identity()) {
+            keyChannels.add(getAttributeChannel(identity, layout, "PROMQL collision-check identity must be an attribute"));
+        }
+        keyChannels.add(getAttributeChannel(check.bucket(), layout, "PROMQL collision-check bucket must be an attribute"));
+        return source.with(new PromqlCollisionCheckOperator.Factory(keyChannels), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

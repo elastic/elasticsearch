@@ -74,6 +74,16 @@ Functions that convert between scalars and instant vectors.
 :::
 ::::
 
+### Metadata functions
+
+Functions that add, rename, join, or remove a series' labels without changing its values.
+
+::::{dropdown} Metadata function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/metadata-overview.md
+:::
+::::
+
 ## Not yet supported [promql-not-supported]
 
 The following PromQL functions are recognized but not yet supported in {{es}}. Using them returns a client error (4xx):

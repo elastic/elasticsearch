@@ -3,11 +3,11 @@
 ### `unmapped_fields` [esql-unmapped_fields]
 ```{applies_to}
 serverless: ga
-stack: ga 9.5+, preview 9.3-9.4
+stack: ga preview 9.3-9.4, ga 9.5+
 ```
-Determines how unmapped fields are treated.
-For a conceptual overview and use cases, including performance considerations, refer to
-[Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+    Determines how unmapped fields are treated.
+    For a conceptual overview and use cases, including performance considerations, refer to
+    [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
 Possible values are:
 

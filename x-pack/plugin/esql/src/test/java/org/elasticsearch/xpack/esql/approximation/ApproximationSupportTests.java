@@ -94,7 +94,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCollisionCheck;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
@@ -154,6 +156,8 @@ public class ApproximationSupportTests extends ESTestCase {
         InstantSelector.class,
         RangeSelector.class,
         PromqlFunctionCall.class,
+        MetadataManipulationFunction.class,
+        PromqlCollisionCheck.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         AcrossSeriesReduction.class,

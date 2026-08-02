@@ -9,8 +9,6 @@
 * `histogram_stddev`
 * `histogram_stdvar`
 * `holt_winters`
-* `label_join`
-* `label_replace`
 * `mad_over_time`
 * `predict_linear`
 * `resets`

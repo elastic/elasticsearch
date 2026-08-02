@@ -1,0 +1,321 @@
+// PromQL label_replace / label_join over both a Prometheus-style fixture (prom-metrics-name, which carries
+// labels.__name__) and an OpenTelemetry-style fixture (otel-metrics, which stores no __name__ and namespaces
+// labels under attributes).
+//
+// Blob content is asserted with order-independent LIKE probes (triple-quoted ES|QL strings so the
+// embedded JSON quotes need no escaping) rather than pinning the full _timeseries string, whose key
+// ordering is an implementation detail.
+//
+// A same-(identity, bucket) collision - two distinct source series relabeled onto the same label set within the
+// same time bucket - is a hard failure (mirroring PromQL's "vector cannot contain metrics with the same labelset"
+// evaluation error). Because csv-spec cannot assert query failures, that case is covered by an internalClusterTest
+// (PromqlLabelFunctionsIT). Non-overlapping merge and same-bucket collision are handled by the source-agnostic
+// TimeSeriesCollapse / collision-check operators (they key off the identity value, not the fixture flavor), so
+// they are exercised once here on the Prometheus fixture (podC merge) rather than duplicated per fixture.
+
+
+// label_replace copies a source label into a new destination label using $1 group expansion.
+label_replace_sets_new_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "region", "$1", "zone", "(.+)"))
+| EVAL region_eu = _timeseries LIKE """*"region":"eu"*"""
+| KEEP result, region_eu
+| SORT result;
+
+result:double | region_eu:boolean
+10.0          | true
+;
+
+
+// __name__ is present in Prometheus data (labels.__name__) and is renamed in place.
+label_replace_renames_name_prometheus
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "__name__", "renamed", "__name__", ".*"))
+| EVAL is_renamed = _timeseries LIKE """*"__name__":"renamed"*""", still_original = _timeseries LIKE "*requests_total*"
+| KEEP result, is_renamed, still_original
+| SORT result;
+
+result:double | is_renamed:boolean | still_original:boolean
+10.0          | true               | false
+;
+
+
+// On no regex match the destination label is left unchanged (here: stays absent), not set to the source.
+label_replace_no_match_leaves_dst_absent
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "region", "x", "zone", "no_match"))
+| EVAL has_region = _timeseries LIKE "*region*"
+| KEEP result, has_region
+| SORT result;
+
+result:double | has_region:boolean
+10.0          | false
+;
+
+
+// An absent source label reads as the empty string, so an empty regex matches and sets the destination.
+label_replace_absent_source_empty_regex_sets_dst
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "flag", "yes", "idx", ""))
+| EVAL flag_yes = _timeseries LIKE """*"flag":"yes"*"""
+| KEEP result, flag_yes
+| SORT result;
+
+result:double | flag_yes:boolean
+10.0          | true
+;
+
+
+// A matching empty replacement deletes the destination label.
+label_replace_empty_result_deletes_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "zone", "", "zone", "(.+)"))
+| EVAL has_zone = _timeseries LIKE "*zone*"
+| KEEP result, has_zone
+| SORT result;
+
+result:double | has_zone:boolean
+10.0          | false
+;
+
+
+// RE2 named-group parity: (?P<name>) capture referenced as $name in the replacement.
+label_replace_named_group_re2
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "region", "$zone", "zone", "(?P<zone>.+)"))
+| EVAL region_eu = _timeseries LIKE """*"region":"eu"*"""
+| KEEP result, region_eu
+| SORT result;
+
+result:double | region_eu:boolean
+10.0          | true
+;
+
+
+// label_join concatenates several source labels with a separator.
+label_join_concatenates_sources
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "combo", "-", "pod", "zone"))
+| EVAL combo = _timeseries LIKE """*"combo":"podA-eu"*"""
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:boolean
+10.0          | true
+;
+
+
+// Composability: grouping on a label the relabel derived (columns-only identity out of by(dst)).
+sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod="podA"}, "region", "$1", "zone", "(.+)")))
+| KEEP result, region
+| SORT result;
+
+result:double | region:keyword
+10.0          | eu
+;
+
+
+// Non-overlapping series relabeled to the same identity merge into one series carrying both buckets.
+label_replace_merges_non_overlapping
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podC"}, "idx", "replaced", "idx", ".*"))
+| EVAL idx_replaced = _timeseries LIKE """*"idx":"replaced"*"""
+| KEEP result, step, idx_replaced
+| SORT step;
+
+result:double | step:datetime            | idx_replaced:boolean
+2.0           | 2024-05-10T01:00:00.000Z | true
+4.0           | 2024-05-10T02:00:00.000Z | true
+;
+
+
+// On no regex match an already-present destination label is left unchanged - not overwritten with the
+// replacement and not set to the source value.
+label_replace_no_match_leaves_existing_dst_unchanged
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "zone", "REPLACED", "pod", "nomatch"))
+| EVAL zone_eu = _timeseries LIKE """*"zone":"eu"*""", zone_replaced = _timeseries LIKE "*REPLACED*"
+| KEEP result, zone_eu, zone_replaced
+| SORT result;
+
+result:double | zone_eu:boolean | zone_replaced:boolean
+10.0          | true            | false
+;
+
+
+// label_join with an empty separator concatenates the source values with nothing between them.
+label_join_empty_separator
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "combo", "", "pod", "zone"))
+| EVAL combo = _timeseries LIKE """*"combo":"podAeu"*"""
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:boolean
+10.0          | true
+;
+
+
+// A missing source label contributes an empty string to the join.
+label_join_missing_source_is_empty
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "combo", "-", "pod", "nonexistent"))
+| EVAL combo = _timeseries LIKE """*"combo":"podA-"*"""
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:boolean
+10.0          | true
+;
+
+
+// label_join over multiple sources, including __name__ read from labels.__name__ on Prometheus data.
+label_join_multiple_sources_with_name
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "combo", "-", "pod", "zone", "__name__"))
+| EVAL combo = _timeseries LIKE """*"combo":"podA-eu-requests_total"*"""
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:boolean
+10.0          | true
+;
+
+
+// A label_join whose sources are all absent yields an empty value, which removes the destination label.
+label_join_empty_result_deletes_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "zone", "", "nonexistent1", "nonexistent2"))
+| EVAL has_zone = _timeseries LIKE "*zone*"
+| KEEP result, has_zone
+| SORT result;
+
+result:double | has_zone:boolean
+10.0          | false
+;
+
+
+// The source labels of label_join are variadic (zero is allowed, matching Prometheus): with no sources the joined
+// value is empty, which removes the destination label - rather than failing the query.
+label_join_no_sources_deletes_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_join(metrics.requests{pod="podA"}, "zone", "-"))
+| EVAL has_zone = _timeseries LIKE "*zone*"
+| KEEP result, has_zone
+| SORT result;
+
+result:double | has_zone:boolean
+10.0          | false
+;
+
+
+// Composability: a nested label_replace reads a label the inner call derived.
+nested_label_replace
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(label_replace(label_replace(metrics.requests{pod="podA"}, "a", "$1", "zone", "(.+)"), "b", "$1", "a", "(.+)"))
+| EVAL a_eu = _timeseries LIKE """*"a":"eu"*""", b_eu = _timeseries LIKE """*"b":"eu"*"""
+| KEEP result, a_eu, b_eu
+| SORT result;
+
+result:double | a_eu:boolean | b_eu:boolean
+10.0          | true         | true
+;
+
+
+// Composability: sum without(x) over a relabel exposes the derived label in the grouped identity.
+sum_without_over_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics-name step=1h result=(sum without (zone) (label_replace(metrics.requests{pod="podA"}, "region", "$1", "zone", "(.+)")))
+| EVAL has_region = _timeseries LIKE "*region*", has_zone = _timeseries LIKE "*zone*"
+| KEEP result, has_region, has_zone
+| SORT result;
+
+result:double | has_region:boolean | has_zone:boolean
+10.0          | true               | false
+;
+
+
+// OTel data stores no __name__ label: label_join creates the destination inside the attributes namespace.
+label_join_otel_attributes
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(label_join(metrics.cpu_time{cpu="user",state="active"}, "combo", "-", "cpu", "state"))
+| EVAL combo = _timeseries LIKE """*"combo":"user-active"*"""
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:boolean
+10.0          | true
+;
+
+
+// On OTel data, reading __name__ falls back to the metric name and writing it surfaces a bare top-level __name__.
+label_replace_renames_name_otel
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(label_replace(metrics.cpu_time{cpu="user",state="active"}, "__name__", "renamed", "__name__", ".*"))
+| EVAL is_renamed = _timeseries LIKE """*"__name__":"renamed"*"""
+| KEEP result, is_renamed
+| SORT result;
+
+result:double | is_renamed:boolean
+10.0          | true
+;

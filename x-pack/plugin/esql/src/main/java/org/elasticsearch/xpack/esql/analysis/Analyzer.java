@@ -192,6 +192,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -1081,7 +1082,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
+            // A label_replace/label_join below derives a brand-new label that does not exist in the index relation. Add its
+            // stable destination attribute to the resolution scope so an enclosing by(dst) / outer KEEP dst binds to that
+            // exact identity, exactly as a stored label would - which is what carries the derived label through the aggregate
+            // and command output contracts. childrenOutput is a fresh per-call list, so this widening is local to this command.
+            List<Attribute> scope = childrenOutput;
+            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+            if (relabels.isEmpty() == false) {
+                scope = new ArrayList<>(childrenOutput);
+                for (MetadataManipulationFunction relabel : relabels) {
+                    scope.add(relabel.destination());
+                }
+            }
+            final List<Attribute> resolutionScope = scope;
+            Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, resolutionScope, log);
             // resolve the nested plan
             return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
                 // but also any unresolved expressions

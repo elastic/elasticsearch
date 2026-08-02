@@ -91,4 +91,24 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))").transportVersion(TransportVersion.current()).run();
     }
+
+    // Bare label_replace rewrites the whole-identity _timeseries blob (blob-rewrite path).
+    public void testLabelReplaceRewritesTimeseries() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        builder("PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests, \"region\", \"$1\", \"zone\", \"(.+)\"))")
+            .transportVersion(TransportVersion.current())
+            .run();
+    }
+
+    // Grouping on a derived label materializes it as a concrete column and pins where the collision check sits
+    // relative to the outer aggregate (columns-only identity out of by(dst)).
+    public void testSumByDerivedLabel() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        builder("""
+            PROMQL index=prom-metrics-name step=1h result=(
+              sum by (region) (label_replace(metrics.requests, "region", "$1", "zone", "(.+)"))
+            )""").transportVersion(TransportVersion.current()).run();
+    }
 }

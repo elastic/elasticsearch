@@ -1,0 +1,1 @@
+PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests, "region", "$1", "zone", "(.+)"))

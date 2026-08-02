@@ -358,7 +358,7 @@ public final class PromqlDocsSupport {
             .map(p -> new ParamDef(p.name(), mapDataType(p.type()), p.optional(), p.description()))
             .toList();
 
-        List<SignatureDef> signatures = List.of(new SignatureDef(params, false, mapDataType(def.functionType().outputType)));
+        List<SignatureDef> signatures = List.of(new SignatureDef(params, def.variadic(), mapDataType(def.functionType().outputType)));
 
         genKibanaDefinition(
             "definition/functions",
@@ -600,7 +600,8 @@ public final class PromqlDocsSupport {
             case VALUE_TRANSFORMATION -> FunctionDocCategory.MATH;
             case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
             case VECTOR_CONVERSION, SCALAR_CONVERSION -> FunctionDocCategory.CONVERSION;
-            case SCALAR, METADATA_MANIPULATION -> throw new IllegalStateException(
+            case METADATA_MANIPULATION -> FunctionDocCategory.METADATA;
+            case SCALAR -> throw new IllegalStateException(
                 "PromQL function ["
                     + def.name()
                     + "] has FunctionType ["
@@ -978,7 +979,8 @@ public final class PromqlDocsSupport {
         HISTOGRAM("histogram"),
         MATH("math"),
         DATE_TIME("date-time"),
-        CONVERSION("conversion");
+        CONVERSION("conversion"),
+        METADATA("metadata");
 
         final String slug;
 

@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -23,8 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
@@ -75,6 +80,12 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         }
         if (paramCount > metadata.arity().max()) {
             throw new ParsingException(unresolved.source(), arityMessage, name, metadata.arity().max(), paramCount);
+        }
+
+        // Label metadata-manipulation functions take an instant-vector child plus KEYWORD-literal arguments, so they bypass
+        // the generic PromqlDataType loop below (which would reject the string literals, whose selector type is SCALAR).
+        if (metadata.functionType() == FunctionType.METADATA_MANIPULATION) {
+            return resolveMetadataManipulation(unresolved, metadata, rawParams);
         }
 
         LogicalPlan child = null;
@@ -166,6 +177,129 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
         };
+    }
+
+    /**
+     * Resolves a {@code label_replace}/{@code label_join} call into a {@link MetadataManipulationFunction}. Unlike the
+     * generic resolution path, the trailing arguments are string ({@code KEYWORD}) literals rather than vectors, and the
+     * child must be an instant vector (a range-vector argument is rejected, matching Prometheus). Also performs Prometheus's
+     * analysis-time parity checks: the regex compiles via RE2/J and the destination (and, for {@code label_join}, source)
+     * label names are valid.
+     */
+    private static LogicalPlan resolveMetadataManipulation(
+        UnresolvedPromqlFunction unresolved,
+        PromqlFunctionDefinition metadata,
+        List<LogicalPlan> rawParams
+    ) {
+        String name = metadata.name();
+
+        // label_replace/label_join are not aggregations, so a by(...)/without(...) grouping clause is invalid PromQL
+        // and is rejected here rather than silently dropped (mirroring the guard the generic path applies to other
+        // non-aggregation functions).
+        AcrossSeriesAggregate.Grouping grouping = unresolved.grouping();
+        if (grouping != null) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "[{}] clause not allowed on non-aggregation function [{}]",
+                        grouping.name().toLowerCase(Locale.ROOT),
+                        name
+                    )
+                )
+            );
+        }
+
+        LogicalPlan child = rawParams.getFirst();
+        PromqlDataType childType = PromqlPlan.getType(child);
+        if (childType != PromqlDataType.INSTANT_VECTOR) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "expected type {} in call to function [{}], got {}",
+                        PromqlDataType.INSTANT_VECTOR,
+                        name,
+                        childType
+                    )
+                )
+            );
+        }
+
+        List<Expression> extraParams = new ArrayList<>(rawParams.size() - 1);
+        for (int i = 1; i < rawParams.size(); i++) {
+            LogicalPlan providedParam = rawParams.get(i);
+            if (providedParam instanceof LiteralSelector literalSelector && literalSelector.literal().dataType() == DataType.KEYWORD) {
+                extraParams.add(literalSelector.literal());
+            } else {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(
+                            unresolved,
+                            "expected string literal parameter in call to function [{}], got {}",
+                            name,
+                            providedParam.nodeName()
+                        )
+                    )
+                );
+            }
+        }
+
+        validateLabelFunctionArguments(unresolved, metadata, extraParams);
+        return new MetadataManipulationFunction(unresolved.source(), child, metadata, extraParams);
+    }
+
+    /**
+     * Applies Prometheus's analysis-time validation for the label functions. {@code label_replace} compiles its regex via
+     * RE2/J (anchored as {@code ^(?s:regex)$}, matching Prometheus) and validates the destination label name;
+     * {@code label_join} validates every source label name and the destination label name.
+     */
+    private static void validateLabelFunctionArguments(
+        UnresolvedPromqlFunction unresolved,
+        PromqlFunctionDefinition metadata,
+        List<Expression> extraParams
+    ) {
+        String name = metadata.name();
+        if (metadata == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE) {
+            // extraParams: [dst_label, replacement, src_label, regex]
+            String regex = stringValue(extraParams.get(3));
+            try {
+                com.google.re2j.Pattern.compile("^(?s:" + regex + ")$");
+            } catch (com.google.re2j.PatternSyntaxException e) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(
+                            unresolved,
+                            "invalid regular expression [{}] in call to function [{}]: {}",
+                            regex,
+                            name,
+                            e.getMessage()
+                        )
+                    )
+                );
+            }
+            requireValidLabelName(unresolved, name, "destination", stringValue(extraParams.get(0)));
+        } else if (metadata == PromqlBuiltinFunctionDefinitions.LABEL_JOIN) {
+            // extraParams: [dst_label, separator, src_label_1, ... src_label_N]
+            for (int i = 2; i < extraParams.size(); i++) {
+                requireValidLabelName(unresolved, name, "source", stringValue(extraParams.get(i)));
+            }
+            requireValidLabelName(unresolved, name, "destination", stringValue(extraParams.get(0)));
+        } else {
+            throw new IllegalStateException("unexpected metadata-manipulation function [" + name + "]");
+        }
+    }
+
+    private static void requireValidLabelName(UnresolvedPromqlFunction unresolved, String function, String role, String labelName) {
+        if (PromqlLabels.isValidLabelName(labelName) == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "invalid {} label name [{}] in call to function [{}]", role, labelName, function))
+            );
+        }
+    }
+
+    private static String stringValue(Expression literal) {
+        return ((BytesRef) ((Literal) literal).value()).utf8ToString();
     }
 
     /**

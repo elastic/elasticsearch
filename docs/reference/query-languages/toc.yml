@@ -443,6 +443,7 @@ toc:
           - file: promql/functions/math.md
           - file: promql/functions/date-time.md
           - file: promql/functions/conversion.md
+          - file: promql/functions/metadata.md
       - file: promql/operators.md
         children:
           - file: promql/operators/arithmetic.md

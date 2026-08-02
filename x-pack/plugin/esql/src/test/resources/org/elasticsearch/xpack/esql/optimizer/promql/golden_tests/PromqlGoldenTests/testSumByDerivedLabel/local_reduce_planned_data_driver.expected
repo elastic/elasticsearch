@@ -1,0 +1,5 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3, $$_timeseries$values{r}#4, $$labels.zone$values{r}#5],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TimeSeriesAggregate[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(metrics.requests{f}#6,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#7) AS LASTOVERTIME_$1#8, DIMENSIONVALUES(_timeseries{f}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#10, DIMENSIONVALUES(labels.zone{f}#11,true[BOOLEAN],PT0S[TIME_DURATION]) AS labels.zone#12, step{r}#1],BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]),@timestamp{f}#7,PROMQL_COMMAND]
+\_Eval[[BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]) AS step#1]]
+  \_EsRelation[prom-metrics-name][@timestamp{f}#7, labels.__name__{f}#13, labels.idx{f}#14, labels.pod{f}#15, labels.zone{f}#11, metrics.requests{f}#6, _timeseries{f}#9, _tsid{m}#0]<>]]

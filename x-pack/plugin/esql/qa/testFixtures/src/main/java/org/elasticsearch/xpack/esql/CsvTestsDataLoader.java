@@ -236,6 +236,15 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset(
+            "prom-metrics-name",
+            "prom-metrics-name-mappings.json",
+            "k8s-prometheus-name.csv",
+            "prom-metrics-name-settings.json"
+        ).withRequiredCapabilities(
+            EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+            EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS
+        ),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")

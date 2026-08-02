@@ -253,17 +253,22 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     public boolean canPushSorts() {
-        return indexMode.isTsdb() == false;
+        return true;
     }
 
     public EsQueryExec withSorts(List<Sort> sorts) {
+        final List<Attribute> newAttrs;
         if (indexMode.isTsdb()) {
-            assert false : "time-series index mode doesn't support sorts";
-            throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
+            final List<Attribute> stripped = attrs.stream()
+                .filter(a -> TIME_SERIES_SOURCE_FIELDS.stream().noneMatch(f -> f.getName().equals(a.name())))
+                .toList();
+            newAttrs = stripped.size() == attrs.size() ? attrs : stripped;
+        } else {
+            newAttrs = attrs;
         }
-        return Objects.equals(this.sorts, sorts)
+        return Objects.equals(this.sorts, sorts) && newAttrs == attrs
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : new EsQueryExec(source(), indexPattern, indexMode, newAttrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     /**

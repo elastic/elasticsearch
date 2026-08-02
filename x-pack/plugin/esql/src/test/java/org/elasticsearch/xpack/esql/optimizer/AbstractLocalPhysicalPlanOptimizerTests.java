@@ -98,6 +98,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         );
         plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
+        timeSeriesMapping.put("_tsid", new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
         var timeSeriesIndex = IndexResolution.valid(
             EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES))
         );

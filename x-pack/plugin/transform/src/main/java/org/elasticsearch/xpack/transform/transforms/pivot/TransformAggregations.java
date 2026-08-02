@@ -76,7 +76,6 @@ public final class TransformAggregations {
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
         "significant_text",
-        "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "top_hits",
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
@@ -120,7 +119,8 @@ public final class TransformAggregations {
         TOP_METRICS("top_metrics", SOURCE),
         STATS("stats", DOUBLE),
         BOXPLOT("boxplot", DOUBLE),
-        EXTENDED_STATS("extended_stats", DOUBLE);
+        EXTENDED_STATS("extended_stats", DOUBLE),
+        STRING_STATS("string_stats", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;

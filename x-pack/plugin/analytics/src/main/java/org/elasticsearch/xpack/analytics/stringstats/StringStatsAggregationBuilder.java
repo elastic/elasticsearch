@@ -25,8 +25,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
-public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
+public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<StringStatsAggregationBuilder> {
 
     public static final String NAME = "string_stats";
     public static final ValuesSourceRegistry.RegistryKey<StringStatsAggregatorSupplier> REGISTRY_KEY =
@@ -79,11 +81,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.NONE;
-    }
-
-    @Override
     protected StringStatsAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -113,6 +110,16 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return InternalStringStats.METRIC_NAMES;
+    }
+
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalStringStats.METRIC_NAMES);
     }
 
     /**

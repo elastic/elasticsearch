@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 97271
+pr: 155690
+summary: Avoid exhaustive score mode in `QueryPhaseCollector`
+type: enhancement

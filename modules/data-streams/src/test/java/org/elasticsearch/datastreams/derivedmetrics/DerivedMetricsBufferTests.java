@@ -351,8 +351,8 @@ public class DerivedMetricsBufferTests extends ESTestCase {
      * assumption.
      */
     public void testWhatASeriesOfEachKindCosts() {
-        long scalar = bytesPerSeries(Reduction.SUM, 1000);
-        long histogram = bytesPerSeries(Reduction.HISTOGRAM, 50);
+        long scalar = bytesPerSeries(Reduction.SUM, 1000, 1);
+        long histogram = bytesPerSeries(Reduction.HISTOGRAM, 50, 1);
         logger.info("bytes per series: scalar [{}], histogram [{}]", scalar, histogram);
 
         assertThat("a scalar series is a handful of primitives in shared arrays", scalar, lessThan(200L));
@@ -361,16 +361,36 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     /**
+     * A histogram series costs more once it is busy than when it is idle, and capacity planning has to use the busy number.
+     *
+     * <p>The generator buffers raw values and only folds them into an accumulating histogram once that buffer fills, which happens after
+     * as many observations as the series has buckets. A series quiet enough never to fill it therefore never pays for the accumulator —
+     * and every series in a real workload does.
+     */
+    public void testABusyHistogramSeriesCostsMoreThanAnIdleOne() {
+        int buckets = DerivedMetricsBuffer.DEFAULT_HISTOGRAM_BUCKETS;
+        long idle = bytesPerSeries(Reduction.HISTOGRAM, 20, 1);
+        long busy = bytesPerSeries(Reduction.HISTOGRAM, 20, buckets * 3);
+        logger.info("histogram bytes per series: idle [{}], busy [{}]", idle, busy);
+
+        assertThat("a series that has folded its values away holds more than one that has not", busy, greaterThan(idle));
+        // the point of the bucket capacity is that this is bounded, however many observations arrive
+        assertThat("but it is still bounded by the bucket count", busy, lessThan(20_000L));
+    }
+
+    /**
      * Fills a table with the given number of distinct series and returns the accounted bytes each one cost.
      */
-    private long bytesPerSeries(Reduction reduction, int series) {
+    private long bytesPerSeries(Reduction reduction, int series, int observationsPerSeries) {
         CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofMb(512));
         CircuitBreaker breaker = breakerService.getBreaker(DerivedMetricsService.BREAKER_NAME);
         BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, series * 2)) {
             TableKey key = key(reduction, 0L);
             for (int i = 0; i < series; i++) {
-                assertTrue(record(buffer, key, "service-" + i, i + 1.0));
+                for (int observation = 0; observation < observationsPerSeries; observation++) {
+                    assertTrue(record(buffer, key, "service-" + i, observation + 1.0));
+                }
             }
             return breaker.getUsed() / series;
         }

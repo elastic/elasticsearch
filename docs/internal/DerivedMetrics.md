@@ -309,7 +309,13 @@ a node running out of room sooner than expected.
 | metric kind | bytes per series |
 |---|---|
 | counter or gauge | ~152 |
-| histogram | ~4,600 |
+| histogram, idle | ~4,600 |
+| **histogram, busy** | **~7,500** |
+
+A histogram series costs more once it is busy, and capacity planning has to use the busy number. The generator buffers raw values and only
+folds them into an accumulating histogram once that buffer fills, which happens after as many observations as the series has buckets — at
+the default of 160, more than sixteen observations a second on one node at a 10s interval. A series quiet enough never to fill it never
+pays for the accumulator; every series in a real workload does. Both figures are asserted by tests.
 
 A scalar series is 48 bytes of accumulator columns plus its interned dimension tuple and the hash slots that find it. A histogram series
 is dominated by the distribution itself and scales with `histogram_buckets`; the mergers within one table share their scratch space through
@@ -570,11 +576,19 @@ So the work divides into making the runtime signal attributable, and degrading g
 becomes exactly one time series in the destination and costs one tsid. The circuit breaker is a *memory* guard, and there a histogram
 series is worth about thirty scalar ones.
 
-It is tempting to weight the series cap by memory so that a histogram series counts for more. That would be wrong, and the arithmetic says
-so: at the default cap of 10,000, a full complement of histogram series is about 46 MB, against a breaker of 5% of heap — 200 MB on a 4 GB
-node. The cap binds first, not the breaker. Weighting it would cut configurable histogram capacity roughly thirtyfold for no cardinality
-reason, since those series cost exactly as many tsids as scalar ones. Memory asymmetry belongs to the breaker and to what gets shed first,
-not to the cardinality cap.
+It is tempting to weight the series cap by memory so that a histogram series counts for more. That would be wrong: those series cost
+exactly as many tsids as scalar ones, so weighting a cardinality limit by per-series bytes conflates two orthogonal resources. Memory
+asymmetry belongs to the breaker and to what gets shed first. This matches how the ecosystem separates the two — OpenTelemetry caps
+cardinality through `aggregation_cardinality_limit` and memory through `MaxSize`, and Mimir caps `max_global_series_per_user` and
+`max_native_histogram_buckets` independently. Nobody weights a cardinality limit by per-series cost.
+
+**Which cap binds first is heap-dependent, and that is worth stating rather than assuming.** At the default cap of 10,000, a full
+complement of *busy* histogram series is about 75 MB. The breaker is 5% of heap, so the cap binds first only above roughly a 1.5 GB heap.
+Below that — small deployments, development clusters — the breaker binds first, and the refusal is reported as
+`series.dropped.breaker` rather than `series.dropped.node_cap`, which sends an operator looking in the wrong place.
+
+Note also that the product of `max_series_per_node` and `histogram_buckets` is not validated against the breaker limit. Both settings are
+independently in range at, say, 10,000 series and 640 buckets, and together they ask for more than a 4 GB node's breaker allows.
 
 **What the runtime now tells you.** Refusals are counted by cause rather than lumped together: `series.dropped.node_cap` and
 `series.dropped.stream_cap` say whether to raise the budget or go and find the stream, and `series.dropped.breaker` says the problem is

@@ -121,7 +121,10 @@ public class DerivedMetricsService implements Closeable {
     public static final Setting<Integer> HISTOGRAM_BUCKETS = Setting.intSetting(
         "data_streams.derived_metrics.histogram_buckets",
         DerivedMetricsBuffer.DEFAULT_HISTOGRAM_BUCKETS,
-        2,
+        // The merger refuses anything below four. A lower minimum here was accepted at node scope and then threw on every observation:
+        // listener exceptions are caught and logged rather than failing the write, so the only symptom was a metric that silently never
+        // emitted and a log line per document.
+        4,
         Setting.Property.NodeScope
     );
 

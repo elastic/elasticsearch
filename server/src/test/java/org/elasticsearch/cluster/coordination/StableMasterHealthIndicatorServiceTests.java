@@ -13,9 +13,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -257,8 +260,17 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     private ClusterState createClusterState(DiscoveryNode masterNode) {
-        var routingTableBuilder = RoutingTable.builder();
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        // Include multiple projects to verify master stability health is unaffected by multi-project metadata.
+        ProjectId project1 = randomUniqueProjectId();
+        ProjectId project2 = randomUniqueProjectId();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(project1))
+            .put(ProjectMetadata.builder(project2))
+            .build();
+        GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
+            .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
+            .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
+            .build();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
@@ -267,8 +279,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         nodesBuilder.add(node2);
         nodesBuilder.add(node3);
         return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(routingTableBuilder.build())
-            .metadata(metadataBuilder.build())
+            .routingTable(routingTable)
+            .metadata(metadata)
             .nodes(nodesBuilder)
             .build();
     }

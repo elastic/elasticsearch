@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -22,9 +23,14 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues;
+import org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -99,6 +105,49 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that when the {@code ._keyed} field is stored via {@link FlattenedDocValuesFormat},
+     * {@link KeyedFlattenedDocValuesBlockLoader} picks the {@link ColumnarKeyedBinaryDocValues} fast path
+     * (i.e. {@link org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues}) and that
+     * {@code canReuse} still correctly tracks the last-read document ID.
+     */
+    public void testCanReuseAfterReadOnColumnarKeyedReader() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newColumnarIndexWriter(dir)) {
+            addColumnarDoc(writer, KEY + "\0server-a");
+            addColumnarDoc(writer, KEY + "\0server-b");
+            addColumnarDoc(writer, KEY + "\0server-c");
+
+            try (IndexReader reader = openReader(writer)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+
+                // Verify the fast path: the underlying BDV must be a ColumnarKeyedBinaryDocValues.
+                assertTrue(
+                    "expected ColumnarKeyedBinaryDocValues from FlattenedDocValuesFormat",
+                    leaf.reader().getBinaryDocValues(KEYED_FIELD) instanceof ColumnarKeyedBinaryDocValues
+                );
+
+                BlockLoader.ColumnAtATimeReader columnReader = new KeyedFlattenedDocValuesBlockLoader(
+                    KEYED_FIELD,
+                    KEY,
+                    true,  // usesBinaryDocValues
+                    true   // usesArrayOrderBinaryDocValues → uses KeyLookupArrayOrderBinaryDocValues for ColumnarKeyedBinaryDocValues
+                ).reader(new NoopCircuitBreaker("test"), leaf);
+
+                columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false).close();
+
+                assertTrue("reader should be reusable for doc == last read", columnReader.canReuse(1));
+                assertTrue("reader should be reusable for doc > last read", columnReader.canReuse(2));
+                assertFalse("reader must not be reused going backwards", columnReader.canReuse(0));
+
+                columnReader.read(TestBlock.factory(), TestBlock.docs(2), 0, false).close();
+                assertFalse("reader must not be reused for a doc strictly before last read", columnReader.canReuse(1));
+                assertTrue("reader should still be reusable for doc == last read after another read", columnReader.canReuse(2));
+
+                columnReader.close();
+            }
+        }
+    }
+
     private static RandomIndexWriter newRandomIndexWriter(Directory dir, boolean binary) throws IOException {
         if (binary) {
             IndexWriterConfig iwc = newIndexWriterConfig();
@@ -106,6 +155,23 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
             return new RandomIndexWriter(random(), dir, iwc);
         }
         return new RandomIndexWriter(random(), dir);
+    }
+
+    /**
+     * Creates an index writer that routes {@code KEYED_FIELD} through {@link FlattenedDocValuesFormat}
+     * while leaving all other fields (including the {@code .counts} companion numeric DV) on the default codec.
+     * This mirrors the production dispatch in
+     * {@link org.elasticsearch.index.codec.PerFieldFormatSupplier#getDocValuesFormatForField}.
+     */
+    private static RandomIndexWriter newColumnarIndexWriter(Directory dir) throws IOException {
+        FlattenedDocValuesFormat flattenedFmt = new FlattenedDocValuesFormat();
+        IndexWriterConfig iwc = newIndexWriterConfig().setCodec(new Elasticsearch93Lucene104Codec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return KEYED_FIELD.equals(field) ? flattenedFmt : super.getDocValuesFormatForField(field);
+            }
+        });
+        return new RandomIndexWriter(random(), dir, iwc);
     }
 
     private static void addDoc(RandomIndexWriter writer, boolean binary, String... keyedValues) throws IOException {
@@ -124,6 +190,20 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
             for (String kv : keyedValues) {
                 doc.add(new SortedSetDocValuesField(KEYED_FIELD, new BytesRef(kv)));
             }
+        }
+        writer.addDocument(doc);
+    }
+
+    /**
+     * Writes a document with {@link KeyedArrayOrderInlineNull}-encoded key-value pairs in the columnar
+     * format. The {@code .counts} companion numeric DV field is also written so the document is complete,
+     * but the columnar block loader never reads it (it uses the {@link ColumnarKeyedBinaryDocValues} path
+     * which does not require a separate count field).
+     */
+    private static void addColumnarDoc(RandomIndexWriter writer, String... keyedValues) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        for (String kv : keyedValues) {
+            KeyedArrayOrderInlineNull.recordValue(doc, KEYED_FIELD, new BytesRef(kv));
         }
         writer.addDocument(doc);
     }

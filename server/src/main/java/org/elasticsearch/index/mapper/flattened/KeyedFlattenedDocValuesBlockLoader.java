@@ -14,7 +14,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -51,9 +53,14 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
         if (usesBinaryDocValues) {
             if (usesArrayOrderBinaryDocValues) {
                 var binary = context.reader().getBinaryDocValues(keyedFieldName);
-                var counts = context.reader()
-                    .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                final SortedBinaryDocValues filtered;
+                if (binary instanceof ColumnarKeyedBinaryDocValues columnar) {
+                    filtered = new KeyLookupArrayOrderBinaryDocValues(columnar, new BytesRef(key));
+                } else {
+                    var counts = context.reader()
+                        .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                    filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                }
                 return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
             }
             MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);

@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -86,6 +88,7 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
+    private static final FlattenedDocValuesFormat flattenedColumnarDocValuesFormat = new FlattenedDocValuesFormat();
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -226,11 +229,27 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
+        if (useFlattenedColumnarDocValues(field)) {
+            return flattenedColumnarDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
+    }
+
+    private boolean useFlattenedColumnarDocValues(String field) {
+        if (mapperService == null || field.endsWith(FlattenedFieldMapper.KEYED_FIELD_SUFFIX) == false) {
+            return false;
+        }
+        final String rootName = field.substring(0, field.length() - FlattenedFieldMapper.KEYED_FIELD_SUFFIX.length());
+        final Mapper mapper = mapperService.mappingLookup().getMapper(rootName);
+        if (mapper instanceof FlattenedFieldMapper flattenedMapper) {
+            return flattenedMapper.fieldType().layout() == FlattenedFieldMapper.Layout.COLUMNAR;
+        }
+        return false;
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

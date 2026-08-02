@@ -168,14 +168,41 @@ What it costs to add one thing at a time, which is the question anyone configuri
 
 | configuration | ns/op | B/op |
 |---|---|---|
-| nothing configured | 2 | 0 |
+| configured, but no metric triggered by this write | 2 | 0 |
 | one metric, no dimensions | 110 | 0 |
 | that same metric with three dimensions | 1,237 | 1,984 |
 | one histogram over a field, 100 buckets | 1,168 | 1,854 |
 
+The first row deserves a caveat rather than a boast. It is `record` returning on its trigger check — a stream that has metrics configured
+where this particular write matches none of them, which happens when only failure-triggered metrics are configured and the write
+succeeded. **It is not what an index with no derived metrics pays**, because such an index never reaches `record` at all: the listener
+returns after its origin check and cached cluster state resolution. That cost is real and unmeasured here, because measuring it needs a
+`ClusterService` the benchmark project cannot stand up.
+
 **The cliff is not adding metrics, it is the first thing that needs `_source`.** A metric on its own costs about a hundred nanoseconds and
 allocates nothing at all. Reading the document costs roughly 1,850 bytes, and that is paid once however many metrics and dimensions want
 it — which is why a hundred-bucket histogram comes out *cheaper* than three dimensions: it extracts one field instead of three.
+
+### What the hot path is actually spending
+
+`readSource` in the same benchmark isolates the filtered parse, and comparing it against `observe` settles where the time goes. Parsing
+the document with **no paths configured at all** costs **913 ns and 1,848 bytes** — that is the price of creating a parser and scanning
+the document, before derived metrics extracts anything.
+
+| shape | observe | readSource | parse share of time | of allocation |
+|---|---|---|---|---|
+| one metric + three dimensions | 1,237 ns / 1,984 B | 1,035 ns / 2,016 B | 84% | ~100% |
+| one histogram, 100 buckets | 1,168 ns / 1,854 B | 979 ns / 1,872 B | 84% | ~100% |
+| five dimensions + a predicate | 2,264 ns / 2,301 B | 1,146 ns / 2,088 B | 51% | 91% |
+
+So the hot path decomposes as roughly **913 ns to touch `_source` at all, ~122 ns to extract three configured values, and ~200 ns for
+everything derived metrics then does with them** — predicate, dimension encoding, hash probe and accumulation.
+
+That points at the one optimisation worth more than everything already done: **do not parse the document twice.** `DocumentParser` has
+already parsed it by the time `postIndex` runs. Reading dimension and value fields from the materialised `LuceneDocument` instead of
+re-parsing `_source` would remove ~900 ns and ~1,850 bytes per document. It is a behaviour change rather than a pure optimisation —
+keyword normalisers, encoded numerics, and unmapped fields that source extraction handles today would all need answering — which is why it
+is recorded here rather than attempted.
 
 Fuller configurations, for scale:
 
@@ -205,9 +232,21 @@ each, so every write thread serialises on four monitors:
 | 8 | 3,848 ± 549 | 2,080,000 |
 
 Throughput peaks at four threads and then **regresses below the single-thread figure**. That is
-contention collapse, not sublinear scaling, and the default configuration is the shape that produces
-it: the fewer dimensions a metric has, the fewer series it spreads across, and a metric with no
-dimensions has exactly one.
+contention collapse, not sublinear scaling.
+
+The cause is precise, and the contrast with a configuration that reads `_source` shows it:
+
+| threads | built-ins, no dimensions | five dimensions and a predicate |
+|---|---|---|
+| 1 | 2,450,000 docs/sec | 444,000 docs/sec |
+| 4 | 3,230,000 docs/sec | 1,070,000 docs/sec |
+| 8 | 2,080,000 docs/sec — collapsed | 1,296,000 docs/sec — still climbing |
+
+**The collapse belongs to configurations that never read `_source`.** With a parse in the path, half
+the work is lock-free and throughput scales monotonically, 2.9x from one thread to eight. Without one,
+`record` is essentially nothing but the monitor, so threads convoy on it. The default configuration is
+the shape that produces it, because the fewer dimensions a metric has the fewer series it spreads
+across, and a metric with no dimensions has exactly one.
 
 Two things keep this from being a live problem, and one keeps it on the list.
 
@@ -222,11 +261,26 @@ up to **0.32% of one core**. Two write threads contending for the same table's m
 correspondingly rare event, and the collapse above requires them to contend continuously.
 
 **But the shape is still wrong**, and it will matter on a node with many more write threads than the
-eight measured here. The fix is not the striping described below — striping by series hash does
-nothing when there is only one series. What would work is making the *existing-series* update
-lock-free: `count` and `sum` accumulate through striped adders, `min` and `max` through compare-and-set
-that stops attempting once they converge, leaving the monitor to cover only series creation and
-histogram accumulation. Not attempted here.
+eight measured here — the `write` pool is sized to the processor count, so a 64 core node has 64 of
+them.
+
+Striping by series hash does not fix it: the shape that contends worst has one series and could never
+occupy more than one stripe. Striping per *thread* fixes exactly that case, and the reason it is
+viable is that **the two failure modes are inverse** — the configuration that contends worst is the
+cheapest to replicate per thread, and the configuration that is expensive to replicate barely contends
+because its observations already spread across many series.
+
+| configuration | series | cost of a per-thread copy at 64 threads |
+|---|---|---|
+| built-ins, no dimensions | 4 | 39 KB — free |
+| at the 10,000 series cap | 10,000 | 97 MB against a 200 MB breaker — unacceptable |
+
+So striping has to be bounded rather than unconditional: a table is striped or shared, decided when it
+is created from that metric's cardinality in the previous bucket, with new metrics starting striped
+because they start small. Above roughly 64 series it stays shared, by which point observations are
+spread widely enough that the monitor is no longer hot. A cardinality spike then costs at most one
+bucket at `64 series x 64 threads x 152 bytes`, about 620 KB for that metric, before it flips.
+Not attempted here.
 
 The critical section probes the table once rather than twice — it records and reads the returned sign
 to learn whether a series was created, instead of asking first and then recording — which was worth

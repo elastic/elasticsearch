@@ -47,12 +47,15 @@ import java.util.concurrent.atomic.LongAdder;
  * optimistic per-node write rate, and a real write thread spends about 0.32% of its time in here rather than the benchmark's hundred
  * percent, so continuous contention cannot arise at realistic rates.
  *
- * <p>Note what would <em>not</em> fix it. Striping the table by series hash does nothing here, because the shape that contends worst is
- * the one with a single series — the fewer dimensions a metric has, the fewer stripes it could ever occupy. Striping per <em>thread</em>
- * fixes exactly that case but copies the state once per thread, which is unaffordable at high cardinality: the two bad cases are
- * opposites. What would work for both is making the existing-series update lock-free — striped adders for {@code count} and {@code sum},
- * compare-and-set for {@code min} and {@code max}, which stop attempting once they converge — leaving this monitor to cover only series
- * creation and histogram accumulation, neither of which is the hot path.
+ * <p>The collapse belongs specifically to configurations that never read {@code _source}. With a parse in the path roughly half the work
+ * is lock-free and throughput scales monotonically; without one this monitor is very nearly the whole of an observation, so threads
+ * convoy on it.
+ *
+ * <p>Note what would <em>not</em> fix it. Striping by series hash does nothing here, because the shape that contends worst has a single
+ * series and could never occupy more than one stripe. Striping per <em>thread</em> fixes exactly that case, and it is viable precisely
+ * because the two failure modes are inverse: the configuration that contends worst is the cheapest to replicate per thread, while the
+ * high-cardinality configuration that would be expensive to replicate barely contends at all. It still has to be bounded rather than
+ * unconditional — see the contention section of the design note for the threshold that separates them.
  */
 public class DerivedMetricsSeriesTable implements Releasable {
 

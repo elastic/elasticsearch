@@ -232,7 +232,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 }
             }
 
-            submitUnbatchedTask("register license [" + newLicense.uid() + "]", new AckedClusterStateUpdateTask(request, listener) {
+            submitUnbatchedTask("register license [" + newLicense.uid() + "]",
+                new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
                 @Override
                 protected PutLicenseResponse newResponse(boolean acknowledged) {
                     return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);

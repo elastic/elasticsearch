@@ -148,7 +148,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
                 TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
                 EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
-                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS
+                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX
             )
         );
         testFeatures.addAll(getFeatures());

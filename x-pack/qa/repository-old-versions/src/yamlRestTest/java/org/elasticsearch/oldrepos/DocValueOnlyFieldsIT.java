@@ -7,9 +7,9 @@
 
 package org.elasticsearch.oldrepos;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
@@ -19,13 +19,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
@@ -39,7 +43,19 @@ import java.io.IOException;
  * We mimic the setup in search/390_doc_values_search.yml here, but adapt it to work
  * against older version clusters.
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
+
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer(DocValueOnlyFieldsIT.class);
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster(DocValueOnlyFieldsIT.class);
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     final Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
     static boolean setupDone;
@@ -72,12 +88,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void setupIndex() throws IOException {
-        final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
-        if (afterRestart) {
-            ensureGreen("test");
-            return;
-        }
-
         // The following is bit of a hack. While we wish we could make this an @BeforeClass, it does not work because the client() is only
         // initialized later, so we do it when running the first test
         if (setupDone) {
@@ -86,9 +96,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
         setupDone = true;
 
-        String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
-            .resolve(RandomizedTest.getContext().getTargetClass().getName())
-            .toString();
+        String repoLocation = OldEsTestCluster.repoLocation(DocValueOnlyFieldsIT.class);
 
         String indexName = "test";
         String repoName = "doc_values_repo";
@@ -106,7 +114,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             "ip",
             "geo_point" }; // date is manually added as it need further configuration
 
-        int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
+        int oldEsPort = oldEs.getHttpPort();
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             Request createIndex = new Request("PUT", "/" + indexName);
             int numberOfShards = randomIntBetween(1, 3);
@@ -187,6 +195,8 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
             assertOK(oldEs.performRequest(createSnapshotRequest));
         }
+        // Snapshot is on disk — old ES is no longer needed. Stop it now to free memory during the remaining tests.
+        oldEs.stop();
 
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);

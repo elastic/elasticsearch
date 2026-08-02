@@ -2,9 +2,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
-  method: testChildrenTasksCancelledOnTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/123568
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -89,45 +86,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double].}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 1}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 1 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=<geo_shape>, <null>}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 0}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 0 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 0 #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 0}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150079
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/150552
@@ -173,9 +131,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
   method: testing convention tasks are cacheable and uptodate
   issue: https://github.com/elastic/elasticsearch/issues/152371
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:stats.filterSometimesMatches}
-  issue: https://github.com/elastic/elasticsearch/issues/152607
 - class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
   method: testBigSizeCircuitBreak
   issue: https://github.com/elastic/elasticsearch/issues/152785
@@ -206,15 +161,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.get_alias/10_basic/Get aliases via /{index}/_alias/_all}
-  issue: https://github.com/elastic/elasticsearch/issues/153590
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/153595
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=field_caps/10_basic/Get prefix field caps}
-  issue: https://github.com/elastic/elasticsearch/issues/153913
 - class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/154059
@@ -230,21 +179,9 @@ tests:
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testSoftDeletesDisabledWarning
   issue: https://github.com/elastic/elasticsearch/issues/154167
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/260_knn_lookup_query_builder/Test error when document not found}
-  issue: https://github.com/elastic/elasticsearch/issues/154242
 - class: org.elasticsearch.xpack.security.authc.ldap.OpenLdapUserSearchSessionFactoryTests
   method: testUserSearchWithBindUserOpenLDAP
   issue: https://github.com/elastic/elasticsearch/issues/152601
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:inlinestats.filterSometimesMatches}
-  issue: https://github.com/elastic/elasticsearch/issues/154584
-- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
-  method: test40VerifyAutogeneratedCredentials
-  issue: https://github.com/elastic/elasticsearch/issues/154510
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/42_knn_search_bbq_flat_bfloat16/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/154661
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348
@@ -260,30 +197,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:folding.version_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/154779
-- class: org.elasticsearch.indices.ShardLimitValidatorTests
-  method: testValidateShardLimitOpenIndices
-  issue: https://github.com/elastic/elasticsearch/issues/154859
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/154866
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/149574
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/155118
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:change_point.values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/154877
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/155421
+- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
+  method: testFetchRegion
+  issue: https://github.com/elastic/elasticsearch/issues/155575
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/27_id_generation_synthetic_id_true/create operation on top of old document fails}
-  issue: https://github.com/elastic/elasticsearch/issues/155027
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.mvJoinKeyFromRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155103
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155104
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:folding.mvDouble_Equals_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/155105
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/155106
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
-  issue: https://github.com/elastic/elasticsearch/issues/155113
+  method: test {yaml=search.vectors/42_knn_search_bbq_flat_bfloat16/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/155667
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test50CreateKeystoreManually
+  issue: https://github.com/elastic/elasticsearch/issues/155335
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test40VerifyAutogeneratedCredentials
+  issue: https://github.com/elastic/elasticsearch/issues/154510
 
 # Examples:
 #

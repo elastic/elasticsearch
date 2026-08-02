@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -65,6 +67,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
+
+    public void testStringToUnsignedLongRejectsOversizedString() {
+        String oversized = "9".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
+        expectThrows(InvalidArgumentException.class, () -> EsqlDataTypeConverter.stringToUnsignedLong(oversized));
+    }
 
     public void testNanoTimeToString() {
         long expected = randomNonNegativeLong();

@@ -79,6 +79,11 @@ class SwitchingEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     }
 
     @Override
+    public boolean isProtected(CacheRegion<FileCacheKey> region) {
+        return delegate.isProtected(region);
+    }
+
+    @Override
     public void close() {
         // Stop watching for policy-type changes, then close the current delegate
         closeOnce.close();

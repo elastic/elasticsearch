@@ -54,7 +54,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
      * which {@link PartitionedHashMergeOperator} handles on its driver thread without spawning
      * workers. Above it the operator partitions just as it would for an intermediate emit.
      */
-    public static final int DEFAULT_PARTITION_THRESHOLD = 100;
+    public static final int DEFAULT_PARTITION_THRESHOLD = 10_000;
 
     /**
      * Returns true if the given group specs support output-side partitioning.

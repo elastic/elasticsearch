@@ -241,30 +241,20 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     /**
      * Replaces HAO's two-condition self-emit check (key count + uniqueness ratio) with a simpler
-     * key-count gate. Also latches {@link #usePartitioning} when the threshold is crossed: hitting
-     * {@link #emitKeysThreshold} means there are enough keys to partition, and we want all
-     * subsequent emits — including the final one — to also partition, even if the final batch
-     * happens to be small enough that {@link #emit()} would otherwise skip partitioning via the
-     * {@link #partitionThreshold} guard.
+     * key-count gate: emit when the number of accumulated keys reaches {@link #emitKeysThreshold}.
      */
     @Override
     protected boolean shouldEmitPartialResultsPeriodically() {
-        if (blockHash.numKeys() >= emitKeysThreshold) {
-            usePartitioning = true;
-            return true;
-        }
-        return false;
+        return blockHash.numKeys() >= emitKeysThreshold;
     }
 
     /**
      * Evaluates the accumulated table to intermediate pages and either partitions them (tagging each
      * sub-page with its partition id) or emits them untagged for the small-query path.
      * <p>
-     *     Partitioning occurs when {@link #usePartitioning} is already {@code true} (a previous
-     *     intermediate emit set the latch) or when the current key count meets or exceeds
-     *     {@link #partitionThreshold}. Otherwise the pages are emitted untagged so that
-     *     {@link PartitionedHashMergeOperator} can handle them on its driver thread without
-     *     spinning up background workers.
+     *     {@link #usePartitioning} is latched to {@code true} when the key count meets or exceeds
+     *     {@link #partitionThreshold}. Once latched, all subsequent emits — including the final one —
+     *     also partition, so the coordinator always sees a consistent stream of tagged pages.
      * </p>
      */
     @Override
@@ -276,12 +266,16 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         try {
             int numKeys = blockHash.numKeys();
             if (numKeys > 0) {
-                boolean shouldPartition = usePartitioning || numKeys >= partitionThreshold;
+                usePartitioning |= numKeys >= partitionThreshold;
                 var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
-                IntUnaryOperator partitioner = shouldPartition ? blockHash.partitioner(partitionCount) : null;
-                output = partitioner != null
-                    ? pageBuilder.buildPartitioned(partitionCount, partitioner, new GroupingAggregatorEvaluationContext(driverContext))
-                    : pageBuilder.build(new GroupingAggregatorEvaluationContext(driverContext));
+                var groupingAggEvaluationContext = new GroupingAggregatorEvaluationContext(driverContext);
+                if (usePartitioning) {
+                    IntUnaryOperator partitioner = blockHash.partitioner(partitionCount);
+                    assert partitioner != null : "partitioner is null";
+                    output = pageBuilder.buildPartitioned(partitionCount, partitioner, groupingAggEvaluationContext);
+                } else {
+                    output = pageBuilder.build(groupingAggEvaluationContext);
+                }
             }
         } finally {
             rowsAddedInCurrentBatch = 0;

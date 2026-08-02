@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -456,6 +457,7 @@ public class MetadataUpdateSettingsService {
                 }
                 Settings finalSettings = indexSettings.build();
                 indexScopedSettings.validate(finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
+                MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(finalSettings);
                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
             }
         }

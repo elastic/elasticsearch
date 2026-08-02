@@ -24,7 +24,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSO
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
-import static org.hamcrest.core.StringContains.containsString;
+import static org.hamcrest.Matchers.containsString;
 
 public class MergeSchedulerSettingsTests extends ESTestCase {
     private static class MockAppender extends AbstractAppender {
@@ -117,7 +117,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         }
     }
 
-    private static IndexMetadata createMetadata(int maxThreadCount, int maxMergeCount, int numProc) {
+    private static IndexMetadata createMetadata(int maxThreadCount, int maxMergeCount) {
         Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (maxThreadCount != -1) {
             builder.put(MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
@@ -125,45 +125,81 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         if (maxMergeCount != -1) {
             builder.put(MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
         }
-        if (numProc != -1) {
-            builder.put(NODE_PROCESSORS_SETTING.getKey(), numProc);
-        }
         return newIndexMeta("index", builder.build());
     }
 
     public void testMaxThreadAndMergeCount() {
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
-            () -> new MergeSchedulerConfig(new IndexSettings(createMetadata(10, 4, -1), Settings.EMPTY))
-        );
-        assertThat(exc.getMessage(), containsString("maxThreadCount (= 10) should be <= maxMergeCount (= 4)"));
+        // Explicit inverted pairs are rejected at the create/update API boundary, but IndexSettings
+        // construction must still succeed (and clamp) so cluster-state application cannot hang.
+        IndexSettings settings = new IndexSettings(createMetadata(10, 4), Settings.EMPTY);
+        assertEquals(4, settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertEquals(4, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
-        IndexSettings settings = new IndexSettings(createMetadata(-1, -1, 2), Settings.EMPTY);
-        assertEquals(1, settings.getMergeSchedulerConfig().getMaxThreadCount());
-        assertEquals(6, settings.getMergeSchedulerConfig().getMaxMergeCount());
-
-        settings = new IndexSettings(createMetadata(4, 10, -1), Settings.EMPTY);
+        settings = new IndexSettings(createMetadata(4, 10), Settings.EMPTY);
         assertEquals(4, settings.getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals(10, settings.getMergeSchedulerConfig().getMaxMergeCount());
-        IndexMetadata newMetadata = createMetadata(15, 20, -1);
 
-        settings.updateIndexMetadata(newMetadata);
+        settings.updateIndexMetadata(createMetadata(15, 20));
         assertEquals(15, settings.getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals(20, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
-        settings.updateIndexMetadata(createMetadata(40, 50, -1));
+        settings.updateIndexMetadata(createMetadata(40, 50));
         assertEquals(40, settings.getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals(50, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
-        settings.updateIndexMetadata(createMetadata(40, -1, -1));
+        settings.updateIndexMetadata(createMetadata(40, -1));
         assertEquals(40, settings.getMergeSchedulerConfig().getMaxThreadCount());
         assertEquals(45, settings.getMergeSchedulerConfig().getMaxMergeCount());
 
-        final IndexSettings finalSettings = settings;
-        exc = expectThrows(IllegalArgumentException.class, () -> finalSettings.updateIndexMetadata(createMetadata(40, 30, -1)));
-        assertThat(exc.getMessage(), containsString("maxThreadCount (= 40) should be <= maxMergeCount (= 30)"));
+        settings.updateIndexMetadata(createMetadata(40, 30));
+        assertEquals(30, settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertEquals(30, settings.getMergeSchedulerConfig().getMaxMergeCount());
+    }
 
-        exc = expectThrows(IllegalArgumentException.class, () -> finalSettings.updateIndexMetadata(createMetadata(-1, 3, 8)));
-        assertThat(exc.getMessage(), containsString("maxThreadCount (= 4) should be <= maxMergeCount (= 3)"));
+    public void testValidateExplicitMaxThreadAndMergeCount() {
+        MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(createMetadata(-1, 3).getSettings());
+        MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(createMetadata(4, -1).getSettings());
+        MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(createMetadata(4, 10).getSettings());
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(createMetadata(10, 4).getSettings())
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("[" + MAX_THREAD_COUNT_SETTING.getKey() + "] (= 10) must be <= [" + MAX_MERGE_COUNT_SETTING.getKey() + "] (= 4)")
+        );
+    }
+
+    public void testDefaultMaxThreadCountHonorsNodeProcessors() {
+        // On multicore hosts, setting node.processors to 1 must win over Runtime.availableProcessors().
+        assumeTrue(
+            "need more than 2 processors so the unrestricted default would differ from node.processors=1",
+            Runtime.getRuntime().availableProcessors() > 2
+        );
+        IndexSettings settings = new IndexSettings(
+            createMetadata(-1, -1),
+            Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), 1).build()
+        );
+        assertEquals(1, settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertEquals(6, settings.getMergeSchedulerConfig().getMaxMergeCount());
+    }
+
+    public void testClampsWhenNodeDefaultExceedsExplicitMaxMergeCount() {
+        final int processors = Runtime.getRuntime().availableProcessors();
+        final int defaultThreadCount = Math.max(1, processors / 2);
+        assumeTrue("need default max_thread_count > 1 to exercise the node-default overshoot", defaultThreadCount > 1);
+        final int maxMergeCount = defaultThreadCount - 1;
+
+        IndexSettings settings = new IndexSettings(
+            createMetadata(-1, maxMergeCount),
+            Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), processors).build()
+        );
+        assertEquals(maxMergeCount, settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertEquals(maxMergeCount, settings.getMergeSchedulerConfig().getMaxMergeCount());
+
+        settings.updateIndexMetadata(createMetadata(-1, 1));
+        assertEquals(1, settings.getMergeSchedulerConfig().getMaxThreadCount());
+        assertEquals(1, settings.getMergeSchedulerConfig().getMaxMergeCount());
     }
 }

@@ -1702,7 +1702,15 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-            mergeSchedulerConfig::setMaxThreadAndMergeCount
+            (ignoredMaxThread, ignoredMaxMerge) -> {
+                // Re-resolve from merged settings so defaults see node.processors.
+                final Settings indexMetaSettings = this.indexMetadata.getSettings();
+                final Settings mergedSettings = Settings.builder().put(nodeSettings).put(indexMetaSettings).build();
+                mergeSchedulerConfig.setMaxThreadAndMergeCount(
+                    MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.get(mergedSettings),
+                    MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.get(mergedSettings)
+                );
+            }
         );
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);

@@ -16,6 +16,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.translog.Translog;
@@ -25,6 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.IndexModule.Type.MMAPFS;
 import static org.elasticsearch.index.IndexModule.Type.NIOFS;
+import static org.hamcrest.Matchers.containsString;
 
 public class MetadataUpdateSettingsServiceTests extends ESTestCase {
     private final Index index = new Index("test", UUIDs.randomBase64UUID());
@@ -134,6 +136,45 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
                 .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "tmp")
                 .build(),
             metadataBuilder.get(index.getName()).getSettings()
+        );
+    }
+
+    public void testRejectsExplicitMaxThreadCountGreaterThanMaxMergeCount() {
+        ProjectMetadata metadata = mockMetadata(
+            index,
+            Settings.builder()
+                .put(metaSettings)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 4)
+                .build()
+        );
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(metadata);
+        Settings settingToApply = Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 10).build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataUpdateSettingsService.updateIndexSettings(
+                Set.of(index),
+                metadataBuilder,
+                (index, indexSettings) -> indexScopedSettings.updateDynamicSettings(
+                    settingToApply,
+                    indexSettings,
+                    Settings.builder(),
+                    index.getName()
+                ),
+                false,
+                indexScopedSettings
+            )
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "["
+                    + MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()
+                    + "] (= 10) must be <= ["
+                    + MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey()
+                    + "] (= 4)"
+            )
         );
     }
 

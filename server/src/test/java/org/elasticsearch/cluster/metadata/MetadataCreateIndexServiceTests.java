@@ -60,6 +60,7 @@ import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -850,6 +851,47 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
+    }
+
+    public void testAggregatedSettingsCanExceedMaxThreadCountRelativeToMaxMergeCount() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
+            builder -> builder.settings(Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), 4))
+        );
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        request.settings(Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), 10).build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(aggregatedIndexSettings.getAsInt(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), -1), equalTo(4));
+        assertThat(aggregatedIndexSettings.getAsInt(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), -1), equalTo(10));
+        // Request settings alone do not contain both keys, so would pass create-request validate.
+        assertFalse(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.exists(request.settings()));
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(aggregatedIndexSettings)
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "["
+                    + MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()
+                    + "] (= 10) must be <= ["
+                    + MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey()
+                    + "] (= 4)"
+            )
+        );
     }
 
     public void testAggregateSettingsProviderOverrulesSettingsFromRequest() {

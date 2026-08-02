@@ -110,6 +110,7 @@ public class TransportGetSettingsAction extends TransportLocalProjectMetadataAct
         final Map<String, Settings> indexToDefaultSettings = request.includeDefaults()
             ? Maps.newHashMapWithExpectedSize(concreteIndices.length)
             : null;
+        final Settings nodeSettings = clusterService.getSettings();
         for (Index concreteIndex : concreteIndices) {
             IndexMetadata indexMetadata = state.metadata().index(concreteIndex);
             if (indexMetadata == null) {
@@ -127,7 +128,9 @@ public class TransportGetSettingsAction extends TransportLocalProjectMetadataAct
 
             indexToSettings.put(concreteIndex.getName(), indexSettings);
             if (indexToDefaultSettings != null) {
-                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexMetadata.getSettings(), Settings.EMPTY));
+                // Include node settings so defaults that depend on them (e.g. node.processors) resolve.
+                final Settings settingsForDefaults = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(settingsForDefaults, Settings.EMPTY));
                 if (isFilteredRequest(request)) {
                     defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
                 }

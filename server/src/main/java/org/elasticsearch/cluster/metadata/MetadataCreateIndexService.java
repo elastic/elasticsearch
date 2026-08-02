@@ -71,6 +71,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -848,6 +849,7 @@ public class MetadataCreateIndexService {
             .put(aggregatedIndexSettings)
             .remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey())
             .build();
+        MergeSchedulerConfig.validateExplicitMaxThreadAndMergeCount(indexSettings);
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);

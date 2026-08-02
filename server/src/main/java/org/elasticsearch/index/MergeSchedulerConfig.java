@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -69,10 +70,33 @@ public final class MergeSchedulerConfig {
     private volatile int maxMergeCount;
 
     MergeSchedulerConfig(IndexSettings indexSettings) {
-        int maxThread = indexSettings.getValue(MAX_THREAD_COUNT_SETTING);
-        int maxMerge = indexSettings.getValue(MAX_MERGE_COUNT_SETTING);
-        setMaxThreadAndMergeCount(maxThread, maxMerge);
+        // Use merged node+index settings so the max_thread_count default sees node.processors.
+        final Settings settings = indexSettings.getSettings();
+        setMaxThreadAndMergeCount(MAX_THREAD_COUNT_SETTING.get(settings), MAX_MERGE_COUNT_SETTING.get(settings));
         this.autoThrottle = indexSettings.getValue(AUTO_THROTTLE_SETTING);
+    }
+
+    /**
+     * Rejects an explicit {@code max_thread_count > max_merge_count} pair. Intended for create/update
+     * API validation only — not for cluster-state application, where unset defaults are clamped.
+     */
+    public static void validateExplicitMaxThreadAndMergeCount(Settings settings) {
+        if (MAX_THREAD_COUNT_SETTING.exists(settings) == false || MAX_MERGE_COUNT_SETTING.exists(settings) == false) {
+            return;
+        }
+        final int maxThreadCount = MAX_THREAD_COUNT_SETTING.get(settings);
+        final int maxMergeCount = MAX_MERGE_COUNT_SETTING.get(settings);
+        if (maxThreadCount > maxMergeCount) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] (= %s) must be <= [%s] (= %s)",
+                    MAX_THREAD_COUNT_SETTING.getKey(),
+                    maxThreadCount,
+                    MAX_MERGE_COUNT_SETTING.getKey(),
+                    maxMergeCount
+                )
+            );
+        }
     }
 
     /**
@@ -99,8 +123,9 @@ public final class MergeSchedulerConfig {
     }
 
     /**
-     * Expert: directly set the maximum number of merge threads and
-     * simultaneous merges allowed.
+     * Expert: set the maximum number of merge threads and simultaneous merges allowed.
+     * {@code maxThreadCount} is capped at {@code maxMergeCount} so cluster-state application
+     * cannot fail when a node-local default exceeds a published setting.
      */
     void setMaxThreadAndMergeCount(int maxThreadCount, int maxMergeCount) {
         if (maxThreadCount < 1) {
@@ -109,12 +134,7 @@ public final class MergeSchedulerConfig {
         if (maxMergeCount < 1) {
             throw new IllegalArgumentException("maxMergeCount should be at least 1");
         }
-        if (maxThreadCount > maxMergeCount) {
-            throw new IllegalArgumentException(
-                "maxThreadCount (= " + maxThreadCount + ") should be <= maxMergeCount (= " + maxMergeCount + ")"
-            );
-        }
-        this.maxThreadCount = maxThreadCount;
+        this.maxThreadCount = Math.min(maxThreadCount, maxMergeCount);
         this.maxMergeCount = maxMergeCount;
     }
 

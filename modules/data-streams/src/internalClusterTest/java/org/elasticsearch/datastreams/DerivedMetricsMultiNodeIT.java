@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -149,6 +150,33 @@ public class DerivedMetricsMultiNodeIT extends ESIntegTestCase {
             }
             assertThat(highest, equalTo((double) documents - 1));
         });
+    }
+
+    /**
+     * The write path avoids re-parsing {@code _source} when the mapping lets every configured value be recovered from the document
+     * Elasticsearch has already parsed. That is the great majority of what observing a write costs, so it is worth proving the fast path
+     * is actually taken in a running cluster rather than silently falling back and leaving the optimisation dead.
+     */
+    public void testValuesAreReadFromTheParsedDocumentRatherThanReparsed() throws Exception {
+        String dataStream = createDataStream(
+            // a dimension forces the write path to read values at all; without one it never touches the document
+            new DataStreamDerivedMetrics.Template(null, List.of("ingest.docs.count"), INTERVAL, null, List.of("service.name"), null)
+        );
+
+        for (int i = 0; i < 100; i++) {
+            index(dataStream, Map.of("service.name", "checkout", "queue.depth", i));
+        }
+        // let the interval close and emit, so the counters are settled and nothing is still in flight at teardown
+        assertBusy(() -> assertThat(metricDocuments(dataStream, "ingest.docs.count").size(), greaterThan(0)));
+
+        long fromIndex = 0;
+        long fromSource = 0;
+        for (DerivedMetricsService service : internalCluster().getInstances(DerivedMetricsService.class)) {
+            fromIndex += service.documentsReadFromIndex();
+            fromSource += service.documentsReadFromSource();
+        }
+        assertThat("every document should have been read without a second parse", fromIndex, greaterThan(0L));
+        assertThat("and none of them should have needed one", fromSource, equalTo(0L));
     }
 
     private String createDataStream(DataStreamDerivedMetrics.Template derivedMetrics) {

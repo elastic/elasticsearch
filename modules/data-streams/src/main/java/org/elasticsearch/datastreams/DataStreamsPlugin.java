@@ -96,6 +96,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
@@ -113,6 +114,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -371,11 +373,14 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     public void onIndexModule(IndexModule indexModule) {
         DerivedMetricsService service = derivedMetricsService.get();
         if (service != null) {
+            // The mapping decides whether a configured path can be read from the already-parsed document rather than from _source, and
+            // IndexModule cannot hand out a MapperService here. The shard listener fills this in once a shard of the index exists.
+            AtomicReference<MapperService> mappers = new AtomicReference<>();
             indexModule.addIndexOperationListener(
-                new DerivedMetricsIndexingListener(clusterService.get(), service, indexModule.getIndex())
+                new DerivedMetricsIndexingListener(clusterService.get(), service, indexModule.getIndex(), mappers::get)
             );
             // flush what a shard collected before it leaves this node, so an avoidable loss is avoided
-            indexModule.addIndexEventListener(new DerivedMetricsShardEventListener(service));
+            indexModule.addIndexEventListener(new DerivedMetricsShardEventListener(service, mappers));
         }
     }
 

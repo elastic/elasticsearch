@@ -11,9 +11,12 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Flushes what has been observed for a shard before that shard leaves the node.
@@ -29,9 +32,21 @@ import org.elasticsearch.index.shard.ShardId;
 public class DerivedMetricsShardEventListener implements IndexEventListener {
 
     private final DerivedMetricsService service;
+    private final AtomicReference<MapperService> mappers;
 
-    public DerivedMetricsShardEventListener(DerivedMetricsService service) {
+    /**
+     * @param mappers filled in as soon as a shard of this index exists. The indexing listener needs the index mapping to decide whether a
+     *                configured path can be read from the parsed document instead of from {@code _source}, and {@code IndexModule} does
+     *                not offer a {@link MapperService} at the point where that listener is built — a shard does.
+     */
+    public DerivedMetricsShardEventListener(DerivedMetricsService service, AtomicReference<MapperService> mappers) {
         this.service = service;
+        this.mappers = mappers;
+    }
+
+    @Override
+    public void afterIndexShardCreated(IndexShard indexShard) {
+        mappers.compareAndSet(null, indexShard.mapperService());
     }
 
     @Override

@@ -19,12 +19,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Observes writes to one index and feeds them to {@link DerivedMetricsService} when the index belongs to a data stream that configured
@@ -51,6 +54,7 @@ public class DerivedMetricsIndexingListener implements IndexingOperationListener
         @Nullable DataStreamDerivedMetrics config,
         @Nullable CompiledDerivedMetrics compiled
     ) {
+
         static Resolution none(long clusterStateVersion) {
             return new Resolution(clusterStateVersion, null, null, null, null);
         }
@@ -63,13 +67,51 @@ public class DerivedMetricsIndexingListener implements IndexingOperationListener
     private final ClusterService clusterService;
     private final DerivedMetricsService service;
     private final Index index;
+    private final Supplier<MapperService> mappers;
 
     private volatile Resolution cached;
 
-    public DerivedMetricsIndexingListener(ClusterService clusterService, DerivedMetricsService service, Index index) {
+    public DerivedMetricsIndexingListener(
+        ClusterService clusterService,
+        DerivedMetricsService service,
+        Index index,
+        Supplier<MapperService> mappers
+    ) {
         this.clusterService = clusterService;
         this.service = service;
         this.index = index;
+        this.mappers = mappers;
+    }
+
+    /**
+     * How each configured path can be read for the current mapping, or null while it has not been worked out yet.
+     *
+     * <p>Recomputed when the mapping changes rather than per document, because it is a pure function of the mapping and the configuration.
+     * Held in one field with the mapping it was derived from, so a reader can never pair strategies with a mapping they were not resolved
+     * against.
+     */
+    private record Extraction(MappingLookup mappings, DerivedMetricsDocumentReader.Strategies strategies) {}
+
+    private volatile Extraction extraction;
+
+    /**
+     * Works out how to read this document's values: from the parsed document when the mapping allows every configured path to be
+     * recovered exactly, and from {@code _source} otherwise.
+     */
+    @Nullable
+    private DerivedMetricsDocumentReader.Strategies strategiesFor(CompiledDerivedMetrics compiled) {
+        MapperService mapperService = mappers.get();
+        if (mapperService == null) {
+            return null;
+        }
+        MappingLookup current = mapperService.mappingLookup();
+        Extraction cached = extraction;
+        if (cached != null && cached.mappings() == current) {
+            return cached.strategies();
+        }
+        DerivedMetricsDocumentReader.Strategies strategies = DerivedMetricsDocumentReader.resolve(current, compiled.sourcePaths().paths());
+        extraction = new Extraction(current, strategies);
+        return strategies;
     }
 
     @Override
@@ -90,7 +132,14 @@ public class DerivedMetricsIndexingListener implements IndexingOperationListener
         if (resolution.enabled() == false) {
             return;
         }
-        service.record(resolution.project(), resolution.dataStream(), resolution.compiled(), operation.parsedDoc(), succeeded);
+        service.record(
+            resolution.project(),
+            resolution.dataStream(),
+            resolution.compiled(),
+            operation.parsedDoc(),
+            succeeded,
+            strategiesFor(resolution.compiled())
+        );
     }
 
     private Resolution resolve() {

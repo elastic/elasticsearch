@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics.CompiledMetric;
@@ -218,6 +219,10 @@ public class DerivedMetricsService implements Closeable {
      */
     private final AtomicLong emissionRejections = new AtomicLong();
     /** Observations skipped because the metric reads a field the document did not have, or had as something non-numeric. */
+    /** Documents whose values came from the already-parsed document rather than from a second parse of {@code _source}. */
+    private final AtomicLong documentsReadFromIndex = new AtomicLong();
+    /** Documents that had to be parsed again because some configured path could not be recovered from the index. */
+    private final AtomicLong documentsReadFromSource = new AtomicLong();
     private final AtomicLong skippedForMissingValue = new AtomicLong();
     /** Observations skipped because the metric needs a predicate evaluated against a {@code _source} that could not be read. */
     private final AtomicLong skippedForUnreadableSource = new AtomicLong();
@@ -330,6 +335,18 @@ public class DerivedMetricsService implements Closeable {
             skippedForUnreadableSource::get
         );
         register(
+            "es.derived_metrics.documents.read.from_index.total",
+            "documents whose values were read from the already-parsed document rather than by parsing _source again",
+            "count",
+            documentsReadFromIndex::get
+        );
+        register(
+            "es.derived_metrics.documents.read.from_source.total",
+            "documents that had to be parsed again because a configured path could not be recovered from the index",
+            "count",
+            documentsReadFromSource::get
+        );
+        register(
             "es.derived_metrics.documents.rejected.total",
             "documents the destination rejected, which is where a duplicate _id or a mapping conflict appears",
             "count",
@@ -380,6 +397,22 @@ public class DerivedMetricsService implements Closeable {
         ParsedDocument parsedDocument,
         boolean succeeded
     ) {
+        record(project, sourceDataStream, compiled, parsedDocument, succeeded, null);
+    }
+
+    /**
+     * @param strategies how each configured path can be read back from the already-parsed document, or null when that is not known or not
+     *                   possible. Reading the parsed document avoids re-parsing {@code _source}, which is the great majority of what
+     *                   observing a write costs; see {@link DerivedMetricsDocumentReader}.
+     */
+    public void record(
+        ProjectId project,
+        String sourceDataStream,
+        CompiledDerivedMetrics compiled,
+        ParsedDocument parsedDocument,
+        boolean succeeded,
+        @Nullable DerivedMetricsDocumentReader.Strategies strategies
+    ) {
         Trigger trigger = succeeded ? Trigger.SUCCESS : Trigger.FAILURE;
         if (compiled.triggers().contains(trigger) == false) {
             return;
@@ -390,7 +423,18 @@ public class DerivedMetricsService implements Closeable {
         Object[] source = scratch.startDocument(compiled);
         boolean haveSource = false;
         if (compiled.needsSource() && parsedDocument != null) {
-            haveSource = DerivedMetricsSourceReader.read(parsedDocument, compiled.sourcePaths(), source);
+            // Prefer the document Elasticsearch has already parsed. It only serves when every configured path can be recovered exactly,
+            // so a fallback is a performance difference and never a difference in what gets emitted.
+            if (strategies != null && DerivedMetricsDocumentReader.read(parsedDocument, strategies, source)) {
+                haveSource = true;
+                documentsReadFromIndex.incrementAndGet();
+            } else {
+                if (strategies != null) {
+                    scratch.clearSource();
+                }
+                haveSource = DerivedMetricsSourceReader.read(parsedDocument, compiled.sourcePaths(), source);
+                documentsReadFromSource.incrementAndGet();
+            }
         }
 
         for (CompiledMetric metric : compiled.metrics()) {
@@ -515,6 +559,14 @@ public class DerivedMetricsService implements Closeable {
             // the extractor only writes the paths the document actually has, so anything left from the previous document has to go
             java.util.Arrays.fill(source, null);
             return source;
+        }
+
+        /**
+         * Discards whatever a partial read left behind, so that falling back to a source parse starts from the same blank slate a fresh
+         * document would.
+         */
+        void clearSource() {
+            java.util.Arrays.fill(source, null);
         }
 
         /**
@@ -779,6 +831,16 @@ public class DerivedMetricsService implements Closeable {
     }
 
     /** Observations skipped because the metric's value field was absent or not numeric — what a misspelled field name looks like. */
+    /** Documents read from the already-parsed document rather than by parsing {@code _source} again. */
+    public long documentsReadFromIndex() {
+        return documentsReadFromIndex.get();
+    }
+
+    /** Documents that fell back to a second parse of {@code _source}. */
+    public long documentsReadFromSource() {
+        return documentsReadFromSource.get();
+    }
+
     public long skippedForMissingValue() {
         return skippedForMissingValue.get();
     }

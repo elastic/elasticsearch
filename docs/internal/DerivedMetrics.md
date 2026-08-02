@@ -198,6 +198,21 @@ the document, before derived metrics extracts anything.
 So the hot path decomposes as roughly **913 ns to touch `_source` at all, ~122 ns to extract three configured values, and ~200 ns for
 everything derived metrics then does with them** — predicate, dimension encoding, hash probe and accumulation.
 
+#### The long-term shape, recorded so it is not rediscovered
+
+Reading the parsed document is the *contained* answer, and it is the one implemented. The architecturally better one is what
+`TimeSeriesIdFieldMapper` already does for the tsid: it does not read dimension values back out of the document at all. The leaf mappers
+push them into a side channel during parse — `KeywordFieldMapper.indexValue` calls `context.getRoutingFields().addString(...)` — and
+`RoutingPathFields` collects them. No re-parse, no name lookup, no ambiguity about normalisation because the mapper chooses what to
+capture, and multi-valued fields arrive already separated.
+
+The analogue here would be a collector on `DocumentParserContext` populated by the mappers of fields a derived metric actually reads,
+delivered on `ParsedDocument`. It would remove the remaining per-document field scan as well as the parse.
+
+The reason it is not what we built first: it requires touching `DocumentParserContext` and every mapper type involved, and it couples core
+mappers to a data-streams module feature, where reading the parsed document stays entirely inside the module. `RoutingPathFields` itself
+cannot be reused as-is — it is only populated for indices with a `routing_path`, which a plain log data stream does not have.
+
 That points at the one optimisation worth more than everything already done: **do not parse the document twice.** `DocumentParser` has
 already parsed it by the time `postIndex` runs. Reading dimension and value fields from the materialised `LuceneDocument` instead of
 re-parsing `_source` would remove ~900 ns and ~1,850 bytes per document. It is a behaviour change rather than a pure optimisation —

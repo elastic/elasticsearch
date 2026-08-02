@@ -97,6 +97,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccSizeBucket;
 
 public class SharedBlobCacheWarmingService {
 
@@ -479,7 +480,8 @@ public class SharedBlobCacheWarmingService {
             .registerDoubleHistogram(
                 BLOB_CACHE_WARMING_RATIO_METRIC,
                 "The warming ratio (between 0.0 and 1.0) of bcc blobs, broken down by the [" + BCC_SIZE_ATTRIBUTE_KEY + "] size bucket",
-                "1"
+                "1",
+                List.of(0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0)
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -852,6 +854,7 @@ public class SharedBlobCacheWarmingService {
                                     }
                                 },
                                 l1.map(aVoid -> {
+
                                     Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
                                     for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
                                         assert blobSizes.containsKey(blobFile);
@@ -1586,9 +1589,11 @@ public class SharedBlobCacheWarmingService {
         @Override
         protected void onWarmingSuccess(long duration) {
             warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
-            blobsWarmedMetric.incrementBy(
-                1,
-                Map.of(WARMING_RATIO_ATTRIBUTE_KEY, warmingRatioLabel(byteRangeToWarm.length(), blobSize))
+            assert byteRangeToWarm.start() == 0L
+                : "byte range warmer NOT used with prefix ranges, is the warming ratio metric still correct?";
+            warmingRatioMetric.record(
+                (double) byteRangeToWarm.length() / blobSize,
+                Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
@@ -1602,16 +1607,6 @@ public class SharedBlobCacheWarmingService {
                 totalBytesCopied.get()
             );
         }
-    }
-
-    /**
-     * Returns the warming ratio label , e.g. "0.0" for 0%-9%, "0.1" for 10–19%, "0.2" for 20–29%, …, "1.0" for 100%.
-     * The label is the floor of the ratio to one decimal place.
-     */
-    static String warmingRatioLabel(long warmedBytes, long blobSize) {
-        double ratio = (double) warmedBytes / blobSize;
-        double bucket = Math.floor(ratio * 10) / 10.0;
-        return String.format(Locale.ROOT, "%.1f", bucket);
     }
 
     /**

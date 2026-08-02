@@ -1361,7 +1361,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(listener, readerContext, markAsUsed, true));
         // we successfully submitted the async task to the search pool so let's prewarm the shard
         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
             onlinePrewarmingService.prewarm(readerContext.indexShard());
@@ -1503,7 +1503,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             wrapFailureListener(
                 releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
                 readerContext,
-                markAsUsed
+                markAsUsed,
+                true
             )
         );
     }
@@ -2024,7 +2025,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
-        return wrapFailureListener(listener, releasable, e -> processFailure(context, e));
+        return wrapFailureListener(listener, context, releasable, false);
+    }
+
+    /**
+     * @param retainOnTransientRejection if true, transient search-thread-pool rejections do not free the reader context.
+     *                                   Only scroll continuation paths ({@link InternalScrollSearchRequest}) set this.
+     */
+    private <T> ActionListener<T> wrapFailureListener(
+        ActionListener<T> listener,
+        ReaderContext context,
+        Releasable releasable,
+        boolean retainOnTransientRejection
+    ) {
+        return wrapFailureListener(listener, releasable, e -> processFailure(context, e, retainOnTransientRejection));
     }
 
     /**
@@ -2067,10 +2081,32 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context instanceof LegacyReaderContext && context.singleSession() == false;
     }
 
+    /**
+     * Whether a failure on a scroll continuation should keep the reader context so the client can retry.
+     * Only true for transient search-thread-pool rejections (queue full), not executor shutdown.
+     * Visible for testing.
+     */
+    static boolean shouldRetainContextOnTransientRejection(boolean retainOnTransientRejection, Exception exc) {
+        if (retainOnTransientRejection == false) {
+            return false;
+        }
+        Throwable rejected = ExceptionsHelper.unwrap(exc, EsRejectedExecutionException.class);
+        return rejected instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() == false;
+    }
+
     private void processFailure(ReaderContext context, Exception exc) {
-        if (context.singleSession() || isScrollContext(context)) {
-            // we release the reader on failure if the request is a normal search or a scroll
-            freeReaderContext(context.id(), "search execution failure: " + exc.getClass().getSimpleName());
+        processFailure(context, exc, false);
+    }
+
+    private void processFailure(ReaderContext context, Exception exc, boolean retainOnTransientRejection) {
+        if (shouldRetainContextOnTransientRejection(retainOnTransientRejection, exc)) {
+            assert isScrollContext(context) : context.id();
+            // Rejection is raised at executor submission, before the task body runs, so
+            // ScrollContext.lastEmittedDoc is unchanged and a client retry is safe.
+            logger.trace(() -> format("keeping scroll context [%s] after transient rejected execution", context.id()));
+        } else if (context.singleSession() || isScrollContext(context)) {
+            final String reason = "search execution failure: " + exc.getClass().getSimpleName();
+            freeReaderContext(context.id(), reason);
         }
         try {
             if (Lucene.isCorruptionException(exc)) {

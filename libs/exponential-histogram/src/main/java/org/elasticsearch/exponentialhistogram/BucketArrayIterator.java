@@ -24,7 +24,7 @@ package org.elasticsearch.exponentialhistogram;
 class BucketArrayIterator implements CopyableBucketIterator {
 
     private final int scale;
-    private final long[] bucketCounts;
+    private final AdaptiveBucketCountArray bucketCounts;
     private final long[] bucketIndices;
     private final int direction;
 
@@ -32,16 +32,36 @@ class BucketArrayIterator implements CopyableBucketIterator {
     private final int limit;
 
     static BucketArrayIterator create(int scale, long[] bucketCounts, long[] bucketIndices, int rangeStart, int rangeEnd) {
+        return create(scale, AdaptiveBucketCountArray.wrapping(bucketCounts), bucketIndices, rangeStart, rangeEnd);
+    }
+
+    static BucketArrayIterator createReversed(int scale, long[] bucketCounts, long[] bucketIndices, int rangeStart, int rangeEnd) {
+        return createReversed(scale, AdaptiveBucketCountArray.wrapping(bucketCounts), bucketIndices, rangeStart, rangeEnd);
+    }
+
+    static BucketArrayIterator create(
+        int scale,
+        AdaptiveBucketCountArray bucketCounts,
+        long[] bucketIndices,
+        int rangeStart,
+        int rangeEnd
+    ) {
         assert rangeStart <= rangeEnd;
         return new BucketArrayIterator(scale, bucketCounts, bucketIndices, rangeStart, rangeEnd);
     }
 
-    static BucketArrayIterator createReversed(int scale, long[] bucketCounts, long[] bucketIndices, int rangeStart, int rangeEnd) {
+    static BucketArrayIterator createReversed(
+        int scale,
+        AdaptiveBucketCountArray bucketCounts,
+        long[] bucketIndices,
+        int rangeStart,
+        int rangeEnd
+    ) {
         assert rangeStart <= rangeEnd;
         return new BucketArrayIterator(scale, bucketCounts, bucketIndices, rangeEnd - 1, rangeStart - 1);
     }
 
-    private BucketArrayIterator(int scale, long[] bucketCounts, long[] bucketIndices, int startSlot, int limit) {
+    private BucketArrayIterator(int scale, AdaptiveBucketCountArray bucketCounts, long[] bucketIndices, int startSlot, int limit) {
         this.scale = scale;
         this.bucketCounts = bucketCounts;
         this.bucketIndices = bucketIndices;
@@ -58,7 +78,7 @@ class BucketArrayIterator implements CopyableBucketIterator {
     @Override
     public long peekCount() {
         ensureEndNotReached();
-        return bucketCounts[currentSlot];
+        return bucketCounts.get(currentSlot);
     }
 
     @Override

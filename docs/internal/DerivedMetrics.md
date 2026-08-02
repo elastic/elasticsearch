@@ -355,9 +355,9 @@ a node running out of room sooner than expected.
 
 | metric kind | bytes per series |
 |---|---|
-| counter or gauge | ~152 |
-| histogram, idle | ~4,600 |
-| **histogram, busy** | **~7,500** |
+| counter or gauge | ~119 |
+| histogram, idle | ~3,459 |
+| **histogram, busy** | **~5,223** |
 
 A histogram series costs more once it is busy, and capacity planning has to use the busy number. The generator buffers raw values and only
 folds them into an accumulating histogram once that buffer fills, which happens after as many observations as the series has buckets — at
@@ -365,10 +365,21 @@ the default of 160, more than sixteen observations a second on one node at a 10s
 pays for the accumulator; every series in a real workload does. Both figures are asserted by tests.
 
 A scalar series is 48 bytes of accumulator columns plus its interned dimension tuple and the hash slots that find it. A histogram series
-is dominated by the distribution itself and scales with `histogram_buckets`; the mergers within one table share their scratch space through
-a single factory, which is worth about 7% — the rest is inherently per-series. The two differ by a factor of thirty, which is why they
-cannot share a capacity assumption: at the breaker's default of 5% of heap, a 4 GB node has room for roughly 1.4 million scalar series or
-45,000 histogram series.
+is dominated by the distribution itself and scales with `histogram_buckets`. The two differ by a factor of about forty, which is why they
+cannot share a capacity assumption: at the breaker's default of 5% of heap, a 4 GB node has room for roughly 1.7 million scalar series or
+38,000 histogram series.
+
+Bucket **counts** are held in the narrowest integer width that fits them, promoted in place from `byte` through `short` and `int` to `long`
+the first time a count overflows — the approach opentelemetry-java takes. Most buckets in a real distribution hold small counts, so this
+took a busy series from 7,529 bytes to 5,223.
+
+Bucket **indices** are deliberately left as `long`. At the maximum scale an everyday value already indexes around 10¹², and a base plus
+offset encoding does not rescue it either: a 32-bit offset at that scale spans a value ratio of about 1.005. Narrowing them would only pay
+off for heavily downscaled histograms.
+
+The largest remaining win is not narrowing but **lazy sizing**. Every one of these arrays is allocated eagerly at full capacity, while
+published measurements of Prometheus native histograms show 1–80 populated buckets per series and a mean around 21–25, against a capacity
+of 160. Growing on demand would plausibly beat what narrowing achieved, at the cost of allocating on a hot path — a separate piece of work.
 
 Nothing is coordinated across nodes, so none of this is duplicated anywhere: each node holds only what it observed.
 
@@ -630,7 +641,7 @@ cardinality through `aggregation_cardinality_limit` and memory through `MaxSize`
 `max_native_histogram_buckets` independently. Nobody weights a cardinality limit by per-series cost.
 
 **Which cap binds first is heap-dependent, and that is worth stating rather than assuming.** At the default cap of 10,000, a full
-complement of *busy* histogram series is about 75 MB. The breaker is 5% of heap, so the cap binds first only above roughly a 1.5 GB heap.
+complement of *busy* histogram series is about 52 MB. The breaker is 5% of heap, so the cap binds first only above roughly a 1 GB heap.
 Below that — small deployments, development clusters — the breaker binds first, and the refusal is reported as
 `series.dropped.breaker` rather than `series.dropped.node_cap`, which sends an operator looking in the wrong place.
 

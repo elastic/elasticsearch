@@ -33,6 +33,14 @@ class RamEstimationUtil {
         return estimatedArraySize(length, Long.BYTES);
     }
 
+    static long estimateByteArray(int length) {
+        return estimatedArraySize(length, Byte.BYTES);
+    }
+
+    static long estimateShortArray(int length) {
+        return estimatedArraySize(length, Short.BYTES);
+    }
+
     static long estimateIntArray(int length) {
         return estimatedArraySize(length, Integer.BYTES);
     }

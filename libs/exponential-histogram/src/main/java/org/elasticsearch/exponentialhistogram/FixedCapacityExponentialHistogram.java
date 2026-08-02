@@ -48,7 +48,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     // This means we store all the negative buckets first, ordered by their boundaries in descending order (from 0 to -INF),
     // followed by all the positive buckets, ordered by their boundaries in ascending order (from 0 to +INF).
     private final long[] bucketIndices;
-    private final long[] bucketCounts;
+    // Counts, unlike indices, are stored in the narrowest integer width that fits them, see AdaptiveBucketCountArray.
+    // Indices cannot get the same treatment: at high scales a bucket index for an everyday value already needs more than 32 bits,
+    // so narrowing them would pay off only for histograms that have been downscaled a long way.
+    private final AdaptiveBucketCountArray bucketCounts;
 
     private int bucketScale;
 
@@ -66,8 +69,14 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     private boolean closed = false;
 
     static FixedCapacityExponentialHistogram create(int bucketCapacity, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        circuitBreaker.adjustBreaker(estimateSize(bucketCapacity));
-        return new FixedCapacityExponentialHistogram(bucketCapacity, circuitBreaker);
+        long size = estimateSize(bucketCapacity);
+        circuitBreaker.adjustBreaker(size);
+        try {
+            return new FixedCapacityExponentialHistogram(bucketCapacity, circuitBreaker);
+        } catch (RuntimeException | Error e) {
+            circuitBreaker.adjustBreaker(-size);
+            throw e;
+        }
     }
 
     /**
@@ -79,7 +88,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     private FixedCapacityExponentialHistogram(int bucketCapacity, ExponentialHistogramCircuitBreaker circuitBreaker) {
         this.circuitBreaker = circuitBreaker;
         bucketIndices = new long[bucketCapacity];
-        bucketCounts = new long[bucketCapacity];
+        bucketCounts = new AdaptiveBucketCountArray(bucketCapacity, circuitBreaker);
         reset();
     }
 
@@ -96,6 +105,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         max = Double.NaN;
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
+        // A full reset means the previous contents are gone, so any width this histogram was promoted to for them can be given back.
+        // resetBuckets() deliberately does not do this: it runs on every merge, and a histogram that is repeatedly used as a merge
+        // target would otherwise re-promote immediately, paying for an allocation each time to no benefit.
+        bucketCounts.demoteToMinimalWidth();
     }
 
     /**
@@ -215,11 +228,12 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         // iterate from -Inf to 0
         for (int i = negativeBuckets.numBuckets - 1; i >= 0; i--) {
-            unscaledCumulativeCount += bucketCounts[i];
+            unscaledCumulativeCount += bucketCounts.get(i);
             long targetCumulativeCount = Math.round(unscaledCumulativeCount * factor);
-            bucketCounts[i] = targetCumulativeCount - scaledCumulativeCount;
-            anyEmptyBuckets |= bucketCounts[i] == 0;
-            assert bucketCounts[i] >= 0;
+            long scaledCount = targetCumulativeCount - scaledCumulativeCount;
+            assert scaledCount >= 0;
+            bucketCounts.set(i, scaledCount);
+            anyEmptyBuckets |= scaledCount == 0;
             scaledCumulativeCount = targetCumulativeCount;
         }
 
@@ -232,11 +246,12 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         // iterate from 0 to Inf
         for (int i = negativeBuckets.numBuckets; i < negativeBuckets.numBuckets + positiveBuckets.numBuckets; i++) {
-            unscaledCumulativeCount += bucketCounts[i];
+            unscaledCumulativeCount += bucketCounts.get(i);
             targetCumulativeCount = Math.round(unscaledCumulativeCount * factor);
-            bucketCounts[i] = targetCumulativeCount - scaledCumulativeCount;
-            anyEmptyBuckets |= bucketCounts[i] == 0;
-            assert bucketCounts[i] >= 0;
+            long scaledCount = targetCumulativeCount - scaledCumulativeCount;
+            assert scaledCount >= 0;
+            bucketCounts.set(i, scaledCount);
+            anyEmptyBuckets |= scaledCount == 0;
             scaledCumulativeCount = targetCumulativeCount;
         }
 
@@ -250,9 +265,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     private void pruneEmptyBuckets() {
         int writePos = 0;
         for (int i = 0; i < negativeBuckets.numBuckets; i++) {
-            if (bucketCounts[i] > 0) {
+            long count = bucketCounts.get(i);
+            if (count > 0) {
                 if (i != writePos) {
-                    bucketCounts[writePos] = bucketCounts[i];
+                    bucketCounts.set(writePos, count);
                     bucketIndices[writePos] = bucketIndices[i];
                 }
                 writePos++;
@@ -260,9 +276,10 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         }
         int newNegativeBucketCount = writePos;
         for (int i = negativeBuckets.numBuckets; i < negativeBuckets.numBuckets + positiveBuckets.numBuckets; i++) {
-            if (bucketCounts[i] > 0) {
+            long count = bucketCounts.get(i);
+            if (count > 0) {
                 if (i != writePos) {
-                    bucketCounts[writePos] = bucketCounts[i];
+                    bucketCounts.set(writePos, count);
                     bucketIndices[writePos] = bucketIndices[i];
                 }
                 writePos++;
@@ -334,13 +351,17 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         }
     }
 
+    /**
+     * @return the number of bytes a freshly created histogram of the given capacity occupies. A histogram whose counts have been
+     * promoted to a wider integer type occupies more than this; use {@link #ramBytesUsed()} for the current figure.
+     */
     static long estimateSize(int bucketCapacity) {
-        return BASE_SIZE + 2 * RamEstimationUtil.estimateLongArray(bucketCapacity);
+        return BASE_SIZE + RamEstimationUtil.estimateLongArray(bucketCapacity) + AdaptiveBucketCountArray.estimateSize(bucketCapacity);
     }
 
     @Override
     public long ramBytesUsed() {
-        return estimateSize(bucketIndices.length);
+        return BASE_SIZE + RamEstimationUtil.estimateLongArray(bucketIndices.length) + bucketCounts.ramBytesUsed();
     }
 
     private class Buckets implements ExponentialHistogram.Buckets {
@@ -378,11 +399,13 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
             int slot = startSlot() + numBuckets;
             assert numBuckets == 0 || bucketIndices[slot - 1] < index
                 : "Histogram buckets must be added with their indices in ascending order";
-            if (slot >= bucketCounts.length) {
+            if (slot >= bucketCounts.length()) {
                 return false; // no more space
             }
             bucketIndices[slot] = index;
-            bucketCounts[slot] = count;
+            // may widen the counts and therefore throw if the circuit breaker trips; numBuckets is only advanced afterwards,
+            // so a rejected widening leaves this histogram exactly as it was
+            bucketCounts.set(slot, count);
             numBuckets++;
             return true;
         }
@@ -427,7 +450,7 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
             int startSlot = startSlot();
             while (position < numBuckets) {
-                countsSum += bucketCounts[startSlot + position];
+                countsSum += bucketCounts.get(startSlot + position);
                 position++;
             }
             this.cachedCountsSum = new CachedCountsSum(position, countsSum);

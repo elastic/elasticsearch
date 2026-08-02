@@ -35,7 +35,10 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
  */
 class DownscaleStats {
 
-    static final long SIZE = RamUsageEstimator.shallowSizeOf(DownscaleStats.class) + RamEstimationUtil.estimateIntArray(MAX_INDEX_BITS);
+    // shallowSizeOfInstance, not shallowSizeOf: the latter would measure the java.lang.Class object rather than an instance of this class
+    static final long SIZE = RamUsageEstimator.shallowSizeOfInstance(DownscaleStats.class) + RamEstimationUtil.estimateIntArray(
+        MAX_INDEX_BITS
+    );
 
     // collapsedBucketCount[i] stores the number of additional
     // collapsed buckets when increasing the scale by (i+1) instead of just by (i)

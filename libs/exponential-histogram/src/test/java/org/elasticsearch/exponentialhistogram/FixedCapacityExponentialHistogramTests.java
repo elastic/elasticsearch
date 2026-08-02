@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FixedCapacityExponentialHistogramTests extends ExponentialHistogramTestCase {
@@ -95,10 +96,123 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
     public void testMemoryAccounting() {
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
         try (FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(100, breaker(esBreaker))) {
-            assertThat(histogram.ramBytesUsed(), greaterThan(2 * RamEstimationUtil.estimateLongArray(100)));
+            // a fresh histogram pays for its bucket indices in full, but for its counts only at the narrowest width
+            assertThat(
+                histogram.ramBytesUsed(),
+                greaterThan(RamEstimationUtil.estimateLongArray(100) + RamEstimationUtil.estimateByteArray(100))
+            );
+            assertThat(histogram.ramBytesUsed(), lessThan(2 * RamEstimationUtil.estimateLongArray(100)));
             assertThat(esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
         }
         assertThat(esBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Counts are stored in the narrowest integer width that fits them, so a histogram must charge the circuit breaker for the extra
+     * memory the moment a count forces a wider one, and hand it all back when it is closed.
+     */
+    public void testMemoryAccountingFollowsCountWidthPromotions() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(100, breaker(esBreaker))) {
+            long narrow = histogram.ramBytesUsed();
+            assertThat(esBreaker.getUsed(), equalTo(narrow));
+
+            long previous = narrow;
+            // each of these counts overflows the width the previous one fit into
+            for (long count : new long[] { 1L, (long) Byte.MAX_VALUE + 1, (long) Short.MAX_VALUE + 1, (long) Integer.MAX_VALUE + 1 }) {
+                histogram.resetBuckets(0);
+                assertTrue(histogram.tryAddBucket(1, count, true));
+                assertThat(histogram.positiveBuckets().valueCount(), equalTo(count));
+                assertThat(histogram.ramBytesUsed(), greaterThanOrEqualTo(previous));
+                assertThat("the breaker must track every promotion", esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
+                previous = histogram.ramBytesUsed();
+            }
+            assertThat("a promoted histogram costs more than a fresh one", previous, greaterThan(narrow));
+
+            // a full reset means the contents are gone, so the promotion must be given back
+            histogram.reset();
+            assertThat(histogram.ramBytesUsed(), equalTo(narrow));
+            assertThat(esBreaker.getUsed(), equalTo(narrow));
+        }
+        assertThat("closing must give back exactly what was taken", esBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Whatever width the counts end up stored in, the values that come back out must be the ones that went in, including at each of the
+     * exact boundaries where a promotion happens.
+     */
+    public void testCountsSurvivePromotionAtEveryWidthBoundary() {
+        long[] counts = new long[] {
+            1L,
+            Byte.MAX_VALUE,
+            (long) Byte.MAX_VALUE + 1,
+            Short.MAX_VALUE,
+            (long) Short.MAX_VALUE + 1,
+            Integer.MAX_VALUE,
+            (long) Integer.MAX_VALUE + 1,
+            Long.MAX_VALUE / 16 };
+
+        FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(counts.length, breaker());
+        autoReleaseOnTestEnd(histogram);
+
+        // add them in an order that forces a promotion in the middle rather than up front
+        for (int i = 0; i < counts.length; i++) {
+            assertTrue(histogram.tryAddBucket(i, counts[i], true));
+        }
+
+        BucketIterator it = histogram.positiveBuckets().iterator();
+        for (int i = 0; i < counts.length; i++) {
+            assertThat(it.peekIndex(), equalTo((long) i));
+            assertThat("count at slot " + i + " must read back unchanged", it.peekCount(), equalTo(counts[i]));
+            it.advance();
+        }
+        assertFalse(it.hasNext());
+    }
+
+    /**
+     * The width the counts happen to be stored in must be invisible to every consumer, so a histogram that has been forced to a wide
+     * one has to answer identically to one holding the same buckets at the narrowest width.
+     */
+    public void testPromotedHistogramIsIndistinguishableFromANarrowOne() {
+        int buckets = randomIntBetween(2, 50);
+        long[] indices = new long[buckets];
+        long[] counts = new long[buckets];
+        for (int i = 0; i < buckets; i++) {
+            indices[i] = i == 0 ? randomLongBetween(-1000, 0) : indices[i - 1] + randomLongBetween(1, 20);
+            counts[i] = randomLongBetween(1, 100);
+        }
+
+        FixedCapacityExponentialHistogram narrow = FixedCapacityExponentialHistogram.create(buckets, breaker());
+        autoReleaseOnTestEnd(narrow);
+        FixedCapacityExponentialHistogram promoted = FixedCapacityExponentialHistogram.create(buckets, breaker());
+        autoReleaseOnTestEnd(promoted);
+
+        // force the second one to the widest storage, then drop those buckets again; resetBuckets deliberately keeps the width
+        assertTrue(promoted.tryAddBucket(0, Long.MAX_VALUE / 2, true));
+        promoted.resetBuckets(promoted.scale());
+
+        for (FixedCapacityExponentialHistogram histogram : List.of(narrow, promoted)) {
+            for (int i = 0; i < buckets; i++) {
+                assertTrue(histogram.tryAddBucket(indices[i], counts[i], true));
+            }
+            histogram.setSum(123.5);
+            histogram.setMin(0.5);
+            histogram.setMax(9000.0);
+        }
+
+        assertThat(promoted.ramBytesUsed(), greaterThan(narrow.ramBytesUsed()));
+        assertThat(promoted.valueCount(), equalTo(narrow.valueCount()));
+        assertThat(promoted.sum(), equalTo(narrow.sum()));
+        assertThat(promoted.min(), equalTo(narrow.min()));
+        assertThat(promoted.max(), equalTo(narrow.max()));
+        for (double quantile : new double[] { 0.0, 0.01, 0.25, 0.5, 0.75, 0.99, 1.0 }) {
+            assertThat(
+                "quantile " + quantile + " must not depend on how the counts are stored",
+                ExponentialHistogramQuantile.getQuantile(promoted, quantile),
+                equalTo(ExponentialHistogramQuantile.getQuantile(narrow, quantile))
+            );
+        }
+        assertTrue(ExponentialHistogram.equals(narrow, promoted));
     }
 
     public void testReverseIterator() {

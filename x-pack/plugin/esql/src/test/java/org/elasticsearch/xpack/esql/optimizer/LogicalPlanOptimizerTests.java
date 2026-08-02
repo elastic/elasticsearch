@@ -7325,6 +7325,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    /**
+     * Regression for https://github.com/elastic/elasticsearch/issues/153507:
+     * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
+     * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
+     */
+    public void testMetricsAggregateAliasCollidesWithGroupingKey() {
+        assumeTrue(
+            "Requires fix for TS STATS alias/grouping shadowing",
+            EsqlCapabilities.Cap.FIX_TS_STATS_ALIAS_GROUPING_SHADOW.isEnabled()
+        );
+        var plan = planMetrics("TS k8s | STATS pod = FIRST(events_received, @timestamp) BY pod");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
+        assertWarnings("Line 1:16: Field 'pod' shadowed by field at line 1:60");
+    }
+
     public void testTranslateMetricsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = planMetrics(query);
@@ -10505,6 +10521,34 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             )
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
+    }
+
+    /**
+     * Limit[10000[INTEGER],false,false]
+     * \_Aggregate[[$$@timestamp$time_bucket{r}#120],[MAX(LASTOVERTIME_$1{r}#152,true[BOOLEAN],PT0S[TIME_DURATION])
+     *   AS max(network.cost)#122, $$@timestamp$time_bucket{r}#120 AS @timestamp#120]]
+     *   \_TimeSeriesAggregate[[_tsid{m}#151, $$@timestamp$time_bucket{r}#120],[LASTOVERTIME(network.cost{f}#142,true[BOOLEAN],
+     *     PT0S[TIME_DURATION],@timestamp{f}#125) AS LASTOVERTIME_$1#152, $$@timestamp$time_bucket{r}#120],
+     *     BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),@timestamp{f}#125,TS_COMMAND]
+     *     \_Eval[[BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]) AS $$@timestamp$time_bucket#120]]
+     *       \_EsRelation[k8s][@timestamp{f}#125, client.ip{f}#129, cluster{f}#126, ..]
+     * }
+     */
+    public void testTranslateMetricsWithTimeBucketNamedAfterTimestamp() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            TS k8s
+            | STATS max(network.cost) BY @timestamp = BUCKET(@timestamp, 1 minute)
+            """));
+
+        assertThat(Expressions.names(plan.output()), contains("max(network.cost)", "@timestamp"));
+
+        var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var timestamp = as(tsStats.timestamp(), FieldAttribute.class);
+        assertThat(tsStats.child().output(), hasItem(timestamp));
+        var eval = as(tsStats.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("$$@timestamp$time_bucket"));
+        LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
+        assertThat(lastOverTime.timestamp(), equalTo(timestamp));
     }
 
     /**

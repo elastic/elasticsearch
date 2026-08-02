@@ -185,7 +185,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
         );
-        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
     public void testParseSearchRequestRejectsSliceWhenFeatureDisabled() {
@@ -199,7 +199,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
         );
-        assertEquals("request does not support [_slice]", e.getMessage());
+        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     public void testParseSearchRequestAllowsSliceWithPointInTime() throws Exception {

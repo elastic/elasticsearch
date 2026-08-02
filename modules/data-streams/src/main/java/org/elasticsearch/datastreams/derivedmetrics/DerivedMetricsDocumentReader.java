@@ -124,12 +124,21 @@ public final class DerivedMetricsDocumentReader {
             if (keyword.ignoreAbove().valuesPotentiallyIgnored()) {
                 return Strategy.UNSUPPORTED;
             }
-            return Strategy.KEYWORD;
+            // Being mapped is not the same as being present. A keyword that is not indexed puts either nothing in the document at all,
+            // or — with high cardinality doc values — an envelope of every value under the same name, which is not the term. Requiring
+            // the inverted index is what guarantees the plain term this reader knows how to decode.
+            return keyword.isSearchable() ? Strategy.KEYWORD : Strategy.UNSUPPORTED;
         }
-        if (type instanceof TextFieldMapper.TextFieldType) {
-            return Strategy.TEXT;
+        if (type instanceof TextFieldMapper.TextFieldType text) {
+            // a text field materialises its raw string only when indexed or stored
+            return text.isSearchable() || text.isStored() ? Strategy.TEXT : Strategy.UNSUPPORTED;
         }
         if (type instanceof NumberFieldMapper.NumberFieldType number) {
+            // Doc values carry the number itself. Without them an indexed numeric is a points field, whose contents are encoded bytes
+            // rather than a value, and reading it would silently produce nothing where the source had something.
+            if (number.hasDocValues() == false) {
+                return Strategy.UNSUPPORTED;
+            }
             return switch (number.numberType()) {
                 case LONG, INTEGER, SHORT, BYTE -> Strategy.LONG;
                 case DOUBLE -> Strategy.DOUBLE;

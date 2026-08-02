@@ -170,8 +170,8 @@ What it costs to add one thing at a time, which is the question anyone configuri
 |---|---|---|
 | configured, but no metric triggered by this write | 2 | 0 |
 | one metric, no dimensions | 110 | 0 |
-| that same metric with three dimensions | 1,237 | 1,984 |
-| one histogram over a field, 100 buckets | 1,168 | 1,854 |
+| that same metric with three dimensions | 537 | 256 |
+| one histogram over a field, 100 buckets | 246 | 6 |
 
 The first row deserves a caveat rather than a boast. It is `record` returning on its trigger check — a stream that has metrics configured
 where this particular write matches none of them, which happens when only failure-triggered metrics are configured and the write
@@ -179,9 +179,19 @@ succeeded. **It is not what an index with no derived metrics pays**, because suc
 returns after its origin check and cached cluster state resolution. That cost is real and unmeasured here, because measuring it needs a
 `ClusterService` the benchmark project cannot stand up.
 
-**The cliff is not adding metrics, it is the first thing that needs `_source`.** A metric on its own costs about a hundred nanoseconds and
-allocates nothing at all. Reading the document costs roughly 1,850 bytes, and that is paid once however many metrics and dimensions want
-it — which is why a hundred-bucket histogram comes out *cheaper* than three dimensions: it extracts one field instead of three.
+These are the figures for a mapping that lets every configured value be read from the document Elasticsearch has already parsed, which is
+what an ECS-shaped stream gives you. A mapping that cannot falls back to parsing `_source` again, and that is what the cliff used to be
+for everyone:
+
+| configuration | from the parsed document | by re-parsing `_source` |
+|---|---|---|
+| one metric with three dimensions | 537 ns / 256 B | 1,199 ns / 1,984 B |
+| five dimensions and a predicate | 1,282 ns / 576 B | 2,110 ns / 2,296 B |
+| one histogram over a field | 246 ns / 6 B | 1,159 ns / 1,854 B |
+
+Allocation falls by 75% to 99% and time by 39% to 79%. The histogram case is the clearest, because it reads a single field and configures
+no dimensions: six bytes per document, which is nothing. What remains in the other two is not the read at all — it is resolving and
+encoding the dimension values, which is why five dimensions still costs more than three.
 
 ### What the hot path is actually spending
 
@@ -213,13 +223,35 @@ The reason it is not what we built first: it requires touching `DocumentParserCo
 mappers to a data-streams module feature, where reading the parsed document stays entirely inside the module. `RoutingPathFields` itself
 cannot be reused as-is — it is only populated for indices with a `routing_path`, which a plain log data stream does not have.
 
-That points at the one optimisation worth more than everything already done: **do not parse the document twice.** `DocumentParser` has
-already parsed it by the time `postIndex` runs. Reading dimension and value fields from the materialised `LuceneDocument` instead of
-re-parsing `_source` would remove ~900 ns and ~1,850 bytes per document. It is a behaviour change rather than a pure optimisation —
-keyword normalisers, encoded numerics, and unmapped fields that source extraction handles today would all need answering — which is why it
-is recorded here rather than attempted.
+That is why the write path no longer parses the document twice, and the figures above are the ones with that in place. `DocumentParser`
+has already parsed the document by the time `postIndex` runs, so `DerivedMetricsDocumentReader` reads the values from the materialised
+fields instead — but only where the stored value is provably the source value.
 
-Fuller configurations, for scale:
+Which mappings qualify is the whole of the design, because a metric that changes meaning depending on which reader ran would be worse than
+a slow one:
+
+| mapping | how `service.name` is read |
+|---|---|
+| keyword, indexed, no normalizer | directly, the term is the source value |
+| `text` with a `.keyword` sub-field, the default for a dynamically mapped string | from the **parent**, which holds the raw string the parser saw — analysis happens later inside the index writer, so the sub-field and its `ignore_above` are never involved |
+| keyword with a normalizer | refused: the value was rewritten before storage |
+| keyword with any effective `ignore_above` | refused: an over-long value is absent, and absent-because-too-long cannot be told from absent-because-missing |
+| not indexed and not doc-valued | refused: being mapped is not being present |
+| unmapped | refused |
+
+Numerics are read from doc values and decoded rather than taken at face value — `DoubleField` stores
+`NumericUtils.doubleToSortableLong`, so reading `numericValue()` directly would produce a plausible and completely wrong number.
+`half_float` is refused outright, being lossy against the source.
+
+One unreadable path sends the whole document back to `_source`, and the split is reported as
+`es.derived_metrics.documents.read.from_index.total` and `...from_source.total`, so a stream paying for a second parse can be found rather
+than guessed at.
+
+Configuration always names the logical field. Requiring `service.name.keyword` would make a metric definition non-portable between an ECS
+mapping, where `service.name` is already a keyword, and a dynamic one, where it is not — and would leak the sub-field into the emitted
+dimension name.
+
+Fuller configurations, for scale. These predate the parsed-document reader and therefore show the source-parsing path:
 
 | configuration | ns/op | B/op |
 |---|---|---|

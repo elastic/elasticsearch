@@ -14,20 +14,23 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.derivedmetrics.CompiledDerivedMetrics;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDocumentReader;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsSourceReader;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -103,6 +106,11 @@ public class DerivedMetricsObservationBench {
     private DerivedMetricsService service;
     private CompiledDerivedMetrics compiled;
     private ParsedDocument document;
+    /**
+     * How each configured path can be read back from the already-parsed document, or null to force the source-parsing path. Both are
+     * measured, because the whole question is what the difference is worth.
+     */
+    private DerivedMetricsDocumentReader.Strategies strategies;
 
     static {
         // the service and its collaborators grab loggers in their static initialisers, and the ES logging SPI is not wired up in a
@@ -135,7 +143,11 @@ public class DerivedMetricsObservationBench {
             "node-1"
         );
         compiled = CompiledDerivedMetrics.compile(configFor(shape));
-        document = documentFor();
+        // A real mapping and a real parse, so the document carries the materialised fields the reader is supposed to find. A
+        // hand-assembled ParsedDocument with an empty LuceneDocument would measure a reader that finds nothing.
+        MapperService mappers = MapperServiceFactory.create(MAPPING);
+        document = mappers.documentMapper().parse(new SourceToParse(UUIDs.randomBase64UUID(), new BytesArray(SOURCE), XContentType.JSON));
+        strategies = DerivedMetricsDocumentReader.resolve(mappers.mappingLookup(), compiled.sourcePaths().paths());
     }
 
     @TearDown
@@ -144,9 +156,21 @@ public class DerivedMetricsObservationBench {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
+    /**
+     * The write path as it runs in production: values come from the document Elasticsearch already parsed whenever the mapping allows it.
+     */
     @Benchmark
     public void observe() {
-        service.record(ProjectId.DEFAULT, DATA_STREAM, compiled, document, true);
+        service.record(ProjectId.DEFAULT, DATA_STREAM, compiled, document, true, strategies);
+    }
+
+    /**
+     * The same work, forced down the source-parsing path, which is what a mapping that cannot serve every configured value falls back to.
+     * The gap between this and {@link #observe()} is what reading the parsed document is worth.
+     */
+    @Benchmark
+    public void observeByReparsingSource() {
+        service.record(ProjectId.DEFAULT, DATA_STREAM, compiled, document, true, null);
     }
 
     /**
@@ -263,32 +287,61 @@ public class DerivedMetricsObservationBench {
      * A document of the shape these metrics are derived from. Deliberately wider than the paths any configuration reads, so that the
      * filtered parse has something to skip — which is the whole point of parsing a filtered slice.
      */
-    private static ParsedDocument documentFor() {
-        String source = """
-            {
-              "@timestamp": "2026-01-01T00:00:00.000Z",
-              "service": { "name": "checkout" },
-              "cloud": { "region": "eu-west-1", "provider": "aws", "availability_zone": "eu-west-1a" },
-              "host": { "name": "host-17", "ip": "10.0.0.17", "architecture": "aarch64" },
-              "http": {
-                "request": { "method": "POST", "bytes": 1234 },
-                "response": { "status_code": 503, "bytes": 91 }
+    /**
+     * A document of the shape these metrics are derived from. Deliberately wider than the paths any configuration reads, so that the
+     * parse has something to skip — which is the whole point of reading only what is configured.
+     */
+    private static final String SOURCE = """
+        {
+          "@timestamp": "2026-01-01T00:00:00.000Z",
+          "service": { "name": "checkout" },
+          "cloud": { "region": "eu-west-1", "provider": "aws", "availability_zone": "eu-west-1a" },
+          "host": { "name": "host-17", "ip": "10.0.0.17", "architecture": "aarch64" },
+          "http": {
+            "request": { "method": "POST", "bytes": 1234 },
+            "response": { "status_code": 503, "bytes": 91 }
+          },
+          "event": { "duration": 18374652, "outcome": "failure" },
+          "message": "checkout failed while reserving inventory for order 8814-A",
+          "trace": { "id": "6f1a2c9d4e8b7a3f5c0d1e2b3a4f5c6d" }
+        }""";
+
+    /**
+     * Dimensions as keywords and metric values as numbers with doc values, which is what an ECS-shaped stream looks like and what lets
+     * every configured path be read straight from the parsed document.
+     */
+    private static final String MAPPING = """
+        {
+          "_doc": {
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "service": { "properties": { "name": { "type": "keyword" } } },
+              "cloud": {
+                "properties": {
+                  "region": { "type": "keyword" },
+                  "provider": { "type": "keyword" },
+                  "availability_zone": { "type": "keyword" }
+                }
               },
-              "event": { "duration": 18374652, "outcome": "failure" },
-              "message": "checkout failed while reserving inventory for order 8814-A",
-              "trace": { "id": "6f1a2c9d4e8b7a3f5c0d1e2b3a4f5c6d" }
-            }""";
-        return new ParsedDocument(
-            null,
-            null,
-            "doc-1",
-            null,
-            List.of(new LuceneDocument()),
-            SourceToParse.Source.fromBytes(new BytesArray(source), XContentType.JSON),
-            null,
-            0L
-        );
-    }
+              "host": {
+                "properties": {
+                  "name": { "type": "keyword" },
+                  "ip": { "type": "ip" },
+                  "architecture": { "type": "keyword" }
+                }
+              },
+              "http": {
+                "properties": {
+                  "request": { "properties": { "method": { "type": "keyword" }, "bytes": { "type": "long" } } },
+                  "response": { "properties": { "status_code": { "type": "long" }, "bytes": { "type": "long" } } }
+                }
+              },
+              "event": { "properties": { "duration": { "type": "long" }, "outcome": { "type": "keyword" } } },
+              "message": { "type": "text" },
+              "trace": { "properties": { "id": { "type": "keyword" } } }
+            }
+          }
+        }""";
 
     /**
      * The service only touches its client when it flushes, which the benchmark never does. This exists so the constructor has something

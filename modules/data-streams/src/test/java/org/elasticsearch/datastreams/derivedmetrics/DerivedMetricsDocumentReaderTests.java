@@ -151,6 +151,35 @@ public class DerivedMetricsDocumentReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * Being mapped is not the same as being present in the document. A field that is neither indexed nor doc-valued materialises
+     * nothing, so reading the document would hand back a null dimension where a source parse produced a value — a silent difference
+     * rather than a slower one, which is the failure this whole check exists to prevent.
+     */
+    public void testAMappedFieldThatIsNeverMaterialisedIsRefused() throws IOException {
+        MapperService mappers = createMapperService(mapping(b -> {
+            b.startObject("service.name").field("type", "keyword").field("index", false).field("doc_values", false).endObject();
+            b.startObject("event.duration").field("type", "double").field("doc_values", false).endObject();
+        }));
+
+        Strategies strategies = DerivedMetricsDocumentReader.resolve(mappers.mappingLookup(), List.of("service.name", "event.duration"));
+        assertEquals("a keyword with no inverted index has no term to read", Strategy.UNSUPPORTED, strategies.bySlot()[0]);
+        assertEquals("a numeric without doc values is encoded points", Strategy.UNSUPPORTED, strategies.bySlot()[1]);
+    }
+
+    /**
+     * A field the document simply does not have is a different matter: both readers agree it is absent, so the fast path stays valid.
+     */
+    public void testAFieldTheDocumentDoesNotHaveIsStillAgreedOn() throws IOException {
+        MapperService mappers = createMapperService(mapping(b -> {
+            b.startObject("service.name").field("type", "keyword").endObject();
+            b.startObject("cloud.region").field("type", "keyword").endObject();
+        }));
+
+        assertReadsSameAsSource(mappers, List.of("service.name", "cloud.region"), """
+            {"service.name":"checkout"}""");
+    }
+
+    /**
      * Asserts the whole point: for the same document, the two readers agree value for value.
      */
     private void assertReadsSameAsSource(MapperService mappers, List<String> paths, String source) throws IOException {

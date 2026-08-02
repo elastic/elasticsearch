@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154522
+pr: 155043
+summary: Honor drop_null_columns for Arrow responses
+type: bug

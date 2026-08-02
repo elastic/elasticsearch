@@ -119,7 +119,7 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testNumberOfStartedOrRelocatingShards() {
-        assertThat(routingNode.numberOfStartedOrRelocatingShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(2));
+        assertThat(routingNode.numberOfActiveShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(2));
     }
 
     public void testNumberOfOwningShardsForIndex() {

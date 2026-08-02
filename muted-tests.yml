@@ -361,6 +361,12 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/155541
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/10_unified/Test hybrid search with knn where automatically disables weighted mode}
+  issue: https://github.com/elastic/elasticsearch/issues/155682
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testInfoParameters {class org.elasticsearch.xpack.esql.plan.physical.MergeExec}
+  issue: https://github.com/elastic/elasticsearch/issues/155683
 
 # Examples:
 #

@@ -244,7 +244,7 @@ public class DataTier {
                     // tier if the index is part of a data stream, the "content"
                     // tier if it is not.
                     if (dataStreamName != null) {
-                        additionalSettings.put(TIER_PREFERENCE, DATA_HOT);
+                        additionalSettings.put(TIER_PREFERENCE, String.join(",", DATA_HOT, DATA_WARM, DATA_COLD));
                     } else {
                         additionalSettings.put(TIER_PREFERENCE, DATA_CONTENT);
                     }

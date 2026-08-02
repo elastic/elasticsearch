@@ -84,7 +84,17 @@ public class DerivedMetricsObservationBench {
      * HISTOGRAM         a histogram metric over a numeric field
      * NOT_CONFIGURED    no metrics at all — what every index that never asked for this pays on every write
      */
-    @Param({ "NOT_CONFIGURED", "BUILTIN_ONLY", "ONE_DIMENSION", "FIVE_DIMENSIONS", "HISTOGRAM" })
+    @Param(
+        {
+            "NOT_CONFIGURED",
+            "ONE_METRIC",
+            "ONE_METRIC_THREE_DIMENSIONS",
+            "ONE_HISTOGRAM_100_BUCKETS",
+            "BUILTIN_ONLY",
+            "ONE_DIMENSION",
+            "FIVE_DIMENSIONS",
+            "HISTOGRAM" }
+    )
     String shape;
 
     private static final String DATA_STREAM = "logs-my_app-default";
@@ -107,10 +117,13 @@ public class DerivedMetricsObservationBench {
             "derived-metrics-bench",
             new DataStreamsPlugin(Settings.EMPTY).getExecutorBuilders(Settings.EMPTY).toArray(ExecutorBuilder<?>[]::new)
         );
-        Settings settings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
             // a budget wide enough that the benchmark never measures the cap-refusal path
-            .put(DerivedMetricsService.MAX_SERIES_PER_NODE.getKey(), 100_000)
-            .build();
+            .put(DerivedMetricsService.MAX_SERIES_PER_NODE.getKey(), 100_000);
+        if (shape.equals("ONE_HISTOGRAM_100_BUCKETS")) {
+            builder.put(DerivedMetricsService.HISTOGRAM_BUCKETS.getKey(), 100);
+        }
+        Settings settings = builder.build();
         service = new DerivedMetricsService(
             settings,
             new NoOpClient(threadPool),
@@ -182,6 +195,35 @@ public class DerivedMetricsObservationBench {
                     )
                 )
             );
+            // The three shapes below answer "what does adding a metric actually cost me", one increment at a time, rather than making
+            // someone infer it from configurations that differ in more than one way at once.
+            case "ONE_METRIC" -> new DataStreamDerivedMetrics(true, List.of(), interval, null, List.of(), List.of(oneCounter(List.of())));
+            case "ONE_METRIC_THREE_DIMENSIONS" -> new DataStreamDerivedMetrics(
+                true,
+                List.of(),
+                interval,
+                null,
+                List.of(),
+                List.of(oneCounter(List.of("service.name", "cloud.region", "host.name")))
+            );
+            case "ONE_HISTOGRAM_100_BUCKETS" -> new DataStreamDerivedMetrics(
+                true,
+                List.of(),
+                interval,
+                null,
+                List.of(),
+                List.of(
+                    new DataStreamDerivedMetrics.Metric(
+                        "latency.distribution",
+                        DataStreamDerivedMetrics.MetricType.HISTOGRAM,
+                        null,
+                        DataStreamDerivedMetrics.MetricValue.field("event.duration"),
+                        null,
+                        null,
+                        null
+                    )
+                )
+            );
             case "HISTOGRAM" -> new DataStreamDerivedMetrics(
                 true,
                 List.of(),
@@ -202,6 +244,19 @@ public class DerivedMetricsObservationBench {
             );
             default -> throw new IllegalArgumentException("unknown shape [" + shape + "]");
         };
+    }
+
+    /** One predicate-free counter, so the only thing varying between the marginal-cost shapes is its dimension list. */
+    private static DataStreamDerivedMetrics.Metric oneCounter(List<String> dimensions) {
+        return new DataStreamDerivedMetrics.Metric(
+            "http.requests",
+            DataStreamDerivedMetrics.MetricType.COUNTER,
+            null,
+            null,
+            null,
+            dimensions,
+            null
+        );
     }
 
     /**

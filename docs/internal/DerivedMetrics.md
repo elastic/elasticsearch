@@ -164,13 +164,26 @@ either.
 Measured by `DerivedMetricsObservationBench` in the `benchmarks` project — run it with `-prof gc`, because the allocation number matters
 at least as much as the time. This path runs once per document on the indexing thread, inside the shard's operation permit.
 
+What it costs to add one thing at a time, which is the question anyone configuring this actually has:
+
 | configuration | ns/op | B/op |
 |---|---|---|
 | nothing configured | 2 | 0 |
-| built-in ingest metrics, no dimensions | 398 | 160 |
+| one metric, no dimensions | 110 | 0 |
+| that same metric with three dimensions | 1,237 | 1,984 |
+| one histogram over a field, 100 buckets | 1,168 | 1,854 |
+
+**The cliff is not adding metrics, it is the first thing that needs `_source`.** A metric on its own costs about a hundred nanoseconds and
+allocates nothing at all. Reading the document costs roughly 1,850 bytes, and that is paid once however many metrics and dimensions want
+it — which is why a hundred-bucket histogram comes out *cheaper* than three dimensions: it extracts one field instead of three.
+
+Fuller configurations, for scale:
+
+| configuration | ns/op | B/op |
+|---|---|---|
+| built-in ingest metrics, no dimensions | 409 | 160 |
 | built-in ingest metrics, one dimension | 1,509 | 2,112 |
-| built-in plus a predicate-guarded counter, five dimensions | 2,473 | 2,328 |
-| one histogram metric over a field | 1,269 | 1,932 |
+| built-in plus a predicate-guarded counter, five dimensions | 2,264 | 2,301 |
 
 The first row is the one almost every index in almost every cluster sits on, because the indexing listener is registered on every index
 and not only on the ones that asked for this. Two nanoseconds and no allocation: `record` compares the write's trigger against the
@@ -179,23 +192,45 @@ calling `record` directly. Above it the listener does a volatile read and a clus
 measuring *that* needs a real `ClusterService` the benchmark project cannot easily stand up. So the honest statement is: the measured
 part is free, and the unmeasured part above it is a volatile read and an integer comparison.
 
-Those figures are single-threaded. Under contention, with every thread recording into one metric and
-one series — the worst case, since each metric has its own table and its own lock:
+Those figures are single-threaded. The per-table monitor does not scale, and it is worth being blunt
+about that rather than reporting the flattering shape. Measured on the **default** configuration —
+`builtin: ["ingest.*"]` with no dimensions, which is four success-triggered metrics of one series
+each, so every write thread serialises on four monitors:
 
-| threads | ns/op | observations/sec |
+| threads | ns/op | aggregate documents/sec |
 |---|---|---|
-| 1 | 2,211 | 452,000 |
-| 4 | 3,895 | 1,027,000 |
-| 8 | 5,518 | 1,450,000 |
+| 1 | 409 ± 7 | 2,450,000 |
+| 2 | 755 ± 151 | 2,650,000 |
+| 4 | 1,237 ± 354 | 3,230,000 |
+| 8 | 3,848 ± 549 | 2,080,000 |
 
-Throughput scales 3.2x from one thread to eight rather than the ideal 8x, so the per-table monitor is
-real and measurable. The critical section probes the table once rather than twice — it records and
-reads the returned sign to learn whether a series was created, instead of asking first and then
-recording — which was worth about 17% under contention. Halving the probes did not halve the cost,
-because probing is only part of the critical section and the critical section is only part of the
-per-document work. It is also not currently the binding constraint: a node doing 70,000 documents a
-second with seven configured metrics generates about 490,000 observations a second, spread over seven
-tables rather than concentrated on one. The ceiling above is the pessimistic reading of that.
+Throughput peaks at four threads and then **regresses below the single-thread figure**. That is
+contention collapse, not sublinear scaling, and the default configuration is the shape that produces
+it: the fewer dimensions a metric has, the fewer series it spreads across, and a metric with no
+dimensions has exactly one.
+
+Two things keep this from being a live problem, and one keeps it on the list.
+
+**The absolute ceiling is far above any real node.** Even collapsed, the node observes 2.08M
+documents a second. The demo node sustained 7,926 writes/sec; an optimistic per-node ceiling is around
+70,000. That is 30x to 260x of headroom.
+
+**The benchmark's duty cycle cannot occur in production.** Its threads do nothing but call `record`,
+so they are inside the monitor essentially all the time. A real write thread spends the overwhelming
+majority of its time in Lucene: at the demo's measured rate, all the time spent inside `record` adds
+up to **0.32% of one core**. Two write threads contending for the same table's monitor is a
+correspondingly rare event, and the collapse above requires them to contend continuously.
+
+**But the shape is still wrong**, and it will matter on a node with many more write threads than the
+eight measured here. The fix is not the striping described below — striping by series hash does
+nothing when there is only one series. What would work is making the *existing-series* update
+lock-free: `count` and `sum` accumulate through striped adders, `min` and `max` through compare-and-set
+that stops attempting once they converge, leaving the monitor to cover only series creation and
+histogram accumulation. Not attempted here.
+
+The critical section probes the table once rather than twice — it records and reads the returned sign
+to learn whether a series was created, instead of asking first and then recording — which was worth
+about 17% under contention.
 
 The shape of the single-threaded table is the important part, and it is close to flat. A stream that only wants the built-in ingest metrics never reads
 `_source` at all and costs essentially nothing. Every configuration that does read it pays about the same, because what dominates is

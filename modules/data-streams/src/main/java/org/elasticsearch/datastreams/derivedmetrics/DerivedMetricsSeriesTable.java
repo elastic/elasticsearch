@@ -41,14 +41,18 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>Not thread safe: {@link BytesRefHash} is not, and neither is growing a {@link BigArrays} array. Callers synchronize on the table.
  * The critical section is a hash lookup and a handful of array writes.
  *
- * <p>That lock has been measured rather than assumed. With every thread hammering a single metric and a single series — the worst case,
- * since each metric gets its own table — throughput scales about 3.2x from one thread to eight, topping out near 1.45M observations per
- * second. Real configurations spread observations over a table per metric, so they contend less than that.
+ * <p>That lock has been measured rather than assumed, and it does not scale. On the default configuration — built-in ingest metrics with
+ * no dimensions, so one series per metric — aggregate throughput peaks at four threads and regresses below the single-thread figure by
+ * eight. It is not a live problem: even collapsed the node observes over two million documents a second, roughly thirty times an
+ * optimistic per-node write rate, and a real write thread spends about 0.32% of its time in here rather than the benchmark's hundred
+ * percent, so continuous contention cannot arise at realistic rates.
  *
- * <p>If a single hot metric ever does become the bottleneck, the cheap next step is striping the table by series hash: each series lives
- * in exactly one stripe, so nothing is duplicated and flush just walks them all. Striping per <em>thread</em> rather than per series
- * would be a mistake — every thread sees most series, so the state would be copied once per thread, and cardinality is already this
- * feature's weak point.
+ * <p>Note what would <em>not</em> fix it. Striping the table by series hash does nothing here, because the shape that contends worst is
+ * the one with a single series — the fewer dimensions a metric has, the fewer stripes it could ever occupy. Striping per <em>thread</em>
+ * fixes exactly that case but copies the state once per thread, which is unaffordable at high cardinality: the two bad cases are
+ * opposites. What would work for both is making the existing-series update lock-free — striped adders for {@code count} and {@code sum},
+ * compare-and-set for {@code min} and {@code max}, which stop attempting once they converge — leaving this monitor to cover only series
+ * creation and histogram accumulation, neither of which is the hot path.
  */
 public class DerivedMetricsSeriesTable implements Releasable {
 

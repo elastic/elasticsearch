@@ -160,7 +160,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(Lucene104PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
@@ -220,15 +220,22 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
     }
 
-    public void testUseEs812PostingsFormatForIdField() throws IOException {
+    public void testUseEs812PostingsFormatForIdFieldBeforeLucene105() throws IOException {
         int numIterations = randomIntBetween(2, 64);
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
             String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
-            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)
+            );
+            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES))
+                && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
             PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+                null,
                 randomBoolean(),
                 randomBoolean(),
+                indexVersion,
                 indexMode,
                 mapping,
                 randomSyntheticId
@@ -240,6 +247,21 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             }
             assertThat(result, (instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)));
         }
+    }
+
+    public void testUseDefaultPostingsFormatForIdFieldAfterLucene105() throws IOException {
+        String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            null,
+            randomBoolean(),
+            false,
+            IndexVersion.current(),
+            IndexMode.STANDARD,
+            mapping,
+            false
+        );
+        var result = perFieldMapperCodec.getPostingsFormatForField("_id");
+        assertThat(result, (instanceOf(Lucene104PostingsFormat.class)));
     }
 
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
@@ -317,6 +339,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             true,
             null,
             false,
+            null,
             IndexMode.STANDARD,
             MULTI_METRIC_MAPPING,
             false
@@ -386,7 +409,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         IndexMode mode,
         String mapping
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, null);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, null);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
@@ -396,13 +419,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         String mapping,
         boolean syntheticId
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, syntheticId);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping, syntheticId);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
         Boolean useTimeSeriesDocValuesFormatSetting,
         Boolean enableES87TSDBCodec,
         Boolean useEs812PostingsFormat,
+        IndexVersion indexVersion,
         IndexMode mode,
         String mapping,
         Boolean syntheticId
@@ -423,6 +447,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         if (useEs812PostingsFormat) {
             settings.put(IndexSettings.USE_ES_812_POSTINGS_FORMAT.getKey(), true);
+        }
+        if (indexVersion != null) {
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
         }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);

@@ -473,7 +473,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     @Override
-    public Operator tryPromote(DriverContext driverContext) {
+    public Operator tryPromote(DriverContext driverContext, Page page) {
         if (parallelWorkerConfig == null) {
             return this;
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -167,6 +169,24 @@ public class HashAggregationOperator implements Operator {
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
     /**
+     * Configuration for promoting this operator to a {@link PartitionedHashMergeOperator} at
+     * runtime when the first tagged (partitioned) page arrives.
+     *
+     * @param groupSpecs group key specs as seen in the exchange output (channels 0..keyCount-1)
+     * @param partitionCount number of partition buckets (must match PHAO's partition count)
+     * @param workerCount maximum number of background merge workers
+     * @param aggregationBatchSize hash-table emit batch size passed to each worker's BlockHash
+     * @param executor thread pool on which background workers run
+     */
+    public record PromotionConfig(
+        List<BlockHash.GroupSpec> groupSpecs,
+        int partitionCount,
+        int workerCount,
+        int aggregationBatchSize,
+        Executor executor
+    ) {}
+
+    /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
      * and {@link #aggregators(List)} are required. The other parameters default to reasonable values
      * <strong>for tests</strong>. In production, set them all.
@@ -181,6 +201,8 @@ public class HashAggregationOperator implements Operator {
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
         private TopAggregation topAggregation;
+        @Nullable
+        private PromotionConfig promotionConfig;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -223,6 +245,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder promotionConfig(PromotionConfig promotionConfig) {
+            this.promotionConfig = promotionConfig;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -238,6 +265,8 @@ public class HashAggregationOperator implements Operator {
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
         private final TopAggregation topAggregation;
+        @Nullable
+        private final PromotionConfig promotionConfig;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -249,6 +278,7 @@ public class HashAggregationOperator implements Operator {
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
             this.topAggregation = builder.topAggregation;
+            this.promotionConfig = builder.promotionConfig;
         }
 
         @Override
@@ -271,7 +301,8 @@ public class HashAggregationOperator implements Operator {
                     1.0,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
                     topAggregation,
-                    driverContext
+                    driverContext,
+                    null // categorize does not support promotion
                 );
             }
             return new HashAggregationOperator(
@@ -282,7 +313,8 @@ public class HashAggregationOperator implements Operator {
                 partialEmitUniquenessThreshold,
                 maxPageSize,
                 topAggregation,
-                driverContext
+                driverContext,
+                promotionConfig
             );
         }
 
@@ -308,6 +340,9 @@ public class HashAggregationOperator implements Operator {
     protected final double partialEmitUniquenessThreshold;
 
     protected final DriverContext driverContext;
+
+    @Nullable
+    private final PromotionConfig promotionConfig;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
@@ -364,7 +399,8 @@ public class HashAggregationOperator implements Operator {
         double partialEmitUniquenessThreshold,
         int maxPageSize,
         TopAggregation topAggregation,
-        DriverContext driverContext
+        DriverContext driverContext,
+        @Nullable PromotionConfig promotionConfig
     ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
@@ -378,6 +414,7 @@ public class HashAggregationOperator implements Operator {
         this.blockHashSupplier = blockHashSupplier;
         this.aggregators = new ArrayList<>();
         this.topAggregation = topAggregation;
+        this.promotionConfig = promotionConfig;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.get();
@@ -408,6 +445,34 @@ public class HashAggregationOperator implements Operator {
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
         }
+    }
+
+    /**
+     * If this operator is configured with a {@link PromotionConfig} and the incoming page is
+     * tagged (partitioned), promotes to a {@link PartitionedHashMergeOperator}. The Driver calls
+     * this before {@link #addInput}, so the triggering page goes directly to the promoted operator
+     * rather than being processed here first.
+     *
+     * <p>This operator's accumulated state (from all prior untagged pages) is handed off as the
+     * initial {@code noneOp} of the promoted operator; it will be redistributed to workers at
+     * finish time via {@code distributeNoneOpToWorkers()}.
+     */
+    @Override
+    public Operator tryPromote(DriverContext driverContext, Page page) {
+        if (promotionConfig == null || page.partitionId() == null) {
+            return this;
+        }
+        return new PartitionedHashMergeOperator(
+            PartitionedHashMergeOperator.buildInternalGroupSpecs(promotionConfig.groupSpecs()),
+            aggregatorFactories,
+            promotionConfig.partitionCount(),
+            promotionConfig.workerCount(),
+            maxPageSize,
+            promotionConfig.aggregationBatchSize(),
+            promotionConfig.executor(),
+            driverContext,
+            this
+        );
     }
 
     /**

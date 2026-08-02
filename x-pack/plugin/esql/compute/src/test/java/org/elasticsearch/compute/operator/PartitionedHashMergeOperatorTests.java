@@ -204,7 +204,6 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         try {
             for (Page page : intermediate) {
                 mergeOp.addInput(page);
-                mergeOp.tryPromote(driverContext);
             }
             mergeOp.finish();
 
@@ -306,7 +305,6 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             for (Page page : intermediate) {
                 assertTrue(mergeOp.needsInput());
                 mergeOp.addInput(page);
-                mergeOp.tryPromote(driverContext);
             }
             mergeOp.finish();
             IsBlockedResult blocked = mergeOp.isBlocked();
@@ -457,7 +455,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             for (Page page : intermediatePages) {
                 assertTrue(mergeOp.needsInput());
                 mergeOp.addInput(page); // consumes (releases) the page
-                mergeOp.tryPromote(driverContext); // simulate Driver promotion check
+                mergeOp.tryPromote(driverContext, page); // simulate Driver promotion check
             }
             mergeOp.finish();
 

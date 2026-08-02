@@ -197,8 +197,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
 
     // ---- Instance fields (beyond those inherited from HashAggregationOperator) ----
 
-    private final List<BlockHash.GroupSpec> groupSpecs;
-    private final int aggregationBatchSize;
     private final int partitionCount;
     private final int emitKeysThreshold;
     private final int partitionThreshold;
@@ -227,7 +225,8 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             1.0,
             maxPageSize,
             null,
-            driverContext
+            driverContext,
+            null // INITIAL-mode PHAO does not promote
         );
         if (partitionCount <= 0) {
             throw new IllegalArgumentException("partitionCount must be greater than 0; got " + partitionCount);
@@ -235,8 +234,6 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
         if (emitKeysThreshold <= 0) {
             throw new IllegalArgumentException("emitKeysThreshold must be greater than 0; got " + emitKeysThreshold);
         }
-        this.groupSpecs = groupSpecs;
-        this.aggregationBatchSize = aggregationBatchSize;
         this.partitionCount = partitionCount;
         this.emitKeysThreshold = emitKeysThreshold;
         this.partitionThreshold = partitionThreshold;

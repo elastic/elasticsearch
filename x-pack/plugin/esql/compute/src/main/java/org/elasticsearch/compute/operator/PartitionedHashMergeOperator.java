@@ -46,18 +46,20 @@ import static java.util.stream.Collectors.joining;
  *
  * <p>Receives intermediate {@link Page}s from data nodes — some tagged with a
  * {@link Page#partitionId()} by {@link PartitionedHashAggregationOperator}, others untagged
- * (from shards that never converted to partitioned mode). Produces final aggregated output.
+ * (from data nodes that stayed below the partition threshold). Produces final aggregated output.
+ *
+ * <p>This operator is only ever constructed after a tagged page has been observed (via
+ * {@link HashAggregationOperator#tryPromote}), so workers are spun up eagerly in the constructor.
  *
  * <h2>Lifecycle</h2>
  * <ol>
- *   <li><b>Accumulation</b> – untagged pages accumulate in the {@code noneOp}
- *       (INTERMEDIATE-mode aggregators) on the driver thread. Tagged pages are routed
- *       directly to the owning partition worker's {@link ExchangeBuffer}.</li>
- *   <li><b>Finish</b> – the {@code noneOp}'s contents are distributed to worker buffers
- *       via the evaluate-intermediate → split-by-partition-hash → buffer-enqueue primitive;
- *       each worker then merges its buffer into its own FINAL-mode operator.</li>
- *   <li><b>Output</b> – once all workers signal completion, the driver evaluates each
- *       worker operator to final output pages (disjoint, no k-way merge required).</li>
+ *   <li><b>Accumulation</b> – tagged pages route to per-partition worker buffers; untagged pages
+ *       accumulate in {@code noneOp} (FINAL mode) on the driver thread.</li>
+ *   <li><b>Finish</b> – {@code noneOp}'s contents are re-evaluated as INTERMEDIATE (by temporarily
+ *       re-wrapping its aggregator functions), split by partition hash, and enqueued into worker
+ *       buffers; each worker then merges its buffer into its FINAL-mode operator.</li>
+ *   <li><b>Output</b> – once all workers signal completion, the driver evaluates each worker
+ *       operator to final output pages (disjoint, no k-way merge required).</li>
  * </ol>
  *
  * <p>Background workers run on the {@code esql_worker} thread pool using the same
@@ -134,8 +136,7 @@ public class PartitionedHashMergeOperator implements Operator {
     public static class Factory implements OperatorFactory {
         private final List<BlockHash.GroupSpec> internalGroupSpecs;
         private final List<AggregatorSpec> aggregatorSpecs;
-        private final List<GroupingAggregator.Factory> noneAggFactories;
-        private final List<GroupingAggregator.Factory> workerAggFactories;
+        private final List<GroupingAggregator.Factory> aggFactories;
         private final int partitionCount;
         private final int workerCount;
         private final int maxPageSize;
@@ -146,8 +147,7 @@ public class PartitionedHashMergeOperator implements Operator {
             this.internalGroupSpecs = buildInternalGroupSpecs(builder.groupSpecs);
             this.aggregatorSpecs = requireNonNull(builder.aggregators, "aggregators");
 
-            List<GroupingAggregator.Factory> noneFactories = new ArrayList<>(aggregatorSpecs.size());
-            List<GroupingAggregator.Factory> workerFactories = new ArrayList<>(aggregatorSpecs.size());
+            List<GroupingAggregator.Factory> factories = new ArrayList<>(aggregatorSpecs.size());
             int nextChannel = internalGroupSpecs.size();
             for (int i = 0; i < aggregatorSpecs.size(); i++) {
                 AggregatorSpec spec = aggregatorSpecs.get(i);
@@ -157,21 +157,7 @@ public class PartitionedHashMergeOperator implements Operator {
                     internalChannels.add(nextChannel + c);
                 }
                 List<Integer> frozenChannels = List.copyOf(internalChannels);
-                noneFactories.add(new GroupingAggregator.Factory() {
-                    @Override
-                    public GroupingAggregator apply(DriverContext driverContext) {
-                        return new GroupingAggregator(
-                            spec.supplier().groupingAggregator(driverContext, frozenChannels),
-                            AggregatorMode.INTERMEDIATE
-                        );
-                    }
-
-                    @Override
-                    public String describe() {
-                        return spec.supplier().describe();
-                    }
-                });
-                workerFactories.add(new GroupingAggregator.Factory() {
+                factories.add(new GroupingAggregator.Factory() {
                     @Override
                     public GroupingAggregator apply(DriverContext driverContext) {
                         return new GroupingAggregator(
@@ -187,8 +173,7 @@ public class PartitionedHashMergeOperator implements Operator {
                 });
                 nextChannel += intermediateBlockCount;
             }
-            this.noneAggFactories = List.copyOf(noneFactories);
-            this.workerAggFactories = List.copyOf(workerFactories);
+            this.aggFactories = List.copyOf(factories);
             this.partitionCount = builder.partitionCount;
             this.workerCount = Math.min(builder.workerCount, builder.partitionCount);
             this.maxPageSize = builder.maxPageSize;
@@ -198,16 +183,29 @@ public class PartitionedHashMergeOperator implements Operator {
 
         @Override
         public PartitionedHashMergeOperator get(DriverContext driverContext) {
+            // Create an empty FINAL-mode HAO as the initial noneOp. It accumulates any untagged
+            // pages that arrive before the first tagged page.
+            HashAggregationOperator noneOp = new HashAggregationOperator(
+                AggregatorMode.FINAL,
+                aggFactories,
+                () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
+                Integer.MAX_VALUE,
+                1.0,
+                maxPageSize,
+                null,
+                driverContext,
+                null
+            );
             return new PartitionedHashMergeOperator(
                 internalGroupSpecs,
-                noneAggFactories,
-                workerAggFactories,
+                aggFactories,
                 partitionCount,
                 workerCount,
                 maxPageSize,
                 aggregationBatchSize,
                 executor,
-                driverContext
+                driverContext,
+                noneOp
             );
         }
 
@@ -232,6 +230,7 @@ public class PartitionedHashMergeOperator implements Operator {
 
     private final int workerCount;
     private final Executor executor;
+    /** One FINAL-mode exchange buffer per partition. */
     private final ExchangeBuffer[] workerBuffers;
     /**
      * Guards against multiple concurrent tasks for the same logical worker. Each entry is
@@ -245,7 +244,6 @@ public class PartitionedHashMergeOperator implements Operator {
     private final PendingTasks pendingTasks;
     private volatile boolean closed = false;
     private final AtomicBoolean workerResourcesClosed = new AtomicBoolean();
-    private boolean anyPartitionsSeen = false;
     /** Set to {@code true} the first time {@link #getOutput()} calls {@link #buildOutput()}, so that
      * {@link #isFinished()} does not return {@code true} before the driver has a chance to call
      * {@link #getOutput()} and actually produce the final output pages. */
@@ -259,9 +257,12 @@ public class PartitionedHashMergeOperator implements Operator {
     private long savedHashNanos;
     private long savedAggNanos;
 
-    /** Accumulates all untagged pages on the driver thread. INTERMEDIATE mode. */
+    /**
+     * Accumulates all untagged pages on the driver thread. Non-null until
+     * {@link #distributeNoneOpToWorkers()} consumes it in {@link #emitFinal()}.
+     */
     private HashAggregationOperator noneOp;
-    /** One FINAL-mode operator per partition; created eagerly in the constructor. */
+    /** One FINAL-mode operator per partition. */
     private HashAggregationOperator[] workerOps;
     /**
      * One child block factory per logical worker (worker {@code w} uses {@code workerBlockFactories[w]}).
@@ -271,52 +272,54 @@ public class PartitionedHashMergeOperator implements Operator {
      */
     private final BlockFactory[] workerBlockFactories;
 
+    /**
+     * Constructs a {@link PartitionedHashMergeOperator} with an existing FINAL-mode
+     * {@link HashAggregationOperator} as its {@code noneOp} and immediately spins up workers.
+     *
+     * <p>Workers are started eagerly because this operator is only ever constructed after a
+     * tagged page has been observed (either via {@link HashAggregationOperator#tryPromote} on
+     * the driver thread, or via {@link Factory#get} in tests).
+     *
+     * <p>Called both by {@link Factory#get} (with a freshly-constructed empty HAO) and by
+     * {@link HashAggregationOperator#tryPromote} (with the HAO's own accumulated state).
+     */
     @SuppressWarnings("this-escape")
     PartitionedHashMergeOperator(
         List<BlockHash.GroupSpec> internalGroupSpecs,
-        List<GroupingAggregator.Factory> noneAggFactories,
-        List<GroupingAggregator.Factory> workerAggFactories,
+        List<GroupingAggregator.Factory> aggFactories,
         int partitionCount,
         int workerCount,
         int maxPageSize,
         int aggregationBatchSize,
         Executor executor,
-        DriverContext driverContext
+        DriverContext driverContext,
+        HashAggregationOperator noneOp
     ) {
         this.partitionCount = partitionCount;
         this.maxPageSize = maxPageSize;
         this.driverContext = driverContext;
         this.workerCount = workerCount;
         this.executor = executor;
-
+        this.noneOp = noneOp;
         boolean success = false;
         try {
             this.workerBlockFactories = new BlockFactory[workerCount];
             for (int w = 0; w < workerCount; w++) {
                 workerBlockFactories[w] = driverContext.createChildBlockFactory();
             }
-            this.noneOp = new HashAggregationOperator(
-                AggregatorMode.INTERMEDIATE,
-                noneAggFactories,
-                () -> BlockHash.build(internalGroupSpecs, driverContext.blockFactory(), aggregationBatchSize, false),
-                Integer.MAX_VALUE,
-                1.0,
-                maxPageSize,
-                null,
-                driverContext
-            );
             this.workerOps = new HashAggregationOperator[partitionCount];
             for (int p = 0; p < partitionCount; p++) {
                 BlockFactory wf = workerBlockFactories[p % workerCount];
                 workerOps[p] = new HashAggregationOperator(
                     AggregatorMode.FINAL,
-                    workerAggFactories,
+                    aggFactories,
                     () -> BlockHash.build(internalGroupSpecs, wf, aggregationBatchSize, false),
                     Integer.MAX_VALUE,
                     1.0,
                     maxPageSize,
                     null,
-                    driverContext.withBlockFactory(wf)
+                    driverContext.withBlockFactory(wf),
+                    null // worker ops do not promote
                 );
             }
             this.workerBuffers = new ExchangeBuffer[partitionCount];
@@ -362,7 +365,6 @@ public class PartitionedHashMergeOperator implements Operator {
         rowsReceived += page.getPositionCount();
         Integer partitionId = page.partitionId();
         if (partitionId != null) {
-            anyPartitionsSeen = true;
             page.allowPassingToDifferentDriver();
             workerBuffers[partitionId].addPage(page);
             // Ownership transferred to buffer — do NOT call page.releaseBlocks()
@@ -563,11 +565,9 @@ public class PartitionedHashMergeOperator implements Operator {
     // ---- finish() helpers ----
 
     private void emitFinal() {
-        if (anyPartitionsSeen) {
-            long start = System.nanoTime();
-            distributeNoneOpToWorkers();
-            reconcileNanos = System.nanoTime() - start;
-        }
+        long start = System.nanoTime();
+        distributeNoneOpToWorkers();
+        reconcileNanos = System.nanoTime() - start;
         // Signal workers that no more pages are coming.
         for (ExchangeBuffer buf : workerBuffers) {
             buf.finish(false);
@@ -590,23 +590,29 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     /**
-     * Evaluates the none operator (INTERMEDIATE mode → per-partition pages) and enqueues each
-     * partition's page into the owning worker's {@link ExchangeBuffer}. Closes and nulls
+     * Evaluates {@link #noneOp}'s state as INTERMEDIATE-format per-partition pages and enqueues
+     * each partition's page into the owning worker's {@link ExchangeBuffer}. Closes and nulls
      * {@link #noneOp} on return.
      */
     private void distributeNoneOpToWorkers() {
         if (noneOp.blockHash.numKeys() > 0) {
+            // noneOp uses FINAL-mode aggregators. Wrap them as INTERMEDIATE so that buildPartitioned()
+            // emits partial-state columns that the FINAL-mode workerOps can ingest. This mirrors the
+            // evaluateAsFinal() pattern but in the opposite direction; the same aggregatorFunction
+            // instances are shared — we do not close these temporary wrappers.
+            var intermediateAggs = noneOp.aggregators.stream()
+                .map(a -> new GroupingAggregator(a.aggregatorFunction(), AggregatorMode.INTERMEDIATE))
+                .toList();
             var pageBuilder = new GroupingAggregatorPageBuilder(
                 noneOp.blockHash,
-                noneOp.aggregators,
+                intermediateAggs,
                 Integer.MAX_VALUE,
                 GroupingAggregatorPageBuilder.NO_CUSTOMIZATION
             );
             var partitioner = noneOp.blockHash.partitioner(partitionCount);
-            // anyPartitionsSeen is true (caller's precondition), meaning PHAO produced tagged pages,
-            // which requires blockHash.partitioner() to be non-null. noneOp is built from the same
-            // groupSpecs as PHAO's blockHash, so its partitioner() must also be non-null.
-            assert partitioner != null : "noneOp partitioner is null but anyPartitionsSeen is true";
+            // noneOp uses the same groupSpecs as the PHAO blockHash, which requires a non-null
+            // partitioner when PHAO was able to produce tagged pages.
+            assert partitioner != null : "noneOp partitioner is null";
             try (
                 var pages = pageBuilder.buildPartitioned(
                     partitionCount,
@@ -633,47 +639,28 @@ public class PartitionedHashMergeOperator implements Operator {
     }
 
     private void buildOutput() {
-        if (anyPartitionsSeen) {
-            // Drain any pages left in buffers after allWorkersDone (e.g. from rejected worker tasks).
-            // Safe here because all workers have exited — no concurrent operator access.
-            for (int p = 0; p < partitionCount; p++) {
-                drainBufferOnDriverThread(p);
-            }
-            List<ReleasableIterator<Page>> parts = new ArrayList<>();
-            for (int p = 0; p < partitionCount; p++) {
-                HashAggregationOperator worker = workerOps[p];
-                workerOps[p] = null;
-                if (worker != null) {
-                    HashAggregationOperator.Status s = (HashAggregationOperator.Status) worker.status();
-                    savedHashNanos += s.hashNanos();
-                    savedAggNanos += s.aggregationNanos();
-                    if (worker.blockHash.numKeys() > 0) {
-                        parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize, driverContext), worker));
-                    } else {
-                        worker.close();
-                    }
-                }
-            }
-            if (parts.isEmpty() == false) {
-                output = new ConcatenatingPageIterator(parts);
-            }
-        } else {
-            // Non-promoted path: evaluate noneOp's INTERMEDIATE-mode aggregators as FINAL output.
-            // The underlying aggregatorFunction state is identical between INTERMEDIATE and FINAL
-            // mode; only what evaluate() emits differs. This skips the evaluate-then-re-ingest
-            // round trip that would otherwise be needed to convert to final output format.
-            HashAggregationOperator op = noneOp;
-            noneOp = null;
-            if (op != null) {
-                HashAggregationOperator.Status s = (HashAggregationOperator.Status) op.status();
+        // Drain any pages left in buffers after allWorkersDone (e.g. from rejected worker tasks).
+        // Safe here because all workers have exited — no concurrent operator access.
+        for (int p = 0; p < partitionCount; p++) {
+            drainBufferOnDriverThread(p);
+        }
+        List<ReleasableIterator<Page>> parts = new ArrayList<>();
+        for (int p = 0; p < partitionCount; p++) {
+            HashAggregationOperator worker = workerOps[p];
+            workerOps[p] = null;
+            if (worker != null) {
+                HashAggregationOperator.Status s = (HashAggregationOperator.Status) worker.status();
                 savedHashNanos += s.hashNanos();
                 savedAggNanos += s.aggregationNanos();
-                if (op.blockHash.numKeys() > 0) {
-                    output = closeOpOnClose(op.evaluateAsFinal(), op);
+                if (worker.blockHash.numKeys() > 0) {
+                    parts.add(closeOpOnClose(evaluateOp(worker, maxPageSize, driverContext), worker));
                 } else {
-                    op.close();
+                    worker.close();
                 }
             }
+        }
+        if (parts.isEmpty() == false) {
+            output = new ConcatenatingPageIterator(parts);
         }
     }
 
@@ -695,10 +682,10 @@ public class PartitionedHashMergeOperator implements Operator {
 
     /**
      * Validates {@code externalSpecs} and derives internal group specs with channels remapped
-     * to 0..keyCount-1. Used by {@link Factory} to build the
-     * internal blockHash configuration for noneOp and workerOps.
+     * to 0..keyCount-1. Used by {@link Factory} and by {@link HashAggregationOperator#tryPromote}
+     * (same package) to build the internal blockHash configuration for noneOp and workerOps.
      */
-    private static List<BlockHash.GroupSpec> buildInternalGroupSpecs(List<BlockHash.GroupSpec> externalSpecs) {
+    static List<BlockHash.GroupSpec> buildInternalGroupSpecs(List<BlockHash.GroupSpec> externalSpecs) {
         requireNonNull(externalSpecs, "groupSpecs");
         if (externalSpecs.isEmpty()) {
             throw new IllegalArgumentException("groupSpecs must not be empty");

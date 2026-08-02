@@ -595,3 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
   method: testUploadIndicesDataWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/155680
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test10ArchiveAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/155685

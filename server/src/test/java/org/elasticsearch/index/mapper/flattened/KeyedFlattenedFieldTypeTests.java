@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.KeyedFlattenedTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -166,10 +166,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         Query query = ft.termQuery("value", null);
-        // The array-order path uses KeyedArrayOrderInlineNullTermQuery, a distinct class from
-        // ScanningBinaryDocValuesTermQuery, giving each path a distinct query-cache identity.
+        // The array-order path uses KeyedFlattenedTermQuery, a distinct class from ScanningBinaryDocValuesTermQuery,
+        // giving each storage path a distinct query-cache identity.
         assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), query);
-        assertTrue(query instanceof KeyedArrayOrderInlineNullTermQuery);
+        assertTrue(query instanceof KeyedFlattenedTermQuery);
     }
 
     public void testTermQueryWithSortedSetDocValuesOnly() {
@@ -234,16 +234,15 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         );
 
         Query result = ft.termsQuery(List.of("v1", "v2"), null);
-        // The result is a ConstantScoreQuery wrapping a BooleanQuery of per-term KeyedArrayOrderInlineNullTermQuery clauses.
+        // The result is a ConstantScoreQuery wrapping a BooleanQuery of per-term KeyedFlattenedTermQuery clauses.
         assertTrue(result instanceof ConstantScoreQuery);
         BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) result).getQuery();
         assertEquals(2, bq.clauses().size());
         for (BooleanClause clause : bq.clauses()) {
-            assertTrue(clause.query() instanceof KeyedArrayOrderInlineNullTermQuery);
+            assertTrue(clause.query() instanceof KeyedFlattenedTermQuery);
         }
-        // Each clause uses KeyedArrayOrderInlineNullTermQuery, which has a distinct class identity from
-        // plain ScanningBinaryDocValuesTermQuery. The resulting query must not equal the non-array-order
-        // equivalent so the two paths get separate query-cache entries.
+        // Each clause uses KeyedFlattenedTermQuery, which has a distinct class identity from ScanningBinaryDocValuesTermQuery.
+        // The resulting query must not equal the non-array-order equivalent so the two paths get separate query-cache entries.
         BooleanQuery.Builder nonArrayBuilder = new BooleanQuery.Builder();
         nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), false), BooleanClause.Occur.SHOULD);
         nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), false), BooleanClause.Occur.SHOULD);

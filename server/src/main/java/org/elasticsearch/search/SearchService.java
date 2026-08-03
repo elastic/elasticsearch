@@ -2177,6 +2177,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
+            } catch (StackOverflowError e) {
+                throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }
         if (source.suggest() != null) {

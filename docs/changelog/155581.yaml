@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 155581
+summary: Fail the request instead of the node when an aggregation tree is too deep to build
+type: bug

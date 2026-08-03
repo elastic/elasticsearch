@@ -140,6 +140,12 @@ public interface Rewriteable<T> {
             rewriteResponse.onResponse(builder);
         } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
+        } catch (StackOverflowError ex) {
+            // Rewriting recurses once per level of nesting, so a deeply enough nested request exhausts the stack. Left uncaught it
+            // reaches the uncaught exception handler, which halts the node, so fail the request instead. The error is deliberately
+            // not attached as the cause, since EsExecutors#rethrowErrors unwraps cause chains looking for a buried Error and
+            // rethrows it at the uncaught exception handler, which would halt the node anyway.
+            rewriteResponse.onFailure(new IllegalArgumentException("The request is too deeply nested to rewrite"));
         }
     }
 

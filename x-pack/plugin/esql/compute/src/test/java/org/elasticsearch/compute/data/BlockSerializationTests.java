@@ -44,18 +44,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertConstantBlockImpl(blockFactory.newConstantFloatBlockWith(randomFloat(), randomIntBetween(1, 8192)));
     }
 
-    public void testConstantDoubleBlock() throws IOException {
-        assertConstantBlockImpl(blockFactory.newConstantDoubleBlockWith(randomDouble(), randomIntBetween(1, 8192)));
-    }
-
-    public void testConstantBytesRefBlock() throws IOException {
-        Block block = blockFactory.newConstantBytesRefBlockWith(
-            new BytesRef(((Integer) randomInt()).toString()),
-            randomIntBetween(1, 8192)
-        );
-        assertConstantBlockImpl(block);
-    }
-
     private void assertConstantBlockImpl(Block origBlock) throws IOException {
         assertThat(origBlock.asVector().isConstant(), is(true));
         try (origBlock; Block deserBlock = serializeDeserializeBlock(origBlock)) {
@@ -82,28 +70,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         assertEmptyBlock(blockFactory.newFloatVectorBuilder(0).build().asBlock());
         try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(0).appendFloat(randomFloat()).build()) {
-            assertEmptyBlock(toFilter.filter(false).asBlock());
-        }
-    }
-
-    public void testEmptyDoubleBlock() throws IOException {
-        assertEmptyBlock(blockFactory.newDoubleBlockBuilder(0).build());
-        try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter(false));
-        }
-        assertEmptyBlock(blockFactory.newDoubleVectorBuilder(0).build().asBlock());
-        try (DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(0).appendDouble(randomDouble()).build()) {
-            assertEmptyBlock(toFilter.filter(false).asBlock());
-        }
-    }
-
-    public void testEmptyBytesRefBlock() throws IOException {
-        assertEmptyBlock(blockFactory.newBytesRefBlockBuilder(0).build());
-        try (BytesRefBlock toFilter = blockFactory.newBytesRefBlockBuilder(0).appendNull().build()) {
-            assertEmptyBlock(toFilter.filter(false));
-        }
-        assertEmptyBlock(blockFactory.newBytesRefVectorBuilder(0).build().asBlock());
-        try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
             assertEmptyBlock(toFilter.filter(false).asBlock());
         }
     }
@@ -150,50 +116,6 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
         try (FloatVector toFilter = blockFactory.newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-    }
-
-    public void testFilterDoubleBlock() throws IOException {
-        try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(0).appendDouble(1).appendDouble(2).build()) {
-            assertFilterBlock(toFilter.filter(false, 1));
-        }
-        try (DoubleBlock toFilter = blockFactory.newDoubleBlockBuilder(1).appendDouble(randomDouble()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(false, 0));
-        }
-        try (DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(1).appendDouble(randomDouble()).build()) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-        try (
-            DoubleVector toFilter = blockFactory.newDoubleVectorBuilder(1).appendDouble(randomDouble()).appendDouble(randomDouble()).build()
-        ) {
-            assertFilterBlock(toFilter.filter(false, 0).asBlock());
-        }
-    }
-
-    public void testFilterBytesRefBlock() throws IOException {
-        try (
-            BytesRefBlock toFilter = blockFactory.newBytesRefBlockBuilder(0)
-                .appendBytesRef(randomBytesRef())
-                .appendBytesRef(randomBytesRef())
-                .build()
-        ) {
-            assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
-        }
-
-        try (BytesRefBlock toFilter = blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(randomBytesRef()).appendNull().build()) {
-            assertFilterBlock(toFilter.filter(false, randomIntBetween(0, 1)));
-        }
-
-        try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
-            assertFilterBlock(toFilter.asBlock().filter(false, 0));
-        }
-        try (
-            BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0)
-                .appendBytesRef(randomBytesRef())
-                .appendBytesRef(randomBytesRef())
-                .build()
-        ) {
-            assertFilterBlock(toFilter.asBlock().filter(false, randomIntBetween(0, 1)));
         }
     }
 

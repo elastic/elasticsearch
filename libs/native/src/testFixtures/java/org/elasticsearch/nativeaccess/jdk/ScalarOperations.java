@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 
 public class ScalarOperations {
 
@@ -62,7 +62,7 @@ public class ScalarOperations {
         return res;
     }
 
-    static float similarity(VectorSimilarityFunctions.Function function, byte[] a, byte[] b) {
+    static float similarity(SimdVecLibrary.SimilarityFunction function, byte[] a, byte[] b) {
         return switch (function) {
             case COSINE -> cosine(a, b);
             case DOT_PRODUCT -> dotProduct(a, b);
@@ -70,7 +70,7 @@ public class ScalarOperations {
         };
     }
 
-    static float similarity(VectorSimilarityFunctions.Function function, float[] a, float[] b) {
+    static float similarity(SimdVecLibrary.SimilarityFunction function, float[] a, float[] b) {
         return switch (function) {
             case DOT_PRODUCT -> dotProduct(a, b);
             case SQUARE_DISTANCE -> squareDistance(a, b);
@@ -83,7 +83,7 @@ public class ScalarOperations {
         float apply(T a, T b);
     }
 
-    static void bulk(VectorSimilarityFunctions.Function function, byte[] query, byte[][] data, float[] scores) {
+    static void bulk(SimdVecLibrary.SimilarityFunction function, byte[] query, byte[][] data, float[] scores) {
         Similarity<byte[]> sim = switch (function) {
             case COSINE -> ScalarOperations::cosine;
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
@@ -94,7 +94,7 @@ public class ScalarOperations {
         }
     }
 
-    static void bulk(VectorSimilarityFunctions.Function function, float[] query, float[][] data, float[] scores) {
+    static void bulk(SimdVecLibrary.SimilarityFunction function, float[] query, float[][] data, float[] scores) {
         Similarity<float[]> sim = switch (function) {
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
             case SQUARE_DISTANCE -> ScalarOperations::squareDistance;
@@ -105,7 +105,7 @@ public class ScalarOperations {
         }
     }
 
-    static void bulkWithOffsets(VectorSimilarityFunctions.Function function, byte[] query, byte[][] data, int[] offsets, float[] scores) {
+    static void bulkWithOffsets(SimdVecLibrary.SimilarityFunction function, byte[] query, byte[][] data, int[] offsets, float[] scores) {
         Similarity<byte[]> sim = switch (function) {
             case COSINE -> ScalarOperations::cosine;
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
@@ -116,7 +116,7 @@ public class ScalarOperations {
         }
     }
 
-    static void bulkWithOffsets(VectorSimilarityFunctions.Function function, float[] query, float[][] data, int[] offsets, float[] scores) {
+    static void bulkWithOffsets(SimdVecLibrary.SimilarityFunction function, float[] query, float[][] data, int[] offsets, float[] scores) {
         Similarity<float[]> sim = switch (function) {
             case DOT_PRODUCT -> ScalarOperations::dotProduct;
             case SQUARE_DISTANCE -> ScalarOperations::squareDistance;

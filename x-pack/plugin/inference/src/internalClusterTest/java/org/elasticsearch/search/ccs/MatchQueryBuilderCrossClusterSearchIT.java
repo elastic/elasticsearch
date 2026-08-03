@@ -41,8 +41,6 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         List.of(TaskType.EMBEDDING)
     );
 
-    boolean clustersConfigured = false;
-
     final Map<String, MinimalServiceSettings> localInferenceIds = new HashMap<>();
     final Map<String, MinimalServiceSettings> remoteInferenceIds = new HashMap<>();
 
@@ -55,10 +53,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (clustersConfigured == false) {
-            configureClusters();
-            clustersConfigured = true;
-        }
+        configureClusters();
     }
 
     @After

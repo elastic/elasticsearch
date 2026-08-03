@@ -3620,6 +3620,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
+        /**
+         * Support for using {@code dense_vector} as a grouping key in {@code LIMIT BY}.
+         * Unlike {@code STATS BY}, {@code LIMIT BY} does not unroll multi-valued blocks, so it
+         * treats the vector as a single opaque value for grouping purposes.
+         */
+        LIMIT_BY_DENSE_VECTOR,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

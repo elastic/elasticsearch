@@ -286,6 +286,7 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .withTypeMapping(removeFields("float_vector")),
         new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
+        new TestDataset("dense_vector_limit_by").withRequiredCapabilities(EsqlCapabilities.Cap.LIMIT_BY_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),

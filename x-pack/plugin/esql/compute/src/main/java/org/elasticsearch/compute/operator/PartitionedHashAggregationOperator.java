@@ -151,8 +151,11 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             this.aggregatorFactories = List.copyOf(factories);
 
             this.partitionCount = builder.partitionCount;
-            this.emitKeysThreshold = builder.emitKeysThreshold;
             this.partitionThreshold = builder.partitionThreshold;
+            // emitKeysThreshold must be >= partitionThreshold: the partition check runs only at emit
+            // time, so if we emit before accumulating partitionThreshold keys we would reset and never
+            // reach the threshold, keeping PHAO permanently in the unpartitioned path.
+            this.emitKeysThreshold = Math.max(builder.emitKeysThreshold, builder.partitionThreshold);
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
         }

@@ -97,7 +97,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
 
         int partitionCount = between(2, 16);
         // partitionThreshold must be below the cardinality (200) to guarantee tagged output.
-        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 80), between(50, 150));
+        // emitKeysThreshold >= partitionThreshold (both in same range) so the clamp is a no-op.
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(50, 150), between(50, 150));
         assertTrue("expected at least some tagged pages after conversion", intermediate.stream().anyMatch(p -> p.partitionId() != null));
 
         Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
@@ -114,9 +115,9 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
 
         int partitionCount = between(2, 16);
 
-        // Node A: frequent intermediate flushes
+        // Node A: frequent intermediate flushes with tagged output (partitionThreshold below cardinality).
         List<Page> rawA = rawInput(3_000, 150, oracle);
-        List<Page> intermediateA = runDataNodeOp(rawA, partitionCount, between(5, 50));
+        List<Page> intermediateA = runDataNodeOp(rawA, partitionCount, between(5, 50), between(50, 100));
 
         // Node B: single flush at finish()
         List<Page> rawB = rawInput(500, 20, oracle);
@@ -142,7 +143,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         int partitionCount = between(2, 8);
         List<Page> rawConverting = rawInput(4_000, 200, oracle);
         // partitionThreshold below cardinality (200) to ensure tagged pages are produced.
-        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30, 100);
+        // emitKeysThreshold == partitionThreshold so PHAO emits exactly when promotion fires.
+        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 100, 100);
 
         List<Page> rawLowCardinality = rawInput(800, 50, oracle);
         List<Page> untagged = runDataNodeOp(rawLowCardinality, partitionCount, 10_000);
@@ -164,7 +166,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         List<Page> raw = rawInputWithNulls(3_000, 100, oracle);
 
         int partitionCount = between(2, 16);
-        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 50));
+        // partitionThreshold below cardinality (100) so null-key routing is exercised on tagged pages.
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 50), between(50, 80));
         Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
         assertThat(actual, equalTo(oracle));
     }

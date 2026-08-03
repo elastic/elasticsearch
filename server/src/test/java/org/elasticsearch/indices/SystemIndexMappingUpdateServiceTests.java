@@ -395,7 +395,10 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                                     ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                     )
             )

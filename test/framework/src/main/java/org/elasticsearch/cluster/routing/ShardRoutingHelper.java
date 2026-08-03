@@ -66,8 +66,8 @@ public class ShardRoutingHelper {
         );
     }
 
-    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
-        return routing.moveToUnassigned(info);
+    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info, ShardRouting.RecoveryPriority recoveryPriority) {
+        return routing.moveToUnassigned(info, recoveryPriority);
     }
 
     public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {

@@ -202,7 +202,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
                             .addShard(
                                 shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                     )
                     .build()
@@ -244,11 +247,17 @@ public class SecurityIndexManagerTests extends ESTestCase {
         IndexShardRoutingTable.Builder indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
             .addShard(
                 primary.initialize(nodeId, null, primary.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             )
             .addShard(
                 replica.initialize(nodeId2, null, replica.getExpectedShardSize())
-                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                    .moveToUnassigned(
+                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                    )
             );
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
         GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
@@ -430,7 +439,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                     ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                         )
                         .build()
@@ -1053,7 +1065,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
                             IndexShardRoutingTable.builder(new ShardId(index, 0))
                                 .addShard(
                                     shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
-                                        .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                        .moveToUnassigned(
+                                            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                        )
                                 )
                         )
                         .build()

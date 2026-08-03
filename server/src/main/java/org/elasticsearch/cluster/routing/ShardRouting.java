@@ -587,28 +587,20 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         );
     }
 
-    // TODO: get rid of this
-    public ShardRouting moveToUnassigned(UnassignedInfo unassignedInfo) {
-        RecoveryPriority newRecoveryPriority = state == ShardRoutingState.INITIALIZING && unassignedInfo != null
-            ? recoveryPriority // Shard was previously initializing from unassigned, so keep the same recovery priority
-            : RecoveryPriority.UNASSIGNED_UNEXPECTED;
-        return moveToUnassigned(unassignedInfo, newRecoveryPriority);
-    }
-
     /**
      * Moves the shard to unassigned state.
      */
-    public ShardRouting moveToUnassigned(UnassignedInfo unassignedInfo, RecoveryPriority newRecoveryPriority) {
+    public ShardRouting moveToUnassigned(UnassignedInfo newUnassignedInfo, RecoveryPriority newRecoveryPriority) {
         assert state != ShardRoutingState.UNASSIGNED : this;
-        final RecoverySource recoverySource;
+        final RecoverySource newRecoverySource;
         if (active()) {
             if (primary()) {
-                recoverySource = ExistingStoreRecoverySource.INSTANCE;
+                newRecoverySource = ExistingStoreRecoverySource.INSTANCE;
             } else {
-                recoverySource = PeerRecoverySource.INSTANCE;
+                newRecoverySource = PeerRecoverySource.INSTANCE;
             }
         } else {
-            recoverySource = recoverySource();
+            newRecoverySource = recoverySource();
         }
         return new ShardRouting(
             shardId,
@@ -616,9 +608,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             primary,
             ShardRoutingState.UNASSIGNED,
-            recoverySource,
-            newRecoveryPriority, // Shard must previously have been started or relocating, so must be existing
-            unassignedInfo,
+            newRecoverySource,
+            newRecoveryPriority,
+            newUnassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,

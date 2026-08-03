@@ -483,7 +483,10 @@ public class ClusterStateHealthTests extends ESTestCase {
                     ShardRouting shardRouting = shardRoutingTable.shard(copy);
                     if (shardRouting.primary() && (shardRouting.started() == false || alreadyFailedPrimary == false)) {
                         newIndexRoutingTable.addShard(
-                            shardRouting.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"))
+                            shardRouting.moveToUnassigned(
+                                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"),
+                                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                            )
                         );
                         alreadyFailedPrimary = true;
                     } else {

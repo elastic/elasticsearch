@@ -136,7 +136,8 @@ public class AllocationIdTests extends ESTestCase {
                 UnassignedInfo.AllocationStatus.NO_ATTEMPT,
                 Collections.emptySet(),
                 randomAlphaOfLength(10)
-            )
+            ),
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         assertThat(shard.allocationId(), nullValue());
     }

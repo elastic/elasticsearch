@@ -2842,7 +2842,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             return routing;
         }
         if (allocation.state == UNAVAILABLE) {
-            return routing.moveToUnassigned(Optional.ofNullable(allocation.unassignedInfo).orElse(randomFrom(nodeLeft(), decidersNo())));
+            return routing.moveToUnassigned(
+                Optional.ofNullable(allocation.unassignedInfo).orElse(randomFrom(nodeLeft(), decidersNo())),
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            );
         }
         if (allocation.state == RESTARTING) {
             return routing.moveToUnassigned(
@@ -2857,7 +2860,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
                     Set.of(),
                     allocation.nodeId
-                )
+                ),
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
             );
         }
 

@@ -2739,7 +2739,11 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(ex.getMessage().contains("failed to fetch index version after copying it over"));
         }
 
-        routing = ShardRoutingHelper.moveToUnassigned(routing, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"));
+        routing = ShardRoutingHelper.moveToUnassigned(
+            routing,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "because I say so"),
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
         routing = ShardRoutingHelper.initialize(routing, newShard.routingEntry().currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
         try {

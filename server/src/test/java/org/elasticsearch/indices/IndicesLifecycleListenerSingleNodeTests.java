@@ -120,7 +120,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
@@ -167,7 +167,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);

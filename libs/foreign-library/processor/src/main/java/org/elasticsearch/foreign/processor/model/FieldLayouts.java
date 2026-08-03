@@ -91,9 +91,10 @@ final class FieldLayouts {
             case BOOLEAN -> ValueLayout.JAVA_BOOLEAN;
             case FLOAT -> ValueLayout.JAVA_FLOAT;
             case DOUBLE -> ValueLayout.JAVA_DOUBLE;
-            case ADDRESS, STRING -> ValueLayout.ADDRESS;
-            case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE cannot be a struct field type");
-            case VOID -> throw new AssertionError("void cannot be a struct field type");
+            case ADDRESS -> ValueLayout.ADDRESS;
+            // Marshaling-only types, not struct-field layout types (the parser rejects them as fields
+            // before layout, so this is unreachable). Mirrors NativeType#byteSize.
+            case VOID, STRING, ADDRESSABLE -> throw new AssertionError(type + " is not a struct field layout type");
         };
     }
 }

@@ -6909,4 +6909,30 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue("numeric extrema compare naturally", ParquetFormatReader.compareStatExtremum(5L, 10L) < 0);
     }
 
+    /**
+     * A direct delegate leaks native memory until GC, so a revert must fail here rather than in a heap dump.
+     * Rationale in {@code ParquetFormatReader#readOptionsBuilder}. Asserted on both the type and the observable
+     * behaviour: {@code isDirect()} and {@code hasArray()} each flip on their own when the delegate changes.
+     */
+    public void testReadOptionsAllocatorIsHeapBackedAndBreakerAccounted() {
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        var factory = new BlockFactory(breaker, blockFactory.bigArrays());
+        ParquetReadOptions options = new ParquetFormatReader(factory).readOptionsBuilder().build();
+
+        var allocator = options.getAllocator();
+        assertThat(allocator, instanceOf(CircuitBreakerByteBufferAllocator.class));
+        assertFalse("parquet's allocator must not be direct — its release() cannot free direct memory", allocator.isDirect());
+
+        long before = breaker.getUsed();
+        ByteBuffer buffer = allocator.allocate(128);
+        try {
+            assertTrue("a heap-backed delegate yields array-backed buffers", buffer.hasArray());
+            assertFalse(buffer.isDirect());
+            assertEquals("allocation must be charged to the request breaker", before + 128, breaker.getUsed());
+        } finally {
+            allocator.release(buffer);
+        }
+        assertEquals("release must return the full charge", before, breaker.getUsed());
+    }
+
 }

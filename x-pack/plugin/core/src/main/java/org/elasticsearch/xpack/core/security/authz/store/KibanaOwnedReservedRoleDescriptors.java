@@ -332,6 +332,36 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Endpoint events. Kibana reads endpoint alert lineage for building and sending
                 // telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*").privileges("read").build(),
+                // Elastic Defend remote output: cross-cluster read for response-action results,
+                // agent action results, endpoint metadata, policy, and event indices.
+                // These privileges enable kibana_system (and the elastic/kibana service account,
+                // which reuses this descriptor) to read those indices from a remote data cluster
+                // via CCS when agents use a Fleet remote Elasticsearch output.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.action.responses-*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-actions-results*")
+                    .privileges("read", "read_cross_cluster")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.metadata_current_*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".metrics-endpoint.metadata_united_default*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.policy-*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-endpoint.events.*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
                 // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -745,7 +775,25 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("logs-apm.*"),
                 getRemoteIndicesReadPrivileges("metrics-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm.*"),
-                getRemoteIndicesReadPrivileges("traces-apm-*") },
+                getRemoteIndicesReadPrivileges("traces-apm-*"),
+                // Elastic Defend remote output: grants cross-cluster read for response-action
+                // results, agent action results, endpoint metadata, policy, and event
+                // indices on the remote data cluster. Intentionally excludes
+                // .logs-endpoint.actions-* (local managing-cluster only) and
+                // .logs-endpoint.heartbeat-* (not read over CCS).
+                getRemoteIndicesReadPrivileges(".logs-endpoint.action.responses-*"),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(".fleet-actions-results*")
+                        .privileges("read", "read_cross_cluster")
+                        .allowRestrictedIndices(true)
+                        .build(),
+                    "*"
+                ),
+                getRemoteIndicesReadPrivileges("metrics-endpoint.metadata_current_*"),
+                getRemoteIndicesReadPrivileges(".metrics-endpoint.metadata_united_default*"),
+                getRemoteIndicesReadPrivileges("metrics-endpoint.policy-*"),
+                getRemoteIndicesReadPrivileges("logs-endpoint.events.*") },
             new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
                     RemoteClusterPermissions.getSupportedRemoteClusterPermissions()

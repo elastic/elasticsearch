@@ -1943,7 +1943,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("ts"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -1996,7 +1996,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("vals"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }

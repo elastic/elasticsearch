@@ -371,10 +371,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateResponse((l, e) -> {
+        preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
             recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
@@ -524,8 +523,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
                         try {
                             handoffCompleteListener.onResponse(null);
-                            indexShard.recoveryStats().sourceRecoveryCompleted();
-                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }

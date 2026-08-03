@@ -304,10 +304,8 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
-            // Construction succeeded; refund the pre-flight reservation. The retained
-            // ramBytesUsed() of the produced query is charged once per phase by the
-            // visitor walk in AbstractQueryBuilder#toQuery.
-            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + fieldName);
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp-compiled:" + fieldName);
+            context.markQueryMemoryPreCharged(query);
         } else {
             query = method == null
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)

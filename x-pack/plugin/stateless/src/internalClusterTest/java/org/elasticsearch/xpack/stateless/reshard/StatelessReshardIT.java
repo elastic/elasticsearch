@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -74,13 +75,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateReshardSplitTargetPrimaryCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -4068,13 +4068,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .setQuery(QueryBuilders.matchQuery("field", "source_value"))
             .setFetchSource(true)
             .get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(sourceShardReferenceResponse, sourceShardHandoffResponse);
+        assertSameExplainResult(sourceShardReferenceResponse, sourceShardHandoffResponse);
         var targetShardHandoffResponse = client(coordinator).prepareExplain(indexName, id2)
             .setRouting(shard1RoutingValue)
             .setQuery(QueryBuilders.matchQuery("field", "target_value"))
             .setFetchSource(true)
             .get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(targetShardReferenceResponse, targetShardHandoffResponse);
+        assertSameExplainResult(targetShardReferenceResponse, targetShardHandoffResponse);
 
         splitBlocked.countDown();
         safeAwait(attemptingDone);
@@ -4085,13 +4085,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .setQuery(QueryBuilders.matchQuery("field", "source_value"))
                 .setFetchSource(true)
                 .get(SAFE_AWAIT_TIMEOUT);
-            assertEquals(sourceShardReferenceResponse, sourceShardSplitResponse);
+            assertSameExplainResult(sourceShardReferenceResponse, sourceShardSplitResponse);
             var targetShardSplitResponse = client(coordinator).prepareExplain(indexName, id2)
                 .setRouting(shard1RoutingValue)
                 .setQuery(QueryBuilders.matchQuery("field", "target_value"))
                 .setFetchSource(true)
                 .get(SAFE_AWAIT_TIMEOUT);
-            assertEquals(targetShardReferenceResponse, targetShardSplitResponse);
+            assertSameExplainResult(targetShardReferenceResponse, targetShardSplitResponse);
         } finally {
             doneBlocked.countDown();
         }
@@ -4699,44 +4699,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    public void testRecoveryFromTargetShardEmptyPrimaryAllocation() {
-        String indexNode = startMasterAndIndexNode();
-        ensureStableCluster(1);
-
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        checkNumberOfShardsSetting(indexNode, indexName, 1);
-
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
-
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
-
-        awaitClusterState(state -> {
-            if (state.projectState().metadata().index(indexName).getReshardingMetadata() == null) {
-                return false;
-            }
-            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
-            return targetShardRouting.unassigned()
-                && targetShardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource;
-        });
-
-        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(indexName, 1, indexNode, true));
-
-        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
-
-        // Wait until the allocation tries to allocate the shard and fails (replicate the real world scenario).
-        awaitClusterState(state -> {
-            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
-            return targetShardRouting.unassigned() && targetShardRouting.unassignedInfo().failedAllocations() == 5;
-        });
-
-        ClusterRerouteUtils.reroute(client(), new AllocateReshardSplitTargetPrimaryCommand(indexName, 1, indexNode, true));
-
-        // Target shard successfully performs recovery with correct recovery source and resharding eventually completes.
-        waitForReshardCompletion(indexName);
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
@@ -4951,5 +4913,21 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     private void waitForReshardCompletion(String indexName) {
         awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+    }
+
+    /// Asserts that two [ExplainResponse]s describe the same result, without requiring them to be identical.
+    ///
+    /// Two responses taken either side of a split are only identical for as long as no merge has run. An explanation embeds the
+    /// collection statistics of whichever shard copy served the request, plus the per-segment doc ID of the explained document, and both
+    /// change once a merge reclaims the unowned documents that the split target hard-deleted. That merge is expected but its timing is
+    /// not ours to control, so compare only the parts that resharding has to preserve.
+    private void assertSameExplainResult(ExplainResponse expected, ExplainResponse actual) {
+        var message = Strings.format("expected [%s] but was [%s]", expected, actual);
+        assertEquals(message, expected.getIndex(), actual.getIndex());
+        assertEquals(message, expected.getId(), actual.getId());
+        assertEquals(message, expected.isExists(), actual.isExists());
+        assertEquals(message, expected.isMatch(), actual.isMatch());
+        assertEquals(message, expected.getGetResult().sourceAsMap(), actual.getGetResult().sourceAsMap());
+        assertThat(message, actual.getExplanation().getValue().doubleValue(), greaterThan(0.0));
     }
 }

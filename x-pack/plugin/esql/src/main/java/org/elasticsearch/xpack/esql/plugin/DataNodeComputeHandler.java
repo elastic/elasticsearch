@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -50,6 +51,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -88,6 +90,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExchangeService exchangeService;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
+    /**
+     * Resolved once: {@link Federation#FEDERATION_ENABLED} is node scoped and takes effect only after a restart, so
+     * every external request on this node gets the same answer.
+     */
+    private final boolean federationAvailable;
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -106,6 +113,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
+        this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
@@ -758,11 +766,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched
-                        externalSink.addCompletionListener(ActionListener.running(() -> {
-                            exchangeService.finishSinkHandler(externalId, null);
-                            reductionListener.onResponse(resp);
-                        }));
+                        // don't return until all pages are fetched; preserve the current thread context (which holds the
+                        // reduction driver's warnings) because the completion listener may fire on a different thread
+                        // (the transport thread that processes the coordinator's fetchPageAsync call)
+                        externalSink.addCompletionListener(
+                            ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                                exchangeService.finishSinkHandler(externalId, null);
+                                reductionListener.onResponse(resp);
+                            }), threadPool.getThreadContext())
+                        );
                     }, e -> {
                         LOGGER.debug("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
@@ -839,14 +851,38 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
     }
 
+    /**
+     * Rejects an external request that never got as far as building a driver. The coordinator opened the exchange before
+     * sending the request, so a sink handler is already registered here; it has to be failed explicitly or the
+     * coordinator's exchange source only learns of the refusal through task cancellation and this node holds an
+     * unfinished sink until the inactive-sinks reaper runs.
+     */
+    private void failWithoutStarting(DataNodeRequest request, ActionListener<DataNodeComputeResponse> listener, Exception failure) {
+        exchangeService.finishSinkHandler(request.sessionId(), failure);
+        listener.onFailure(failure);
+    }
+
     private void handleExternalSourceRequest(
         DataNodeRequest request,
         CancellableTask task,
         ActionListener<DataNodeComputeResponse> listener,
         PlanTimeProfile planTimeProfile
     ) {
+        // Federation gate for the whole external request, not just the operators it ends up building. The backstop in
+        // LocalExecutionPlanner.planExternalSource only fires for a plan that still contains an ExternalSourceExec, and
+        // localPlan() below can consume it: PushStatsToExternalSource answers an ungrouped COUNT/MIN/MAX from the split
+        // stats the coordinator discovered and leaves a LocalSourceExec behind. Refusing on entry means a node without
+        // federation serves no external data whatever the aggregate shape.
+        if (federationAvailable == false) {
+            failWithoutStarting(request, listener, Federation.notAvailableException());
+            return;
+        }
         if (request.plan() instanceof ExchangeSinkExec == false) {
-            listener.onFailure(new IllegalStateException("expected exchange sink for external compute; got " + request.plan()));
+            failWithoutStarting(
+                request,
+                listener,
+                new IllegalStateException("expected exchange sink for external compute; got " + request.plan())
+            );
             return;
         }
         ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();

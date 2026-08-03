@@ -2657,6 +2657,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             @Override
                             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
                                 int doc = approximation.docID();
+                                upTo = Math.min(upTo, maxDoc);
                                 if (doc >= upTo) {
                                     return;
                                 }

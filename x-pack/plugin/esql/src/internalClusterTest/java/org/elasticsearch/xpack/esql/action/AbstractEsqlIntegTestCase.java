@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -157,6 +158,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            // Federation is opt-in for users; enable it for every ES|QL integration test so the external data source and
+            // dataset suites run. The default-off surface is covered by the federation REST ITs.
+            .put(Federation.FEDERATION_ENABLED.getKey(), true)
             .build();
     }
 

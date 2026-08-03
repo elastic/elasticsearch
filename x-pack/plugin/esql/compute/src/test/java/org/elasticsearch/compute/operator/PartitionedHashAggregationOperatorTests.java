@@ -73,6 +73,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(partitionCount)
             .emitKeysThreshold(between(50, 150))
+            .partitionThreshold(between(50, 150))
             .maxPageSize(10_000)
             .aggregationBatchSize(10_000);
 

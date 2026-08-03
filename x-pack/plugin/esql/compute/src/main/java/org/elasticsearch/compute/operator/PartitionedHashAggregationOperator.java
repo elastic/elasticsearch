@@ -146,17 +146,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             for (AggregatorSpec spec : aggregatorSpecs) {
                 AggregatorFunctionSupplier supplier = spec.supplier();
                 List<Integer> rawChannels = List.copyOf(spec.rawChannels());
-                factories.add(new GroupingAggregator.Factory() {
-                    @Override
-                    public GroupingAggregator apply(DriverContext driverContext) {
-                        return new GroupingAggregator(supplier.groupingAggregator(driverContext, rawChannels), AggregatorMode.INITIAL);
-                    }
-
-                    @Override
-                    public String describe() {
-                        return supplier.describe();
-                    }
-                });
+                factories.add(supplier.groupingAggregatorFactory(AggregatorMode.INITIAL, rawChannels));
             }
             this.aggregatorFactories = List.copyOf(factories);
 

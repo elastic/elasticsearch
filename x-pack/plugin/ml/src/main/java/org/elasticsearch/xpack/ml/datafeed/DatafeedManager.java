@@ -158,13 +158,10 @@ public final class DatafeedManager {
             return null;
         }
         AtomicReference<CloudCredential> callerCredential = new AtomicReference<>();
-        useSecondaryAuthIfAvailable(securityContext, () -> {
-            CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-            var threadContext = threadPool.getThreadContext();
-            if (credentialManager.hasCloudManagedCredential(threadContext)) {
-                callerCredential.set(credentialManager.extractCloudManagedCredential(threadContext));
-            }
-        });
+        useSecondaryAuthIfAvailable(
+            securityContext,
+            () -> callerCredential.set(credentialManagerSupplier.get().extractCloudManagedCredential(threadPool.getThreadContext()))
+        );
         return callerCredential.get();
     }
 

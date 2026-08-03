@@ -365,13 +365,12 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var credentialManager = mock(CloudCredentialManager.class);
         var capturedAuthHeader = new AtomicReference<String>();
         var userCredential = new CloudCredential(new SecureString("user-secondary-cred".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(any())).thenAnswer(invocation -> {
+        when(credentialManager.extractCloudManagedCredential(any())).thenAnswer(invocation -> {
             // Capture which AUTHENTICATION_KEY is visible at the moment of extraction: under
             // useSecondaryAuthIfAvailable this is the secondary (BILL); without it would be JOHN.
             capturedAuthHeader.set(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
-            return true;
+            return userCredential;
         });
-        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(userCredential);
 
         var manager = new TransformCloudCredentialManager(
             threadPool,

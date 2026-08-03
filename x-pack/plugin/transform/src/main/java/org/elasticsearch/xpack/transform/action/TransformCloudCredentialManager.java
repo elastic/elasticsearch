@@ -101,7 +101,7 @@ public class TransformCloudCredentialManager {
             return null;
         }
         try {
-            return credentialManager.resolverOf(persisted).resolve();
+            return credentialManager.toCloudCredential(persisted);
         } finally {
             persisted.close();
         }
@@ -124,25 +124,10 @@ public class TransformCloudCredentialManager {
         if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
             return null;
         }
-        return useSecondaryAuthIfAvailable(securityContext, () -> {
-            var threadContext = threadPool.getThreadContext();
-            return credentialManager.hasCloudManagedCredential(threadContext)
-                ? credentialManager.extractCloudManagedCredential(threadContext)
-                : null;
-        });
-    }
-
-    /**
-     * Re-injects a cloud-managed credential into the current thread context. The inverse of
-     * {@link #currentCallerCredential()}, used by the receiving handler of an internal action
-     * to restore the caller's credential after the system-origin stash dropped the original
-     * transient. No-op when the credential is {@code null} or the feature flag is off, which
-     * also keeps callers safe against the no-op {@link CloudCredentialManager} implementation.
-     */
-    public void injectCallerCredential(@Nullable CloudCredential credential) {
-        if (credential != null && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
-            credentialManager.injectCloudManagedCredential(threadPool.getThreadContext(), credential);
-        }
+        return useSecondaryAuthIfAvailable(
+            securityContext,
+            () -> credentialManager.extractCloudManagedCredential(threadPool.getThreadContext())
+        );
     }
 
     /**

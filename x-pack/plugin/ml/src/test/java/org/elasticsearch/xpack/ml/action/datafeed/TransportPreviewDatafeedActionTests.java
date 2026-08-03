@@ -13,9 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -29,8 +27,6 @@ import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -53,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -103,27 +98,6 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
             .build();
 
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
-    }
-
-    public void testExtractCallerCloudCredential_GivenCloudManagedCredential_ShouldReturnExtractedCredential() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        CloudCredential expected = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(cloudCredentialManager.extractCloudManagedCredential(threadContext)).thenReturn(expected);
-
-        assertThat(
-            TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext),
-            sameInstance(expected)
-        );
-    }
-
-    public void testExtractCallerCloudCredential_GivenNoCloudManagedCredential_ShouldReturnNull() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
-
-        assertThat(TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext), nullValue());
     }
 
     public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {

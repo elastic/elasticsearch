@@ -72,6 +72,12 @@ public class InternalChangePointAggregation extends InternalAggregation {
     }
 
     private int representativeIndex() {
+        // Here we're comparing p-values computed for spikes and dips, changes in the value channel and changes
+        // in the dispersion channel. Although p-values for changes are computed from the BIC of the gains they
+        // are morally the same sort of thing (we compare nested models) so Wilk's theorem says the gain is a
+        // reasonable surrogate for a likelihood ratio test. So basically they're all the log of a probability
+        // of something as extreme under a suitable null. Furthermore, they're typically not the same order of
+        // magnitude so even if they aren't perfectly calibrated it probably doesn't affect the labelling.
         int minPValueIndex = -1;
         double minPValue = 2.0; // Any number greater than 1.0 is sufficient.
         for (int i = 0; i < changeTypes.size(); i++) {

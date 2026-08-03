@@ -236,10 +236,6 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     class StepChange extends AbstractChangePoint {
         public static final String NAME = "step_change";
 
-        public StepChange(double logPValue, double magnitudePercent, int changePoint) {
-            super(logPValue, changePoint, "");
-        }
-
         public StepChange(double logPValue, int changePoint, String description) {
             super(logPValue, changePoint, description);
         }

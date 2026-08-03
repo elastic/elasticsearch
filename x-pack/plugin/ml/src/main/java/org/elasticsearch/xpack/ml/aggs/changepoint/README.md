@@ -87,10 +87,12 @@ excursions that carry it), so it is detected on a separate dispersion channel: o
 window, each being `log1p` of a robust scale of the window's first differences. On this channel a variance
 change is just a level change, so it is found with the *same* `StructuralChangeDetector`.
 
-Two choices matter here:
+We make two import choices:
 
-- **Non-overlapping windows.** Overlapping windows share most of their points, which would autocorrelate the
-  channel and make the segmenter over-detect. Independent samples keep the mean-shift machinery valid.
+- **Sliding windows.** In order to get enough samples we use a sliding window. Since windows overlap their
+  dispersion autocorrelates and channel which makes the segmenter over-detect without any correction. We
+  compensate by assuming the maximum possible correlation induced by shared samples, so minimum number of
+  actual samples when computing the BIC.
 - **The inter-quartile range of first differences**, not the median (too robust) and not the raw standard
   deviation (not robust enough). First-differencing cancels level and slope, so a mean step contributes a
   single large difference rather than inflating a window, and a steady ramp produces a flat channel. The IQR's

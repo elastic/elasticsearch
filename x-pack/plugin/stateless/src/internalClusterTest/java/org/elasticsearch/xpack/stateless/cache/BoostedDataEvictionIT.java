@@ -259,8 +259,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // Regions with MINIMAL_CACHE_TIMESTAMP (0) from metadata reads are not protected by the policy and may be evicted
         // when they have no active readers.
         final Predicate<FileCacheKey> isPinnedIdx = key -> key.shardId().getIndexName().equals(pinnedIdx);
-        final long pinnedRegionsAfterPinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - SharedBlobCacheServiceTestUtils
-            .countCachedRegionsByTimestamp(cacheService, isPinnedIdx, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+        final long pinnedRegionsAfterPinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - countZeroTimestampRegions(
+            cacheService,
+            isPinnedIdx
+        );
         logger.debug(
             "cache regions after searching pinned data: pinned (positive-timestamp)={}, unpinned={}",
             pinnedRegionsAfterPinnedSearch,
@@ -271,8 +273,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // Step 2 — drive searches over unpinned data to overflow the cache.
         searchData(unpinnedIdx, 5_000, true);
 
-        final long pinnedRegionsAfterUnpinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - SharedBlobCacheServiceTestUtils
-            .countCachedRegionsByTimestamp(cacheService, isPinnedIdx, SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+        final long pinnedRegionsAfterUnpinnedSearch = cacheRegionsForIndex(cacheService, pinnedIdx) - countZeroTimestampRegions(
+            cacheService,
+            isPinnedIdx
+        );
         logger.debug(
             "cache regions after searching unpinned data: pinned (positive-timestamp)={}, unpinned={}",
             pinnedRegionsAfterUnpinnedSearch,
@@ -539,6 +543,16 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
     private long cacheRegionsForIndex(StatelessSharedBlobCacheService cacheService, String indexName) {
         return cacheService.countCachedRegions(key -> key.shardId().getIndexName().equals(indexName));
+    }
+
+    private static long countZeroTimestampRegions(StatelessSharedBlobCacheService cacheService, Predicate<FileCacheKey> predicate) {
+        final long[] count = new long[1];
+        cacheService.iterateCachedRegions((region, freq) -> {
+            if (predicate.test(region.key()) && region.timestampMillis() == SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP) {
+                count[0]++;
+            }
+        });
+        return count[0];
     }
 
     private static void searchNonBoostedData(String nonBoostedIdx) {

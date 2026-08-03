@@ -77,17 +77,6 @@ public final class SharedBlobCacheServiceTestUtils {
         return cacheService.countCachedRegionsByFreq(predicate, includeEvicted);
     }
 
-    /**
-     * Returns the number of non-evicted cached regions matching the predicate whose timestamp equals {@code timestampMillis}.
-     */
-    public static <K extends SharedBlobCacheService.KeyBase> long countCachedRegionsByTimestamp(
-        SharedBlobCacheService<K> cacheService,
-        Predicate<K> predicate,
-        long timestampMillis
-    ) {
-        return cacheService.countCachedRegionsByTimestamp(predicate, timestampMillis);
-    }
-
     public static <K extends SharedBlobCacheService.KeyBase> EvictionPolicy<K> getEvictionPolicy(SharedBlobCacheService<K> cacheService) {
         return cacheService.getEvictionPolicy();
     }

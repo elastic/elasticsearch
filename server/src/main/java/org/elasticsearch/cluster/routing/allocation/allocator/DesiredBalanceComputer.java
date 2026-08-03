@@ -634,7 +634,7 @@ public class DesiredBalanceComputer {
                 // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
                 // should be added to the node. Count started and relocating shards to be consistent with the logic above.
                 if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
-                    .numberOfStartedOrRelocatingShardsForIndex(indexToCount.getKey())) {
+                    .numberOfActiveShardsForIndex(indexToCount.getKey())) {
                     clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
                 }
             }
@@ -645,7 +645,7 @@ public class DesiredBalanceComputer {
             // holds the index, then the index stats should be removed from the node. Count started and relocating shards to be
             // consistent with the logic above.
             for (var index : nodeIdToIndicesWithRemovedShards.getValue()) {
-                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedOrRelocatingShardsForIndex(index) == 0) {
+                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfActiveShardsForIndex(index) == 0) {
                     clusterInfoSimulator.simulateRemoveIndexFromNode(nodeIdToIndicesWithRemovedShards.getKey(), index);
                 }
             }

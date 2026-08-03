@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
@@ -35,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -52,6 +55,9 @@ public class InTests extends AbstractFunctionTestCase {
             bytesRefs(suppliers, i);
             if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
                 dateRanges(suppliers, i);
+            }
+            if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+                doubleRanges(suppliers, i);
             }
         }
         return parameterSuppliersFromTypedData(suppliers);
@@ -268,6 +274,30 @@ public class InTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InLongRangeEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
+    }
+
+    private static void doubleRanges(List<TestCaseSupplier> suppliers, int items) {
+        suppliers.add(new TestCaseSupplier("double_range", typesList(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE, items), () -> {
+            var doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+            var drSupplier = TestCaseSupplier.doubleRangeCases().get(0).supplier();
+            List<DoubleRangeBlockBuilder.DoubleRange> inlist = randomList(
+                items,
+                items,
+                () -> (DoubleRangeBlockBuilder.DoubleRange) drSupplier.get()
+            );
+            DoubleRangeBlockBuilder.DoubleRange field = inlist.get(0);
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (DoubleRangeBlockBuilder.DoubleRange i : inlist) {
+                args.add(new TestCaseSupplier.TypedData(i, DataType.DOUBLE_RANGE, "inlist").withAppliesTo(doubleRangeAppliesTo));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InDoubleRangeEvaluator.*"),
                 DataType.BOOLEAN,
                 equalTo(inlist.contains(field))
             );

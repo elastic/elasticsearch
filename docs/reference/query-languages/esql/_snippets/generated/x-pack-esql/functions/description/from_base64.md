@@ -2,5 +2,5 @@
 
 ## Description
 
-Decode a base64 string. Returns `null` and adds a warning header to the response if the input is not valid base64 or the decoded bytes are not well-formed UTF-8.
+Decode a base64 string.
 

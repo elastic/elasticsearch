@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
@@ -24,31 +25,36 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * oss rolling restart tests. We should work on a way to remove this
  * duplication but for now we have no real way to share code.
  */
-public class IndexingIT extends AbstractUpgradeTestCase {
+public class XpackIndexingIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public XpackIndexingIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
     public void testIndexing() throws IOException {
-        switch (CLUSTER_TYPE) {
-            case OLD:
-                break;
-            case MIXED:
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                break;
-            case UPGRADED:
-                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "green");
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("level", "shards");
-                }));
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        final String clusterTypeName;
+        if (isOldCluster()) {
+            clusterTypeName = "OLD";
+        } else if (isMixedCluster()) {
+            clusterTypeName = "MIXED";
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+        } else if (isUpgradedCluster()) {
+            clusterTypeName = "UPGRADED";
+            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("timeout", "70s");
+                request.addParameter("level", "shards");
+            }));
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
 
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
 
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("""
@@ -71,30 +77,26 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         }
 
         int expectedCount;
-        switch (CLUSTER_TYPE) {
-            case OLD:
+        if (isOldCluster()) {
+            expectedCount = 5;
+        } else if (isMixedCluster()) {
+            if (isFirstMixedCluster()) {
                 expectedCount = 5;
-                break;
-            case MIXED:
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
-                    expectedCount = 5;
-                } else {
-                    expectedCount = 10;
-                }
-                break;
-            case UPGRADED:
-                expectedCount = 15;
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            } else {
+                expectedCount = 10;
+            }
+        } else if (isUpgradedCluster()) {
+            expectedCount = 15;
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
 
         assertCount("test_index", expectedCount);
         assertCount("index_with_replicas", 5);
         assertCount("empty_index", 0);
 
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            bulk("test_index", "_" + CLUSTER_TYPE, 5);
+        if (isOldCluster() == false) {
+            bulk("test_index", "_" + clusterTypeName, 5);
             Request toBeDeleted = new Request("PUT", "/test_index/_doc/to_be_deleted");
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");

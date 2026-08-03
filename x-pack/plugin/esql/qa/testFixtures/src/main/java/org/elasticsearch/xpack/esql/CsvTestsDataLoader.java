@@ -287,6 +287,12 @@ public class CsvTestsDataLoader {
         new TestDataset("text_state_nonexistent", "mapping-text_state_mapped.json", "text_state_nonexistent.csv").withTypeMapping(
             removeFields("txt")
         ).withDynamic("false"),
+        new TestDataset("normalized_keyword", "mapping-normalized_keyword.json", "normalized_keyword.csv").withSetting(
+            "normalized_keyword-settings.json"
+        ),
+        new TestDataset("normalized_keyword_unmapped", "mapping-normalized_keyword.json", "normalized_keyword_unmapped.csv")
+            .withTypeMapping(removeFields("kw"))
+            .withDynamic("false"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
@@ -1176,7 +1182,7 @@ public class CsvTestsDataLoader {
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
-                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
+                            + (document.slice() != null ? ", \"" + SliceIndexing.PARAM_NAME + "\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1235,7 +1241,7 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
-                if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
+                if (columns[i] != null && SliceIndexing.FIELD_NAME.equals(columns[i].name)) {
                     slice = entries[i];
                     continue;
                 }

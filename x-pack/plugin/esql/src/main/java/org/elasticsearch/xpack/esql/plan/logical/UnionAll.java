@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -140,19 +141,43 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            unionAll.forEachDown(Fork.class, otherForkOrUnionAll -> {
-                if (unionAll == otherForkOrUnionAll) {
+            unionAll.forEachDown(Fork.class, nested -> {
+                if (unionAll == nested) {
                     return;
                 }
-                failures.add(
-                    Failure.fail(
-                        otherForkOrUnionAll,
-                        otherForkOrUnionAll instanceof UnionAll
-                            ? "Nested subqueries are not supported"
-                            : "FORK inside subquery is not supported"
-                    )
-                );
+                failures.add(nestedUnionAllFailure(nested));
             });
         }
+    }
+
+    /**
+     * Builds the verification {@link Failure} for a {@link Fork}/{@link UnionAll} found nested below another {@link UnionAll} at
+     * post-optimization.
+     * <p>
+     * A {@link ViewUnionAll} is never written by the user: it is added when a {@code FROM} pattern resolves, during view resolution, to
+     * more than one source where at least one is a view — for example a wildcard matching a view together with a concrete index, a pattern
+     * matching several views, or a view whose body references multiple sources. In every one of those cases the pattern (or view) expands
+     * to a union of multiple sources, so the generic "Nested subqueries are not supported" wording is misleading - the query the user
+     * wrote contains no nested subquery. We describe the real cause instead and quote the offending {@code FROM} clause (from
+     * {@link #sourceText()}, truncated to {@link Node#TO_STRING_MAX_WIDTH}) so the user can locate it. A plain {@link UnionAll} is a
+     * genuine user-written (or dataset-expanded) nested subquery, and a bare {@link Fork} is a {@code FORK} inside a subquery.
+     */
+    private static Failure nestedUnionAllFailure(LogicalPlan nested) {
+        if (nested instanceof ViewUnionAll) {
+            String sourceText = nested.sourceText();
+            String source = sourceText.length() > Node.TO_STRING_MAX_WIDTH
+                ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                : sourceText;
+            return Failure.fail(
+                nested,
+                "a pattern that expands to multiple sources, [{}], cannot be combined with subqueries"
+                    + "; replace it with a single source in the FROM command",
+                source
+            );
+        }
+        if (nested instanceof UnionAll) {
+            return Failure.fail(nested, "Nested subqueries are not supported");
+        }
+        return Failure.fail(nested, "FORK inside subquery is not supported");
     }
 }

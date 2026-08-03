@@ -22,6 +22,8 @@ import java.util.Map;
  */
 public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
@@ -104,6 +106,8 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either
     // DIMENSIONVALUES (when the negotiated cluster version supports `dimension_values`) or VALUES (when it does not).
     // These tests characterize the DIMENSIONVALUES form, so their builder chains declare the corresponding lower bound.
+    // At `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+    // [before_pack_dims_agg].
     public void testTsRateWithInSubquery() {
         builder("""
             TS k8s
@@ -111,7 +115,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsRateWithNotInSubquery() {
@@ -121,7 +125,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // The outer TS pipeline groups BY WITHOUT(...), so the WITHOUT-bearing TimeSeriesAggregate sits directly
@@ -129,7 +133,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // WITHOUT into a _timeseries metadata attribute by descending into every EsRelation under the aggregate's
     // child, without excluding the right-hand side of the SemiJoin, injecting the lowered _timeseries attribute
     // into the subquery (RHS) relation as well. After the fix only the main (left) relation carries _timeseries;
-    // the subquery relation keeps just its own _tsid. The SUM overflow fix is the newer transport-version-dependent shape in this query.
+    // the subquery relation keeps just its own _tsid. The SUM overflow fix is this query's floor; `pack_dims_agg` is its newer boundary.
     public void testTsWithoutAndRateWithInSubquery() {
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
         builder("""
@@ -138,7 +142,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsWithoutAndRateWithNotInSubquery() {
@@ -149,7 +153,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
@@ -167,7 +171,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
@@ -185,7 +189,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // -- PropagateEmptyRelation through SEMI / ANTI / MARK join tests --

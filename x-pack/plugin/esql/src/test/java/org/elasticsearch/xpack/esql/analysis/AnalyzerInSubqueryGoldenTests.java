@@ -39,6 +39,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  */
 public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
 
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
@@ -813,6 +815,8 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either DIMENSIONVALUES (when
     // the negotiated cluster version supports `dimension_values`) or VALUES (when it does not). These tests characterize the newer form, so
     // their builder chains declare the corresponding lower bound (or the newer SUM long-overflow fix when the query contains SUM).
+    // At `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+    // [before_pack_dims_agg].
 
     public void testTsRateInsideInSubquery() {
         requireInSubqueryWithTSSupport();
@@ -822,7 +826,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsRateInsideNotInSubquery() {
@@ -833,7 +837,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testInSubqueryMainTimeSeriesSubqueryIndex() {
@@ -842,7 +846,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             TS k8s
             | WHERE cluster IN (FROM employees | KEEP first_name)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testNotInSubqueryMainTimeSeriesSubqueryIndex() {
@@ -851,7 +855,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             TS k8s
             | WHERE cluster NOT IN (FROM employees | KEEP first_name)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testInSubqueryMainIndexSubqueryTimeSeries() {
@@ -861,7 +865,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             | WHERE first_name IN (TS k8s
                                   | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
                                   | KEEP cluster)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testNotInSubqueryMainIndexSubqueryTimeSeries() {
@@ -871,7 +875,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             | WHERE first_name NOT IN (TS k8s
                                       | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
                                       | KEEP cluster)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsWithoutAndRateInsideInSubquery() {
@@ -882,7 +886,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsWithoutAndRateInsideNotInSubquery() {
@@ -893,7 +897,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
@@ -912,7 +916,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
@@ -931,7 +935,7 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
                                    )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // -- IN / NOT IN (subquery) crossed with external datasets --

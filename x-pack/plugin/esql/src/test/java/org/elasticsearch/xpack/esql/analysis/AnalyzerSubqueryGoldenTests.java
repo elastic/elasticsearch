@@ -37,6 +37,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  */
 public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
@@ -487,7 +489,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
         requireTsSubquerySupport();
         builder("""
             FROM employees, (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryInFromWithOuterTimeSeriesAggregate() {
@@ -495,7 +497,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
         builder("""
             FROM (TS k8s-downsampled)
             | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleSubqueriesInFromWithTS() {
@@ -505,7 +507,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
                 employees,
                 (TS k8s-downsampled | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | STATS cnt = count(*))
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleSubqueriesInFromWithMixedTsRowAndFromSubqueries() {
@@ -517,7 +519,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
                 (TS k8s-downsampled | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | STATS cnt = count(*)),
                 (ROW synthetic = 1)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithProcessingCommands() {
@@ -552,7 +554,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             FROM
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
                 (FROM sample_data)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithByWithoutInFromCommand() {
@@ -562,7 +564,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
                 employees,
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY WITHOUT(pod)),
                 (FROM sample_data)
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
@@ -571,7 +573,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             FROM
                 (TS k8s-downsampled | STATS m = max(rate(network.total_bytes_in)) BY cluster),
                 (FROM sample_data | EVAL m = "abc")
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
@@ -582,7 +584,7 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
                 (FROM sample_data | EVAL m = "abc")
             | EVAL m = m::string
             | KEEP m
-            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTSSubqueryWithNumericConflict() {
@@ -642,12 +644,14 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
         requireTsSubquerySupport();
         requireExternalDatasetSupport();
         // `cluster` is a time-series dimension, so the rate aggregation is rewritten to DIMENSIONVALUES or VALUES depending on the
-        // negotiated cluster version; lower-bound this test at `dimension_values` so the snapshot stays deterministic.
+        // negotiated cluster version; lower-bound this test at `dimension_values` so the snapshot stays deterministic. At
+        // `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+        // [before_pack_dims_agg].
         externalDatasetBuilder("""
             FROM (FROM sample_data | EVAL name = message | KEEP name),
                  (TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL name = cluster | KEEP name),
                  (FROM salaries_int | KEEP name)
-            """).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {

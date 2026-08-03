@@ -26,7 +26,7 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
-public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
+public abstract class SimdVecLibraryTests extends ESTestCase {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("foo");
@@ -38,9 +38,9 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
 
     protected static Arena arena;
 
-    protected final VectorSimilarityFunctions.Function function;
+    protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
-    protected final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
+    protected final Optional<SimdVecLibrary> vectorSimilarityFunctions;
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
@@ -48,11 +48,11 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
         return () -> IntStream.concat(dims1, dims2)
             .boxed()
-            .flatMap(i -> Stream.of(VectorSimilarityFunctions.Function.values()).map(f -> new Object[] { f, i }))
+            .flatMap(i -> Stream.of(SimdVecLibrary.SimilarityFunction.values()).map(f -> new Object[] { f, i }))
             .iterator();
     }
 
-    protected VectorSimilarityFunctionsTests(VectorSimilarityFunctions.Function function, int size) {
+    protected SimdVecLibraryTests(SimdVecLibrary.SimilarityFunction function, int size) {
         this.function = function;
         this.size = size;
         vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
@@ -72,7 +72,7 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         supported();
     }
 
-    protected VectorSimilarityFunctions getVectorDistance() {
+    protected SimdVecLibrary getVectorDistance() {
         return vectorSimilarityFunctions.get();
     }
 

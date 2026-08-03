@@ -277,10 +277,14 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             cacheService,
             isPinnedIdx
         );
+
+        // The unpinned index takes non-zero number of regions that are unprotected
+        final long regionsForUnpinnedIdx = cacheRegionsForIndex(cacheService, unpinnedIdx);
+        assertThat(regionsForUnpinnedIdx, greaterThan(0L));
         logger.debug(
             "cache regions after searching unpinned data: pinned (positive-timestamp)={}, unpinned={}",
             pinnedRegionsAfterUnpinnedSearch,
-            cacheRegionsForIndex(cacheService, unpinnedIdx)
+            regionsForUnpinnedIdx
         );
 
         assertThat(

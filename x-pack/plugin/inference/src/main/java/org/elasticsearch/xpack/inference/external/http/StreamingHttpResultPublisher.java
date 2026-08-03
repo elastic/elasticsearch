@@ -182,6 +182,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private void sendToSubscriber() {
             if (downstream == null) {
                 if (pendingError != null) {
+                    stopUpstream();
+                } else if(completed){
                     backpressure.releaseTrackedBytes();
                 }
                 return;

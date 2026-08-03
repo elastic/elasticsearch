@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCachePeriodicMetrics;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.TimeSlottedAccumulator;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
@@ -795,6 +796,14 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        components.add(
+            new StatelessSharedBlobCachePeriodicMetrics(
+                cacheService,
+                clusterService.getClusterSettings(),
+                threadPool,
+                services.telemetryProvider().getMeterRegistry()
+            )
+        );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -1384,6 +1393,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+            StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,

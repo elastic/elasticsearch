@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -17,14 +18,44 @@ smartRetry.pruneIndividualTests.set(false)
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
+  javaRestTestImplementation(testArtifact(project(':server')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
   javaRestTestImplementation(project(':x-pack:qa'))
+  javaRestTestImplementation(project(':modules:reindex'))
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
+  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
+
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.path.searchable.snapshots.repo", searchableSnapshotRepository)
+    // Disable ML tests for incompatible systems, see BwcVersions#isMlCompatible
+    systemProperty("tests.ml.skip", (BwcVersions.isMlCompatible(bwcVersion) == false).toString())
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      // UpgradeClusterClientYamlTestSuiteIT runs its ML-related YAML tests against all three fixture
+      // directories (old/mixed/upgraded) from a single task now, so blacklist the ML tests in all three.
+      systemProperty(
+        "tests.rest.blacklist",
+        [
+          'old_cluster/30_ml_jobs_crud/*',
+          'old_cluster/40_ml_datafeed_crud/*',
+          'old_cluster/90_ml_data_frame_analytics_crud',
+          'mixed_cluster/30_ml_jobs_crud/*',
+          'mixed_cluster/40_ml_datafeed_crud/*',
+          'mixed_cluster/90_ml_data_frame_analytics_crud',
+          'upgraded_cluster/30_ml_jobs_crud/*',
+          'upgraded_cluster/40_ml_datafeed_crud/*',
+          'upgraded_cluster/90_ml_data_frame_analytics_crud'
+        ].join(',')
+      )
+    }
+    doFirst {
+      delete(searchableSnapshotRepository)
+    }
   }
 }
 

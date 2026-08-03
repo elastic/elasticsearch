@@ -40,7 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
+public class SimdVecLibraryIT extends AbstractEsqlIntegTestCase {
 
     private List<List<Number>> leftVectors;
 
@@ -82,7 +82,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     private final ElementType elementType;
     private int numDims;
 
-    public VectorSimilarityFunctionsIT(
+    public SimdVecLibraryIT(
         @Name("functionName") String functionName,
         @Name("similarityFunction") DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         @Name("elementType") ElementType elementType

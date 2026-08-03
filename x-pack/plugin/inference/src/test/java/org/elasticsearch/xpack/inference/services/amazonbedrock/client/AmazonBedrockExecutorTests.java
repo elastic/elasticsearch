@@ -52,7 +52,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockExecutorTests extends ESTestCase {
-    private static final Logger esLogger = LogManager.getLogger(AmazonBedrockExecutorTests.class);
+    // Shadows ESTestCase.logger until ESTestCase migrates its field to org.elasticsearch.logging.Logger
+    private final Logger logger = LogManager.getLogger(getClass());
 
     public void testExecute_EmbeddingsRequest_ForAmazonTitan() throws CharacterCodingException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
@@ -72,7 +73,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT), null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockEmbeddingsExecutor(request, responseHandler, esLogger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockEmbeddingsExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -97,7 +98,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, getTestInvokeResult(TEST_COHERE_EMBEDDINGS_RESULT), null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockEmbeddingsExecutor(request, responseHandler, esLogger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockEmbeddingsExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -121,7 +122,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(getTestConverseResult("converse result"), null, null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, esLogger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -145,7 +146,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(null, null, new ElasticsearchException("test exception"));
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, esLogger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
 
         var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(new TimeValue(30000)));
@@ -187,7 +188,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var clientCache = new AmazonBedrockMockClientCache(getTestConverseResult("converse result"), null, null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, esLogger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         var exception = expectThrows(AssertionError.class, executor::run);
         assertThat(exception.getMessage(), is("The chat_completion task type only supports streaming"));
     }

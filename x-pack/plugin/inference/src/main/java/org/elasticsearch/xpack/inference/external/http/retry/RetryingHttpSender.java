@@ -42,6 +42,8 @@ public class RetryingHttpSender implements RequestSender {
 
     public static final int MAX_RETRIES = 3;
 
+    private static final org.apache.logging.log4j.Logger log4jLogger = LogManager.getLogger(RetryingHttpSender.class);
+
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
     private final RetrySettings retrySettings;
@@ -111,7 +113,7 @@ public class RetryingHttpSender implements RequestSender {
             ActionListener<InferenceServiceResults> listener
         ) {
             super(
-                LogManager.getLogger(Objects.requireNonNull(logger).getName()),
+                log4jLogger,
                 threadPool,
                 retrySettings.getInitialDelay(),
                 retrySettings.getMaxDelayBound(),
@@ -119,7 +121,7 @@ public class RetryingHttpSender implements RequestSender {
                 listener,
                 executor
             );
-            this.logger = logger;
+            this.logger = Objects.requireNonNull(logger);
             this.outboundRequest = Objects.requireNonNull(outboundRequest);
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);

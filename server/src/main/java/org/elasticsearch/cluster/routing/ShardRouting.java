@@ -41,19 +41,23 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         /*
          * TODO:
-         *  - Javadoc for UNASSIGNED_NEW_PRIMARY
-         *  - Rename UNASSIGNED_EXISTING to UNASSIGNED_UNEXPECTED and fix javadoc
-         *  - Rename UNASSIGNED_NEW to UNASSIGNED_EXPECTED and fix javadoc
          *  - Review all usages of all three and fix anything incorrect
          */
 
+        /// A primary shard which is unassigned because it is newly created.
+        ///
+        /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the
+        /// new index (including allowing bulk operations which auto-create an index to complete).
         UNASSIGNED_NEW_PRIMARY(false),
 
-        /// An existing shard which is unassigned
-        UNASSIGNED_EXISTING(false),
+        /// A shard which is unassigned because of an unexpected condition, i.e. some kind of failure.
+        ///
+        /// Recovering this shard may be necessary to prevent the index being unavailable.
+        UNASSIGNED_UNEXPECTED(false),
 
-        /// A new shard which is unassigned
-        UNASSIGNED_NEW(false),
+        /// A shard which is unassigned for an expected condition, i.e. because of a user operation such as opening or restoring an index,
+        /// but which is not an [#UNASSIGNED_NEW_PRIMARY].
+        UNASSIGNED_EXPECTED(false),
 
         /// A shard which is assigned, and is being relocated because
         /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
@@ -86,8 +90,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
                 int legacyOrdinal = in.readVInt();
                 return switch (legacyOrdinal) {
-                    case 0 -> UNASSIGNED_EXISTING;
-                    case 1 -> UNASSIGNED_NEW;
+                    case 0 -> UNASSIGNED_UNEXPECTED;
+                    case 1 -> UNASSIGNED_EXPECTED;
                     case 2 -> RELOCATION_CAN_REMAIN_NO;
                     case 3 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
                     case 4 -> RELOCATE_REBALANCING;
@@ -109,8 +113,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 // Serialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values,
                 // or the nearest fallbacks:
                 int legacyOrdinal = switch (this) {
-                    case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_EXISTING -> 0;
-                    case UNASSIGNED_NEW -> 1;
+                    case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
+                    case UNASSIGNED_EXPECTED -> 1;
                     case RELOCATION_CAN_REMAIN_NO -> 2;
                     case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
                     case RELOCATE_REBALANCING, UNKNOWN -> 4;
@@ -492,8 +496,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     private static RecoveryPriority highestAllowedRecoveryPriority(ShardRoutingState state, boolean isRelocation) {
         return switch (state) {
-            case UNASSIGNED -> RecoveryPriority.UNASSIGNED_EXISTING;
-            case INITIALIZING -> isRelocation ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO : RecoveryPriority.UNASSIGNED_EXISTING;
+            case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
+            case INITIALIZING -> isRelocation ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO : RecoveryPriority.UNASSIGNED_UNEXPECTED;
             case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
             case STARTED -> null;
         };
@@ -601,7 +605,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource,
             state == ShardRoutingState.INITIALIZING && unassignedInfo != null
                 ? recoveryPriority // Shard was previously initializing from unassigned, so keep the same recovery priority
-                : RecoveryPriority.UNASSIGNED_EXISTING, // Shard must previously have been started or relocating, so must be existing
+                : RecoveryPriority.UNASSIGNED_UNEXPECTED, // Shard must previously have been started or relocating, so must be existing
             unassignedInfo,
             RelocationFailureInfo.NO_FAILURES,
             null,
@@ -705,7 +709,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             primary,
             state,
             recoverySource,
-            RecoveryPriority.UNASSIGNED_EXISTING, // increase the recovery priority to reflect the fact that this is now unassigned
+            RecoveryPriority.UNASSIGNED_UNEXPECTED, // increase the recovery priority to reflect the fact that this is now unassigned
             new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             relocationFailureInfo,
             AllocationId.finishRelocation(allocationId),

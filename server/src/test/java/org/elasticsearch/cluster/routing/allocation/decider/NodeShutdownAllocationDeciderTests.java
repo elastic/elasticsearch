@@ -47,7 +47,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();

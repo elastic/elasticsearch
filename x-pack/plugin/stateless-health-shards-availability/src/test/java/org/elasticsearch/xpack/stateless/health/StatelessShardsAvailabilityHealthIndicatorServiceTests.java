@@ -472,7 +472,7 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             recoverySource,
             info,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to the reason in unassignedInfo, but that shouldn't matter
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to other parameters, but that shouldn't matter
         );
         if (state == ShardRoutingState.UNASSIGNED) {
             return routing;

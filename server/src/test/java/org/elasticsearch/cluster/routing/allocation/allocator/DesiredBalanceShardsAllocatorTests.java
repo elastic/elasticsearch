@@ -855,7 +855,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
                     ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 ),
                 firstNode.getId()
             )
@@ -869,7 +869,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "new index"),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ),
             thirdNode.getId()
         );

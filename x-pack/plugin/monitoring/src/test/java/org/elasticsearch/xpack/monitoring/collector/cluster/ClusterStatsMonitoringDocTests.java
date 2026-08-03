@@ -409,7 +409,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);

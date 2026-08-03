@@ -149,7 +149,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.INDEX_ONLY,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             when(primary.routingEntry()).thenReturn(routing);
             when(primary.getReplicationGroup()).thenReturn(replicationGroup).thenReturn(realReplicationGroup);

@@ -425,7 +425,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             new RecoverySource.ReshardSplitRecoverySource(shardId),
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(randomIdentifier(), allocationId, 0L);
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
@@ -530,7 +530,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(randomIdentifier(), allocationId, 0L);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(routing);

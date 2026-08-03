@@ -113,7 +113,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
 
     public void testIndexPrefer() {

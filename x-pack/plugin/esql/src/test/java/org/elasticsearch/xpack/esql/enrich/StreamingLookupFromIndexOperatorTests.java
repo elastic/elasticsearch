@@ -516,7 +516,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(serverNodes.get(0).getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 
@@ -584,7 +584,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(localNode.getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 

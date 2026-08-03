@@ -57,7 +57,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
@@ -100,7 +100,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assignedShard = assignedShard.initialize(NODE_A.getId(), null, 1);
         assignedShard = assignedShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

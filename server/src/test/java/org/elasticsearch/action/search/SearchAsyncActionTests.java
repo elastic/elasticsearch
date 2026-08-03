@@ -798,7 +798,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);

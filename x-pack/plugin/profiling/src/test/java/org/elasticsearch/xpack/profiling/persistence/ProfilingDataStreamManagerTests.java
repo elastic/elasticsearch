@@ -511,7 +511,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (allShardsAssigned) {
                 shardRouting = shardRouting.initialize("node0", null, 0).moveToStarted(0);

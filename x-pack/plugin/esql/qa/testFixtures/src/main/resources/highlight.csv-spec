@@ -1823,3 +1823,18 @@ ROW title = to_text("A fox-like creature")
 highlight_title:keyword
 A <em>fox-like creature</em>
 ;
+
+
+# The default analyzer is registered as "standard", so MATCH can select it by name.
+highlightAnalyzerMatchQueryWithDefaultStandardAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "rings", { "analyzer": "standard" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;

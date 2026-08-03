@@ -46,6 +46,16 @@ import java.util.Map;
  */
 public final class HighlightQueryBuilders {
 
+    /**
+     * HIGHLIGHT's default analyzer. The runtime context uses the public name {@code "standard"} when resolving analyzer
+     * options in nested full-text functions.
+     */
+    private static final NamedAnalyzer DEFAULT_ANALYZER = new NamedAnalyzer(
+        "standard",
+        AnalyzerScope.GLOBAL,
+        Lucene.STANDARD_ANALYZER.analyzer()
+    );
+
     private HighlightQueryBuilders() {}
 
     /** Folded string query text, or {@code null} when the query does not fold to a string. */
@@ -179,7 +189,7 @@ public final class HighlightQueryBuilders {
     private static TranslatedQuery translate(Expression queryExpr, List<String> fieldNames, @Nullable Analyzer analyzerOverride) {
         String literal = queryTextIfLiteral(queryExpr);
         String queryText = literal != null ? literal : queryExpr.sourceText();
-        NamedAnalyzer namedAnalyzer = analyzerOverride == null ? Lucene.STANDARD_ANALYZER
+        NamedAnalyzer namedAnalyzer = analyzerOverride == null ? DEFAULT_ANALYZER
             : analyzerOverride instanceof NamedAnalyzer na ? na
             : new NamedAnalyzer("_override", AnalyzerScope.GLOBAL, analyzerOverride);
         RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldNames, namedAnalyzer);

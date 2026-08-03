@@ -637,8 +637,11 @@ holds the series *this* node is currently emitting. And a `date_histogram` over 
 grouped by anything other than node is unaffected: the dead series simply contribute nothing to
 buckets after they stopped.
 
-Whether node identity belongs in the tsid at all is a real design question and is deliberately left
-open — but one argument for removing it has been checked and does not hold.
+Whether node identity belongs in the tsid at all was a real design question. **It is settled: it
+stays.** The node ID is persisted in the data path, so it survives a restart, and the churn is
+confined to genuinely ephemeral nodes, where the destination's own retention bounds what it costs.
+
+One argument for removing it was checked and does not hold, and is kept here so it is not made again.
 
 The dimension exists so that two nodes emitting the same series in the same bucket do not collide on
 the deterministic `_id`. The partial-offset mechanism looks like it addresses the same collision, so
@@ -647,10 +650,10 @@ from the wall clock into 128 slots, which separates partials from one node relia
 *different* nodes only by chance — across 20 nodes the odds that some pair collides are around 78%.
 The node dimension is what actually guarantees it.
 
-Removing the dimension would end the churn and let partials of one series from different nodes share
-a series. It would also cost per-node attribution in queries, and it would first require the offset to
-separate nodes deterministically — which is a different scheme than the one that exists. Not attempted
-here, and not to be attempted on the assumption that the offset already covers it.
+Removing the dimension would end the churn and let partials of one series from different nodes share a
+series. It would also cost per-node attribution in queries, and it would first require the offset to
+separate nodes deterministically — a different scheme from the one that exists. Not a change we intend
+to make, and not one to make on the assumption that the offset already covers it.
 
 ### Designing against bad cardinality
 

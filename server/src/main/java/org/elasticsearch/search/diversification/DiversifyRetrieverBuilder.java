@@ -12,10 +12,8 @@ package org.elasticsearch.search.diversification;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
@@ -335,29 +333,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             .fetchSource(fsCtx)
             .fetchEmbeddingsField(diversificationField);
         return super.finalizeSourceBuilder(builder);
-    }
-
-    @Override
-    protected Exception processInnerItemFailureException(Exception ex) {
-        // since we do not have access to the field types before the search actually executes on the shard,
-        // we need to check for an exception when the field data is gotten and if it's disabled
-        if (ex instanceof SearchPhaseExecutionException spEx) {
-            if (spEx.getCause() instanceof ElasticsearchException iaEx) {
-                // I'm not a fan of checking the message, but there is no other indicator we can use.
-                if (iaEx.getMessage().startsWith("Fielddata is disabled on")) {
-                    return new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to retrieve vectors for field [%s]. "
-                                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
-                            diversificationField
-                        ),
-                        ex
-                    );
-                }
-            }
-        }
-        return ex;
     }
 
     @Override

@@ -149,7 +149,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     /// Available shards keep the indicator green. Relocating shards are still considered available and are counted
     /// in the started_* detail fields together with fully started shards.
-    public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
+    public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStartedOrRelocating() {
         ProjectId projectId = randomProjectIdOrDefault();
         // 0 = all started, 1 = all relocating, 2 = random mix of started and relocating
         final int availabilityMode = randomIntBetween(0, 2);
@@ -914,7 +914,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A shard unassigned because its node is restarting is normally ignored for health while a matching RESTART
+    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART
     /// shutdown allocation delay is still running. Without a matching RESTART shutdown for that node, the indicator
     /// treats the shard as unavailable instead of restarting.
     public void testRestartingPrimaryHasNoMatchingRestartShutdown() {
@@ -959,7 +959,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    /// A shard unassigned because its node is restarting is normally ignored for health while a matching RESTART
+    /// A shard unassigned because its node is restarting is normally ignored by the health api while a matching RESTART
     /// shutdown allocation delay is still running. Without a matching RESTART shutdown for that node, the indicator
     /// treats the shard as unavailable instead of restarting. An unavailable replica turns the indicator yellow.
     public void testRestartingReplicaHasNoMatchingRestartShutdown() {

@@ -102,6 +102,7 @@ public class PartitionedHashAggregationOperatorTests extends ESTestCase {
         )
             .aggregators(List.of(sumLongFactory()))
             .partitionCount(between(2, 8))
+            .partitionThreshold(between(10, 30)) // <= emitKeysThreshold so the clamp is a no-op
             .emitKeysThreshold(between(30, 80)) // low threshold forces multiple intermediate emits
             .maxPageSize(between(100, 500))
             .aggregationBatchSize(between(100, 500));

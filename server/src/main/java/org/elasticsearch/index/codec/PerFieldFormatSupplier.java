@@ -68,8 +68,6 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
         includeMetaField.add(IdFieldMapper.NAME);
-        includeMetaField.add(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX);
-        includeMetaField.add(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -286,7 +284,11 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // The _unmapped sink holds ordinary user data despite its leading underscore, so it and all of its subfields - _keyed, the ignored
+        // values, the .counts companion - are matched by prefix rather than enumerated, which would go stale as encodings add subfields.
+        return fieldName.startsWith("_")
+            && INCLUDE_META_FIELDS.contains(fieldName) == false
+            && fieldName.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {

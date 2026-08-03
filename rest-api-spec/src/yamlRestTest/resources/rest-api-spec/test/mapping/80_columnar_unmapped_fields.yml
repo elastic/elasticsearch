@@ -1,0 +1,195 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+      reason: "columnar index modes and the flattened _unmapped sink are required"
+
+  # Empty mapping: every field in a document is unmapped and therefore absorbed into the sink. Note that an index created without an
+  # explicit mappings block still gets the sink, so even the very first document indexed here is absorbed rather than dynamically mapped.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+
+---
+"term query resolves bare, dotted and never-indexed absorbed names":
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  # Bare dotless absorbed name.
+  - do:
+      search:
+        index: test
+        body: { query: { term: { bare: "bare-value" } } }
+  - match: { hits.total.value: 1 }
+
+  # Full dotted path of a nested absorbed object.
+  - do:
+      search:
+        index: test
+        body: { query: { term: { outer.inner.leaf: "leaf-value" } } }
+  - match: { hits.total.value: 1 }
+
+  # A name that was never indexed still resolves (catch-all) but matches nothing rather than erroring.
+  - do:
+      search:
+        index: test
+        body: { query: { term: { never.indexed: "nope" } } }
+  - match: { hits.total.value: 0 }
+
+  # No field in the document got a mapper of its own: they all went to the sink, which is never serialized.
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { test.mappings: {} }
+
+---
+"exists query matches per unmapped field, not per sink field":
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  # A second document with a disjoint absorbed field, so exists must discriminate between keys rather than matching every doc.
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          other: "other-value"
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: bare } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: outer.inner.leaf } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: other } } }
+  - match: { hits.total.value: 1 }
+
+  # Never indexed: resolves through the sink but no document has a value under that key.
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: never_indexed_key } } }
+  - match: { hits.total.value: 0 }
+
+---
+"terms aggregation on an absorbed name":
+  # Aggregations read the sink through doc values rather than through the query path. This covers storage the term/exists cases do not.
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { color: "red" }
+          - { index: { _id: "2" } }
+          - { color: "red" }
+          - { index: { _id: "3" } }
+          - { color: "blue" }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            t:
+              terms:
+                field: color
+  - length: { aggregations.t.buckets: 2 }
+  - match: { aggregations.t.buckets.0.key: "red" }
+  - match: { aggregations.t.buckets.0.doc_count: 2 }
+  - match: { aggregations.t.buckets.1.key: "blue" }
+  - match: { aggregations.t.buckets.1.doc_count: 1 }
+
+---
+"sort on a never-indexed name resolves instead of failing":
+  # The sink resolves every name, so it suppresses the "No mapping found for [...] in order to sort on" throw that an unmapped sort field
+  # would otherwise hit. Sorting on a name no document ever indexed returns every document instead of failing. This
+  # behavior is inherited from flattened fields.
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { _id: "1" } }
+          - { k: "A" }
+          - { index: { _id: "2" } }
+          - { k: "B" }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { never_indexed_key: { order: asc } } ]
+  - match: { hits.total.value: 2 }
+
+---
+"concrete mapping takes precedence over the sink":
+  # The sink is a last-resort fallback, so a concrete mapping must win: "mapped" keeps real long semantics (a numeric range) while a sibling
+  # unmapped field in the same document is still absorbed.
+  - do:
+      indices.create:
+        index: test_mapped
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              mapped:
+                type: long
+
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          loose: "loose-value"
+
+  # Had the sink shadowed the concrete mapping, "mapped" would be a keyword and a numeric range would not resolve like this.
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { range: { mapped: { gte: 40, lte: 45 } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { term: { loose: "loose-value" } } }
+  - match: { hits.total.value: 1 }

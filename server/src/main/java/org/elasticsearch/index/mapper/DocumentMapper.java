@@ -38,10 +38,14 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(
             MapperService.SINGLE_MAPPING_NAME,
             mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(
+        );
+        // An index created without explicit mappings has no source to parse, so the sink has to be injected here too. Otherwise the first
+        // document indexed into such an index is parsed without the sink and every one of its fields gets a dynamic mapper.
+        MappingParser.addUnmappedSinkIfEnabled(rootBuilder, mapperService.parserContext());
+        RootObjectMapper root = rootBuilder.build(
             MapperBuilderContext.root(
                 false,
                 false,

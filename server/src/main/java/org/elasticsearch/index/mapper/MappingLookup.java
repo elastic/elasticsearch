@@ -584,6 +584,14 @@ public final class MappingLookup {
     }
 
     /**
+     * Like {@link #getFieldType} but does not resolve unmapped names to the implicit {@code _unmapped} sink. Used on the document-parse
+     * path so an unmapped field is absorbed by the sink rather than mistaken for a runtime field and dropped.
+     */
+    public MappedFieldType getFieldTypeExcludingUnmappedSink(String field) {
+        return fieldTypesLookup().get(field, false);
+    }
+
+    /**
      * Given a concrete field name, return its paths in the _source.
      *
      * For most fields, the source path is the same as the field itself. However

@@ -115,6 +115,18 @@ public final class MappingParser {
     }
 
     /**
+     * Adds the implicit {@code _unmapped} flattened sink to {@code root} when index settings enable it. The sink is derived state, not user
+     * mapping: its entire config is a function of index settings, and it carries no user-settable parameters. So it is never serialized and
+     * is instead re-injected on every mapping build - here for a parsed mapping source, and in {@link DocumentMapper#createEmpty} for an
+     * index created without one.
+     */
+    static void addUnmappedSinkIfEnabled(RootObjectMapper.Builder root, MappingParserContext context) {
+        if (context.getIndexSettings().isFlattenedUnmappedFieldsEnabled()) {
+            root.add(FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), context));
+        }
+    }
+
+    /**
      * Parses a mapping source into a {@link MappingBuilder}, deferring the final build step.
      * This allows callers to perform merge operations at the builder level before building the
      * final {@link Mapping}.
@@ -150,13 +162,7 @@ public final class MappingParser {
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
-        // The _unmapped sink is derived state, not user mapping: its entire config is a function of index settings, and it carries no
-        // user-settable parameters. So it is never serialized and is instead re-injected here on every mapping-source parse.
-        if (mappingParserContext.getIndexSettings().isFlattenedUnmappedFieldsEnabled()) {
-            rootObjectMapper.add(
-                FlattenedFieldMapper.PARSER.parse(FlattenedFieldMapper.UNMAPPED_SINK_NAME, new HashMap<>(), mappingParserContext)
-            );
-        }
+        addUnmappedSinkIfEnabled(rootObjectMapper, mappingParserContext);
 
         Map<String, MetadataFieldMapper.Builder> metadataBuilders = metadataBuildersSupplier.get();
         Map<String, Object> meta = null;

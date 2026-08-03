@@ -97,6 +97,37 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
     }
 
+    /**
+     * An index created without an explicit mappings block has no mapping source to parse, so the sink cannot be injected the usual way (on
+     * every mapping-source parse, see {@code MappingParser#parseToBuilder}). Instead {@code IndexShard} parses that index's first document
+     * with {@link DocumentMapper#createEmpty}, which must carry the sink too. Otherwise the first document's fields would each get a
+     * dynamic mapper and only fields first seen in later documents would ever be absorbed.
+     */
+    public void testSinkPresentInTheEmptyMapperUsedByIndicesWithoutMappings() throws IOException {
+        DocumentMapper emptyMapper = DocumentMapper.createEmpty(columnarService(b -> {}));
+        assertTrue(((FlattenedFieldMapper) emptyMapper.mappers().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME)).isUnmappedSink());
+
+        String field = randomAlphanumericOfLength(8);
+        String value = randomAlphanumericOfLength(6);
+        ParsedDocument doc = emptyMapper.parse(source(b -> b.field(field, value)));
+
+        assertNull("absorbed fields create no mapper, so no dynamic update is emitted", doc.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(doc, field + "\0" + value));
+    }
+
+    /** The empty mapper follows the same setting gate as the parsed one: no setting, no sink, so unmapped fields are dynamically mapped. */
+    public void testEmptyMapperHasNoSinkWhenSettingOff() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        DocumentMapper emptyMapper = DocumentMapper.createEmpty(mapperService);
+        assertNull(emptyMapper.mappers().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME));
+
+        ParsedDocument doc = emptyMapper.parse(source(b -> b.field(randomAlphanumericOfLength(8), randomAlphanumericOfLength(6))));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertTrue(doc.rootDoc().getFields(KEYED).isEmpty());
+    }
+
     public void testAbsentWhenSettingOff() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));

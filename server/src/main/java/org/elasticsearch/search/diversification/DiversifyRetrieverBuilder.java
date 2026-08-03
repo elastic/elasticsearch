@@ -465,10 +465,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     /**
      * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if the field is
-     * absent or has no values.
+     * absent, has no values, or has values that cannot be interpreted as dense vectors.
      *
-     * @throws IllegalArgumentException if the field has values that cannot be interpreted as dense vectors (e.g. sparse
-     *     embeddings or a non-vector field type that happens to expose an embeddings format).
+     * @throws IllegalArgumentException if the field contains sparse vectors, which diversification does not support
      */
     private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext) {
         DocumentField field = doc.hit.getFields().get(diversificationField);
@@ -510,67 +509,84 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     /**
-     * Extracts a list of dense embeddings from a {@link DocumentField}'s raw values.
+     * Extracts a list of dense vectors from a {@link DocumentField}'s raw values.
      *
-     * <p>Two layouts are handled:
+     * <p>Three layouts are handled, dispatched on the type of the first element:
      * <ul>
      *   <li><em>Flat scalar list</em> ({@code List<Number>} — {@code dense_vector} source shape): treated as a single
-     *       embedding and returned as a singleton list.</li>
-     *   <li><em>List of individual embeddings</em> (e.g. {@code List<float[]>} — one entry per chunk for chunked
-     *       {@code semantic_text} fields): each element is converted independently.</li>
+     *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
+     *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
+     *       each element is converted to a {@link VectorData} independently.</li>
+     *   <li><em>Sparse vector map</em> ({@code Map<String, Float>} — token-to-weight pairs from a
+     *       {@code sparse_vector} or {@code sparse_embedding} inference field): throws an {@link IllegalArgumentException}, since sparse
+     *       vectors are not supported by diversification. Any other {@link Map} shape is returned as an empty list.</li>
      * </ul>
-     * Returns an empty list when the values are absent or null.
+     * Returns an empty list when the values are absent, null, or of an unrecognized type.
      *
-     * @throws IllegalArgumentException if any value is present but cannot be interpreted as a dense vector
+     * @throws IllegalArgumentException if the field contains sparse vectors, or malformed dense vectors
      */
     private List<VectorData> extractDenseEmbeddings(List<Object> values) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }
 
-        if (values.getFirst() instanceof Number) {
-            // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
-            float[] vec = new float[values.size()];
-            for (int i = 0; i < values.size(); i++) {
-                if (values.get(i) instanceof Number n) {
-                    vec[i] = n.floatValue();
-                } else {
-                    throw unsupportedEmbeddingValue(values.get(i));
-                }
+        return switch (values.getFirst()) {
+            case Number ignored ->
+                // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
+                parseDenseVectorValue(values);
+            case float[] ignored ->
+                // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
+                parseInferenceFieldValue(values);
+            case Map<?, ?> firstMap -> {
+                checkForSparseVectorMap(firstMap);
+                yield List.of();
             }
-            return List.of(new VectorData(vec));
-        }
+            default ->
+                // Silently return an empty list for any other value type to handle BwC. Before the introduction of embeddings field
+                // fetching, the diversify retriever handled any non-dense vector field leniently by simply ignoring it.
+                // This fallthrough maintains that BwC behavior.
+                // Moving forward, SearchService enforces that any field fetched as an embeddings field actually provides embeddings and
+                // therefore is handled by one of the three cases above. Thus, we will only hit the default case on the BwC path.
+                List.of();
+        };
+    }
 
-        // Each element is a separate embedding (e.g. one float[] per chunk for semantic_text).
+    private List<VectorData> parseDenseVectorValue(List<Object> values) {
+        float[] vec = new float[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) instanceof Number n) {
+                vec[i] = n.floatValue();
+            } else {
+                throw new IllegalArgumentException("Field [" + diversificationField + "] value is not a well-formed dense vector." +
+                    " Is it a [dense_vector] field?"
+                );
+            }
+        }
+        return List.of(new VectorData(vec));
+    }
+
+    private List<VectorData> parseInferenceFieldValue(List<Object> values) {
         List<VectorData> embeddings = new ArrayList<>(values.size());
         for (Object value : values) {
-            // Inference fields always provide embeddings as float arrays
             if (value instanceof float[] floatArray) {
                 embeddings.add(new VectorData(floatArray));
             } else {
-                throw unsupportedEmbeddingValue(value);
+                throw new IllegalArgumentException("Field [" + diversificationField + "] value is not a well-formed list of dense vectors." +
+                    " Is it a [semantic] or [semantic_text] field?");
             }
         }
         return embeddings;
     }
 
-    private IllegalArgumentException unsupportedEmbeddingValue(Object value) {
-        if (value instanceof Map) {
-            return new IllegalArgumentException(
-                Strings.format(
-                    "Field [%s] contains sparse embeddings, which are not supported by [%s] result diversification. "
-                        + "Diversification requires a field with dense vector embeddings.",
-                    diversificationField,
-                    diversificationType.value
-                )
-            );
+    private void checkForSparseVectorMap(Map<?, ?> map) {
+        for (Object value : map.values()) {
+            if (value instanceof Number == false) {
+                // Non-number value, not a sparse vector
+                return;
+            }
         }
-        return new IllegalArgumentException(
-            Strings.format(
-                "Unable to get the embeddings of field [%s] as dense vectors. "
-                    + "Is it a [dense_vector] or [semantic_text] field with dense embeddings?",
-                diversificationField
-            )
-        );
+
+        throw new IllegalArgumentException("Field [" + diversificationField + "] contains sparse vectors, which are not supported by" +
+            " result diversification.");
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -175,13 +176,15 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
 
+        // Parsing precedes the snapshot-only validator, so the values it lists come from the running build, not from the context.
+        String[] parseErrorValues = Build.current().isSnapshot() ? allValues : nonSnapshotValues;
         for (SettingsValidationContext ctx : allSettingsValidationContexts) {
             assertInvalid(
                 setting.name(),
                 ctx,
                 of("UNKNOWN"),
                 "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                    + Arrays.toString(allValues)
+                    + Arrays.toString(parseErrorValues)
             );
         }
 
@@ -191,7 +194,7 @@ public class QuerySettingsTests extends ESTestCase {
             settingSource,
             of("UNKNOWN"),
             "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(allValues)
+                + Arrays.toString(parseErrorValues)
         );
     }
 

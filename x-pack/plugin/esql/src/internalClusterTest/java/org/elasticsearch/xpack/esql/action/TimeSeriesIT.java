@@ -741,7 +741,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();
-                assertThat(ops, hasSize(9));
+                assertThat(ops, hasSize(8));
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
@@ -769,8 +769,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                         equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
-                assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
-                assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
+                assertThat(ops.get(6).operator(), containsString("ProjectOperator"));
+                assertThat(ops.get(7).operator(), containsString("ExchangeSinkOperator"));
             }
         }
     }

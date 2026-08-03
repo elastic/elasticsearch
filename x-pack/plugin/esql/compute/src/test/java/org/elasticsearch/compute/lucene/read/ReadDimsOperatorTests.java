@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DimsPacker;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -90,6 +92,15 @@ public class ReadDimsOperatorTests extends ComputeTestCase {
 
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        final BytesRefVector packed;
+        try (var builder = blockFactory.newBytesRefBlockBuilder(6)) {
+            for (String v : dimValues) {
+                builder.appendBytesRef(new BytesRef(v));
+            }
+            try (var bytes = builder.build()) {
+                packed = DimsPacker.packSingleColumn(driverContext, bytes);
+            }
+        }
         DocBlock docBlock;
         try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(blockFactory, 6)) {
             for (int i = 0; i < 6; i++) {
@@ -114,25 +125,52 @@ public class ReadDimsOperatorTests extends ComputeTestCase {
             }
             plainTsidBlock = builder.build();
         }
-        docBlock.incRef(); // retain for second run
-        Page ordinalOut = runReadDims(readerFactory, driverContext, new Page(docBlock, ordinalTsidBlock));
-        Page plainOut = runReadDims(readerFactory, driverContext, new Page(docBlock, plainTsidBlock));
+        // no pack
+        {
+            Page ordinalOut = runReadDims(readerFactory, driverContext, new Page(docBlock, ordinalTsidBlock), false);
+            Page plainOut = runReadDims(readerFactory, driverContext, new Page(docBlock, plainTsidBlock), false);
 
-        assertThat(ordinalOut.getPositionCount(), equalTo(6));
-        assertThat(plainOut.getPositionCount(), equalTo(6));
+            assertThat(ordinalOut.getPositionCount(), equalTo(6));
+            assertThat(plainOut.getPositionCount(), equalTo(6));
 
-        BytesRef scratch = new BytesRef();
-        for (int p = 0; p < 6; p++) {
-            BytesRef ordVal = ((BytesRefBlock) ordinalOut.getBlock(2)).getBytesRef(p, scratch);
-            BytesRef plainVal = ((BytesRefBlock) plainOut.getBlock(2)).getBytesRef(p, scratch);
-            assertThat("dim at position " + p + " (ordinal path)", ordVal, equalTo(new BytesRef(dimValues[p])));
-            assertThat("dim at position " + p + " (paths match)", ordVal, equalTo(plainVal));
+            BytesRef scratch = new BytesRef();
+            for (int p = 0; p < 6; p++) {
+                BytesRef ordVal = ((BytesRefBlock) ordinalOut.getBlock(2)).getBytesRef(p, scratch);
+                BytesRef plainVal = ((BytesRefBlock) plainOut.getBlock(2)).getBytesRef(p, scratch);
+                assertThat("dim at position " + p + " (ordinal path)", ordVal, equalTo(new BytesRef(dimValues[p])));
+                assertThat("dim at position " + p + " (paths match)", ordVal, equalTo(plainVal));
+            }
+            ordinalOut.getBlock(2).close();
+            plainOut.getBlock(2).close();
         }
-        Releasables.close(ordinalOut, plainOut);
+        // pack
+        {
+            Page ordinalOut = runReadDims(readerFactory, driverContext, new Page(docBlock, ordinalTsidBlock), true);
+            Page plainOut = runReadDims(readerFactory, driverContext, new Page(docBlock, plainTsidBlock), true);
+
+            assertThat(ordinalOut.getPositionCount(), equalTo(6));
+            assertThat(plainOut.getPositionCount(), equalTo(6));
+            BytesRef scratch = new BytesRef();
+            for (int p = 0; p < 6; p++) {
+                BytesRef ordVal = ((BytesRefBlock) ordinalOut.getBlock(2)).getBytesRef(p, scratch);
+                BytesRef plainVal = ((BytesRefBlock) plainOut.getBlock(2)).getBytesRef(p, scratch);
+                assertThat("dim at position " + p + " (ordinal path)", ordVal, equalTo(packed.getBytesRef(p, scratch)));
+                assertThat("dim at position " + p + " (paths match)", ordVal, equalTo(plainVal));
+            }
+            ordinalOut.getBlock(2).close();
+            plainOut.getBlock(2).close();
+        }
+
+        Releasables.close(docBlock, ordinalTsidBlock, plainTsidBlock, packed);
     }
 
-    private static Page runReadDims(ValuesSourceReaderOperator.Factory readerFactory, DriverContext driverContext, Page input) {
-        try (Operator operator = new ReadDimsOperator.Factory(readerFactory, 0, 1).get(driverContext)) {
+    private static Page runReadDims(
+        ValuesSourceReaderOperator.Factory readerFactory,
+        DriverContext driverContext,
+        Page input,
+        boolean packed
+    ) {
+        try (Operator operator = new ReadDimsOperator.Factory(readerFactory, 0, 1, packed).get(driverContext)) {
             operator.addInput(input);
             Page out = operator.getOutput();
             assertNotNull(out);

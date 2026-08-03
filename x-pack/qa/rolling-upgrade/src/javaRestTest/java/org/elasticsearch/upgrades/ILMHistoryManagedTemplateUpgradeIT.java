@@ -4,7 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.upgrades;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,11 +20,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class ILMHistoryManagedTemplateUpgradeIT extends AbstractUpgradeTestCase {
+public class ILMHistoryManagedTemplateUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public ILMHistoryManagedTemplateUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @SuppressWarnings("unchecked")
     public void testEnsureHistoryManagedTemplateIsInstalledOnUpgradedVersion() throws Exception {
-        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+        if (isUpgradedCluster()) {
             assertBusy(() -> {
                 Request request = new Request("GET", "/_index_template/ilm-history-7");
                 try {

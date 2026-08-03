@@ -302,8 +302,11 @@ part is free, and the unmeasured part above it is a volatile read and an integer
 
 Those figures are single-threaded. A single per-table monitor does not scale, and it is worth being
 blunt about that rather than reporting the flattering shape. Measured on the **default**
-configuration — `builtin: ["ingest.*"]` with no dimensions, which is four success-triggered metrics of
-one series each, so every write thread would serialise on four monitors:
+configuration — `builtin: ["ingest.*"]` with no dimensions, so every write thread would serialise on one
+monitor per metric. These were measured when `ingest.*` expanded to six metrics, four of them
+success-triggered; it now expands to three, two of them success-triggered, since the `*.rate` builtins
+were removed. Both columns therefore describe the same six-metric configuration and remain comparable
+with each other, but neither is today's default cost. Current figures follow the table.
 
 All figures below are one machine, one set of settings, so the before and after columns are comparable.
 
@@ -317,6 +320,19 @@ All figures below are one machine, one set of settings, so the before and after 
 Before, throughput peaked at four threads and then **fell below the single-thread figure**. That is
 contention collapse, not sublinear scaling. After, it rises with every thread added and eight threads
 cost 48% less per observation.
+
+Measured again on today's default, which is half the metrics because a rate is now a query over a
+counter rather than a second metric:
+
+| threads | ns/op | docs/sec |
+|---|---|---|
+| 1 | 196 ± 20 | 5,100,000 |
+| 4 | 495 ± 232 | 8,100,000 |
+| 8 | 992 ± 93 | 8,100,000 |
+
+The four-thread interval spans most of the gap to its neighbours, so the shape is the finding rather
+than the middle number. The shape is unchanged from the striping work: throughput rises with threads
+and then flattens once the shared table rather than the work is the constraint.
 
 The cause is precise, and the contrast with a configuration that reads `_source` shows it — measured
 before striping:

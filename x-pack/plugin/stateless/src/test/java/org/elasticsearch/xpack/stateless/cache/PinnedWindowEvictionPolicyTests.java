@@ -160,7 +160,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            shardIdPredicate -> shardIdPredicate.equals(shardId)
+            candidate -> candidate.equals(shardId)
         );
         final var region = region(shardId, timestampMillis);
 
@@ -258,7 +258,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
-        return policy.createPredicate(region).test(region);
+        final boolean canEvict = policy.createPredicate(region).test(region);
+        assertThat(
+            "createPredicate must be the negation of isProtected for the same region/cutoff",
+            canEvict,
+            equalTo(policy.isProtected(region) == false)
+        );
+        return canEvict;
     }
 
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {
@@ -318,6 +324,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
+        settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingsSet);
     }
 
@@ -341,6 +348,9 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
                 StatelessCacheEvictionPolicyType.PINNED_WINDOW
             )
             .put(PINNED_WINDOW_DURATION_SETTING.getKey(), PINNED_WINDOW_DURATION)
+            // Disable eviction degradation: this test checks pure pinned-window policy behaviour and should not be subject
+            // to the degradation mechanism evicting unknown-timestamp (pinned) regions when the policy rejects too many.
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING.getKey(), TimeValue.ZERO)
             .put("path.home", createTempDir())
             .build();
     }

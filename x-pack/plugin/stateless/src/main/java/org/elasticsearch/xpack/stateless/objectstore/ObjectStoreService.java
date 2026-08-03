@@ -277,6 +277,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.Dynamic
     );
 
+    /**
+     * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
+     */
+    public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.object_store.slow_translog_upload_log_threshold",
+        TimeValue.timeValueMillis(20_000),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
@@ -301,6 +311,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final boolean concurrentMultipartUploads;
     private final boolean cacheSearchRecoveryBcc;
+
+    private final long slowTranslogUploadLogThresholdMillis;
 
     public ObjectStoreService(
         Settings settings,
@@ -332,6 +344,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
+        this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
     }
 
     @Override
@@ -1446,15 +1459,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
-            var after = threadPool.relativeTimeInMillis();
-            logger.debug(
-                () -> format(
-                    "translog file %s of size [%s] bytes uploaded in [%s] ms",
-                    blobContainer.path().add(fileName),
-                    reference.length(),
-                    TimeValue.timeValueNanos(after - before).millis()
-                )
+            var uploadDuration = threadPool.relativeTimeInMillis() - before;
+
+            final Supplier<String> logMessage = () -> format(
+                "translog file %s of size [%d] bytes uploaded in [%d] ms",
+                blobContainer.path().add(fileName),
+                reference.length(),
+                uploadDuration
             );
+
+            if (uploadDuration >= slowTranslogUploadLogThresholdMillis) {
+                logger.warn(logMessage);
+            } else {
+                logger.debug(logMessage);
+            }
+
             listener.onResponse(null);
         }
 

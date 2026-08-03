@@ -66,7 +66,7 @@ public final class MetadataAttribute extends TypedAttribute {
         }
         if (EsqlCapabilities.Cap.METADATA_SLICE.isEnabled()) {
             // _slice is the virtual routing alias used by slice-enabled indices. Backed by _routing sorted doc values.
-            entries.add(Map.entry(SliceIndexing.PARAM_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
+            entries.add(Map.entry(SliceIndexing.FIELD_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
         }
         return Map.ofEntries(entries.toArray(Map.Entry[]::new));
     }

@@ -12,6 +12,10 @@ apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Each suite is parameterized over the upgrade phases and an earlier phase sets up the inference endpoints a later phase
+// asserts on, so a phase that passed must still run when a later phase is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('inference'))

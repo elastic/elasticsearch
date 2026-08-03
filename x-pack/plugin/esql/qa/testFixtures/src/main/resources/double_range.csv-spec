@@ -1,5 +1,5 @@
 doubleRangeBlockLoader
-required_capability: double_range_field_type_development_v2
+required_capability: double_range_field_type_development_v5
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -8,9 +8,172 @@ FROM heights
 ;
 
 height_range:double_range | description:keyword
-1.6..1.8                 | Medium Height
-1.5..1.6                 | Short
-1.8..2.0                 | Tall
-0.0..1.5                 | Very Short
-2.0..5.0                 | Very Tall
+1.6..1.8                  | Medium Height
+1.5..1.6                  | Short
+1.8..2.0                  | Tall
+0.0..1.5                  | Very Short
+2.0..5.0                  | Very Tall
+;
+
+toRange
+required_capability: double_range_field_type_development_v5
+
+ROW from = 1.5, to = 2.5
+| EVAL height_range = TO_RANGE(from, to)
+| KEEP height_range
+;
+
+height_range:double_range
+1.5..2.5
+;
+
+toRangeNullLeft
+required_capability: double_range_field_type_development_v5
+
+ROW to = 1.5
+| EVAL height_range = TO_RANGE(null, to)
+| KEEP height_range
+;
+
+height_range:double_range
+null
+;
+
+toRangeNullRight
+required_capability: double_range_field_type_development_v5
+
+ROW from = 1.5
+| EVAL height_range = TO_RANGE(from, null)
+| KEEP height_range
+;
+
+height_range:double_range
+null
+;
+
+toRangeInvalidBounds
+required_capability: double_range_field_type_development_v5
+
+ROW from = 2.5, to = 1.5
+| EVAL height_range = TO_RANGE(from, to)
+| KEEP height_range
+;
+warningRegex:evaluation of \[TO_RANGE\(from, to\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: 'from' \[2.5\] must be less than 'to' \[1.5\]
+
+height_range:double_range
+null
+;
+
+toString
+required_capability: double_range_field_type_development_v5
+
+FROM heights
+| WHERE height_range IS NOT NULL
+| EVAL height_range_string = TO_STRING(height_range)
+| KEEP height_range_string, description
+| SORT description
+;
+
+height_range_string:keyword | description:keyword
+1.6..1.8                    | Medium Height
+1.5..1.6                    | Short
+1.8..2.0                    | Tall
+0.0..1.5                    | Very Short
+2.0..5.0                    | Very Tall
+;
+
+rangeMinMax
+required_capability: double_range_field_type_development_v5
+
+FROM heights
+| WHERE height_range IS NOT NULL
+| EVAL min_bound = RANGE_MIN(height_range), max_bound = RANGE_MAX(height_range)
+| KEEP height_range, min_bound, max_bound, description
+| SORT description
+;
+
+height_range:double_range | min_bound:double | max_bound:double | description:keyword
+1.6..1.8                  | 1.6              | 1.8              | Medium Height
+1.5..1.6                  | 1.5              | 1.6              | Short
+1.8..2.0                  | 1.8              | 2.0              | Tall
+0.0..1.5                  | 0.0              | 1.5              | Very Short
+2.0..5.0                  | 2.0              | 5.0              | Very Tall
+;
+
+rangeMinMaxRoundTrip
+required_capability: double_range_field_type_development_v5
+
+FROM heights
+| WHERE description == "Short"
+| EVAL new_range = TO_RANGE(RANGE_MIN(height_range), RANGE_MAX(height_range))
+| KEEP height_range, new_range
+;
+
+height_range:double_range | new_range:double_range
+1.5..1.6                  | 1.5..1.6
+;
+
+doubleRangeEquality
+required_capability: double_range_field_type_development_v5
+required_capability: equality_double_range
+
+FROM heights
+| WHERE height_range == TO_RANGE(1.5, 1.6)
+| KEEP description
+;
+
+description:keyword
+Short
+;
+
+doubleRangeNotEquals
+required_capability: double_range_field_type_development_v5
+required_capability: equality_double_range
+
+FROM heights
+| WHERE height_range != TO_RANGE(1.5, 1.6)
+| KEEP description
+| SORT description
+;
+
+description:keyword
+Medium Height
+Tall
+Very Short
+Very Tall
+;
+
+doubleRangeSelfEquality
+required_capability: double_range_field_type_development_v5
+required_capability: equality_double_range
+
+FROM heights
+| EVAL equal = height_range == height_range
+| WHERE equal
+| KEEP description
+| SORT description
+;
+
+description:keyword
+Medium Height
+Short
+Tall
+Very Short
+Very Tall
+;
+
+doubleRangeIn
+required_capability: double_range_field_type_development_v5
+required_capability: equality_double_range
+
+FROM heights
+| WHERE height_range IN (TO_RANGE(1.5, 1.6), TO_RANGE(1.8, 2.0))
+| KEEP description
+| SORT description
+;
+
+description:keyword
+Short
+Tall
 ;

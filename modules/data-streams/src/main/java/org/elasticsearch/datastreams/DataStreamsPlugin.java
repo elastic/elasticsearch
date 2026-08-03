@@ -59,6 +59,7 @@ import org.elasticsearch.datastreams.derivedmetrics.action.GetDerivedMetricsStat
 import org.elasticsearch.datastreams.derivedmetrics.action.TransportGetDerivedMetricsStatsAction;
 import org.elasticsearch.datastreams.derivedmetrics.rest.RestDerivedMetricsStatsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
@@ -101,6 +102,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -180,6 +182,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<CircuitBreaker> derivedMetricsBreaker = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
+    private FrozenTransitionInfoProvider frozenTransitionInfoProvider = FrozenTransitionInfoProvider.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
@@ -187,15 +190,26 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        downsamplingOperations = loadSingleExtension(loader, DownsamplingOperations.class, downsamplingOperations);
+        frozenTransitionInfoProvider = loadSingleExtension(loader, FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider);
+    }
+
+    /**
+     * Loads at most one implementation of the given extension point, falling back to {@code fallback} if none is
+     * registered. Throws if more than one implementation is found, since these extension points are meant to be
+     * implemented by a single optional plugin.
+     */
+    private static <T> T loadSingleExtension(ExtensionLoader loader, Class<T> type, T fallback) {
+        List<T> extensions = loader.loadExtensions(type);
         if (extensions.size() > 1) {
             throw new IllegalStateException(
-                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+                "Expected at most one "
+                    + type.getSimpleName()
+                    + " implementation, found: "
+                    + extensions.stream().map(Object::getClass).toList()
             );
         }
-        if (extensions.isEmpty() == false) {
-            downsamplingOperations = extensions.get(0);
-        }
+        return extensions.isEmpty() ? fallback : extensions.get(0);
     }
 
     protected Clock getClock() {
@@ -318,6 +332,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         components.add(derivedMetricsService.get());
         components.add(derivedMetricsTemplateRegistry.get());
         components.add(derivedMetricsDestinationLifecycle.get());
+        components.add(new PluginComponentBinding<>(FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider));
         return components;
     }
 

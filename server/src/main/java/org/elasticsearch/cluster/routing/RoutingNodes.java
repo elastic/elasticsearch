@@ -777,7 +777,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @see #failRelocation(ShardRouting)
      */
     private ShardRouting cancelRelocation(ShardRouting shard) {
-        return abortRelocation(shard, false);
+        relocatingShards--;
+        if (isDedicatedFrozenNode(shard.currentNodeId())) {
+            relocatingFrozenShards--;
+        }
+        ShardRouting cancelledShard = shard.cancelRelocation();
+        updateAssigned(shard, cancelledShard);
+        return cancelledShard;
     }
 
     /**
@@ -788,17 +794,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @see #cancelRelocation(ShardRouting)
      */
     private ShardRouting failRelocation(ShardRouting shard) {
-        return abortRelocation(shard, true);
-    }
-
-    private ShardRouting abortRelocation(ShardRouting shard, boolean relocationFailed) {
         relocatingShards--;
         if (isDedicatedFrozenNode(shard.currentNodeId())) {
             relocatingFrozenShards--;
         }
-        ShardRouting abortedShard = relocationFailed ? shard.failRelocation() : shard.cancelRelocation();
-        updateAssigned(shard, abortedShard);
-        return abortedShard;
+        ShardRouting failedShard = shard.failRelocation();
+        updateAssigned(shard, failedShard);
+        return failedShard;
     }
 
     /**

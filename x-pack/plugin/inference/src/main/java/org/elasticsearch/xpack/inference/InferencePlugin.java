@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -218,6 +221,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -295,6 +299,8 @@ public class InferencePlugin extends Plugin
      */
     @SuppressWarnings("unused")
     public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("inference_mixedbread_added");
+
+    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
@@ -389,7 +395,16 @@ public class InferencePlugin extends Plugin
         var throttlerManager = new ThrottlerManager(settings, services.threadPool());
         throttlerManager.init(services.clusterService());
 
-        var circuitBreaker = inferenceCircuitBreaker.get();
+        var circuitBreaker = Objects.requireNonNullElseGet(inferenceCircuitBreaker.get(), () -> {
+            assert false
+                : "the inference circuit breaker was not registered, is InferencePlugin wrapped by a plugin that does not "
+                    + "implement CircuitBreakerPlugin?";
+            logger.warn(
+                "No inference circuit breaker was registered, falling back to a noop breaker: "
+                    + "memory used by in-flight inference requests will not be limited"
+            );
+            return new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME);
+        });
 
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, circuitBreaker));

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -50,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.noopReleasable;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
@@ -70,6 +72,7 @@ import static org.mockito.Mockito.when;
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String INFERENCE_ID = "id";
+    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME);
     private static final InferenceInputs EMBEDDING_INPUT = new EmbeddingsInput(List.of(), InputType.UNSPECIFIED);
 
     private ThreadPool threadPool;
@@ -201,7 +204,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             null,
             createRequestExecutorServiceSettings(1, null),
             mock(RetryingHttpSender.class),
-            null
+            NOOP_BREAKER
         );
 
         // Enqueue before start() so the poller cannot drain the queue between submits (avoids rate-limit delay + timeout).
@@ -428,7 +431,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
             throw new ElasticsearchException("failed");
         }).when(requestManager).execute(any(), any(), any(), any());
 
-        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettingsEmpty(), requestSender, null);
+        var service = new RequestExecutorService(
+            threadPool,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            requestSender,
+            NOOP_BREAKER
+        );
 
         service.start();
 
@@ -453,7 +462,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1, null);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, NOOP_BREAKER);
 
         service.execute(
             RequestManagerTests.createMockWithRateLimitingEnabled(requestSender),
@@ -498,7 +507,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(3, null);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, NOOP_BREAKER);
 
         service.submitTaskToRateLimitedExecutionPath(
             new RequestTask(
@@ -577,7 +586,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(1, null);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, NOOP_BREAKER);
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, new PlainActionFuture<>());
@@ -638,7 +647,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             Clock.systemUTC(),
             rateLimiterCreator,
-            null
+            NOOP_BREAKER
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
@@ -670,7 +679,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             Clock.systemUTC(),
             rateLimiterCreator,
-            null
+            NOOP_BREAKER
         );
         var requestManager = RequestManagerTests.createMock(requestSender, "id", RateLimitSettings.DISABLED_INSTANCE);
 
@@ -712,7 +721,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             Clock.systemUTC(),
             rateLimiterCreator,
-            null
+            NOOP_BREAKER
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
@@ -750,7 +759,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             clock,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
-            null
+            NOOP_BREAKER
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id1");
 
@@ -830,7 +839,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             Clock.systemUTC(),
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
-            null
+            NOOP_BREAKER
         );
 
         service.shutdown();

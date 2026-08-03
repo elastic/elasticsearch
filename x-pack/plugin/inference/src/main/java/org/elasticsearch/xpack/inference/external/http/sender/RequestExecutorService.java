@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -47,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
@@ -170,7 +168,7 @@ public class RequestExecutorService implements RequestExecutor {
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
         RequestSender requestSender,
-        @Nullable CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker
     ) {
         this(
             threadPool,
@@ -192,7 +190,7 @@ public class RequestExecutorService implements RequestExecutor {
         RequestSender requestSender,
         Clock clock,
         RateLimiterCreator rateLimiterCreator,
-        @Nullable CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.queueCreator = Objects.requireNonNull(queueCreator);
@@ -202,7 +200,7 @@ public class RequestExecutorService implements RequestExecutor {
         this.clock = Objects.requireNonNull(clock);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
         this.requestQueue = new AdjustableCapacityBlockingQueue<>(queueCreator, settings.getQueueCapacity());
-        this.circuitBreaker = Objects.requireNonNullElse(circuitBreaker, new NoopCircuitBreaker(INFERENCE_CIRCUIT_BREAKER_NAME));
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
     }
 
     @Override

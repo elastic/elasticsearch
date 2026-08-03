@@ -249,7 +249,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         indexDocuments(masterAndIndexNodeName, 10, pinnedIdx, 1_000, pinnedDataStartMillis, pinnedDataEndMillis);
 
         final StatelessSharedBlobCacheService cacheService = getCacheService(searchNode);
-        logger.debug(
+        logger.info(
             "cache regions after ingesting docs: pinned={}, unpinned={}",
             cacheRegionsForIndex(cacheService, pinnedIdx),
             cacheRegionsForIndex(cacheService, unpinnedIdx)
@@ -265,7 +265,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             cacheService,
             isPinnedIdx
         );
-        logger.debug(
+        logger.info(
             "cache regions after searching pinned data: pinned (positive-timestamp)={}, unpinned={}",
             pinnedRegionsAfterPinnedSearch,
             cacheRegionsForIndex(cacheService, unpinnedIdx)
@@ -283,7 +283,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // The unpinned index takes non-zero number of regions that are unprotected
         final long regionsForUnpinnedIdx = cacheRegionsForIndex(cacheService, unpinnedIdx);
         assertThat(regionsForUnpinnedIdx, greaterThan(0L));
-        logger.debug(
+        logger.info(
             "cache regions after searching unpinned data: pinned (positive-timestamp)={}, unpinned={}",
             pinnedRegionsAfterUnpinnedSearch,
             regionsForUnpinnedIdx

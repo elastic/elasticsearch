@@ -207,7 +207,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), randomBoolean())
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),

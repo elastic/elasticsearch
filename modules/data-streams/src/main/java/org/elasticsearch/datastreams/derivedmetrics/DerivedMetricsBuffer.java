@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -91,6 +92,23 @@ public class DerivedMetricsBuffer implements Releasable {
     /** Identifies a source data stream within its project, which is what the per-stream budget is keyed on. */
     public record StreamKey(ProjectId project, String sourceDataStream) {}
 
+    /**
+     * What one dimension of one metric has been seen to hold. This is the answer to the question the series caps could never answer:
+     * series were refused, but by <em>which</em> dimension.
+     *
+     * @param estimatedValues approximate distinct values, within a few per cent — see {@link DerivedMetricsDimensionCardinality}
+     * @param collapsed       whether the metric has stopped breaking down by this dimension because it outgrew its budget, in which case
+     *                        the estimate rests at roughly that budget rather than continuing to climb
+     */
+    public record DimensionCardinality(
+        ProjectId project,
+        String sourceDataStream,
+        String metric,
+        String dimension,
+        long estimatedValues,
+        boolean collapsed
+    ) {}
+
     private static StreamKey streamKey(TableKey key) {
         return new StreamKey(key.project(), key.sourceDataStream());
     }
@@ -143,6 +161,12 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     private final ConcurrentHashMap<MetricKey, Cardinality> cardinality = new ConcurrentHashMap<>();
     /**
+     * What each metric's dimensions have been seen to hold, which is what says <em>which</em> dimension is spending the series budget and
+     * what decides when a metric gives one up. Keyed the same way as {@link #cardinality} and swept alongside it, because a dimension's
+     * value count is a property of the metric rather than of any one bucket.
+     */
+    private final ConcurrentHashMap<MetricKey, DerivedMetricsDimensionCardinality> dimensionCardinality = new ConcurrentHashMap<>();
+    /**
      * Series held per source data stream, scoped to the project the stream belongs to. Two projects may each have a data stream of the
      * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
      */
@@ -152,6 +176,8 @@ public class DerivedMetricsBuffer implements Releasable {
     private final LongAdder droppedSeriesAtBreaker = new LongAdder();
     private final LongAdder partialsExhausted = new LongAdder();
     private final LongAdder tablesRetired = new LongAdder();
+    /** Dimensions a metric has given up breaking down by, counted once each so that degrading is visible rather than silent. */
+    private final LongAdder dimensionsCollapsed = new LongAdder();
     /**
      * Tables removed mid-bucket because they could no longer accept observations. They still hold real series, so they are handed to the
      * next flush rather than dropped.
@@ -162,8 +188,10 @@ public class DerivedMetricsBuffer implements Releasable {
     private final int maxSeriesPerStream;
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
+    private final CircuitBreaker breaker;
     private final int partialSeed;
     private final int stripes;
+    private final int maxDimensionCardinality;
 
     public DerivedMetricsBuffer(BigArrays bigArrays, int maxSeries) {
         this(bigArrays, maxSeries, maxSeries, DEFAULT_HISTOGRAM_BUCKETS, 0);
@@ -194,11 +222,29 @@ public class DerivedMetricsBuffer implements Releasable {
         int partialSeed,
         int stripes
     ) {
+        this(bigArrays, maxSeries, maxSeriesPerStream, histogramBuckets, partialSeed, stripes, DEFAULT_MAX_DIMENSION_CARDINALITY);
+    }
+
+    /**
+     * @param maxDimensionCardinality how many distinct values one dimension of one metric may take before the metric stops breaking down
+     *                                by it, or zero to only count and never collapse
+     */
+    public DerivedMetricsBuffer(
+        BigArrays bigArrays,
+        int maxSeries,
+        int maxSeriesPerStream,
+        int histogramBuckets,
+        int partialSeed,
+        int stripes,
+        int maxDimensionCardinality
+    ) {
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker(bigArrays);
+        this.breaker = breaker(bigArrays);
+        this.maxDimensionCardinality = maxDimensionCardinality;
         this.partialSeed = partialSeed;
         // rounded up so that choosing a stripe is a mask rather than a division; the stripes past the thread count are never allocated,
         // since a stripe is only created by the thread that lands on it
@@ -237,6 +283,31 @@ public class DerivedMetricsBuffer implements Releasable {
      * Adapts the same breaker the rest of the buffer allocates against to the one-method interface the histogram library expects, so a
      * distribution is accounted exactly like the scalar columns beside it.
      */
+    /**
+     * How many distinct values one dimension of one metric may take before that metric gives up breaking down by it.
+     *
+     * <p>A thousand, which is a tenth of the default node budget of ten thousand series — so a single dimension of a single metric can
+     * spend at most a tenth of the node on its own, and nine other metrics can still be broken down beside it. It is also comfortably
+     * above what a dimension worth having ever reaches: HTTP status, method, index name, tier, node, service in all but the largest
+     * deployments. The dimensions that pass it are the ones that were never going to be aggregatable anyway — user ids, pod names,
+     * request ids — and those are exactly the ones worth losing the breakdown of.
+     */
+    public static final int DEFAULT_MAX_DIMENSION_CARDINALITY = 1_000;
+
+    /**
+     * How many metrics a node keeps dimension sketches for. Every entry is roughly 256 bytes per dimension, so this is a quarter of a
+     * megabyte at sixteen dimensions each — bounded so that a node with thousands of streams cannot spend its metrics budget on
+     * diagnostics about metrics rather than on the metrics. Past it, further metrics are simply not tracked and not collapsed.
+     */
+    static final int MAX_TRACKED_METRICS = 1_024;
+
+    /** The breaker everything here allocates against, or a no-op one when the buffer was built without a breaker service. */
+    private static CircuitBreaker breaker(BigArrays bigArrays) {
+        return bigArrays.breakerService() == null
+            ? new NoopCircuitBreaker(DerivedMetricsService.BREAKER_NAME)
+            : bigArrays.breakerService().getBreaker(DerivedMetricsService.BREAKER_NAME);
+    }
+
     private static ExponentialHistogramCircuitBreaker histogramBreaker(BigArrays bigArrays) {
         if (bigArrays.breakerService() == null) {
             return ExponentialHistogramCircuitBreaker.noop();
@@ -258,7 +329,6 @@ public class DerivedMetricsBuffer implements Releasable {
      * @param values one entry per dimension the metric configures, null where the document did not have it
      */
     public Outcome record(TableKey key, String[] values, Scratch scratch, double value) {
-        BytesRef encoded = DerivedMetricsDimensionCodec.encode(values, key.metric().dimensions().size(), scratch);
         AtomicInteger held = heldFor(key);
         while (true) {
             DerivedMetricsStripedTable bucket = tables.get(key);
@@ -268,6 +338,15 @@ public class DerivedMetricsBuffer implements Releasable {
                     return Outcome.REFUSED_BREAKER;
                 }
             }
+            // Read from the bucket we have already looked up rather than from a map of its own, so that the collapse decision costs one
+            // field read and one volatile read per observation rather than another concurrent hash probe.
+            DerivedMetricsDimensionCardinality dimensions = bucket.dimensionCardinality();
+            BytesRef encoded = DerivedMetricsDimensionCodec.encode(
+                values,
+                key.metric().dimensions().size(),
+                dimensions.collapsedMask(),
+                scratch
+            );
             // On a striped bucket this is the thread's own table and the monitor below is uncontended; on a shared one it is the single
             // table every thread convoys on, which is the pre-striping behaviour and what a high-cardinality metric keeps.
             DerivedMetricsSeriesTable table = bucket.stripeForCurrentThread();
@@ -275,6 +354,7 @@ public class DerivedMetricsBuffer implements Releasable {
                 // the bucket was drained before this thread could take a stripe in it, so its replacement is the one to record into
                 continue;
             }
+            boolean created = false;
             synchronized (table) {
                 if (table.sealed()) {
                     // drained while we were waiting for the lock, so it will never be emitted again; start over on the fresh bucket
@@ -303,6 +383,7 @@ public class DerivedMetricsBuffer implements Releasable {
                         // budget bound the memory rather than the distinct series count, and what makes striping have to be bounded.
                         totalSeries.incrementAndGet();
                         held.incrementAndGet();
+                        created = true;
                     }
                 } catch (CircuitBreakingException e) {
                     droppedSeriesAtBreaker.increment();
@@ -315,6 +396,13 @@ public class DerivedMetricsBuffer implements Releasable {
                     }
                     return Outcome.REFUSED_BREAKER;
                 }
+            }
+            if (created) {
+                // Outside the table's monitor, because this takes a monitor of its own and holding both would order two locks that
+                // nothing else orders. It only runs when a series was interned, which is what makes the cost of counting irrelevant:
+                // a value that has never been seen before always produces a tuple that has never been seen before, so nothing is missed
+                // by skipping every observation that only touched an existing series.
+                dimensionsCollapsed.add(dimensions.observe(values));
             }
             return Outcome.RECORDED;
         }
@@ -391,6 +479,9 @@ public class DerivedMetricsBuffer implements Releasable {
      * Creates the bucket, or returns null when the breaker refuses it.
      */
     private DerivedMetricsStripedTable openTable(TableKey key) {
+        // Resolved once per bucket rather than per observation, which is the whole reason it is handed to the bucket rather than looked
+        // up on the write path.
+        DerivedMetricsDimensionCardinality dimensions = dimensionCardinalityFor(key);
         try {
             return tables.computeIfAbsent(
                 key,
@@ -399,13 +490,37 @@ public class DerivedMetricsBuffer implements Releasable {
                     key.metric().reduction(),
                     histogramBuckets,
                     histogramBreaker,
-                    stripesFor(key)
+                    stripesFor(key),
+                    dimensions
                 )
             );
         } catch (CircuitBreakingException e) {
             droppedSeriesAtBreaker.increment();
             return null;
         }
+    }
+
+    /**
+     * The dimension sketches for a metric, creating them if this is the first bucket it has opened. Shared by every bucket of the metric,
+     * because how many values a dimension takes is a property of the metric rather than of one interval.
+     */
+    private DerivedMetricsDimensionCardinality dimensionCardinalityFor(TableKey key) {
+        if (key.metric().dimensions().isEmpty()) {
+            return DerivedMetricsDimensionCardinality.DISABLED;
+        }
+        MetricKey metricKey = metricKey(key);
+        DerivedMetricsDimensionCardinality known = dimensionCardinality.get(metricKey);
+        if (known == null) {
+            if (dimensionCardinality.size() >= MAX_TRACKED_METRICS) {
+                return DerivedMetricsDimensionCardinality.DISABLED;
+            }
+            known = dimensionCardinality.computeIfAbsent(
+                metricKey,
+                unused -> DerivedMetricsDimensionCardinality.create(bigArrays, breaker, key.metric().dimensions(), maxDimensionCardinality)
+            );
+        }
+        known.markLive(key.bucketStartMillis());
+        return known;
     }
 
     /**
@@ -445,6 +560,18 @@ public class DerivedMetricsBuffer implements Releasable {
     private void forget(long nowMillis) {
         cardinality.entrySet()
             .removeIf(entry -> entry.getValue().bucketStartMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() < nowMillis);
+        // The dimension sketches hold real memory, so forgetting them has to release it. A live bucket's start is at most one interval
+        // plus the grace period behind now, which is far inside the ten-interval window below, so nothing still referenced by a bucket
+        // can be swept here; and a stream that resumes writing at the exact moment its sketches go is covered by close() taking the same
+        // monitor observe() does.
+        dimensionCardinality.entrySet().removeIf(entry -> {
+            DerivedMetricsDimensionCardinality tracked = entry.getValue();
+            if (tracked.lastBucketStartMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() >= nowMillis) {
+                return false;
+            }
+            tracked.close();
+            return true;
+        });
     }
 
     /** How many intervals a metric's cardinality is remembered for after it stops producing buckets. */
@@ -592,6 +719,38 @@ public class DerivedMetricsBuffer implements Releasable {
         return droppedSeriesAtBreaker.sum();
     }
 
+    /**
+     * What every tracked metric's dimensions have been seen to hold, which is the answer to "which dimension is spending the budget".
+     *
+     * <p>Built on demand rather than kept, because reading a sketch's estimate means summing its registers and nothing does it on the
+     * write path. Safe to call from anywhere.
+     */
+    public List<DimensionCardinality> dimensionCardinalities() {
+        List<DimensionCardinality> cardinalities = new ArrayList<>();
+        for (Map.Entry<MetricKey, DerivedMetricsDimensionCardinality> entry : dimensionCardinality.entrySet()) {
+            MetricKey key = entry.getKey();
+            DerivedMetricsDimensionCardinality tracked = entry.getValue();
+            for (int dimension = 0; dimension < tracked.tracked(); dimension++) {
+                cardinalities.add(
+                    new DimensionCardinality(
+                        key.project(),
+                        key.sourceDataStream(),
+                        key.metric(),
+                        tracked.dimension(dimension),
+                        tracked.estimatedValues(dimension),
+                        tracked.collapsed(dimension)
+                    )
+                );
+            }
+        }
+        return cardinalities;
+    }
+
+    /** Dimensions a metric has stopped breaking down by because they outgrew their budget, counted once each. */
+    public long dimensionsCollapsed() {
+        return dimensionsCollapsed.sum();
+    }
+
     /** Tables removed mid-bucket because their dimension hash could no longer be probed. */
     public long tablesRetired() {
         return tablesRetired.sum();
@@ -643,5 +802,8 @@ public class DerivedMetricsBuffer implements Releasable {
     @Override
     public void close() {
         drainAll().forEach(drained -> drained.table().close());
+        // The sketches are the one thing here that outlives every bucket, so nothing else would ever give their bytes back
+        dimensionCardinality.values().forEach(DerivedMetricsDimensionCardinality::close);
+        dimensionCardinality.clear();
     }
 }

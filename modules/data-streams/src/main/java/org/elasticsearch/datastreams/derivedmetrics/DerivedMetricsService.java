@@ -117,6 +117,25 @@ public class DerivedMetricsService implements Closeable {
     );
 
     /**
+     * How many distinct values one dimension of one metric may take before the metric stops breaking down by it.
+     *
+     * <p>The series caps are a cliff: once the node budget is spent, whichever observation arrives next is refused, and a metric with one
+     * runaway dimension takes the whole node down with it. This is the ramp instead. When a dimension passes this, that metric replaces
+     * the dimension's value with {@link DerivedMetricsDimensionCodec#COLLAPSED_VALUE} from then on, so the metric stays bounded and stays
+     * aggregable and the only thing lost is the breakdown by the dimension that was never going to be aggregatable anyway. It is the same
+     * bargain {@code index.mapping.total_fields.ignore_dynamic_beyond_limit} makes for mapping explosions: drop the offending part, keep
+     * the document.
+     *
+     * <p>Set to zero to keep the counting — which is what says which dimension is at fault — without the degradation.
+     */
+    public static final Setting<Integer> MAX_DIMENSION_CARDINALITY = Setting.intSetting(
+        "data_streams.derived_metrics.max_dimension_cardinality",
+        DerivedMetricsBuffer.DEFAULT_MAX_DIMENSION_CARDINALITY,
+        0,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The bucket capacity of each histogram series. This is the knob that trades a histogram series' precision against its size, and a
      * histogram series is by far the most expensive kind: hundreds of buckets against the handful of primitives a scalar series needs.
      */
@@ -271,7 +290,8 @@ public class DerivedMetricsService implements Closeable {
             // does not stamp a second partial at the same timestamp and have it silently rejected as a duplicate _id.
             Math.floorMod(threadPool.absoluteTimeInMillis(), PARTIAL_SEED_RANGE),
             // A low-cardinality bucket is striped once per thread that can be inside an observation, which is the size of the write pool.
-            EsExecutors.allocatedProcessors(settings)
+            EsExecutors.allocatedProcessors(settings),
+            MAX_DIMENSION_CARDINALITY.get(settings)
         );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
@@ -324,6 +344,12 @@ public class DerivedMetricsService implements Closeable {
             "series refused because the circuit breaker would not give them the memory they needed",
             "count",
             buffer::droppedSeriesAtBreaker
+        );
+        register(
+            "es.derived_metrics.dimensions.collapsed.total",
+            "dimensions a metric stopped breaking down by because they took more distinct values than their budget allows",
+            "count",
+            buffer::dimensionsCollapsed
         );
         register(
             "es.derived_metrics.observations.skipped.missing_value.total",
@@ -840,6 +866,23 @@ public class DerivedMetricsService implements Closeable {
      */
     public int inFlightDocuments() {
         return inFlightDocuments.get();
+    }
+
+    /**
+     * Roughly how many distinct values each metric's dimensions have taken on this node, and which of them the metric has given up
+     * breaking down by.
+     *
+     * <p>Series refusals say that the node ran out of budget; this says <em>which dimension of which metric</em> spent it, which is the
+     * only form of the answer an operator can act on. There is no stats API for it yet — one is coming — so for now this is how the data
+     * is reached.
+     */
+    public List<DerivedMetricsBuffer.DimensionCardinality> dimensionCardinalities() {
+        return buffer.dimensionCardinalities();
+    }
+
+    /** Dimensions a metric has stopped breaking down by because they outgrew {@link #MAX_DIMENSION_CARDINALITY}. */
+    public long dimensionsCollapsed() {
+        return buffer.dimensionsCollapsed();
     }
 
     /** Series still buffered on this node. While this is non-zero a later flush can still produce a write. */

@@ -236,6 +236,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DerivedMetricsService.MAX_IN_FLIGHT_BULKS);
         pluginSettings.add(DerivedMetricsService.MEMORY_PRESSURE_POLICY);
         pluginSettings.add(DerivedMetricsService.HISTOGRAM_BUCKETS);
+        pluginSettings.add(DerivedMetricsService.MAX_DIMENSION_CARDINALITY);
         pluginSettings.add(DerivedMetricsService.INDEXING_PRESSURE_CEILING);
         return pluginSettings;
     }

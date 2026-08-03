@@ -32,6 +32,15 @@ public final class DerivedMetricsDimensionCodec {
 
     private static final int LENGTH_BYTES = 4;
 
+    /**
+     * What a dimension's value is replaced with once the metric has given up breaking down by that dimension. Leading underscore because
+     * it has to be a value no document could plausibly have produced, in the same spirit as {@code _ignored}: someone reading the emitted
+     * documents must be able to tell "everything else" apart from a real value that happened to be spelled that way.
+     */
+    public static final String COLLAPSED_VALUE = "_too_many_values";
+
+    private static final byte[] COLLAPSED_BYTES = COLLAPSED_VALUE.getBytes(StandardCharsets.UTF_8);
+
     private DerivedMetricsDimensionCodec() {}
 
     /**
@@ -65,6 +74,21 @@ public final class DerivedMetricsDimensionCodec {
      * @return a {@link BytesRef} into the scratch buffer, valid only until the next encode on that scratch
      */
     public static BytesRef encode(String[] values, int dimensionCount, Scratch scratch) {
+        return encode(values, dimensionCount, 0L, scratch);
+    }
+
+    /**
+     * Encodes the values the document actually had into the scratch buffer, substituting {@link #COLLAPSED_VALUE} for any dimension the
+     * metric has stopped breaking down by.
+     *
+     * <p>Substituting here rather than in the caller's value array is deliberate: metrics that configure the same dimensions share one
+     * resolved row per document, so overwriting a value for one metric would silently change what its neighbours recorded.
+     *
+     * @param collapsedMask one bit per dimension index, set where the value is to be replaced. Absent dimensions stay absent: a document
+     *                      that never had the dimension is one extra series either way, and pretending it had the placeholder would
+     *                      conflate "missing" with "too many to tell apart".
+     */
+    public static BytesRef encode(String[] values, int dimensionCount, long collapsedMask, Scratch scratch) {
         int bitmap = bitmapLength(dimensionCount);
         scratch.ensure(Math.max(bitmap, 128));
         for (int i = 0; i < bitmap; i++) {
@@ -77,20 +101,31 @@ public final class DerivedMetricsDimensionCodec {
                 continue;
             }
             scratch.bytes[i >>> 3] |= (byte) (1 << (i & 7));
+            if ((collapsedMask & (1L << i)) != 0) {
+                scratch.ensure(offset + LENGTH_BYTES + COLLAPSED_BYTES.length);
+                writeLength(scratch, offset, COLLAPSED_BYTES.length);
+                System.arraycopy(COLLAPSED_BYTES, 0, scratch.bytes, offset + LENGTH_BYTES, COLLAPSED_BYTES.length);
+                offset += LENGTH_BYTES + COLLAPSED_BYTES.length;
+                continue;
+            }
             scratch.ensure(offset + LENGTH_BYTES + value.length() * UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR);
             // UTF16toUTF8 returns where it stopped writing, not how much it wrote
             int end = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), scratch.bytes, offset + LENGTH_BYTES);
             int length = end - (offset + LENGTH_BYTES);
-            scratch.bytes[offset] = (byte) (length >>> 24);
-            scratch.bytes[offset + 1] = (byte) (length >>> 16);
-            scratch.bytes[offset + 2] = (byte) (length >>> 8);
-            scratch.bytes[offset + 3] = (byte) length;
+            writeLength(scratch, offset, length);
             offset += LENGTH_BYTES + length;
         }
         scratch.ref.bytes = scratch.bytes;
         scratch.ref.offset = 0;
         scratch.ref.length = offset;
         return scratch.ref;
+    }
+
+    private static void writeLength(Scratch scratch, int offset, int length) {
+        scratch.bytes[offset] = (byte) (length >>> 24);
+        scratch.bytes[offset + 1] = (byte) (length >>> 16);
+        scratch.bytes[offset + 2] = (byte) (length >>> 8);
+        scratch.bytes[offset + 3] = (byte) length;
     }
 
     /**

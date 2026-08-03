@@ -33,9 +33,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DerivedMetricsBufferTests extends ESTestCase {
 
@@ -900,6 +902,147 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             preference
         );
         return new TableKey(ProjectId.DEFAULT, sourceDataStream, metric, 0L, TEN_SECONDS.millis());
+    }
+
+    /**
+     * The failure this exists to prevent: one dimension with a value per document consumes the node budget and every other metric
+     * starves. Instead the metric gives up that dimension's breakdown, stays bounded, and keeps counting every observation.
+     */
+    public void testARunawayDimensionCollapsesAndTheMetricKeepsWorking() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 100)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            for (int i = 0; i < 500; i++) {
+                assertTrue(record(buffer, key, "user-" + i, 1.0));
+            }
+            assertEquals("the dimension should have been given up exactly once", 1L, buffer.dimensionsCollapsed());
+            int bounded = buffer.size();
+            assertThat("the runaway must have been stopped well short of the values offered", bounded, lessThan(400));
+
+            // every further value now lands on the placeholder series, so the metric's cost stops growing entirely
+            for (int i = 500; i < 5_000; i++) {
+                assertTrue(record(buffer, key, "user-" + i, 1.0));
+            }
+            assertEquals("a collapsed dimension must stop the series count growing at all", bounded, buffer.size());
+
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).table();
+                BytesRef spare = new BytesRef();
+                long observations = 0;
+                boolean sawPlaceholder = false;
+                for (long ordinal = 0; ordinal < table.size(); ordinal++) {
+                    observations += table.countOf(ordinal);
+                    if (DerivedMetricsDimensionCodec.COLLAPSED_VALUE.equals(table.dimensionsOf(ordinal, 1, spare)[0])) {
+                        sawPlaceholder = true;
+                    }
+                }
+                assertTrue("the collapsed breakdown has to be visible in what is emitted", sawPlaceholder);
+                assertEquals("no observation may be lost by collapsing; only the breakdown is", 5_000L, observations);
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * Collapsing has to be per dimension rather than per metric, or a metric with one bad dimension would lose the good ones with it —
+     * which is the same all-or-nothing failure the series caps already have.
+     */
+    public void testOnlyTheRunawayDimensionOfAMetricCollapses() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 100)) {
+            TableKey key = twoDimensionKey();
+            for (int i = 0; i < 2_000; i++) {
+                assertTrue(buffer.record(key, new String[] { "service-" + (i % 4), "user-" + i }, new Scratch(), 1.0).recorded());
+            }
+
+            var reported = buffer.dimensionCardinalities();
+            assertEquals(2, reported.size());
+            var service = reported.stream().filter(d -> d.dimension().equals("service.name")).findFirst().orElseThrow();
+            var user = reported.stream().filter(d -> d.dimension().equals("user.id")).findFirst().orElseThrow();
+            assertFalse("a four-valued dimension is nowhere near its budget", service.collapsed());
+            assertTrue("a dimension with a value per document is far past it", user.collapsed());
+            assertEquals(1L, buffer.dimensionsCollapsed());
+
+            var drained = buffer.drainAll();
+            try {
+                DerivedMetricsSeriesTable table = drained.get(0).table();
+                BytesRef spare = new BytesRef();
+                for (long ordinal = table.size() - 1; ordinal >= table.size() - 4; ordinal--) {
+                    String[] dimensions = table.dimensionsOf(ordinal, 2, spare);
+                    assertThat("the surviving dimension keeps its real values", dimensions[0], startsWith("service-"));
+                    assertEquals(DerivedMetricsDimensionCodec.COLLAPSED_VALUE, dimensions[1]);
+                }
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * The estimate is what answers "which dimension is spending the budget", so it has to be roughly right — and it has to be reported
+     * against the stream and metric it belongs to, since a node holds many of both.
+     */
+    public void testDimensionCardinalityIsReportedPerStreamAndMetric() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0)) {
+            TableKey mine = key("logs-mine-default", Reduction.SUM, 0L);
+            TableKey theirs = key("logs-theirs-default", Reduction.SUM, 0L);
+            for (int i = 0; i < 1_000; i++) {
+                assertTrue(record(buffer, mine, "user-" + i, 1.0));
+            }
+            assertTrue(record(buffer, theirs, "checkout", 1.0));
+
+            var reported = buffer.dimensionCardinalities();
+            assertEquals(2, reported.size());
+            var busy = reported.stream().filter(d -> d.sourceDataStream().equals("logs-mine-default")).findFirst().orElseThrow();
+            var quiet = reported.stream().filter(d -> d.sourceDataStream().equals("logs-theirs-default")).findFirst().orElseThrow();
+            assertEquals("ingest.docs.count", busy.metric());
+            assertEquals("service.name", busy.dimension());
+            logger.info("estimated [{}] distinct values for a dimension that really had 1000", busy.estimatedValues());
+            assertThat(busy.estimatedValues(), both(greaterThan(800L)).and(lessThan(1_200L)));
+            assertEquals(1L, quiet.estimatedValues());
+            assertFalse("a zero budget counts without ever collapsing", busy.collapsed());
+        }
+    }
+
+    /**
+     * The sketches outlive every bucket, so nothing else would ever release them. MockBigArrays would catch a leaked array, but not the
+     * breaker accounting behind it, which is what this asserts.
+     */
+    public void testDimensionSketchesGiveTheirBytesBack() {
+        CircuitBreakerService breakerService = LimitedBreaker.service(DerivedMetricsService.BREAKER_NAME, ByteSizeValue.ofMb(64));
+        CircuitBreaker breaker = breakerService.getBreaker(DerivedMetricsService.BREAKER_NAME);
+        BigArrays accounted = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(accounted, 10_000, 10_000, 8, 0, 1, 100)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            for (int i = 0; i < 2_000; i++) {
+                assertTrue(record(buffer, key, "user-" + i, 1.0));
+            }
+            assertThat("the sketches should have taken real memory", breaker.getUsed(), greaterThan(0L));
+            var drained = buffer.drainAll();
+            drained.forEach(d -> d.table().close());
+            assertThat(
+                "draining the tables does not release the sketches, which are not part of a bucket",
+                breaker.getUsed(),
+                greaterThan(0L)
+            );
+        }
+        assertEquals("closing the buffer must give every byte back, sketches included", 0L, breaker.getUsed());
+    }
+
+    private static TableKey twoDimensionKey() {
+        CompiledMetric metric = new CompiledMetric(
+            "ingest.docs.count",
+            Trigger.SUCCESS,
+            Reduction.SUM,
+            DerivedMetricsPredicate.MATCH_ALL,
+            new Source.Constant(1.0),
+            List.of("service.name", "user.id"),
+            new int[] { 0, 1 },
+            0,
+            TEN_SECONDS
+        );
+        return new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, 0L, TEN_SECONDS.millis());
     }
 
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {

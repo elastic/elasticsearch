@@ -64,6 +64,14 @@ final class DerivedMetricsStripedTable implements Releasable {
      */
     private final int primary;
     /**
+     * What this metric's dimensions have been seen to hold, shared with every other bucket of the same metric and owned by the buffer
+     * rather than by this object — it deliberately outlives any one bucket, because cardinality is a property of the metric.
+     *
+     * <p>It is held here so that the write path can read the collapse decision from a field of the bucket it has already looked up,
+     * rather than paying for a second concurrent map probe per document per metric. This bucket must never close it.
+     */
+    private final DerivedMetricsDimensionCardinality dimensionCardinality;
+    /**
      * Set once this bucket has been taken out of the buffer, to stop a writer from opening a stripe in a bucket that will never be emitted
      * again. Volatile rather than guarded by this object's monitor throughout {@link #seal()}, because a writer holding a stripe's monitor
      * may itself have to seal this bucket — see the ordering note on {@link #seal()}.
@@ -77,10 +85,12 @@ final class DerivedMetricsStripedTable implements Releasable {
         Reduction reduction,
         int histogramBuckets,
         ExponentialHistogramCircuitBreaker histogramBreaker,
-        int stripes
+        int stripes,
+        DerivedMetricsDimensionCardinality dimensionCardinality
     ) {
         assert stripes >= 1 && Integer.bitCount(stripes) == 1 : "stripe counts are powers of two so that choosing one is a mask";
         assert stripes == 1 || reduction.isHistogram() == false : "a histogram bucket is too expensive to replicate per thread";
+        this.dimensionCardinality = dimensionCardinality;
         this.bigArrays = bigArrays;
         this.reduction = reduction;
         this.histogramBuckets = histogramBuckets;
@@ -91,6 +101,11 @@ final class DerivedMetricsStripedTable implements Releasable {
         // report it rather than on the first observation.
         this.primary = indexFor(Thread.currentThread());
         this.stripes.set(primary, newStripe());
+    }
+
+    /** What this metric's dimensions have been seen to hold. Shared across buckets and never closed by this object. */
+    DerivedMetricsDimensionCardinality dimensionCardinality() {
+        return dimensionCardinality;
     }
 
     /** The stripe a thread records into: its id masked, which is a field read and an {@code and}. */

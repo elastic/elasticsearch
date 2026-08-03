@@ -686,19 +686,33 @@ independently in range at, say, 10,000 series and 640 buckets, and together they
 memory rather than cardinality. `observations.skipped.missing_value` catches the case that used to be silent — a metric configured against
 a field that does not exist, which is what a misspelled field name looks like and which otherwise emits nothing forever with no signal.
 
-**Not built, and worth knowing why.** Two things would materially improve this and are deliberately deferred:
+**Which dimension is the problem** is answered by a `HyperLogLogPlusPlus` sketch per metric, with one sketch bucket per dimension, at
+precision 8 — about 6.5% relative error, and the dense registers are only allocated for a dimension that outgrows linear counting.
 
-- *Which dimension is the problem* is still unanswerable. A `HyperLogLogPlusPlus` per (metric, dimension) would answer it directly — it is
-  breaker-aware, `BigArrays`-backed, and starts in a cheap linear-counting mode, about 256 bytes per sketch at `p=8`, so 64 metrics by 16
-  dimensions is a quarter of a megabyte. The reason to wait is that nothing surfaces it yet.
-- *A stats API*. There is none: every counter is node-wide with no attributes, so nothing breaks down by metric, stream or project.
-  `RestDataStreamLifecycleStatsAction` in the same module is the precedent.
+The interesting part is that this costs nothing per observation, and the reason is worth stating because it is not obvious. The sketches
+are fed **only when a new series is interned**. A dimension value that has never been seen necessarily produces a dimension tuple that has
+never been seen, and therefore a new series — so skipping every observation that merely touched an existing series misses no value at all,
+while removing the counting from the overwhelmingly common path. Reading an estimate back is deferred to every 64 new series per dimension,
+because summing 256 registers per dimension per observation would land precisely during a cardinality explosion.
 
-A third idea is recorded here because it is the right shape and not obvious. Elasticsearch already prefers graceful degradation to
-rejection for mapping explosions: `index.mapping.total_fields.ignore_dynamic_beyond_limit` drops the *field* and keeps indexing the
-document. The analogue would be to collapse a runaway dimension to a placeholder rather than dropping the metric — the metric stays
-bounded and aggregable, and only the breakdown by the offending dimension is lost. That is a much better failure mode than one dimension
-starving every other metric on the node through a shared cap.
+One limitation to know: a value refused at a series cap is never interned, so it is never counted. Estimates therefore stop growing once a
+metric is over budget. In practice the dimension budget below fires long before the series cap does, but the estimate is a floor, not a
+measurement.
+
+**A runaway dimension is collapsed rather than allowed to starve the node.** `data_streams.derived_metrics.max_dimension_cardinality`
+(default 1,000, a tenth of the node series budget) bounds how many distinct values one dimension of one metric may take. Past it the
+dimension is replaced by `_too_many_values` for that metric, so the metric stays bounded and still aggregable and only the breakdown by
+the offending dimension is lost. This follows what Elasticsearch already does for mapping explosions with
+`index.mapping.total_fields.ignore_dynamic_beyond_limit`, which drops the offending field and keeps indexing the document. Setting it to
+`0` keeps the counting and disables the collapsing.
+
+The collapse takes effect immediately rather than at the next bucket. That leaves one bucket holding both broken-out and placeholder
+series for the same metric, which is untidy but bounded — one bucket, once — and the metric's total stays exact either way, because the two
+sets of observations are disjoint. Waiting for the next boundary would let a runaway spend a whole interval doing the thing the budget
+exists to stop, and an interval can be minutes.
+
+**Still not built: a stats API.** Every counter is node-wide with no attributes, so nothing breaks down by metric, stream or project, and
+the per-dimension estimates above have no route to a user yet. `RestDataStreamLifecycleStatsAction` in the same module is the precedent.
 
 ### Backfilling history
 
@@ -752,6 +766,7 @@ lifecycle edited by hand on a destination is left alone. See `docs/internal/Deri
 | `data_streams.derived_metrics.thread_pool.queue_size` | `128` | bounded on purpose, so backlog is shed and counted |
 | `data_streams.derived_metrics.indexing_pressure_ceiling` | `0.7` | share of the node's indexing budget above which emission is skipped |
 | `data_streams.derived_metrics.histogram_buckets` | `160` | bucket capacity of each histogram series, trading precision against size |
+| `data_streams.derived_metrics.max_dimension_cardinality` | `1000` | distinct values one dimension of one metric may take before it is collapsed; `0` counts without collapsing |
 | `data_streams.derived_metrics.memory_pressure_policy` | `flush_early` | `flush_early` emits a partial bucket and keeps collecting; `drop` sheds the observation |
 
 ## Managed Destination

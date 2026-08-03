@@ -137,12 +137,12 @@ public record LibraryModel(
             return null;
         }
 
-        String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils());
+        String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils(), packageName);
         if (symbolResolverClassName == null) {
             hasError = true;
         }
 
-        String methodHandleResolverClassName = resolveAndValidateMethodHandleResolver(element, messager, env.getTypeUtils());
+        String methodHandleResolverClassName = resolveAndValidateMethodHandleResolver(element, messager, env.getTypeUtils(), packageName);
         if (methodHandleResolverClassName == null) {
             hasError = true;
         }
@@ -242,12 +242,12 @@ public record LibraryModel(
     /**
      * Resolves and validates the {@code symbolResolver} attribute from {@link LibrarySpecification}.
      * Returns the default ({@link DefaultSymbolResolver}) when no custom resolver is specified.
-     * The resolver class must implement {@link SymbolResolver} and have a public no-arg constructor.
+     * The resolver class must implement {@link SymbolResolver} and be instantiable from the spec's package.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
-    private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
+    private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types, String specPackageName) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         if (specMirror == null) {
             return DEFAULT_SYMBOL_RESOLVER_FQN;
@@ -283,10 +283,15 @@ public record LibraryModel(
             return null;
         }
 
-        if (hasPublicNoArgConstructor(resolverElement) == false) {
+        if (isTypeReachableFrom(resolverElement, specPackageName) == false
+            || hasReachableNoArgConstructor(resolverElement, specPackageName) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                "symbolResolver class ["
+                    + resolverFqn
+                    + "] must have a no-arg constructor reachable from package ["
+                    + specPackageName
+                    + "]",
                 element,
                 specMirror
             );
@@ -299,12 +304,17 @@ public record LibraryModel(
     /**
      * Resolves and validates the {@code methodHandleResolver} attribute from {@link LibrarySpecification}.
      * Returns the default ({@link DefaultMethodHandleResolver}) when no custom resolver is specified.
-     * The resolver class must implement {@link MethodHandleResolver} and have a public no-arg constructor.
+     * The resolver class must implement {@link MethodHandleResolver} and be instantiable from the spec's package.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
-    private static String resolveAndValidateMethodHandleResolver(TypeElement element, Messager messager, Types types) {
+    private static String resolveAndValidateMethodHandleResolver(
+        TypeElement element,
+        Messager messager,
+        Types types,
+        String specPackageName
+    ) {
         AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "methodHandleResolver");
         if (resolverTypeMirror == null) {
@@ -336,10 +346,15 @@ public record LibraryModel(
             return null;
         }
 
-        if (hasPublicNoArgConstructor(resolverElement) == false) {
+        if (isTypeReachableFrom(resolverElement, specPackageName) == false
+            || hasReachableNoArgConstructor(resolverElement, specPackageName) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "methodHandleResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                "methodHandleResolver class ["
+                    + resolverFqn
+                    + "] must have a no-arg constructor reachable from package ["
+                    + specPackageName
+                    + "]",
                 element,
                 specMirror
             );
@@ -385,17 +400,17 @@ public record LibraryModel(
         return name.toString();
     }
 
-    private static boolean hasPublicNoArgConstructor(TypeElement type) {
-        for (var enclosed : type.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
-                continue;
-            }
-            ExecutableElement ctor = (ExecutableElement) enclosed;
-            if (ctor.getParameters().isEmpty() && ctor.getModifiers().contains(Modifier.PUBLIC)) {
-                return true;
-            }
+    private static boolean isTypeReachableFrom(TypeElement type, String specPackageName) {
+        return type.getModifiers().contains(Modifier.PUBLIC) || packageNameOf(type).equals(specPackageName);
+    }
+
+    /** Returns the package name of the given type, or the empty string for the unnamed package. */
+    private static String packageNameOf(TypeElement type) {
+        var enclosing = type.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            enclosing = enclosingType.getEnclosingElement();
         }
-        return false;
+        return enclosing instanceof javax.lang.model.element.PackageElement pkg ? pkg.getQualifiedName().toString() : "";
     }
 
     /**
@@ -418,6 +433,22 @@ public record LibraryModel(
             }
         }
         // No explicit constructors → Java provides an implicit public no-arg constructor.
+        return foundAnyConstructor == false;
+    }
+
+    /** true if {@code new type()} is legal from {@code specPackageName}. */
+    private static boolean hasReachableNoArgConstructor(TypeElement type, String specPackageName) {
+        boolean samePackage = packageNameOf(type).equals(specPackageName);
+        boolean foundAnyConstructor = false;
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) continue;
+            foundAnyConstructor = true;
+            var ctor = (ExecutableElement) enclosed;
+            if (ctor.getParameters().isEmpty() == false) continue;
+            var mods = ctor.getModifiers();
+            // protected/package-private reach `new` only from within the same package
+            if (mods.contains(Modifier.PRIVATE) == false && (mods.contains(Modifier.PUBLIC) || samePackage)) return true;
+        }
         return foundAnyConstructor == false;
     }
 

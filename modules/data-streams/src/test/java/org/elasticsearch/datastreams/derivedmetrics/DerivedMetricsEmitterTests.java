@@ -68,10 +68,38 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         assertThat(document, not(hasKey("dimensions.service.name")));
     }
 
-    public void testRateIsDerivedFromTheIntervalLength() {
-        Map<String, Object> document = emit(Reduction.RATE, List.of(), new String[0]);
-        // three observations of 1, 2 and 3 over a ten second interval
-        assertEquals(0.6, (Double) document.get("metric.value"), 1e-9);
+    /**
+     * A counter is a TSDS counter rather than a gauge, so it writes its own field. A consumer reading metric.value would find nothing,
+     * which is the point: the two are different metric types and cannot share one mapping.
+     */
+    public void testACounterWritesTheCounterFieldRatherThanTheValueField() {
+        Map<String, Object> document = emit(Reduction.COUNTER, List.of(), new String[0]);
+        assertEquals(6.0, (Double) document.get("metric.counter"), 0.0);
+        assertThat(document, not(hasKey("metric.value")));
+    }
+
+    /**
+     * The distinction the counter field rests on. A gauge that happens to aggregate by summing is not a counter, and must keep writing
+     * the gauge-mapped field, or a metric declared one way would be read as the other.
+     */
+    public void testAGaugeThatSumsIsStillAGauge() {
+        Map<String, Object> document = emit(Reduction.SUM, List.of(), new String[0]);
+        assertEquals(6.0, (Double) document.get("metric.value"), 0.0);
+        assertThat(document, not(hasKey("metric.counter")));
+    }
+
+    /**
+     * Says the counters and histograms in the document are this interval's deltas rather than running totals. Without it ES|QL assumes a
+     * counter is cumulative, which would read every interval as an enormous reset. It is on every document because it is a dimension.
+     */
+    public void testEveryDocumentDeclaresItsTemporality() {
+        for (Reduction reduction : List.of(Reduction.COUNTER, Reduction.SUM, Reduction.AVG, Reduction.HISTOGRAM)) {
+            assertEquals(
+                "[" + reduction + "] must say how it is to be read",
+                "delta",
+                emit(reduction, List.of(), new String[0]).get("derived_metrics.temporality")
+            );
+        }
     }
 
     /**
@@ -152,7 +180,7 @@ public class DerivedMetricsEmitterTests extends ESTestCase {
         assertEquals("sum", emit(Reduction.SUM, List.of(), new String[0]).get("derived_metrics.reduction"));
         assertEquals("max", emit(Reduction.MAX, List.of(), new String[0]).get("derived_metrics.reduction"));
         assertEquals("avg", emit(Reduction.AVG, List.of(), new String[0]).get("derived_metrics.reduction"));
-        assertEquals("rate", emit(Reduction.RATE, List.of(), new String[0]).get("derived_metrics.reduction"));
+        assertEquals("counter", emit(Reduction.COUNTER, List.of(), new String[0]).get("derived_metrics.reduction"));
         assertEquals("histogram", emit(Reduction.HISTOGRAM, List.of(), new String[0]).get("derived_metrics.reduction"));
     }
 

@@ -36,14 +36,8 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
         CompiledDerivedMetrics compiled = compile(new DataStreamDerivedMetrics(true, List.of("ingest.*"), null, null, null, null));
         assertThat(
             compiled.metrics().stream().map(CompiledMetric::name).toList(),
-            contains(
-                "ingest.docs.count",
-                "ingest.docs.rate",
-                "ingest.bytes.count",
-                "ingest.bytes.rate",
-                "ingest.failures.count",
-                "ingest.failures.rate"
-            )
+            // No *.rate counterparts: each built-in is a TSDS counter, so a rate over it is a query rather than a second series
+            contains("ingest.docs.count", "ingest.bytes.count", "ingest.failures.count")
         );
     }
 
@@ -114,7 +108,8 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
         assertEquals(Reduction.SUM, reductionOfGauge(GaugeAggregation.SUM));
     }
 
-    public void testCounterReducesBySum() {
+    /** A declared counter becomes a TSDS counter rather than a gauge, which is what a rate over it depends on. */
+    public void testACounterCompilesToACounter() {
         CompiledDerivedMetrics compiled = compile(
             new DataStreamDerivedMetrics(
                 true,
@@ -126,9 +121,34 @@ public class CompiledDerivedMetricsTests extends ESTestCase {
             )
         );
         CompiledMetric metric = compiled.metrics().get(0);
-        assertEquals(Reduction.SUM, metric.reduction());
+        assertEquals(Reduction.COUNTER, metric.reduction());
         assertEquals(Trigger.SUCCESS, metric.trigger());
         assertEquals(new CompiledDerivedMetrics.Source.Constant(1.0), metric.source());
+    }
+
+    /** The other half of that: a gauge that happens to aggregate by summing stays a gauge, or the two would be indistinguishable. */
+    public void testAGaugeThatSumsIsNotACounter() {
+        CompiledDerivedMetrics compiled = compile(
+            new DataStreamDerivedMetrics(
+                true,
+                List.of(),
+                null,
+                null,
+                null,
+                List.of(
+                    new Metric(
+                        "queue.depth",
+                        MetricType.GAUGE,
+                        null,
+                        MetricValue.field("event.duration"),
+                        DataStreamDerivedMetrics.GaugeAggregation.SUM,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+        assertEquals(Reduction.SUM, compiled.metrics().get(0).reduction());
     }
 
     public void testFailureBuiltinsAreTriggeredByFailures() {

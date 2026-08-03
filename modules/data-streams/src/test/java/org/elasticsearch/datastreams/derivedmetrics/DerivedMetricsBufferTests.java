@@ -182,13 +182,13 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 DerivedMetricsSeriesTable table = drained.get(0).table();
                 assertEquals(1L, table.size());
                 assertEquals(3L, table.countOf(0));
-                assertEquals(12.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
-                assertEquals(1.0, table.reduce(0, Reduction.MIN, 10_000L), 0.0);
-                assertEquals(7.0, table.reduce(0, Reduction.MAX, 10_000L), 0.0);
-                // 12 observations worth of value spread over a ten second interval
-                assertEquals(1.2, table.reduce(0, Reduction.RATE, 10_000L), 0.0);
+                assertEquals(12.0, table.reduce(0, Reduction.SUM), 0.0);
+                assertEquals(1.0, table.reduce(0, Reduction.MIN), 0.0);
+                assertEquals(7.0, table.reduce(0, Reduction.MAX), 0.0);
+                // a counter holds the interval's total, the same number a sum holds; what differs is how it is emitted and read
+                assertEquals(12.0, table.reduce(0, Reduction.COUNTER), 0.0);
                 // an avg gauge emits its sum, and the count travels alongside it
-                assertEquals(12.0, table.reduce(0, Reduction.AVG, 10_000L), 0.0);
+                assertEquals(12.0, table.reduce(0, Reduction.AVG), 0.0);
             } finally {
                 drained.forEach(d -> d.table().close());
             }
@@ -209,9 +209,9 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 assertEquals(2L, table.size());
                 BytesRef spare = new BytesRef();
                 assertEquals("checkout", table.dimensionsOf(0, 1, spare)[0]);
-                assertEquals(4.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(4.0, table.reduce(0, Reduction.SUM), 0.0);
                 assertEquals("search", table.dimensionsOf(1, 1, spare)[0]);
-                assertEquals(2.0, table.reduce(1, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(2.0, table.reduce(1, Reduction.SUM), 0.0);
             } finally {
                 drained.forEach(d -> d.table().close());
             }
@@ -393,7 +393,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             try {
                 assertEquals(2, closed.get(0).partial());
                 // each partial carries only what was collected since the previous one; consumers sum them back together
-                assertEquals(3.0, closed.get(0).table().reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(3.0, closed.get(0).table().reduce(0, Reduction.SUM), 0.0);
             } finally {
                 closed.forEach(d -> d.table().close());
             }
@@ -487,7 +487,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             var drained = buffer.drainAll();
             try {
                 assertEquals(1L, drained.get(0).table().size());
-                assertEquals(5.0, drained.get(0).table().reduce(0, Reduction.SUM, 10_000L), 0.0);
+                assertEquals(5.0, drained.get(0).table().reduce(0, Reduction.SUM), 0.0);
             } finally {
                 drained.forEach(d -> d.table().close());
             }
@@ -683,7 +683,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 assertEquals("every distinct dimension value should be one series", services, (int) table.size());
                 double total = 0;
                 for (long ordinal = 0; ordinal < table.size(); ordinal++) {
-                    total += table.reduce(ordinal, Reduction.SUM, 10_000L);
+                    total += table.reduce(ordinal, Reduction.SUM);
                 }
                 assertEquals("no observation may be lost or double counted", (double) threads * perThread, total, 0.0);
             } finally {
@@ -711,7 +711,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                         for (var entry : buffer.drainAll()) {
                             try {
                                 for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
-                                    double value = entry.table().reduce(ordinal, Reduction.SUM, 10_000L);
+                                    double value = entry.table().reduce(ordinal, Reduction.SUM);
                                     drainedTotal.updateAndGet(current -> current + value);
                                 }
                             } finally {
@@ -733,7 +733,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             try {
                 for (var entry : drained) {
                     for (long ordinal = 0; ordinal < entry.table().size(); ordinal++) {
-                        remaining += entry.table().reduce(ordinal, Reduction.SUM, 10_000L);
+                        remaining += entry.table().reduce(ordinal, Reduction.SUM);
                     }
                 }
             } finally {
@@ -826,9 +826,9 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                 DerivedMetricsSeriesTable table = drained.get(0).table();
                 assertEquals("the same dimension tuple in every stripe is one series once merged", 1L, table.size());
                 assertEquals(threads, table.countOf(0));
-                assertEquals(10.0, table.reduce(0, Reduction.SUM, 10_000L), 0.0);
-                assertEquals(1.0, table.reduce(0, Reduction.MIN, 10_000L), 0.0);
-                assertEquals(4.0, table.reduce(0, Reduction.MAX, 10_000L), 0.0);
+                assertEquals(10.0, table.reduce(0, Reduction.SUM), 0.0);
+                assertEquals(1.0, table.reduce(0, Reduction.MIN), 0.0);
+                assertEquals(4.0, table.reduce(0, Reduction.MAX), 0.0);
             } finally {
                 drained.forEach(d -> d.table().close());
             }
@@ -934,7 +934,7 @@ public class DerivedMetricsBufferTests extends ESTestCase {
                     DerivedMetricsSeriesTable table = entry.table();
                     // reading every ordinal the table claims to have is exactly what emission does
                     for (long ordinal = 0; ordinal < table.size(); ordinal++) {
-                        assertEquals(1.0, table.reduce(ordinal, Reduction.SUM, TEN_SECONDS.millis()), 0.0);
+                        assertEquals(1.0, table.reduce(ordinal, Reduction.SUM), 0.0);
                     }
                 }
             } finally {

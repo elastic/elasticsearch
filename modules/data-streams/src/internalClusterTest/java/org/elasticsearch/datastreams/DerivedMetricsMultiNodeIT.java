@@ -98,7 +98,7 @@ public class DerivedMetricsMultiNodeIT extends DerivedMetricsIntegTestCase {
             for (Map<String, Object> document : emitted) {
                 nodes.add((String) field(document, "derived_metrics.node"));
                 names.add((String) field(document, "derived_metrics.node_name"));
-                total += ((Number) field(document, "metric.value")).doubleValue();
+                total += ((Number) field(document, "metric.counter")).doubleValue();
             }
             // the dimension is the persistent ID, and the name rides along so a dashboard is legible; the two must agree on how many
             // nodes there were, or one of them is not identifying what it claims to

@@ -94,7 +94,7 @@ public class DerivedMetricsFlushEarlyIT extends DerivedMetricsIntegTestCase {
             List<Map<String, Object>> emitted = metricDocuments(dataStream);
             double total = 0.0;
             for (Map<String, Object> document : emitted) {
-                total += ((Number) XContentMapValues.extractValue("metric.value", document)).doubleValue();
+                total += ((Number) XContentMapValues.extractValue("metric.counter", document)).doubleValue();
             }
             // nothing was lost: every observation is accounted for once the partials are summed
             assertThat(total, equalTo((double) documents));

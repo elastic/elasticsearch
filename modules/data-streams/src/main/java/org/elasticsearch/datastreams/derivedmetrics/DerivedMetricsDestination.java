@@ -56,7 +56,7 @@ public final class DerivedMetricsDestination {
     /**
      * Bumped whenever {@link #template()} changes so that existing clusters pick the new definition up.
      */
-    public static final long TEMPLATE_VERSION = 7L;
+    public static final long TEMPLATE_VERSION = 8L;
 
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String METRIC_NAME_FIELD = "metric.name";
@@ -71,6 +71,25 @@ public final class DerivedMetricsDestination {
      * than joining it. The field carries its own sum, count, min and max, which is why no scalar travels alongside it.
      */
     public static final String METRIC_HISTOGRAM_FIELD = "metric.histogram";
+    /**
+     * What a counter metric writes, in place of {@link #METRIC_VALUE_FIELD}.
+     *
+     * <p>A separate field is forced rather than chosen: a field carries exactly one {@code time_series_metric}, and one destination is
+     * shared by every metric of a stream, so a counter cannot live in the gauge-mapped {@link #METRIC_VALUE_FIELD}. It is the same reason
+     * {@link #METRIC_HISTOGRAM_FIELD} stands apart.
+     */
+    public static final String METRIC_COUNTER_FIELD = "metric.counter";
+    /**
+     * Declares that the counters and histograms in a document are per-interval deltas rather than running totals, which is what lets what
+     * this feature already produces be a real TSDS counter rather than a gauge a consumer has to know to sum.
+     *
+     * <p>The mapping for it is not written here. {@code IndexMode.TIME_SERIES} adds it as a keyword dimension itself whenever
+     * {@code index.time_series.temporality_field} names it, and insists on exactly that: a real keyword, and a dimension.
+     */
+    public static final String TEMPORALITY_FIELD = "derived_metrics.temporality";
+
+    /** The only temporality this feature produces. Every bucket is an interval of its own, never a running total. */
+    public static final String DELTA_TEMPORALITY = "delta";
     public static final String SOURCE_FIELD = "derived_metrics.source";
     public static final String INTERVAL_FIELD = "derived_metrics.interval";
     /**
@@ -140,6 +159,10 @@ public final class DerivedMetricsDestination {
                   "histogram": {
                     "type": "exponential_histogram",
                     "time_series_metric": "histogram"
+                  },
+                  "counter": {
+                    "type": "double",
+                    "time_series_metric": "counter"
                   }
                 }
               },
@@ -263,8 +286,19 @@ public final class DerivedMetricsDestination {
             // every field under it genuinely is a dimension.
             .putList(
                 "index.routing_path",
-                List.of(METRIC_NAME_FIELD, SOURCE_FIELD, INTERVAL_FIELD, NODE_FIELD, REDUCTION_FIELD, DIMENSION_PREFIX + "*")
+                List.of(
+                    METRIC_NAME_FIELD,
+                    SOURCE_FIELD,
+                    INTERVAL_FIELD,
+                    NODE_FIELD,
+                    REDUCTION_FIELD,
+                    TEMPORALITY_FIELD,
+                    DIMENSION_PREFIX + "*"
+                )
             )
+            // Says how to read metric.counter: what a bucket holds is that interval's delta, not a running total. Without this ES|QL falls
+            // back to assuming counters are cumulative, which would read every interval as an enormous reset.
+            .put("index.time_series.temporality_field", TEMPORALITY_FIELD)
             .build();
         final CompressedXContent mappings;
         try {

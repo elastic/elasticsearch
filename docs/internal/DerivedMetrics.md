@@ -10,7 +10,7 @@ The V1 metadata model supports:
 - built-in ingest metrics with default `["ingest.*"]`
 - one default interval, overridable per metric, each writing to its own destination
 - additive global and per-metric dimensions
-- user-defined `counter`, `gauge`, and `histogram` metrics
+- user-defined `counter`, `gauge`, and `histogram` metrics, mapping onto the TSDS `counter`, `gauge` and `histogram` metric types
 - gauge aggregations `min`, `max`, `avg` and `sum`
 - script-free predicates and values
 
@@ -132,7 +132,7 @@ The bound is therefore on **how many moments a metric collects at once**, which 
 
 Running out of slots costs data. The bucket holding the oldest data is dropped and what it had collected is lost.
 
-Writing it out instead would lose nothing, and was the first implementation, but it makes output volume a function of write rate: a producer whose data arrives at more distinct moments than there are slots forces a bucket out on nearly every observation, which is one document per document. That is the one property the feature cannot give up, so the bounded-output side of the trade wins and the loss is counted instead. `buckets.dropped.total` says it happened; `buckets.shortfall.current` says how many slots short the metric was, which is what to raise the setting by.
+Writing it out instead would lose nothing, but it makes output volume a function of write rate: a producer whose data arrives at more distinct moments than there are slots forces a bucket out on nearly every observation, which is one document per document. That is the one property the feature cannot give up, so the bounded-output side of the trade wins and the loss is counted instead. `buckets.dropped.total` says it happened; `buckets.shortfall.current` says how many slots short the metric was, which is what to raise the setting by.
 
 The slot count therefore has a real cost when it is too low, which is why the default is four rather than two: the number of moments a metric collects into is a small number a little above one, and two would put the ordinary case on the edge.
 
@@ -579,7 +579,7 @@ just log lines.
 
 ### The destination describes itself
 
-Every emitted document carries `derived_metrics.reduction` — `sum`, `rate`, `min`, `max`, `avg` or
+Every emitted document carries `derived_metrics.reduction` — `counter`, `sum`, `min`, `max`, `avg` or
 `histogram`. Without it, how to combine `metric.value` across nodes and buckets would be
 knowable only from the source stream's configuration, and a consumer that guessed wrong would be
 wrong invisibly. It is a dimension but adds no cardinality, since the reduction is functionally
@@ -589,11 +589,31 @@ The rule it encodes:
 
 | reduction | combine across nodes and buckets with |
 |---|---|
-| `sum`, `rate` | `SUM(metric.value)` |
+| `counter` | `SUM(metric.counter)`, or `RATE(metric.counter)` for a per-second rate |
+| `sum` | `SUM(metric.value)` |
 | `min` | `MIN(metric.value)` |
 | `max` | `MAX(metric.value)` |
 | `avg` | `SUM(metric.value) / SUM(metric.count)` |
 | `histogram` | any aggregation on `metric.histogram` |
+
+### Counters are TSDS counters
+
+A metric declared `"type": "counter"` writes `metric.counter`, mapped `time_series_metric: counter`, rather than the gauge-mapped
+`metric.value`. A separate field is forced rather than chosen: a field carries exactly one `time_series_metric`, and one destination is
+shared by every metric of a stream, so a counter cannot live in the same field as a gauge. It is the same reason `metric.histogram` stands
+apart.
+
+What makes this work without keeping a running total per series is **temporality**. The destination sets
+`index.time_series.temporality_field`, and every document declares `delta`, so a bucket holds that interval's own total rather than a
+cumulative one. That is what this feature already produced; declaring it is what turns it from a gauge a consumer had to know to sum into a
+counter the query language understands. Elasticsearch maps the temporality field itself from the setting, as a keyword dimension.
+
+The alternative, a cumulative counter, would need per-series state outliving its bucket and would have to be emitted in timestamp order —
+which event-time bucketing cannot promise, since a metric holds several intervals at once and closes each on its own idleness. Deltas have
+neither problem: they are stateless and order-independent.
+
+There are no `*.rate` built-ins. `ingest.docs.rate` and its siblings existed because a gauge holding a delta has no rate a consumer can ask
+for; over a counter, `RATE(metric.counter)` is that question, and asking it costs no second series.
 
 ### Capacity planning
 
@@ -869,15 +889,14 @@ internally for compatibility and future multi-source policies.
 `ingest.*` expands to:
 
 - `ingest.docs.count`
-- `ingest.docs.rate`
 - `ingest.bytes.count`
-- `ingest.bytes.rate`
 - `ingest.failures.count`
-- `ingest.failures.rate`
 
-Counts are emitted as the sum of what the node observed during the interval. Rates are that same sum divided by the interval length in
-seconds. Both are partials: a stream-wide value is the sum across the emitting-node dimension, which for a rate is meaningful because
-every partial covers the same interval.
+Each is a TSDS counter carrying what the node observed during the interval, so `RATE(metric.counter)` gives a per-second rate and
+`SUM(metric.counter)` a total. They are partials: a stream-wide value is the sum across the emitting-node dimension.
+
+There are no `*.rate` counterparts. A rate is a query over the counter rather than a second series carrying a pre-divided copy of one that
+is already emitted.
 
 `ingest.docs.*` and `ingest.bytes.*` count successful writes; `ingest.failures.*` counts failed ones. Byte counts come from the size of
 the document's source. Global dimensions apply to the built-ins as well as to user metrics.

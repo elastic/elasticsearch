@@ -75,6 +75,9 @@ public final class DerivedMetricsEmitter {
             // Makes the destination self-describing: without this the correct way to combine metric.value across nodes and buckets is
             // knowable only from the source stream's configuration, and a consumer that guesses wrong is wrong invisibly.
             document.field(DerivedMetricsDestination.REDUCTION_FIELD, metric.reduction().name().toLowerCase(Locale.ROOT));
+            // On every document rather than only the counters. It is a dimension, so a document without it would sit in a different time
+            // series from one with it, and the value is the same for everything here: a bucket is an interval of its own.
+            document.field(DerivedMetricsDestination.TEMPORALITY_FIELD, DerivedMetricsDestination.DELTA_TEMPORALITY);
             for (int i = 0; i < names.size(); i++) {
                 if (values[i] != null) {
                     document.field(DerivedMetricsDestination.DIMENSION_PREFIX + names.get(i), values[i]);
@@ -86,11 +89,12 @@ public final class DerivedMetricsEmitter {
                     document.field(DerivedMetricsDestination.METRIC_HISTOGRAM_FIELD);
                     ExponentialHistogramXContent.serialize(document, histogram);
                 }
+            } else if (metric.reduction() == Reduction.COUNTER) {
+                // A real TSDS counter rather than a gauge a consumer has to know to sum. What it holds is this interval's delta, which the
+                // destination declares through its temporality field, so a rate over it is a query rather than a second metric.
+                document.field(DerivedMetricsDestination.METRIC_COUNTER_FIELD, table.reduce(ordinal, metric.reduction()));
             } else {
-                document.field(
-                    DerivedMetricsDestination.METRIC_VALUE_FIELD,
-                    table.reduce(ordinal, metric.reduction(), key.intervalMillis())
-                );
+                document.field(DerivedMetricsDestination.METRIC_VALUE_FIELD, table.reduce(ordinal, metric.reduction()));
                 if (metric.reduction() == Reduction.AVG) {
                     // An avg gauge emits its sum in metric.value and its count alongside, so the mean is SUM(value)/SUM(count). Emitting
                     // the mean directly cannot be re-aggregated: averaging per-interval means weights every interval equally, which reads

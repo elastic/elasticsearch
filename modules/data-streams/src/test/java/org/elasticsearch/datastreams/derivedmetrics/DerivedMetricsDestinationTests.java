@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 
 public class DerivedMetricsDestinationTests extends ESTestCase {
@@ -34,6 +35,16 @@ public class DerivedMetricsDestinationTests extends ESTestCase {
      * The destination must be a hidden time series data stream that can be auto created, since the first metric document written to it
      * is what brings it into existence.
      */
+    /**
+     * Without this a counter is read as a running total, and every interval looks like an enormous reset. The field it names is mapped by
+     * Elasticsearch rather than here, so what has to be right is the setting and the routing path entry that goes with it.
+     */
+    public void testTheDestinationDeclaresItsCountersAsDeltas() {
+        var settings = DerivedMetricsDestination.template().template().settings();
+        assertEquals(DerivedMetricsDestination.TEMPORALITY_FIELD, settings.get("index.time_series.temporality_field"));
+        assertThat(settings.getAsList("index.routing_path"), hasItem(DerivedMetricsDestination.TEMPORALITY_FIELD));
+    }
+
     public void testTemplateIsAHiddenAutoCreatedTimeSeriesDataStream() {
         ComposableIndexTemplate template = DerivedMetricsDestination.template();
         assertThat(template.indexPatterns(), contains("derived-metrics-*"));
@@ -53,6 +64,7 @@ public class DerivedMetricsDestinationTests extends ESTestCase {
                 "derived_metrics.interval",
                 "derived_metrics.node",
                 "derived_metrics.reduction",
+                "derived_metrics.temporality",
                 "dimensions.*"
             ),
             settings.getAsList("index.routing_path")

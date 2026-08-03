@@ -96,10 +96,52 @@ public class DerivedMetricsIT extends DerivedMetricsIntegTestCase {
             Map<String, Double> metrics = summedValuesByMetric(dataStream);
             assertThat(metrics, hasKey("ingest.docs.count"));
             assertThat(metrics.get("ingest.docs.count"), equalTo((double) documents));
-            // the interval is one second, so a per-second rate is numerically the same as the count
-            assertThat(metrics.get("ingest.docs.rate"), equalTo((double) documents));
             assertThat(metrics.get("ingest.bytes.count"), greaterThan(0.0));
+            // there is no ingest.docs.rate: the count is a TSDS counter, so a rate over it is a query rather than a second series
+            assertThat(metrics, not(hasKey("ingest.docs.rate")));
         });
+    }
+
+    /**
+     * What the counter claim actually rests on, checked against the index Elasticsearch built rather than the template we asked for. The
+     * value field has to be a real TSDS counter, and the index has to declare that its counters hold per-interval deltas: without the
+     * second, a reader assumes a running total and sees every interval as an enormous reset.
+     */
+    public void testTheDestinationIsBuiltWithARealCounter() throws Exception {
+        String dataStream = createDataStream(new DataStreamDerivedMetrics.Template(null, List.of("ingest.*"), INTERVAL, null, null, null));
+        index(dataStream, Map.of("service.name", "checkout"));
+        assertBusy(() -> assertTrue(destinationExists(dataStream)));
+
+        String destination = destination(dataStream, INTERVAL);
+        var backing = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .dataStreams()
+            .get(destination)
+            .getWriteIndex();
+
+        var settings = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index(backing);
+        assertEquals(
+            "the index must say its counters are deltas",
+            DerivedMetricsDestination.TEMPORALITY_FIELD,
+            settings.getSettings().get("index.time_series.temporality_field")
+        );
+
+        Map<String, Object> mapping = settings.mapping().sourceAsMap();
+        assertEquals(
+            "the value a counter metric writes must be a TSDS counter, or a rate over it means nothing",
+            "counter",
+            XContentMapValues.extractValue("properties.metric.properties.counter.time_series_metric", mapping)
+        );
+        // Elasticsearch adds this itself from the setting, and insists it be a keyword dimension; if that ever changes, index creation
+        // starts failing rather than quietly producing something a reader misinterprets
+        assertEquals("keyword", XContentMapValues.extractValue("properties.derived_metrics.properties.temporality.type", mapping));
+        assertEquals(
+            Boolean.TRUE,
+            XContentMapValues.extractValue("properties.derived_metrics.properties.temporality.time_series_dimension", mapping)
+        );
     }
 
     public void testUserCounterAndGaugeMetrics() throws Exception {
@@ -433,8 +475,15 @@ public class DerivedMetricsIT extends DerivedMetricsIntegTestCase {
         return XContentMapValues.extractValue(path, document);
     }
 
+    /**
+     * The one scalar a document carries. Which field holds it follows the metric's TSDS type: a counter writes metric.counter and a gauge
+     * writes metric.value, because one field carries one time_series_metric and the two cannot share a mapping.
+     */
     private static double value(Map<String, Object> document) {
-        return ((Number) field(document, "metric.value")).doubleValue();
+        Object counter = field(document, "metric.counter");
+        Object gauge = field(document, "metric.value");
+        assertFalse("a document carries one scalar, not both", counter != null && gauge != null);
+        return ((Number) (counter != null ? counter : gauge)).doubleValue();
     }
 
     private List<Map<String, Object>> metricDocuments(String sourceDataStream, String metricName) {

@@ -328,14 +328,14 @@ public class DerivedMetricsSeriesTable implements Releasable {
     }
 
     /** Reduces one series into the single value that gets emitted. */
-    public double reduce(long ordinal, Reduction reduction, long intervalMillis) {
+    public double reduce(long ordinal, Reduction reduction) {
         return switch (reduction) {
             // An avg gauge emits its sum and its count rather than the mean, so that averaging across partials and across buckets of
             // unequal volume stays exact. See DerivedMetricsEmitter.
-            case SUM, AVG -> sum.get(ordinal);
+            // A counter's value for a bucket is that bucket's total, which the destination declares as a delta rather than a running one.
+            case SUM, AVG, COUNTER -> sum.get(ordinal);
             case MIN -> min.get(ordinal);
             case MAX -> max.get(ordinal);
-            case RATE -> sum.get(ordinal) / (intervalMillis / 1000.0);
             case HISTOGRAM -> throw new AssertionError("a histogram metric is emitted through histogramOf, not reduced to a value");
         };
     }

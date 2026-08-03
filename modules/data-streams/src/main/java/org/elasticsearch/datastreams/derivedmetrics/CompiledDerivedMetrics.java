@@ -51,9 +51,10 @@ public record CompiledDerivedMetrics(
         MAX,
         AVG,
         /**
-         * Sum divided by the interval length in seconds. Used by the built-in {@code *.rate} metrics.
+         * Summed exactly as {@link #SUM}, and emitted as a TSDS counter rather than a gauge. What a bucket holds is that interval's delta,
+         * which the destination declares as delta temporality, so a rate over it is a query rather than a second metric.
          */
-        RATE,
+        COUNTER,
         /**
          * The distribution of the values rather than any single number. This is the one reduction that does not produce a double, so it
          * is accumulated and emitted separately from the rest.
@@ -187,20 +188,10 @@ public record CompiledDerivedMetrics(
     }
 
     private static final String INGEST_DOCS_COUNT = "ingest.docs.count";
-    private static final String INGEST_DOCS_RATE = "ingest.docs.rate";
     private static final String INGEST_BYTES_COUNT = "ingest.bytes.count";
-    private static final String INGEST_BYTES_RATE = "ingest.bytes.rate";
     private static final String INGEST_FAILURES_COUNT = "ingest.failures.count";
-    private static final String INGEST_FAILURES_RATE = "ingest.failures.rate";
 
-    private static final List<String> ALL_BUILTINS = List.of(
-        INGEST_DOCS_COUNT,
-        INGEST_DOCS_RATE,
-        INGEST_BYTES_COUNT,
-        INGEST_BYTES_RATE,
-        INGEST_FAILURES_COUNT,
-        INGEST_FAILURES_RATE
-    );
+    private static final List<String> ALL_BUILTINS = List.of(INGEST_DOCS_COUNT, INGEST_BYTES_COUNT, INGEST_FAILURES_COUNT);
 
     public static CompiledDerivedMetrics compile(DataStreamDerivedMetrics config) {
         Interval defaultInterval = intervalOf(config.defaultInterval());
@@ -319,21 +310,19 @@ public record CompiledDerivedMetrics(
 
     private static CompiledMetric compileBuiltin(String name, List<String> dimensions, DerivedMetricsSourcePaths paths, Interval interval) {
         return switch (name) {
-            case INGEST_DOCS_COUNT -> builtin(name, Trigger.SUCCESS, Reduction.SUM, new Source.Constant(1.0), dimensions, paths, interval);
-            case INGEST_DOCS_RATE -> builtin(name, Trigger.SUCCESS, Reduction.RATE, new Source.Constant(1.0), dimensions, paths, interval);
-            case INGEST_BYTES_COUNT -> builtin(
+            case INGEST_DOCS_COUNT -> builtin(
                 name,
                 Trigger.SUCCESS,
-                Reduction.SUM,
-                new Source.DocumentSize(),
+                Reduction.COUNTER,
+                new Source.Constant(1.0),
                 dimensions,
                 paths,
                 interval
             );
-            case INGEST_BYTES_RATE -> builtin(
+            case INGEST_BYTES_COUNT -> builtin(
                 name,
                 Trigger.SUCCESS,
-                Reduction.RATE,
+                Reduction.COUNTER,
                 new Source.DocumentSize(),
                 dimensions,
                 paths,
@@ -342,16 +331,7 @@ public record CompiledDerivedMetrics(
             case INGEST_FAILURES_COUNT -> builtin(
                 name,
                 Trigger.FAILURE,
-                Reduction.SUM,
-                new Source.Constant(1.0),
-                dimensions,
-                paths,
-                interval
-            );
-            case INGEST_FAILURES_RATE -> builtin(
-                name,
-                Trigger.FAILURE,
-                Reduction.RATE,
+                Reduction.COUNTER,
                 new Source.Constant(1.0),
                 dimensions,
                 paths,
@@ -389,7 +369,7 @@ public record CompiledDerivedMetrics(
 
     private static Reduction reductionFor(DataStreamDerivedMetrics.Metric metric) {
         return switch (metric.type()) {
-            case COUNTER -> Reduction.SUM;
+            case COUNTER -> Reduction.COUNTER;
             case GAUGE -> switch (metric.aggregation()) {
                 case MIN -> Reduction.MIN;
                 case MAX -> Reduction.MAX;

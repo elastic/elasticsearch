@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -258,6 +259,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
+                        || type == DOUBLE_RANGE // block loading is not supported yet
                         || type == FLATTENED // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM

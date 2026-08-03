@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.DirectByteBufferAllocator;
+import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -505,14 +505,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * {@link ParquetReadOptions.Builder}'s unconditional loading of {@code ParquetInputFormat}
      * (which extends Hadoop's {@code FileInputFormat}) and {@code HadoopCodecs}.
      */
-    private PlainParquetReadOptions.Builder readOptionsBuilder() {
+    // Package-private so ParquetFormatReaderTests can pin the allocator wiring: a heap-backed
+    // delegate is a correctness property here, not a preference (see the comment below).
+    PlainParquetReadOptions.Builder readOptionsBuilder() {
         // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
         // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
         // active in addition to row-group level statistics, dictionary, and bloom filter checks.
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
+        //
+        // Keep the delegate heap-backed. parquet-mr's DirectByteBufferAllocator.release() is empty, so a
+        // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation
+        // becomes a function of GC frequency, which a large heap starves. Nothing reads these buffers
+        // natively either: they are footers and dictionary-page copies, both copied to the heap next step.
         var breaker = blockFactory.breaker();
-        var allocator = new CircuitBreakerByteBufferAllocator(new DirectByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -1303,9 +1310,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return FormatNameResolver.FORMAT_PARQUET;
     }
 
+    /**
+     * Every extension this reader accepts. The plugin's {@code FormatSpec} derives from it, so the eager and
+     * lazy registration surfaces cannot disagree.
+     */
+    public static final List<String> FILE_EXTENSIONS = List.of(".parquet", ".parq");
+
     @Override
     public List<String> fileExtensions() {
-        return List.of(".parquet", ".parq");
+        return FILE_EXTENSIONS;
     }
 
     @Override

@@ -217,22 +217,21 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             Duration.ofMillis(13),
             "[13 in Z][fixed]"
         );
-        dateTruncCases(suppliers);
         numberCases(suppliers, "fixed long", DataType.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataType.LONG, () -> 100L);
         numberCases(suppliers, "fixed int", DataType.INTEGER, () -> 100);
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(
-                suppliers,
-                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
-                    ? DataType.NULL
-                    : original.expectedType(),
-                (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
-            )
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
+                ? DataType.NULL
+                : original.expectedType(),
+            (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
+        dateTruncCases(suppliers);
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     // TODO once we cast above the functions we can drop these
@@ -692,7 +691,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
+        return new Bucket(source, args.get(0), args.get(1), from, to, null, configuration);
     }
 
     /**

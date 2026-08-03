@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.testfixtures;
 
 import org.gradle.api.Named;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 
 import java.io.File;
@@ -35,4 +36,6 @@ public abstract class TestFixtureDeployment implements Named {
     public abstract Property<String> getVersion();
 
     public abstract ListProperty<String> getBaseImages();
+
+    public abstract MapProperty<String, String> getBuildArgs();
 }

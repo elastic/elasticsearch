@@ -331,7 +331,7 @@ tests:
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment
   issue: https://github.com/elastic/elasticsearch/issues/153416
-- class: org.elasticsearch.upgrades.IndexingIT
+- class: org.elasticsearch.upgrades.XpackIndexingIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/140728
 - class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT

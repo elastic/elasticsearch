@@ -237,7 +237,9 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // TODO: Consider injecting a mock threadPool into the policy to precisely control the time for testing
         final var threadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
         final long now = threadPool.absoluteTimeInMillis();
-        // 12-hour pinned window: pinned data (< 6h old) is protected; unpinned data (> 14h old) is evictable.
+        // 12-hour pinned window: pinned data (< 6h old) is protected; unpinned data (> 14h old) is evictable. We use
+        // these timestamps to leave some extra margins for both pinned and unpinned data so that they are not too close
+        // to the time window boundaries which might lead to flaky tests.
         final long pinnedDataEndMillis = now;
         final long pinnedDataStartMillis = now - TimeValue.timeValueHours(6).millis();
         final long unpinnedDataEndMillis = now - TimeValue.timeValueHours(14).millis();

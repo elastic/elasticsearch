@@ -28,6 +28,7 @@ The settings are grouped by feature or purpose, for example:
 - [Cluster formation and discovery](/reference/elasticsearch/configuration-reference/discovery-cluster-formation-settings.md)
 - [Cross-cluster replication](/reference/elasticsearch/configuration-reference/cross-cluster-replication-settings.md)
 - [Data stream lifecycle](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md)
+- [Derived metrics](/reference/elasticsearch/configuration-reference/derived-metrics-settings.md)
 - [Enrich settings](/reference/elasticsearch/configuration-reference/enrich-settings.md)
 - [Field data cache](/reference/elasticsearch/configuration-reference/field-data-cache-settings.md)
 - [Health diagnostic](/reference/elasticsearch/configuration-reference/health-diagnostic-settings.md)

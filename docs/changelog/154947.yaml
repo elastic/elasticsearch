@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154947
-summary: Fix Contains exception on truncated UTF
-type: bug

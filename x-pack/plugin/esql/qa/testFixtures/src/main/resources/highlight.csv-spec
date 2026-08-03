@@ -1794,3 +1794,32 @@ ROW location = "New York City"
 highlight_location:keyword
 null
 ;
+
+
+# A full-text function's analyzer option resolves when it names the highlight analyzer.
+highlightAnalyzerMatchQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+highlightAnalyzerMatchPhraseQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_phrase_runtime_analyzer
+
+ROW title = to_text("A fox-like creature")
+| HIGHLIGHT MATCH_PHRASE(title, "fox-like creature", { "analyzer": "whitespace" }) ON title WITH { "analyzer": "whitespace" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+A <em>fox-like creature</em>
+;

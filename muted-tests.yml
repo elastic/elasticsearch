@@ -74,9 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
-  method: testEvaluateBlockWithNulls
-  issue: https://github.com/elastic/elasticsearch/issues/147773
 
 # Examples:
 #
@@ -247,9 +244,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
-  issue: https://github.com/elastic/elasticsearch/issues/151992
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/152005
@@ -286,9 +280,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/152671
-- class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
-  method: testRandom
-  issue: https://github.com/elastic/elasticsearch/issues/152677
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -328,9 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147534
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: no prefix_properties when dynamic is only set at root level}"
-  issue: https://github.com/elastic/elasticsearch/issues/153390
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testDataStreamValidationDoesNotBreakUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/153413
@@ -406,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
-  issue: https://github.com/elastic/elasticsearch/issues/154062
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/154157
@@ -424,12 +409,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
   issue: https://github.com/elastic/elasticsearch/issues/154380
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
-  issue: https://github.com/elastic/elasticsearch/issues/154464
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: "test {yaml=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
-  issue: https://github.com/elastic/elasticsearch/issues/154537
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
   method: testRcs1SetupAgain
   issue: https://github.com/elastic/elasticsearch/issues/154539
@@ -451,18 +430,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testAccessTokensWorkInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154618
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testTokensStayInvalidatedInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154619
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testInvalidatingTokensInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154620
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testTokensStayInvalidatedInUpgradedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154627
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
@@ -553,15 +520,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT
   method: testDisabledRemoteResolvesDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155382
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testConsecutiveRotations
-  issue: https://github.com/elastic/elasticsearch/issues/155419
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=downsample/100_downsample_histograms/Downsample histogram with last value}
   issue: https://github.com/elastic/elasticsearch/issues/155453
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: multiple sub-objects with all three supported dynamic values}"
-  issue: https://github.com/elastic/elasticsearch/issues/155501
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecKnnFunctionIT
   method: test {csv-spec:knn-function.knnAfterChainedRename}
   issue: https://github.com/elastic/elasticsearch/issues/155518
@@ -574,12 +535,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/155567
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=SNAP p1=EUCLIDEAN}
-  issue: https://github.com/elastic/elasticsearch/issues/155568
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=MMAP p1=EUCLIDEAN}
-  issue: https://github.com/elastic/elasticsearch/issues/155569
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test40VerifyAutogeneratedCredentials
   issue: https://github.com/elastic/elasticsearch/issues/154510
@@ -589,3 +544,45 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.ccr.RestartIT
+  method: testRestart {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/155609
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testMultiValueViolationRestoredIdenticallyAcrossSourceModes
+  issue: https://github.com/elastic/elasticsearch/issues/155610
+- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
+  method: testCurrentlyRunningSnapshotNotRecordedAsFailure
+  issue: https://github.com/elastic/elasticsearch/issues/155621
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
+  method: testTimeSeriesQuerying_RandomDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/153348
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
+  issue: https://github.com/elastic/elasticsearch/issues/155663
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  method: testLookupJoinSame {p0=null}
+  issue: https://github.com/elastic/elasticsearch/issues/155665
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test50CredentialAutogenerationOnlyOnce
+  issue: https://github.com/elastic/elasticsearch/issues/155669
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155670
+- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
+  method: testUploadIndicesDataWithRetries
+  issue: https://github.com/elastic/elasticsearch/issues/155680
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test10ArchiveAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/155685
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingTimeSeries
+  issue: https://github.com/elastic/elasticsearch/issues/155687
+- class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  method: testOutputSupportedTypes {p0=LT}
+  issue: https://github.com/elastic/elasticsearch/issues/155694

@@ -28,6 +28,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
@@ -55,6 +56,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     private final SimpleInputBuffer inputBuffer = new SimpleInputBuffer(4096);
     private final DataPublisher publisher;
     private final ApacheClientBackpressure backpressure;
+    private final String inferenceEntityId;
+    private final HttpSettings settings;
 
     private volatile Exception exception;
 
@@ -65,6 +68,9 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         CircuitBreaker circuitBreaker,
         String inferenceEntityId
     ) {
+        this.inferenceEntityId = inferenceEntityId;
+        this.settings = settings;
+
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
         this.publisher = new DataPublisher(threadPool);
@@ -73,6 +79,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             Objects.requireNonNull(circuitBreaker),
             Objects.requireNonNull(inferenceEntityId)
         );
+
     }
 
     @Override
@@ -96,12 +103,26 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             if (consumed > 0) {
                 var allBytes = new byte[consumed];
                 inputBuffer.read(allBytes);
-                backpressure.addBytesAndMaybePause(consumed, ioControl);
+                var paused = backpressure.addBytesAndMaybePause(consumed, ioControl);
                 // cancelUpstream() may have raced past the first subscriptionCanceled guard, so we've to recheck
                 if (subscriptionCanceled.get()) {
                     backpressure.subtractBytesAndMaybeUnpause(consumed);
                     return;
                 }
+
+                if (paused && publisher.hasSubscriber() == false) {
+                    var abandoned = new IllegalStateException(
+                        format(
+                            "Stream for inference id [%s] buffered [%s] without a consumer, aborting",
+                            inferenceEntityId,
+                            settings.getMaxResponseSize()
+                        )
+                    );
+                    exception = abandoned;
+                    publisher.onError(abandoned);
+                    return;
+                }
+
                 publisher.onNext(allBytes);
             }
         } catch (Exception e) {
@@ -206,6 +227,10 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             }
         }
 
+        private boolean hasSubscriber(){
+            return downstream != null;
+        }
+
         @Override
         public void subscribe(Flow.Subscriber<? super byte[]> subscriber) {
             if (this.downstream != null) {
@@ -297,11 +322,13 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             this.inferenceEntityId = inferenceEntityId;
         }
 
-        private void addBytesAndMaybePause(long count, IOControl ioControl) {
+        private boolean addBytesAndMaybePause(long count, IOControl ioControl) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(count, inferenceEntityId);
             if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
                 pauseProducer(ioControl);
+                return true;
             }
+            return false;
         }
 
         private void pauseProducer(IOControl ioControl) {

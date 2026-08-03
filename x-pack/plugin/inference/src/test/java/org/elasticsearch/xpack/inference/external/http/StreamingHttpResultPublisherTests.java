@@ -71,7 +71,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         circuitBreaker = new TestCircuitBreakerWithTracking();
 
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes + 1));
 
         publisher = new StreamingHttpResultPublisher(threadPool, settings, listener(), circuitBreaker, INFERENCE_ENTITY_ID);
     }
@@ -873,6 +873,88 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             circuitBreaker.getTracked(),
             equalTo(0L)
         );
+    }
+
+    public void testCompleteWithoutSubscriberReleasesCircuitBreakerBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        assertThat(
+            "circuitBreaker should track bytes consumed before subscribe",
+            circuitBreaker.getTracked(),
+            equalTo((long) message.length)
+        );
+
+        publisher.close();
+
+        assertThat(
+            "circuitBreaker bytes must be released when the stream completes without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testConsumeContentAfterErrorWithoutSubscriberShutsDownProducer() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        assertThat(
+            "circuitBreaker should be 0 after an error with no subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+
+        var ioControl = mock(IOControl.class);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        verify(ioControl, times(2)).shutdown();
+        assertThat(
+            "circuitBreaker must remain at 0 — no bytes may be charged after the error",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+    }
+
+    public void testLateSubscriberAfterErrorStillReceivesError() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+        var exception = new NullPointerException("test");
+        publisher.failed(exception);
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat("late subscriber must receive the pending error", subscriber.throwable, is(exception));
+        assertThat("circuitBreaker must be 0 after error delivery", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    public void testBufferFullWithoutSubscriberAbortsStreamAndReleasesBytes() throws IOException {
+        publisher.responseReceived(mock(HttpResponse.class));
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes));
+
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        assertThat(
+            "circuitBreaker bytes must be released after aborting a bufferFull stream without a subscriber",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+        verify(ioControl).shutdown();
+
+        var subscriber = new TestSubscriber();
+        testPublisher().subscribe(subscriber);
+        subscriber.requestData();
+
+        assertThat(
+            "late subscriber must receive the abort error",
+            subscriber.throwable,
+            instanceOf(IllegalStateException.class)
+        );
+        assertThat("circuitBreaker must stay at 0 after abort error delivery", circuitBreaker.getTracked(), equalTo(0L));
     }
 
     private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {

@@ -303,7 +303,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
                         assertFalse(block.mvDeduplicated());
                         assertFalse(block.mvSortedAscending());
                     }
-                    case DEDUPLICATED_UNORDERD -> {
+                    case DEDUPLICATED_UNORDERED -> {
                         assertTrue(block.mvDeduplicated());
                         assertFalse(block.mvSortedAscending());
                     }

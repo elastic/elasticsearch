@@ -68,108 +68,110 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode() == AggregatorMode.INITIAL) {
-            AttributeSet inputAttributes = oldAgg.inputSet();
-            var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
-            if (sourceAttr == null) {
-                return oldAgg;
-            }
-            Attribute tsidAttr = tsidGroupingAttribute(oldAgg);
-            if (tsidAttr == null) {
-                return oldAgg;
-            }
-            List<NamedExpression> newAggregates = new ArrayList<>();
-            List<Attribute> readDims = new ArrayList<>();
-            List<Attribute> packDims = new ArrayList<>();
-            List<Alias> aliases = new ArrayList<>();
-            Attribute packedAttr = null;
-            Set<AggregateFunction> seen = new HashSet<>();
-            List<Attribute> oldIntermediates = oldAgg.intermediateAttributes();
-            List<Attribute> newIntermediates = new ArrayList<>(oldIntermediates.subList(0, oldAgg.groupings().size()));
-            int intermediateOffset = oldAgg.groupings().size();
-            for (var agg : oldAgg.aggregates()) {
-                boolean skipAgg = false;
-                if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                    if (af instanceof PackDimsAgg packDimsAgg) {
-                        skipAgg = true;
-                        if (seen.add(af)) {
-                            int size = intermediateStateSize(af);
+            return rule(oldAgg, context);
+        }
+        return plan;
+    }
+
+    PhysicalPlan rule(TimeSeriesAggregateExec oldAgg, LocalPhysicalOptimizerContext context) {
+        AttributeSet inputAttributes = oldAgg.inputSet();
+        var sourceAttr = inputAttributes.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        if (sourceAttr == null) {
+            return oldAgg;
+        }
+        Attribute tsidAttr = tsidGroupingAttribute(oldAgg);
+        if (tsidAttr == null) {
+            return oldAgg;
+        }
+        List<NamedExpression> newAggregates = new ArrayList<>();
+        List<Attribute> readDims = new ArrayList<>();
+        List<Attribute> packDims = new ArrayList<>();
+        List<Alias> aliases = new ArrayList<>();
+        Attribute packedAttr = null;
+        Set<AggregateFunction> seen = new HashSet<>();
+        List<Attribute> oldIntermediates = oldAgg.intermediateAttributes();
+        List<Attribute> newIntermediates = new ArrayList<>(oldIntermediates.subList(0, oldAgg.groupings().size()));
+        int intermediateOffset = oldAgg.groupings().size();
+        for (var agg : oldAgg.aggregates()) {
+            boolean skipAgg = false;
+            if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                if (af instanceof PackDimsAgg packDimsAgg) {
+                    skipAgg = true;
+                    if (seen.add(af)) {
+                        int size = intermediateStateSize(af);
+                        if (size != 1) {
+                            throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
+                        }
+                        packedAttr = oldIntermediates.get(intermediateOffset);
+                        for (Expression dim : packDimsAgg.dims()) {
+                            Attribute attr = readDimAttribute((Attribute) dim);
+                            readDims.add(attr);
+                            packDims.add(attr);
+                        }
+                        intermediateOffset += size;
+                    }
+                } else {
+                    Attribute dimensionField = valuesOfDimensionField(af, inputAttributes);
+                    skipAgg = (dimensionField != null);
+                    if (seen.add(af)) {
+                        int size = intermediateStateSize(af);
+                        if (dimensionField != null) {
                             if (size != 1) {
                                 throw new IllegalStateException(
                                     "expected one intermediate attribute for [" + af + "] but got [" + size + "]"
                                 );
                             }
-                            packedAttr = oldIntermediates.get(intermediateOffset);
-                            for (Expression dim : packDimsAgg.dims()) {
-                                Attribute attr = readDimAttribute((Attribute) dim);
-                                readDims.add(attr);
-                                packDims.add(attr);
+                            Attribute oldAttr = oldIntermediates.get(intermediateOffset);
+                            dimensionField = readDimAttribute(dimensionField);
+                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                            readDims.add(dimensionField);
+                        } else {
+                            for (int i = 0; i < size; i++) {
+                                newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
                             }
-                            intermediateOffset += size;
                         }
-                    } else {
-                        Attribute dimensionField = valuesOfDimensionField(af, inputAttributes);
-                        skipAgg = (dimensionField != null);
-                        if (seen.add(af)) {
-                            int size = intermediateStateSize(af);
-                            if (dimensionField != null) {
-                                if (size != 1) {
-                                    throw new IllegalStateException(
-                                        "expected one intermediate attribute for [" + af + "] but got [" + size + "]"
-                                    );
-                                }
-                                Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                                dimensionField = readDimAttribute(dimensionField);
-                                aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
-                                readDims.add(dimensionField);
-                            } else {
-                                for (int i = 0; i < size; i++) {
-                                    newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
-                                }
-                            }
-                            intermediateOffset += size;
-                        }
+                        intermediateOffset += size;
                     }
                 }
-                if (skipAgg == false) {
-                    newAggregates.add(agg);
-                }
             }
-            if (aliases.isEmpty() && packedAttr == null) {
-                return oldAgg;
+            if (skipAgg == false) {
+                newAggregates.add(agg);
             }
-            Attribute docAttr = new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType());
-            newIntermediates.add(docAttr);
-            newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
-            plan = new TimeSeriesAggregateExec(
-                oldAgg.source(),
-                oldAgg.child(),
-                oldAgg.groupings(),
-                newAggregates,
-                oldAgg.getMode(),
-                newIntermediates,
-                oldAgg.estimatedRowSize(),
-                oldAgg.timeBucket(),
-                oldAgg.outputTimeBucket()
-            );
-            if (readDims.isEmpty() == false) {
-                plan = new ReadDimsExec(
-                    oldAgg.source(),
-                    plan,
-                    docAttr,
-                    tsidAttr,
-                    readDims,
-                    context.configuration().pragmas().fieldExtractPreference()
-                );
-            }
-            if (packedAttr != null) {
-                plan = new PackDimsExec(oldAgg.source(), plan, packDims, packedAttr);
-            }
-            if (aliases.isEmpty() == false) {
-                plan = new EvalExec(oldAgg.source(), plan, aliases);
-            }
-            plan = new ProjectExec(oldAgg.source(), plan, oldIntermediates);
         }
-        return plan;
+        if (aliases.isEmpty() && packedAttr == null) {
+            return oldAgg;
+        }
+        Attribute docAttr = new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType());
+        newIntermediates.add(docAttr);
+        newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
+        PhysicalPlan plan = new TimeSeriesAggregateExec(
+            oldAgg.source(),
+            oldAgg.child(),
+            oldAgg.groupings(),
+            newAggregates,
+            oldAgg.getMode(),
+            newIntermediates,
+            oldAgg.estimatedRowSize(),
+            oldAgg.timeBucket(),
+            oldAgg.outputTimeBucket()
+        );
+        if (readDims.isEmpty() == false) {
+            plan = new ReadDimsExec(
+                oldAgg.source(),
+                plan,
+                docAttr,
+                tsidAttr,
+                readDims,
+                context.configuration().pragmas().fieldExtractPreference()
+            );
+        }
+        if (packedAttr != null) {
+            plan = new PackDimsExec(oldAgg.source(), plan, packDims, packedAttr);
+        }
+        if (aliases.isEmpty() == false) {
+            plan = new EvalExec(oldAgg.source(), plan, aliases);
+        }
+        return new ProjectExec(oldAgg.source(), plan, oldIntermediates);
     }
 
     private static Attribute tsidGroupingAttribute(TimeSeriesAggregateExec agg) {

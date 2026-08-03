@@ -76,6 +76,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                     newConnection,
                     clusterAlias,
+                    connectionManager.getLinkedProjectId(),
                     connectionManager.getCredentialsManager()
                 ),
                 actualProfile.getHandshakeTimeout(),

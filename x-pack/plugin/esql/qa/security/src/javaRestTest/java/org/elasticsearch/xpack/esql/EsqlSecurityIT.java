@@ -70,7 +70,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        // Federation is opt-in for users; the data source and dataset authorization tests here need it on.
+        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)

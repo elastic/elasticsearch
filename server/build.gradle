@@ -42,6 +42,7 @@ dependencies {
   api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
+  testImplementation project(":libs:columnar")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 

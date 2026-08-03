@@ -455,7 +455,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
-    "LongRange"  : Name == "LongRange" ? "true" : "",
+    "Range"      : Name.endsWith("Range") ? "true" : "",
   ]
 }
 
@@ -471,6 +471,7 @@ tasks.named('stringTemplates').configure {
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
   var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
   var longRangeProperties = prop("LongRange", "LongRange", "LongRange", "LONG_RANGE", "", "")
+  var doubleRangeProperties = prop("DoubleRange", "DoubleRange", "DoubleRange", "DOUBLE_RANGE", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -512,6 +513,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longRangeProperties
     it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongRangeEvaluator.java"
+  }
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleRangeEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")

@@ -129,6 +129,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.shared_cache_capacity.reroute_interval",
         TimeValue.timeValueMinutes(5),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

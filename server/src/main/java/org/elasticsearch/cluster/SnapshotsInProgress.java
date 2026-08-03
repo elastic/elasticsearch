@@ -893,6 +893,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final String failure;
 
         /**
+         * Flag set to true in case any of the shard snapshots in {@link #shards} are
+         * {@link ShardSnapshotStatus#isActive() active}. i.e. ({@link ShardState#INIT}, {@link ShardState#ABORTED},
+         * {@link ShardState#WAITING}, or {@link ShardState#PAUSED_FOR_NODE_REMOVAL}).
+         */
+        private final boolean hasActiveShards;
+
+        /**
          * Flag set to true in case any of the shard snapshots in {@link #shards} are in state {@link ShardState#INIT}.
          * This is used by data nodes to determine if there is any work to be done on a snapshot by them without having to iterate
          * the full {@link #shards} map.
@@ -917,6 +924,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         ) {
             final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
             final Map<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = Maps.newHashMapWithExpectedSize(shards.size());
+            boolean hasActiveShards = false;
             boolean hasInitStateShards = false;
             for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 final ShardId shardId = entry.getKey();
@@ -925,6 +933,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 final Index existing = res.put(indexId.getName(), index);
                 assert existing == null || existing.equals(index) : "Conflicting indices [" + existing + "] and [" + index + "]";
                 final var shardSnapshotStatus = entry.getValue();
+                hasActiveShards |= shardSnapshotStatus.isActive();
                 hasInitStateShards |= shardSnapshotStatus.state() == ShardState.INIT;
                 byRepoShardIdBuilder.put(new RepositoryShardId(indexId, shardId.id()), shardSnapshotStatus);
             }
@@ -945,6 +954,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 null,
                 byRepoShardIdBuilder,
                 res,
+                hasActiveShards,
                 hasInitStateShards
             );
         }
@@ -977,6 +987,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 Map.of(),
+                false,
                 false
             );
         }
@@ -998,6 +1009,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
+            boolean hasActiveShards,
             boolean hasShardsInInitState
         ) {
             this.state = state;
@@ -1016,6 +1028,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.source = source;
             this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
             this.snapshotIndices = snapshotIndices;
+            this.hasActiveShards = hasActiveShards;
             this.hasShardsInInitState = hasShardsInInitState;
             assert assertShardsConsistent(
                 this.source,
@@ -1023,6 +1036,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 this.indices,
                 this.shards,
                 this.shardStatusByRepoShardId,
+                this.hasActiveShards,
                 this.hasShardsInInitState
             );
         }
@@ -1073,10 +1087,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Map<String, IndexId> indices,
             Map<ShardId, ShardSnapshotStatus> shards,
             Map<RepositoryShardId, ShardSnapshotStatus> statusByRepoShardId,
+            boolean hasActiveShards,
             boolean hasInitStateShards
         ) {
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
+            }
+            if (hasActiveShards) {
+                assert state == State.STARTED || state == State.ABORTED : "shouldn't have active shards in state " + state;
             }
             if (hasInitStateShards) {
                 assert state == State.STARTED : "shouldn't have INIT-state shards in state " + state;
@@ -1103,14 +1121,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             if (source == null) {
                 assert shards.size() == statusByRepoShardId.size();
+                boolean foundActiveShard = false;
                 boolean foundInitStateShard = false;
                 for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
+                    foundActiveShard |= entry.getValue().isActive();
                     foundInitStateShard |= entry.getValue().state() == ShardState.INIT;
                     final ShardId routingShardId = entry.getKey();
                     assert statusByRepoShardId.get(
                         new RepositoryShardId(indices.get(routingShardId.getIndexName()), routingShardId.id())
                     ) == entry.getValue() : "found inconsistent values tracked by routing- and repository shard id";
                 }
+                assert foundActiveShard == hasActiveShards : "active shard state flag does not match shard states";
                 assert foundInitStateShard == hasInitStateShards : "init shard state flag does not match shard states";
             }
             return true;
@@ -1136,6 +1157,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 snapshotIndices,
+                hasActiveShards,
                 hasShardsInInitState
             );
         }
@@ -1390,6 +1412,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Map<String, Object> userMetadata() {
             return userMetadata;
+        }
+
+        /**
+         * See {@link #hasActiveShards}.
+         * @return true if this entry has any {@link ShardSnapshotStatus#isActive() active} shard snapshots.
+         */
+        public boolean hasActiveShards() {
+            return hasActiveShards;
         }
 
         /**
@@ -1781,6 +1811,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     null,
                     part.shardStatusByRepoShardId,
                     part.snapshotIndices,
+                    part.hasActiveShards,
                     part.hasShardsInInitState
                 );
             }

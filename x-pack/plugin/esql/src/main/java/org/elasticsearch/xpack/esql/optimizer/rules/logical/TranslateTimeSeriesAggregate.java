@@ -292,7 +292,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
+                    // use different name for bucket in the first pass if conflict
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                        firstPassBucket = new Alias(
+                            timeBucket.source(),
+                            Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                            Alias.unwrap(firstPassBucket),
+                            firstPassBucket.id()
+                        );
+                    }
+                    firstPassGroupings.add(firstPassBucket);
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -422,16 +434,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return aggFunc;
         }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
-    }
-
-    private void addBucket(
-        NamedExpression timeBucket,
-        NamedExpression group,
-        List<Expression> firstPassGroupings,
-        List<Expression> secondPassGroupings
-    ) {
-        firstPassGroupings.add(timeBucket);
-        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
     }
 
     private void addAttribute(
@@ -580,6 +582,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             gcdInterval,
             null,
             null,
+            userBucket.options(),
             userBucket.configuration(),
             userBucket.offset(),
             userBucket.roundingConfiguration()

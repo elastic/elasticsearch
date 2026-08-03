@@ -96,7 +96,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         List<Page> raw = rawInput(4_000, 200, oracle);
 
         int partitionCount = between(2, 16);
-        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 80) /* crossed quickly */);
+        // partitionThreshold must be below the cardinality (200) to guarantee tagged output.
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 80), between(50, 150));
         assertTrue("expected at least some tagged pages after conversion", intermediate.stream().anyMatch(p -> p.partitionId() != null));
 
         Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
@@ -140,7 +141,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
 
         int partitionCount = between(2, 8);
         List<Page> rawConverting = rawInput(4_000, 200, oracle);
-        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30);
+        // partitionThreshold below cardinality (200) to ensure tagged pages are produced.
+        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30, 100);
 
         List<Page> rawLowCardinality = rawInput(800, 50, oracle);
         List<Page> untagged = runDataNodeOp(rawLowCardinality, partitionCount, 10_000);
@@ -180,7 +182,8 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
         Map<Long, Long> oracle = new HashMap<>();
         // Low conversion threshold ensures the promoted (partitioned) path is exercised.
         List<Page> raw = rawInput(4_000, 200, oracle);
-        List<Page> intermediate = runDataNodeOp(raw, 8, 30);
+        // partitionThreshold below cardinality (200) to ensure promoted pages are produced.
+        List<Page> intermediate = runDataNodeOp(raw, 8, 30, 100);
         assertTrue("expected promoted pages", intermediate.stream().anyMatch(p -> p.partitionId() != null));
 
         SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
@@ -258,6 +261,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(countSupplier, List.of())))
             .partitionCount(8)
             .emitKeysThreshold(30)
+            .partitionThreshold(100) // below cardinality (200) to ensure promoted output
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()
@@ -394,6 +398,14 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
      *     {@link #runMergeOp} (which consumes them) or released explicitly.
      */
     private List<Page> runDataNodeOp(List<Page> raw, int partitionCount, int emitKeysThreshold) {
+        return runDataNodeOp(raw, partitionCount, emitKeysThreshold, PartitionedHashAggregationOperator.DEFAULT_PARTITION_THRESHOLD);
+    }
+
+    /**
+     * Like {@link #runDataNodeOp(List, int, int)} but with an explicit {@code partitionThreshold}.
+     * Use a value below the data cardinality to guarantee tagged (promoted) output.
+     */
+    private List<Page> runDataNodeOp(List<Page> raw, int partitionCount, int emitKeysThreshold, int partitionThreshold) {
         SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
         PartitionedHashAggregationOperator op = new PartitionedHashAggregationOperator.Builder().groupSpecs(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
@@ -401,6 +413,7 @@ public class PartitionedHashMergeOperatorTests extends ESTestCase {
             .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(sumSupplier, List.of(1))))
             .partitionCount(partitionCount)
             .emitKeysThreshold(emitKeysThreshold)
+            .partitionThreshold(partitionThreshold)
             .maxPageSize(Integer.MAX_VALUE)
             .aggregationBatchSize(Integer.MAX_VALUE)
             .build()

@@ -44,6 +44,10 @@ public class FromBase64 extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         description = "Decode a base64 string.",
+        detailedDescription = """
+            Returns `null` and adds a warning header to the response if the decoded bytes are not
+            well-formed UTF-8.
+            """,
         examples = @Example(file = "string", tag = "from_base64")
     )
     public FromBase64(
@@ -85,14 +89,90 @@ public class FromBase64 extends UnaryScalarFunction {
         return NodeInfo.create(this, FromBase64::new, field());
     }
 
-    @Evaluator()
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder oScratch) {
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(field.length);
         oScratch.clear();
         int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
+        if (isWellFormedUtf8(oScratch.bytes(), 0, decodedSize) == false) {
+            throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
+        }
         return new BytesRef(oScratch.bytes(), 0, decodedSize);
+    }
+
+    /**
+     * Allocation-free scan reporting whether {@code [off, off+len)} is well-formed UTF-8.
+     * Inlined from the Utf8Sanitizer helper that does not exist on this release branch.
+     */
+    static boolean isWellFormedUtf8(byte[] bytes, int off, int len) {
+        int i = off;
+        int end = off + len;
+        while (i < end) {
+            int b0 = bytes[i] & 0xFF;
+            if (b0 < 0x80) {
+                i++;
+                continue;
+            }
+            int consumed = utf8SequenceLength(bytes, i, end);
+            if (consumed < 0) {
+                return false;
+            }
+            i += consumed;
+        }
+        return true;
+    }
+
+    private static int utf8SequenceLength(byte[] bytes, int i, int end) {
+        int b0 = bytes[i] & 0xFF;
+        if (b0 < 0x80) {
+            return 1;
+        }
+        if (b0 < 0xC2) {
+            return -1;
+        }
+        if (b0 < 0xE0) {
+            if (i + 1 >= end || isUtf8Cont(bytes[i + 1]) == false) {
+                return -1;
+            }
+            return 2;
+        }
+        if (b0 < 0xF0) {
+            int lo = (b0 == 0xE0) ? 0xA0 : 0x80;
+            int hi = (b0 == 0xED) ? 0x9F : 0xBF;
+            if (i + 1 >= end || inUtf8Range(bytes[i + 1], lo, hi) == false) {
+                return -1;
+            }
+            if (i + 2 >= end || isUtf8Cont(bytes[i + 2]) == false) {
+                return -2;
+            }
+            return 3;
+        }
+        if (b0 < 0xF5) {
+            int lo = (b0 == 0xF0) ? 0x90 : 0x80;
+            int hi = (b0 == 0xF4) ? 0x8F : 0xBF;
+            if (i + 1 >= end || inUtf8Range(bytes[i + 1], lo, hi) == false) {
+                return -1;
+            }
+            if (i + 2 >= end || isUtf8Cont(bytes[i + 2]) == false) {
+                return -2;
+            }
+            if (i + 3 >= end || isUtf8Cont(bytes[i + 3]) == false) {
+                return -3;
+            }
+            return 4;
+        }
+        return -1;
+    }
+
+    private static boolean isUtf8Cont(byte b) {
+        return (b & 0xC0) == 0x80;
+    }
+
+    private static boolean inUtf8Range(byte b, int lo, int hi) {
+        int v = b & 0xFF;
+        return v >= lo && v <= hi;
     }
 
     @Override

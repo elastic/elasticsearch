@@ -2223,9 +2223,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     continue;
                 }
                 FieldAndFormat embeddings = fieldType.embeddingsFieldAndFormat();
-                if (embeddings != null) {
-                    fields.add(embeddings);
+                if (embeddings == null) {
+                    throw new IllegalArgumentException(
+                        "Field [" + field + "] of type [" + fieldType.typeName() + "] does not support embeddings"
+                    );
                 }
+                fields.add(embeddings);
             }
 
             if (fields.isEmpty() == false) {

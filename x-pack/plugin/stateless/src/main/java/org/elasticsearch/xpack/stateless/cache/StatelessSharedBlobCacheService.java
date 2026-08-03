@@ -93,7 +93,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
      */
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache_boost_preference.timestamp_backfill.enabled",
-        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+        settings -> Boolean.toString(
+            StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings) == StatelessCacheEvictionPolicyType.PINNED_WINDOW
+        ),
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

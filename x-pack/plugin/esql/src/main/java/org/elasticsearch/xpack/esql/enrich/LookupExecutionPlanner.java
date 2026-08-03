@@ -345,7 +345,7 @@ public class LookupExecutionPlanner {
         OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
-                Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
+                Warnings warnings = driverContext.createWarnings(lookupSource);
                 return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
             }
 

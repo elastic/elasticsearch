@@ -53,18 +53,13 @@ public class FromBase64 extends UnaryScalarFunction implements AnyNullIsNull {
         .name("from_base64");
 
     @FunctionInfo(
-        appliesTo = {
-            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA),
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.GA,
-                version = "9.4.5+",
-                description = """
-                    Returns `null` and adds a warning header to the response if the decoded bytes are not
-                    well-formed UTF-8."""
-            ) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Decodes a base64 string.",
-        description = "Decode a base64 string.",
+        description = """
+            Decode a base64 string.
+            Returns `null` and adds a warning header to the response if the decoded bytes are not \
+            well-formed UTF-8. {applies_to}`stack: ga 9.4.5+`.""",
         examples = @Example(file = "string", tag = "from_base64")
     )
     public FromBase64(

@@ -2,5 +2,5 @@
 
 ## Description
 
-Decode a base64 string.
+Decode a base64 string. Returns `null` and adds a warning header to the response if the decoded bytes are not well-formed UTF-8. {applies_to}`stack: ga 9.4.5+`.
 

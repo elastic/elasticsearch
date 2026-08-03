@@ -2,6 +2,7 @@
 
 ### FROM BASE64
 Decode a base64 string.
+Returns `null` and adds a warning header to the response if the decoded bytes are not well-formed UTF-8..
 
 ```esql
 ROW a = "ZWxhc3RpYw=="

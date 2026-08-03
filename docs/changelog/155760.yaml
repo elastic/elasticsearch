@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155760
+summary: Forces the collection of headers to prevent warnings disappearing
+type: bug

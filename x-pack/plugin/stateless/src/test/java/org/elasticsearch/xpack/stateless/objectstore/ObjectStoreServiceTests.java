@@ -1176,10 +1176,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
     )
     public void testTranslogUploadTimesLogLevels() throws Exception {
         AtomicBoolean exceedThreshold = new AtomicBoolean(false);
+        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(200);
 
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
-            final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(200);
-
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
@@ -1203,12 +1202,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
                         throws IOException {
                         if (purpose == OperationPurpose.TRANSLOG && exceedThreshold.get()) {
-                            safeSleep(
-                                randomLongBetween(
-                                    slowTranslogUploadLogThreshold.millis() + 100,
-                                    slowTranslogUploadLogThreshold.millis() + 300
-                                )
-                            );
+                            safeSleep(randomLongBetween(
+                                slowTranslogUploadLogThreshold.millis() + 100,
+                                slowTranslogUploadLogThreshold.millis() + 300
+                            ));
                         }
                         super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
                     }

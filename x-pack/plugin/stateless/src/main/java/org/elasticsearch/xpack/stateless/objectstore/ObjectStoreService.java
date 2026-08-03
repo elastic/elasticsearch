@@ -1449,7 +1449,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 reference.length(),
                 uploadDuration
             );
-            if (uploadDuration > slowTranslogUploadLogThresholdMillis) {
+
+            if (uploadDuration >= slowTranslogUploadLogThresholdMillis) {
                 logger.warn(logMessage);
             } else {
                 logger.debug(logMessage);

@@ -408,10 +408,16 @@ public class DerivedMetricsService implements Closeable {
             skippedForMissingValue::get
         );
         register(
-            "es.derived_metrics.buckets.evicted.total",
-            "buckets written out early because a metric needed the slot for data arriving at a different moment",
+            "es.derived_metrics.buckets.dropped.total",
+            "buckets dropped because a metric needed the interval slot for data arriving at a different moment",
             "count",
-            buffer::bucketsEvicted
+            buffer::bucketsDropped
+        );
+        registerGauge(
+            "es.derived_metrics.buckets.shortfall.current",
+            "the most interval slots a metric has come short by in one flush, which is what to raise max_interval_buckets by",
+            "count",
+            buffer::maxBucketsDroppedInACycle
         );
         register(
             "es.derived_metrics.observations.skipped.no_timestamp.total",
@@ -479,6 +485,11 @@ public class DerivedMetricsService implements Closeable {
 
     private void register(String name, String description, String unit, LongSupplier value) {
         metrics.add(meterRegistry.registerLongAsyncCounter(name, description, unit, () -> new LongWithAttributes(value.getAsLong())));
+    }
+
+    /** For a value that is a high-water mark rather than a running total, which a counter may not be. */
+    private void registerGauge(String name, String description, String unit, LongSupplier value) {
+        metrics.add(meterRegistry.registerLongGauge(name, description, unit, () -> new LongWithAttributes(value.getAsLong())));
     }
 
     /**
@@ -1021,6 +1032,16 @@ public class DerivedMetricsService implements Closeable {
     /** Tables removed mid-bucket because their dimension hash could no longer be probed. */
     public long tablesRetired() {
         return buffer.tablesRetired();
+    }
+
+    /** Buckets given up because a metric needed the interval slot for data arriving at a different moment. */
+    public long bucketsDropped() {
+        return buffer.bucketsDropped();
+    }
+
+    /** The most buckets dropped between two flushes, which says how far short of the moments it needed a metric came. */
+    public long maxBucketsDroppedInACycle() {
+        return buffer.maxBucketsDroppedInACycle();
     }
 
     /** Observations skipped because a predicate needed a {@code _source} that could not be read. */

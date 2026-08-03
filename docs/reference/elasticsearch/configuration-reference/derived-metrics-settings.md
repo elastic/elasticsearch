@@ -31,11 +31,17 @@ Series count is the one thing that grows with the data, because dimension values
 $$$derived-metrics-max-interval-buckets$$$
 
 `data_streams.derived_metrics.max_interval_buckets`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) How many interval buckets one metric may collect into at the same time. Defaults to `2`, and may be at most `8`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) How many interval buckets one metric may collect into at the same time. Defaults to `4`, and may be at most `8`.
 
     A metric configured with `"time_source": "event"`, which is the default for user-defined metrics, is counted in the interval its own `@timestamp` falls in rather than the interval it was written in. Buckets are created as data arrives, so a producer running behind collects normally in its own intervals rather than being measured against the receiving node's clock.
 
-    This setting bounds how many such intervals a metric holds at once, which is what costs memory. Raise it when documents for a metric legitimately arrive for several intervals at once, such as a producer replaying history alongside others writing in real time. When a new interval is needed and none is free, the oldest is written out; if data for it arrives again it is written again as an additional result that combines with the first. Nothing is lost, and `es.derived_metrics.buckets.evicted.total` reports how often it happens.
+    This setting bounds how many such intervals a metric holds at once. When a new interval is needed and none is free, the interval holding the oldest data is dropped, and what it had collected is lost.
+
+    Dropping rather than writing the bucket out is what keeps output volume a function of series and interval rather than of write rate. A producer whose data arrives at many unrelated moments would otherwise force a document per document.
+
+    Two counters report it. `es.derived_metrics.buckets.dropped.total` says data was lost. `es.derived_metrics.buckets.shortfall.current` says how many intervals were given up in the worst single flush, which is roughly how far short of the moments it needed the metric came: raise this setting by about that much. Both are broken down per data stream by the [derived metrics stats API](/reference/elasticsearch/rest-apis/index.md).
+
+    Ordinary data does not reach this. A producer running behind, however far behind, collects into one interval at a time and each is written out normally once it goes quiet. What consumes slots is several producers at unrelated lags, or a backlog replayed faster than intervals can close.
 
 $$$derived-metrics-max-series-per-node$$$
 

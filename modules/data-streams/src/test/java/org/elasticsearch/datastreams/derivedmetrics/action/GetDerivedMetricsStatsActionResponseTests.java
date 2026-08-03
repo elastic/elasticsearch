@@ -129,6 +129,7 @@ public class GetDerivedMetricsStatsActionResponseTests extends ESTestCase {
             0,
             seriesHeld * 120,
             new Refusals(0, 2, 0, 0),
+            0,
             List.of(
                 new MetricStats(
                     "http.requests",
@@ -149,11 +150,12 @@ public class GetDerivedMetricsStatsActionResponseTests extends ESTestCase {
             0,
             0,
             Refusals.NONE,
+            0,
             List.of(new MetricStats("http.requests", "10s", 0, 0, false, List.of(dimension)))
         );
     }
 
     private static NodeTotals totals(long seriesHeld, long droppedAtStreamCap) {
-        return new NodeTotals(seriesHeld, 0, 0, new Refusals(0, droppedAtStreamCap, 0, 0), 10, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new NodeTotals(seriesHeld, 0, 0, new Refusals(0, droppedAtStreamCap, 0, 0), 10, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }

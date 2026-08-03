@@ -249,7 +249,7 @@ public class DerivedMetricsServiceTests extends ESTestCase {
             }
 
             assertEquals("an hour behind is still one series in one bucket", 1, service.bufferedSeries());
-            assertEquals("and nothing about it is an eviction", 0L, service.buffer().bucketsEvicted());
+            assertEquals("and nothing about it is dropped", 0L, service.buffer().bucketsDropped());
         }
     }
 
@@ -274,22 +274,22 @@ public class DerivedMetricsServiceTests extends ESTestCase {
             }
 
             assertEquals("two moments, two buckets, one series in each", 2, service.bufferedSeries());
-            assertEquals("neither should be pushing the other out", 0L, service.buffer().bucketsEvicted());
+            assertEquals("neither should be pushing the other out", 0L, service.buffer().bucketsDropped());
         }
     }
 
     /**
-     * Data arriving at more distinct moments than there are slots costs documents, not observations: the oldest bucket is written out to
-     * make room rather than the observation being refused.
+     * Past the slots a metric has, the stalest bucket is given up. It is dropped rather than written out: emitting would keep every
+     * observation but would cost one document per document for an erratic producer, which is the one thing this must not do.
      */
-    public void testMoreMomentsThanSlotsCostsDocumentsRatherThanData() throws Exception {
+    public void testPastTheSlotsTheStalestBucketIsDropped() throws Exception {
         Settings settings = Settings.builder().put(DerivedMetricsService.MAX_INTERVAL_BUCKETS.getKey(), 1).build();
         try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
             CompiledDerivedMetrics eventTime = eventTimeMetric();
             service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.ZERO), true, null);
             service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueMinutes(30)), true, null);
 
-            assertThat("the slot had to be given up", service.buffer().bucketsEvicted(), greaterThan(0L));
+            assertThat("the slot had to be given up", service.buffer().bucketsDropped(), greaterThan(0L));
         }
     }
 

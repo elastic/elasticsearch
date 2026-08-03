@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DerivedMetricsBufferTests extends ESTestCase {
@@ -50,6 +51,87 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         super.setUp();
         // MockBigArrays fails the test if anything we allocate is not released, which is exactly the leak we care about
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    /**
+     * The property the whole feature rests on: output is a function of series and interval, never of write rate. A producer whose data
+     * arrives at more distinct moments than the metric has slots is the one case that could break it, since every observation would open a
+     * bucket. Dropping the stalest bucket is what keeps the output bounded, and this pins that it stays bounded rather than climbing with
+     * the observations.
+     */
+    public void testAnErraticProducerCostsBoundedOutput() {
+        int slots = 4;
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0, 1_000, slots)) {
+            CompiledMetric metric = metric(Reduction.SUM);
+            int observations = 2_000;
+            for (int i = 0; i < observations; i++) {
+                // sixteen moments interleaved, four times the slots, which is the shape a fleet of producers at unrelated lags produces
+                long bucketStart = (i * 7L % 16L) * TEN_SECONDS.millis();
+                buffer.record(
+                    new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, bucketStart, TEN_SECONDS.millis()),
+                    new String[] { "checkout" },
+                    new Scratch(),
+                    1.0
+                );
+            }
+
+            var drained = buffer.drainAll();
+            try {
+                assertThat("what is held can never exceed the slots", drained.size(), lessThanOrEqualTo(slots));
+                assertThat("and the loss is counted rather than silent", buffer.bucketsDropped(), greaterThan(0L));
+            } finally {
+                drained.forEach(d -> d.table().close());
+            }
+        }
+    }
+
+    /**
+     * Ordered data is the case that must not pay for the above, and does not: a producer moving through its own time holds one moment at a
+     * time, so each bucket idles out and is written normally however far behind the producer is running.
+     *
+     * <p>The qualifier is speed rather than lateness. A bucket idles out on the wall clock, so a producer replaying <em>faster</em> than
+     * real time can outrun that and give up buckets it had finished with. That is the accepted cost of bounding the output, it is counted,
+     * and {@code max_interval_buckets} is what buys more room for it.
+     */
+    public void testAProducerRunningBehindDropsNothing() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0, 1_000, 2)) {
+            CompiledMetric metric = metric(Reduction.SUM);
+            for (int bucket = 0; bucket < 360; bucket++) {
+                for (int i = 0; i < 5; i++) {
+                    buffer.record(
+                        new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, bucket * TEN_SECONDS.millis(), TEN_SECONDS.millis()),
+                        new String[] { "checkout" },
+                        new Scratch(),
+                        1.0
+                    );
+                }
+                // the flush the node runs anyway, which retires each bucket once the producer has moved past it
+                buffer.drainClosed((bucket + 2) * TEN_SECONDS.millis(), 0).forEach(d -> d.table().close());
+            }
+            assertEquals("an hour of ordered history costs nothing", 0L, buffer.bucketsDropped());
+        }
+    }
+
+    /**
+     * The accepted cost, pinned so that it is a decision rather than a surprise: a backlog replayed faster than buckets can idle out gives
+     * up the ones it has finished with, and says how many so an operator can size {@code max_interval_buckets} against their own replay.
+     */
+    public void testABacklogReplayedFasterThanRealTimeGivesUpBuckets() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0, 1_000, 2)) {
+            CompiledMetric metric = metric(Reduction.SUM);
+            for (int bucket = 0; bucket < 120; bucket++) {
+                buffer.record(
+                    new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, bucket * TEN_SECONDS.millis(), TEN_SECONDS.millis()),
+                    new String[] { "checkout" },
+                    new Scratch(),
+                    1.0
+                );
+                // twenty minutes of history drained in two seconds, so nothing has been quiet long enough to be written out
+                buffer.drainClosed(bucket * 16L, 5_000).forEach(d -> d.table().close());
+            }
+            assertThat("the backlog outran the flush", buffer.bucketsDropped(), greaterThan(0L));
+            assertThat("and it is reported as how short of slots it came", buffer.maxBucketsDroppedInACycle(), greaterThan(0L));
+        }
     }
 
     public void testBucketsAreAlignedToTheEpoch() {

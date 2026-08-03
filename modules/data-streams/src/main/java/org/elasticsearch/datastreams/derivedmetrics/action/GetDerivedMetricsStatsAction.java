@@ -243,6 +243,7 @@ public class GetDerivedMetricsStatsAction {
         long histogramSeriesHeld,
         long bytesHeld,
         Refusals refusals,
+        long bucketsDropped,
         List<MetricStats> metrics
     ) implements Writeable {
 
@@ -253,6 +254,7 @@ public class GetDerivedMetricsStatsAction {
                 in.readVLong(),
                 in.readVLong(),
                 Refusals.read(in),
+                in.readVLong(),
                 in.readCollectionAsImmutableList(MetricStats::read)
             );
         }
@@ -264,6 +266,7 @@ public class GetDerivedMetricsStatsAction {
             out.writeVLong(histogramSeriesHeld);
             out.writeVLong(bytesHeld);
             refusals.writeTo(out);
+            out.writeVLong(bucketsDropped);
             out.writeCollection(metrics);
         }
 
@@ -273,6 +276,7 @@ public class GetDerivedMetricsStatsAction {
             builder.field("series_held", seriesHeld);
             builder.field("histogram_series_held", histogramSeriesHeld);
             builder.humanReadableField("bytes_held_in_bytes", "bytes_held", ByteSizeValue.ofBytes(bytesHeld));
+            builder.field("buckets_dropped", bucketsDropped);
             refusals.toXContent(builder);
             builder.startArray("metrics");
             for (MetricStats metric : metrics) {
@@ -305,10 +309,12 @@ public class GetDerivedMetricsStatsAction {
         long documentsRejected,
         long documentsFailed,
         long documentsDroppedForBackpressure,
-        long documentsDroppedForIndexingPressure
+        long documentsDroppedForIndexingPressure,
+        long bucketsDropped,
+        long maxBucketsDroppedInACycle
     ) implements Writeable {
 
-        public static final NodeTotals EMPTY = new NodeTotals(0, 0, 0, Refusals.NONE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        public static final NodeTotals EMPTY = new NodeTotals(0, 0, 0, Refusals.NONE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         public static NodeTotals read(StreamInput in) throws IOException {
             return new NodeTotals(
@@ -316,6 +322,8 @@ public class GetDerivedMetricsStatsAction {
                 in.readVLong(),
                 in.readVLong(),
                 Refusals.read(in),
+                in.readVLong(),
+                in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
@@ -351,6 +359,8 @@ public class GetDerivedMetricsStatsAction {
             out.writeVLong(documentsFailed);
             out.writeVLong(documentsDroppedForBackpressure);
             out.writeVLong(documentsDroppedForIndexingPressure);
+            out.writeVLong(bucketsDropped);
+            out.writeVLong(maxBucketsDroppedInACycle);
         }
 
         public NodeTotals plus(NodeTotals other) {
@@ -371,7 +381,10 @@ public class GetDerivedMetricsStatsAction {
                 documentsRejected + other.documentsRejected,
                 documentsFailed + other.documentsFailed,
                 documentsDroppedForBackpressure + other.documentsDroppedForBackpressure,
-                documentsDroppedForIndexingPressure + other.documentsDroppedForIndexingPressure
+                documentsDroppedForIndexingPressure + other.documentsDroppedForIndexingPressure,
+                bucketsDropped + other.bucketsDropped,
+                // a maximum per node, so the cluster answer is the worst node rather than a total that would mean nothing
+                Math.max(maxBucketsDroppedInACycle, other.maxBucketsDroppedInACycle)
             );
         }
 
@@ -518,6 +531,7 @@ public class GetDerivedMetricsStatsAction {
                 left.histogramSeriesHeld() + right.histogramSeriesHeld(),
                 left.bytesHeld() + right.bytesHeld(),
                 left.refusals().plus(right.refusals()),
+                left.bucketsDropped() + right.bucketsDropped(),
                 sorted
             );
         }

@@ -129,7 +129,9 @@ public class TransportGetDerivedMetricsStatsAction extends TransportNodesAction<
             derivedMetrics.emissionRejections(),
             derivedMetrics.emissionFailures(),
             derivedMetrics.droppedForBackpressure(),
-            derivedMetrics.droppedForIndexingPressure()
+            derivedMetrics.droppedForIndexingPressure(),
+            derivedMetrics.bucketsDropped(),
+            derivedMetrics.maxBucketsDroppedInACycle()
         );
     }
 
@@ -168,6 +170,7 @@ public class TransportGetDerivedMetricsStatsAction extends TransportNodesAction<
                 refused.atHistogramCap(),
                 refused.atBreaker()
             );
+            stream.bucketsDropped = refused.bucketsDropped();
         }
         for (DerivedMetricsBuffer.DimensionCardinality cardinality : derivedMetrics.dimensionCardinalities()) {
             if (project.equals(cardinality.project()) == false) {
@@ -202,6 +205,7 @@ public class TransportGetDerivedMetricsStatsAction extends TransportNodesAction<
         private long histogramSeriesHeld;
         private long bytesHeld;
         private GetDerivedMetricsStatsAction.Refusals refusals = GetDerivedMetricsStatsAction.Refusals.NONE;
+        private long bucketsDropped;
 
         StreamAccumulator(String name) {
             this.name = name;
@@ -218,7 +222,15 @@ public class TransportGetDerivedMetricsStatsAction extends TransportNodesAction<
                 built.add(metric.build());
             }
             built.sort(Comparator.comparing(GetDerivedMetricsStatsAction.MetricStats::name));
-            return new GetDerivedMetricsStatsAction.DataStreamStats(name, seriesHeld, histogramSeriesHeld, bytesHeld, refusals, built);
+            return new GetDerivedMetricsStatsAction.DataStreamStats(
+                name,
+                seriesHeld,
+                histogramSeriesHeld,
+                bytesHeld,
+                refusals,
+                bucketsDropped,
+                built
+            );
         }
     }
 

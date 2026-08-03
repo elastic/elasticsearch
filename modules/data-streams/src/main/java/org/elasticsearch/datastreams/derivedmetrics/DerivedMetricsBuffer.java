@@ -144,10 +144,11 @@ public class DerivedMetricsBuffer implements Releasable {
         long atNodeCap,
         long atStreamCap,
         long atHistogramCap,
-        long atBreaker
+        long atBreaker,
+        long bucketsDropped
     ) {
         boolean any() {
-            return atNodeCap > 0 || atStreamCap > 0 || atHistogramCap > 0 || atBreaker > 0;
+            return atNodeCap > 0 || atStreamCap > 0 || atHistogramCap > 0 || atBreaker > 0 || bucketsDropped > 0;
         }
     }
 
@@ -157,6 +158,7 @@ public class DerivedMetricsBuffer implements Releasable {
         private final LongAdder atStreamCap = new LongAdder();
         private final LongAdder atHistogramCap = new LongAdder();
         private final LongAdder atBreaker = new LongAdder();
+        private final LongAdder bucketsDropped = new LongAdder();
     }
 
     /**
@@ -339,7 +341,14 @@ public class DerivedMetricsBuffer implements Releasable {
     private final LongAdder partialsExhausted = new LongAdder();
     private final LongAdder tablesRetired = new LongAdder();
     private final LongAdder bucketsReopened = new LongAdder();
-    private final LongAdder bucketsEvicted = new LongAdder();
+    private final LongAdder bucketsDropped = new LongAdder();
+    /**
+     * Drops since the last flush, and the largest any one flush has seen. The maximum is the actionable half: it says how many intervals a
+     * metric was collecting into beyond the slots it had, so an operator can raise {@code max_interval_buckets} by roughly that much
+     * rather than guessing.
+     */
+    private final LongAdder droppedThisCycle = new LongAdder();
+    private volatile long maxDroppedInACycle;
     /** Dimensions a metric has given up breaking down by, counted once each so that degrading is visible rather than silent. */
     private final LongAdder dimensionsCollapsed = new LongAdder();
     /**
@@ -465,8 +474,14 @@ public class DerivedMetricsBuffer implements Releasable {
         );
     }
 
-    /** How many interval buckets a metric may have open at once when nothing says otherwise. */
-    public static final int DEFAULT_MAX_INTERVAL_BUCKETS = 2;
+    /**
+     * How many interval buckets a metric may have open at once when nothing says otherwise.
+     *
+     * <p>Four rather than two because the cost of coming up short is a dropped bucket, and the number of moments a metric collects into is
+     * a small number a little above one in practice: a couple of producer lags and some clock skew. Two would put the common case right on
+     * the edge.
+     */
+    public static final int DEFAULT_MAX_INTERVAL_BUCKETS = 4;
 
     /**
      * @param maxIntervalBuckets how many interval buckets one metric may hold at once, wherever they sit on the timeline. Two lets a fleet
@@ -804,15 +819,18 @@ public class DerivedMetricsBuffer implements Releasable {
         if (evicted == Long.MIN_VALUE) {
             return;
         }
-        bucketsEvicted.increment();
         TableKey evictedKey = new TableKey(key.project(), key.sourceDataStream(), key.metric(), evicted, key.intervalMillis());
-        DerivedMetricsStripedTable evictedTable = tables.get(evictedKey);
-        if (evictedTable != null) {
-            Drained taken = take(evictedKey, evictedTable, false);
-            if (taken != null) {
-                retired.add(taken);
-            }
+        DerivedMetricsStripedTable evictedTable = tables.remove(evictedKey);
+        if (evictedTable == null) {
+            return;
         }
+        // Dropped rather than written out. Emitting would keep every observation, but an erratic producer would then cost one document per
+        // document, which is the one thing this feature promises not to do. Losing the stalest bucket bounds the output whatever the
+        // producer does, and the counters below are what tells an operator it happened and by how much they are under-bucketed.
+        bucketsDropped.increment();
+        droppedThisCycle.increment();
+        refusalsFor(key).bucketsDropped.increment();
+        evictedTable.close();
     }
 
     /**
@@ -925,6 +943,10 @@ public class DerivedMetricsBuffer implements Releasable {
             + graceMillis <= nowMillis;
         List<Drained> drained = drain(closed, false);
         drainRetired(drained);
+        long dropped = droppedThisCycle.sumThenReset();
+        if (dropped > maxDroppedInACycle) {
+            maxDroppedInACycle = dropped;
+        }
         forget(nowMillis);
         return drained;
     }
@@ -1155,7 +1177,8 @@ public class DerivedMetricsBuffer implements Releasable {
                 counted.atNodeCap.sum(),
                 counted.atStreamCap.sum(),
                 counted.atHistogramCap.sum(),
-                counted.atBreaker.sum()
+                counted.atBreaker.sum(),
+                counted.bucketsDropped.sum()
             );
             if (refused.any()) {
                 perStream.add(refused);
@@ -1173,8 +1196,13 @@ public class DerivedMetricsBuffer implements Releasable {
      * Buckets given up because a metric needed a slot for a newer one. A steady rate here means the data arrives at more distinct moments
      * than {@code max_interval_buckets} allows for, which costs extra documents rather than accuracy.
      */
-    public long bucketsEvicted() {
-        return bucketsEvicted.sum();
+    public long bucketsDropped() {
+        return bucketsDropped.sum();
+    }
+
+    /** The most buckets dropped between two flushes, which is how far short of the moments it needed a metric came. */
+    public long maxBucketsDroppedInACycle() {
+        return maxDroppedInACycle;
     }
 
     /** Observations that arrived for a bucket already emitted, and reopened it as a further partial. */

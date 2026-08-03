@@ -126,11 +126,15 @@ A document with no timestamp this can read falls back to the write clock and is 
 
 There is no lateness rule, because a producer that is permanently behind is not late in any sense worth acting on. It has its own present, and refusing its data for disagreeing with this node's clock would throw away a working pipeline's numbers to defend a comparison that means nothing.
 
-So a bucket exists where its data is. The first observation for a metric opens a bucket wherever its timestamp falls, and a metric holds up to `max_interval_buckets` of them at once (default `2`, at most `8`). An observation for a bucket already held is recorded into it. An observation for a moment none of the held buckets covers takes a slot, and the oldest bucket gives up its own.
+So a bucket exists where its data is. The first observation for a metric opens a bucket wherever its timestamp falls, and a metric holds up to `max_interval_buckets` of them at once (default `4`, at most `8`). An observation for a bucket already held is recorded into it. An observation for a moment none of the held buckets covers takes a slot, and the oldest bucket gives up its own.
 
 The bound is therefore on **how many moments a metric collects at once**, which is the thing that costs memory, rather than on how old a document may be, which costs nothing. Two producers can be collecting at once as far apart as they like: one replaying yesterday while the rest write in real time is two moments, not a violation.
 
-Running out of slots costs documents rather than data. The evicted bucket is written out, and if data for it arrives again it reopens and the next flush emits a further partial, which sums with the one already written. Nothing is lost; the series is just split across more documents. `buckets.evicted.total` counts it, and a metric whose data arrives at more distinct moments than it has slots will show it climbing.
+Running out of slots costs data. The bucket holding the oldest data is dropped and what it had collected is lost.
+
+Writing it out instead would lose nothing, and was the first implementation, but it makes output volume a function of write rate: a producer whose data arrives at more distinct moments than there are slots forces a bucket out on nearly every observation, which is one document per document. That is the one property the feature cannot give up, so the bounded-output side of the trade wins and the loss is counted instead. `buckets.dropped.total` says it happened; `buckets.shortfall.current` says how many slots short the metric was, which is what to raise the setting by.
+
+The slot count therefore has a real cost when it is too low, which is why the default is four rather than two: the number of moments a metric collects into is a small number a little above one, and two would put the ordinary case on the edge.
 
 A bucket nothing has written to for `interval + flush_grace_period` is written out. That is measured per bucket, from its own last write: a metric collecting at two moments at once must not have the quiet one held open by the busy one. This is what closes the last bucket of a stream that has stopped, which eviction alone never would.
 

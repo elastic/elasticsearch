@@ -87,7 +87,7 @@ public class LateMaterializationPlanner {
     /**
      * Gates late materialization on the node-reduce driver for {@link TopNBy} and {@link LimitBy} queries.
      * Enabled automatically in snapshot builds; override in release with
-     * {@code -Des.esql_reduce_node_late_materialization_by_feature_flag_enabled=true}.
+     * {@code -Des.esql_node_late_materialization_limit_by_feature_flag_enabled=true}.
      */
     public static final FeatureFlag ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG = new FeatureFlag(
         "esql_node_late_materialization_limit_by"
@@ -227,8 +227,8 @@ public class LateMaterializationPlanner {
 
         PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNByExec.class, t -> {
             PhysicalPlan exchangeExec = new ExchangeSourceExec(topNBy.source(), expectedDataOutput, false);
-            // The reduce-side TopNByExec always produces sorted output (it is the final step seen by the coordinator).
-            return t.replaceChild(exchangeExec).withSortedOutput();
+            // The reduce driver feeds an exchange that the coordinator's own TopNByExec consumes; sorted output is not required.
+            return t.replaceChild(exchangeExec).withNonSortedOutput();
         });
         PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
         ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(sizedReductionPlan);

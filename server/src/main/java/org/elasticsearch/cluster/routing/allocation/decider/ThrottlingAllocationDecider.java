@@ -246,7 +246,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             initializingShard = shardRouting.moveToUnassigned(unassignedInfo)
                 .initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.relocating()) {
-            initializingShard = shardRouting.cancelRelocation(false)
+            initializingShard = shardRouting.cancelRelocation()
                 .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
                 .getTargetRelocatingShard();
         } else {

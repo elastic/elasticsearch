@@ -613,12 +613,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Cancel relocation of a shard. The shard's state must be <code>RELOCATING</code>.
+     * Cancels relocation of a shard without counting it as a failure ({@code failedRelocations} will not be incremented).
+     * Use for intentional cancellations such as {@link UnassignedInfo.Reason#RECOVERY_CANCELLED}.
+     * The shard's state must be <code>RELOCATING</code>.
      *
-     * @param relocationFailed {@code true} if this relocation attempt actually failed (increments {@code failedRelocations})
-     *                         {@code false} for intentional cancellations such as {@link UnassignedInfo.Reason#RECOVERY_CANCELLED}
+     * @see #failRelocation()
      */
-    public ShardRouting cancelRelocation(boolean relocationFailed) {
+    public ShardRouting cancelRelocation() {
+        return abortRelocation(false);
+    }
+
+    /**
+     * Fails relocation of a shard, incrementing {@code failedRelocations}.
+     * The shard's state must be <code>RELOCATING</code>.
+     *
+     * @see #cancelRelocation()
+     */
+    public ShardRouting failRelocation() {
+        return abortRelocation(true);
+    }
+
+    private ShardRouting abortRelocation(boolean relocationFailed) {
         assert state == ShardRoutingState.RELOCATING : this;
         assert assignedToNode() : this;
         assert relocatingNodeId != null : this;

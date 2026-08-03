@@ -74,12 +74,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:PROMQL}
-  issue: https://github.com/elastic/elasticsearch/issues/146923
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:PROMQL}
-  issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283

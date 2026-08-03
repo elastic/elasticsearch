@@ -948,32 +948,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
         final int numSlices = values.getValueCount();
 
-        // For small slices, skip clustering and use a flat float centroid
-        if (vectorValues.size() / numSlices <= 4 * flatVectorThreshold) {
-            final int dim = vectorValues.dimension();
-            final int size = vectorValues.size();
-            List<float[]> widened = new ArrayList<>(size);
-            int[] docs = new int[size];
-            for (int i = 0; i < size; i++) {
-                Object v = vectorValues.vectorValue(i);
-                float[] fv;
-                if (v instanceof byte[] bv) {
-                    fv = new float[dim];
-                    for (int d = 0; d < dim; d++) {
-                        fv[d] = bv[d];
-                    }
-                } else {
-                    fv = ((float[]) v).clone();
-                }
-                widened.add(fv);
-                docs[i] = vectorValues.ordToDoc(i);
-            }
-            KMeansFloatVectorValues floatVectorValues = KMeansFloatVectorValues.build(widened, docs, dim);
-            float[][] centroid = new float[][] { CentroidOps.FLOAT.computeMeanCentroid(floatVectorValues, dim) };
-            int[] assignments = new int[size];
-            return CentroidInformation.ofFloat(dim, centroid, assignments, OverspillAssignments.NONE, null);
-        }
-
         // Dispatch to generic typed implementation
         if (vectorValues instanceof ClusteringByteVectorValues byteVectorValues) {
             return calculateCentroidsFullRebuildSlicedTyped(byteVectorValues, CentroidOps.BYTE, values, numSlices);
@@ -988,6 +962,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         SortedDocValues values,
         int numSlices
     ) throws IOException {
+        // For small slices, skip clustering and use a single flat centroid computed in the native type.
+        if (vectorValues.size() / numSlices <= 4 * flatVectorThreshold) {
+            final int dim = vectorValues.dimension();
+            V nativeCentroid = ops.computeMeanCentroid(vectorValues, dim);
+            V[] centroids = ops.newCentroidArrayShallow(1);
+            centroids[0] = nativeCentroid;
+            int[] assignments = new int[vectorValues.size()];
+            return CentroidInformation.of(dim, centroids, assignments, OverspillAssignments.NONE, null, ops);
+        }
+
         HierarchicalKMeans<V> hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(ops, vectorValues.dimension(), mergeExec, numMergeWorkers);

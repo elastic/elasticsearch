@@ -36,6 +36,7 @@ import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
     public static final String TEST_DATA_URI = "data:mime/type;base64,abcd";
@@ -95,6 +96,28 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;charset=utf-8;base64,abcd");
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;p1=v1;p2=v2;base64,abcd");
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/svg+xml;base64,abcd");
+    }
+
+    public void testTryParseDataUri_extractsMediaTypeAndPayload() {
+        assertThat(InferenceString.tryParseDataUri("data:image/png;base64,abcd"), is(new InferenceString.DataUri("image/png", "abcd")));
+        // RFC 2397 parameters are preserved as declared; interpreting them is up to the caller.
+        assertThat(
+            InferenceString.tryParseDataUri("data:text/plain;charset=utf-8;base64,abcd"),
+            is(new InferenceString.DataUri("text/plain;charset=utf-8", "abcd"))
+        );
+    }
+
+    public void testTryParseDataUri_returnsNullForInvalidValues() {
+        var invalidValues = List.of(
+            "",
+            "notADataURI",
+            "abcd", // bare base64 without a data URI prefix
+            "https://example.com/image.png", // plain URL
+            "data:image/jpeg;base64abcd", // missing final ","
+            "data:;base64,abcd", // missing MIME type
+            "data:image/" + "a".repeat(InferenceString.MAX_DATA_URI_PREFIX_LENGTH) + ";base64,abcd" // oversized prefix
+        );
+        invalidValues.forEach(value -> assertThat(value, InferenceString.tryParseDataUri(value), nullValue()));
     }
 
     /** URI prefixes exceeding {@link InferenceString#MAX_DATA_URI_PREFIX_LENGTH} are rejected before the regex runs. */

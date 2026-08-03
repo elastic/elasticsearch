@@ -44,6 +44,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -90,7 +91,9 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
@@ -154,6 +157,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
+
+    /**
+     * Feature flag gating the implicit {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices.
+     */
+    public static final FeatureFlag UNMAPPED_FIELDS_FEATURE_FLAG = new FeatureFlag("flattened_unmapped_fields");
+
+    /**
+     * Name of the implicit, non-serialized flattened sink injected under root to absorb unmapped fields as full dotted keys.
+     */
+    public static final String UNMAPPED_SINK_NAME = "_unmapped";
 
     public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
     public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
@@ -729,8 +742,27 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
-            return new PrefixQuery(term);
+            String keyPrefix = FlattenedFieldParser.createKeyedValue(key, ""); // "key\0" — every stored value for this key starts with it
+
+            if (indexType.hasOnlyDocValues()) {
+                // DV-only storage (e.g. columnar) has no inverted terms, so a key-specific exists must scan the doc-values for the prefix.
+                if (usesBinaryDocValues) {
+                    if (usesArrayOrderBinaryDocValues) {
+                        // Columnar keyed-inline-null blob: slots carry the key\0 prefix, so scan it with a prefix predicate.
+                        return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
+                    }
+                    // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                }
+
+                // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.
+                BytesRef lower = new BytesRef(keyPrefix);
+                BytesRef upper = new BytesRef(keyPrefix);
+                upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
+
+                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+            }
+            return new PrefixQuery(new Term(name(), keyPrefix));
         }
 
         @Override
@@ -799,6 +831,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             TermRangeQuery query = new TermRangeQuery(name(), lower, upper, lowerInclusive, upperInclusive);
             context.addCircuitBreakerMemory(query.ramBytesUsed(), ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":" + name());
+            context.markQueryMemoryPreCharged(query);
             return query;
         }
 
@@ -1760,21 +1793,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             return;
         }
 
-        FlattenedFieldArrayContext arrayContext;
-        // In document-order mode the write path uses KeyedArrayOrderInlineNull; no _offsets sidecar is written.
-        if (preserveLeafArrays == PreserveLeafArrays.LOSSY || fieldType().usesArrayOrderBinaryDocValues()) {
-            arrayContext = null;
-        } else {
-            arrayContext = (FlattenedFieldArrayContext) context.getOffSetContext(
-                mappedFieldType.name(),
-                () -> new FlattenedFieldArrayContext(mappedFieldType.name())
-            );
-        }
-
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
-            fieldParser.parse(context, arrayContext);
+            fieldParser.parse(context, arrayContext(context));
         } finally {
             context.path().setWithinLeafObject(false);
         }
@@ -1782,6 +1804,35 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         if (mappedFieldType.hasDocValues() == false) {
             context.addToFieldNames(fieldType().name());
         }
+    }
+
+    private FlattenedFieldArrayContext arrayContext(DocumentParserContext context) {
+        // In document-order mode the write path uses KeyedArrayOrderInlineNull; no _offsets sidecar is written.
+        if (preserveLeafArrays == PreserveLeafArrays.LOSSY || fieldType().usesArrayOrderBinaryDocValues()) {
+            return null;
+        }
+        return (FlattenedFieldArrayContext) context.getOffSetContext(
+            mappedFieldType.name(),
+            () -> new FlattenedFieldArrayContext(mappedFieldType.name())
+        );
+    }
+
+    /**
+     * Whether this mapper is the implicit {@code _unmapped} sink; other flattened fields (including user-declared ones) return false.
+     * Computed on demand rather than stored: sink-ness is a pure function of the index setting and the field name, both fixed for the
+     * life of the mapper. The setting gate is load-bearing, since a user may declare a flattened field named {@code _unmapped} on a
+     * non-feature index and it must stay a normal field.
+     */
+    public boolean isUnmappedSink() {
+        return builder.indexSettings.isFlattenedUnmappedFieldsEnabled() && UNMAPPED_SINK_NAME.equals(mappedFieldType.name());
+    }
+
+    /**
+     * Indexes the current parser value (including a null token) into this flattened field under {@code path} (a full dotted key), via
+     * the normal keyed write path rather than by walking a subtree. Lets a caller route a leaf sourced elsewhere in the document here.
+     */
+    public void indexValueAtPath(DocumentParserContext context, String path) throws IOException {
+        fieldParser.indexValueAtPath(context, arrayContext(context), path);
     }
 
     @Override

@@ -588,25 +588,29 @@ public class RequestExecutorService implements RequestExecutor {
             // Rate limited execution path
             if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
                 submitTaskToRateLimitedExecutionPath(task);
-            } else {
-                boolean taskAccepted = requestQueue.offer(task);
-
-                if (taskAccepted == false) {
-                    task.onRejection(
-                        new EsRejectedExecutionException(
-                            format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
-                            false
-                        )
-                    );
-                }
+            } else if (requestQueue.offer(task) == false) {
+                rejectImmediateTask(task, inferenceEntityId);
+            } else if (isShutdown() && requestQueue.remove(task)) {
+                // We raced with shutdown and pulled the task back out ourselves, so it is ours to reject
+                rejectNonRateLimitedRequest(task);
             }
         } catch (Exception e) {
-            // Task releases bytes on its own, so we do not need to release manually
+            // Every branch above notifies the task itself when it rejects it, so only notify here if nothing has
+            // completed the listener yet. The task releases the tracked bytes on its own.
+            if (task.hasCompleted() == false) {
+                rejectImmediateTask(task, inferenceEntityId);
+            } else {
+                logger.debug(() -> format("Failed to enqueue request task for inference id [%s]", inferenceEntityId), e);
+            }
+        }
+    }
+
+    private void rejectImmediateTask(RequestTask task, String inferenceEntityId) {
+        if (isShutdown()) {
+            rejectNonRateLimitedRequest(task);
+        } else {
             task.onRejection(
-                new EsRejectedExecutionException(
-                    format("Failed to enqueue request task for inference id [%s]", inferenceEntityId),
-                    false
-                )
+                new EsRejectedExecutionException(format("Failed to enqueue request task for inference id [%s]", inferenceEntityId), false)
             );
         }
     }

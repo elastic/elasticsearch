@@ -1051,6 +1051,108 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(circuitBreaker.getUsed(), is(0L));
     }
 
+    public void testExecute_ImmediatelyRejectsNonRateLimitedTask_WithShutdownException_WhenShutdownRacesWithQueueOffer() {
+        // Simulate the race where shutdown happens after the pre-check but while offer() is still running.
+        // The task lands in the queue, but the post-offer isShutdown() check reclaims it via remove()
+        // and rejects it with a graceful shutdown exception — without needing start().
+        var serviceHolder = new RequestExecutorService[] { null };
+        var racyQueueCreator = new AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask>() {
+            @Override
+            public BlockingQueue<RejectableTask> create(int capacity) {
+                return create();
+            }
+
+            @Override
+            public BlockingQueue<RejectableTask> create() {
+                return new LinkedBlockingQueue<>() {
+                    @Override
+                    public boolean offer(RejectableTask task) {
+                        serviceHolder[0].shutdown();
+                        return super.offer(task);
+                    }
+                };
+            }
+        };
+
+        serviceHolder[0] = new RequestExecutorService(
+            threadPool,
+            racyQueueCreator,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            mock(RetryingHttpSender.class),
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            new TestCircuitBreaker()
+        );
+        var service = serviceHolder[0];
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingDisabled(INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            null,
+            listener
+        );
+
+        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send request for inference id [%s] because the request executor service has been shutdown", INFERENCE_ID))
+        );
+        assertTrue(thrownException.isExecutorShutdown());
+    }
+
+    public void testExecute_ImmediatelyRejectsNonRateLimitedTask_WithShutdownException_WhenQueueOfferFailsAndServiceIsShutdown() {
+        // Simulate the race where shutdown happens after the pre-check and offer() returns false.
+        // rejectImmediateTask() detects shutdown and returns a graceful shutdown exception rather
+        // than the plain queue-full rejection.
+        var serviceHolder = new RequestExecutorService[] { null };
+        var racyQueueCreator = new AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask>() {
+            @Override
+            public BlockingQueue<RejectableTask> create(int capacity) {
+                return create();
+            }
+
+            @Override
+            public BlockingQueue<RejectableTask> create() {
+                return new LinkedBlockingQueue<>() {
+                    @Override
+                    public boolean offer(RejectableTask task) {
+                        serviceHolder[0].shutdown();
+                        return false;
+                    }
+                };
+            }
+        };
+
+        serviceHolder[0] = new RequestExecutorService(
+            threadPool,
+            racyQueueCreator,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            mock(RetryingHttpSender.class),
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            new TestCircuitBreaker()
+        );
+        var service = serviceHolder[0];
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingDisabled(INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            null,
+            listener
+        );
+
+        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send request for inference id [%s] because the request executor service has been shutdown", INFERENCE_ID))
+        );
+        assertTrue(thrownException.isExecutorShutdown());
+    }
+
     public void testExecuteEnqueuedTask_NotifiesListenerAndReleasesBytes_WhenRequestManagerExecuteThrows() {
         var circuitBreaker = new BytesTrackingCircuitBreaker();
         var requestSender = mock(RetryingHttpSender.class);

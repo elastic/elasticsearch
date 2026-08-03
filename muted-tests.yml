@@ -781,3 +781,6 @@ tests:
 - class: org.elasticsearch.index.rankeval.RankEvalRequestIT
   method: testIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/155708
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155541

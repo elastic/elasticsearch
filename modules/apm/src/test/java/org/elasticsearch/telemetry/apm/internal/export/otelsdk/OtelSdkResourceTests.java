@@ -146,7 +146,8 @@ public class OtelSdkResourceTests extends ESTestCase {
         assertThat(
             OtelSdkResource.parseMountInfoContainerId(
                 List.of(
-                    "10740 10112 8:3 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/" + containerdId
+                    "10740 10112 8:3 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/"
+                        + containerdId
                         + "/hostname /etc/hostname ro,relatime - ext4 /dev/sda3 rw"
                 )
             ),

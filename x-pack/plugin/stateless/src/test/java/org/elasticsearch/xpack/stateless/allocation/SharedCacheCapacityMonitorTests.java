@@ -87,13 +87,17 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
         // All nodes start below the high watermark, so there is nothing to reroute for yet.
+        var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        var previousCommitments = Map.<DiscoveryNode, NodeCacheSizeAndCommitments>of();
+        final boolean intervalElapsed = false;
         final SharedCacheCapacityMonitor.RerouteDecision initialDecision = monitor.decideReroute(
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            Map.of(),
-            false
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
         assertThat(initialDecision.shouldReroute(), equalTo(false));
         assertThat(initialDecision.reason(), equalTo(null));
+        assertThat(initialDecision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
         assertThat(initialDecision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(initialDecision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(initialDecision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
@@ -101,6 +105,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // One node crosses the high watermark. The anchor node stays below the low watermark, so there is somewhere to move
         // shards to, and a reroute is warranted, naming that node's short description in the debug log. The interval has not
         // elapsed, but a newly observed transition bypasses the throttle regardless.
+        previousCommitments = currentCommitments;
+        currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -111,13 +117,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-                commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-                commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-                false
+                currentCommitments,
+                previousCommitments,
+                intervalElapsed
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+            assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
             assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
@@ -130,14 +137,19 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // The same node reports a slightly different, but still-over-the-high-watermark, commitment on the next call. It did not
         // newly cross the watermark this time, so this falls to the retry rule, which is blocked while the interval has not
         // elapsed.
+        var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        var previousCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final boolean intervalElapsed = false;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            false
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
         assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
@@ -149,16 +161,20 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // The same node reports a slightly different, but still-over-the-high-watermark, commitment on the next call. It did not
         // newly cross the watermark this time, but the interval has elapsed, so the still-outstanding condition is retried, since
         // the earlier reroute may not have relieved the pressure.
+        var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        var previousCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final boolean intervalElapsed = true;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            true
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(true));
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
-        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
+        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
     }
@@ -169,6 +185,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // A second node now also exceeds the high watermark, while the anchor node still sits below the low watermark. Even
         // though the first node's already-known condition persists, the second node's transition is new and must trigger another
         // reroute, naming only the newly transitioned node in the debug log, regardless of whether the interval has elapsed.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = false;
+
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -179,19 +203,15 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-                commitmentsAt(
-                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-                ),
-                commitmentsAt(
-                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-                ),
-                false
+                currentCommitments,
+                previousCommitments,
+                intervalElapsed
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
-            assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_1)));
             assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
+            assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_1)));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
             assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_2)));
         }
@@ -203,20 +223,52 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // Every node that was over the high watermark drops back below it, but stays above the low watermark. No node newly
         // crossed the high watermark, no node newly dropped below the low watermark, and no node remains over the high
         // watermark, so there is nothing to retry either, even though the interval has elapsed.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = true;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(
-                Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-            ),
-            commitmentsAt(
-                Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-            ),
-            true
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
         assertThat(decision.reason(), equalTo(null));
-        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_2)));
+    }
+
+    public void testNoRerouteWhenNoNodeRemainsOverHighWatermarkAndIntervalNotElapsed() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // Same scenario as above, every node that was over the high watermark drops back below it, but this time the interval
+        // has not elapsed either. The outcome must be identical either way, since there is nothing outstanding to retry
+        // regardless of the interval.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = false;
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
+        );
+
+        assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_2)));
     }
@@ -227,6 +279,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // The node that was above the low watermark drops back below it. Capacity has freed up, so previously NOT_PREFERRED
         // allocations may now fit, warranting a reroute that names that node's short description in the debug log, regardless of
         // whether the interval has elapsed.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = false;
+
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -237,17 +297,14 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-                commitmentsAt(
-                    Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-                ),
-                commitmentsAt(
-                    Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-                ),
-                false
+                currentCommitments,
+                previousCommitments,
+                intervalElapsed
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(DROPPED_BELOW_LOW_WATERMARK_REASON));
+            assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_0)));
             assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1, SEARCH_2)));
@@ -259,16 +316,21 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
 
         // search-0 leaves the cluster entirely, rather than its commitment actually dropping. Its absence must not be mistaken for
         // "dropped below the low watermark". There is no reroute reason here, only a node that is no longer part of the comparison.
+        var currentCommitments = commitmentsAt(Map.of(SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1));
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = true;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(Map.of(SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)),
-            commitmentsAt(
-                Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
-            ),
-            true
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
         assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1, SEARCH_2)));
@@ -280,16 +342,21 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // search-2 joins the cluster and is already, from its very first observation, above the high watermark. It has no
         // prior commitment to compare against, but it must still be reported as newly exceeding the high watermark rather than
         // being silently ignored because there is nothing to compare it to.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
+        );
+        var previousCommitments = commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final boolean intervalElapsed = false;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(
-                Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
-            ),
-            commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            false
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(true));
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_2)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_2)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
@@ -301,14 +368,19 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // Both nodes exceed the high watermark simultaneously, so no search node is below the low watermark and there is nowhere
         // to move shards to. The monitor must not reroute even though both nodes newly crossed the high watermark, and even
         // though the interval has elapsed.
+        var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1));
+        var previousCommitments = commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        final boolean intervalElapsed = true;
+
         final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
-            commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1)),
-            commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1)),
-            true
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
         );
 
         assertThat(decision.shouldReroute(), equalTo(false));
         assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of()));
@@ -324,17 +396,24 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // Neither the boosted nor the unboosted commitment alone exceeds the high watermark, but their sum does. Only the TOTAL
         // accounting mode should catch this.
         final long halfOfHighWatermark = bytesForPercent(HIGH_WATERMARK_PERCENT) / 2 + 1;
-        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = Map.of(
+        var currentCommitments = Map.of(
             SEARCH_0,
             new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, halfOfHighWatermark, halfOfHighWatermark),
             SEARCH_1,
             new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L)
         );
+        var previousCommitments = Map.<DiscoveryNode, NodeCacheSizeAndCommitments>of();
+        final boolean intervalElapsed = false;
 
-        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(commitments, Map.of(), false);
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
+        );
 
         assertThat(decision.shouldReroute(), equalTo(true));
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
@@ -373,7 +452,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // search-0 sits comfortably below the low watermark, so there is somewhere to move shards to, and the index node is
         // fully committed, exceeding both watermarks. Every other condition for a reroute is satisfied here, but reroute should ignore
         // index nodes
-        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = Map.of(
+        var commitments = Map.of(
             SEARCH_0,
             new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L),
             INDEX_NODE,
@@ -591,7 +670,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // watermark.
         clusterState.set(threeSearchNodeState());
         final long halfOfHighWatermark = bytesForPercent(HIGH_WATERMARK_PERCENT) / 2 + 1;
-        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = new HashMap<>();
+        var commitments = new HashMap<DiscoveryNode, NodeCacheSizeAndCommitments>();
         commitments.put(SEARCH_0, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L));
         commitments.put(SEARCH_1, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L));
         commitments.put(SEARCH_2, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, halfOfHighWatermark, halfOfHighWatermark));
@@ -687,7 +766,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1).add(SEARCH_2).add(search3))
                 .build()
         );
-        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitments = new HashMap<>();
+        var commitments = new HashMap<DiscoveryNode, NodeCacheSizeAndCommitments>();
         commitments.put(SEARCH_0, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L));
         commitments.put(SEARCH_1, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L));
         commitments.put(SEARCH_2, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L));

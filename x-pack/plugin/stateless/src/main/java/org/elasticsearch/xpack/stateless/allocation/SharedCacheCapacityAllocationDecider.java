@@ -123,8 +123,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * Rate-limits how often {@link SharedCacheCapacityMonitor} calls {@link org.elasticsearch.cluster.routing.RerouteService#reroute}
-     * by enforcing a minimum interval between reroute requests.
+     * Rate-limits how often {@link SharedCacheCapacityMonitor} retries a reroute for nodes that remain over the high watermark, without
+     * any new nodes crossing the high watermark. A newly observed watermark transition always triggers a reroute immediately and is never
+     * subject to this interval.
      */
     public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.shared_cache_capacity.reroute_interval",

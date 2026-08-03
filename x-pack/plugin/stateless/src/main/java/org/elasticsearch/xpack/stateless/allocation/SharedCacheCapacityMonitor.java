@@ -51,7 +51,6 @@ public class SharedCacheCapacityMonitor {
     private volatile RatioValue highWatermark;
     private volatile TimeValue minimumRerouteInterval;
 
-    private final Object mutex = new Object();
     private Map<DiscoveryNode, NodeCacheSizeAndCommitments> lastNodeCommitments = Map.of();
     private long lastRerouteTimeMillis = 0;
 
@@ -83,9 +82,11 @@ public class SharedCacheCapacityMonitor {
     /**
      * Receives a copy of the latest {@link ClusterInfo} whenever the {@link org.elasticsearch.cluster.ClusterInfoService} collects it.
      * Compares each search node's cache commitment, from {@link ClusterInfo#getNodeCacheSizeAndCommitments()}, against the commitment
-     * recorded on the previous call and triggers a reroute when a node newly crosses the high watermark or newly drops back below the
-     * low watermark. When a transition is found but the reroute itself is suppressed by {@link #minimumRerouteInterval}, the recorded
-     * commitment snapshot is deliberately untouched. A subsequent call to onNewInfo might have a chance to trigger reroute.
+     * recorded on the previous call and triggers a reroute when a node newly crosses the high watermark, when a node newly drops back
+     * below the low watermark, or when nodes identified as over the high watermark on an earlier call are still over it once
+     * {@link #minimumRerouteInterval} has elapsed since the last reroute. A newly observed transition always triggers a reroute
+     * immediately if there are nodes below the low watermark, regardless of {@link #minimumRerouteInterval}.
+     * Only the retry case is throttled by the interval.
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
         if (clusterStateSupplier.get().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -95,9 +96,7 @@ public class SharedCacheCapacityMonitor {
 
         if (enabled == false) {
             logger.debug("skipping monitor as the shared cache capacity decider is disabled");
-            synchronized (mutex) {
-                lastNodeCommitments = Map.of();
-            }
+            lastNodeCommitments = Map.of();
             return;
         }
 
@@ -114,29 +113,15 @@ public class SharedCacheCapacityMonitor {
             .filter(node -> nodeCacheSizeAndCommitments.containsKey(node.getId()))
             .collect(Collectors.toUnmodifiableMap(node -> node, node -> nodeCacheSizeAndCommitments.get(node.getId())));
 
-        final RerouteDecision rerouteDecision;
-        synchronized (mutex) {
-            final RerouteDecision noThrottleDecision = decideReroute(currentSearchNodeCommitments, lastNodeCommitments);
+        // Snapshot the clock right before it's used, so successive calls compare against a consistent reading.
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final boolean intervalElapsed = (currentTimeMillis - lastRerouteTimeMillis) >= minimumRerouteInterval.millis();
 
-            // Snapshot the clock right before it's used, so successive calls compare against a consistent reading.
-            final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-            final boolean haveCalledRerouteRecently = (currentTimeMillis - lastRerouteTimeMillis) < minimumRerouteInterval.millis();
-
-            if (noThrottleDecision.shouldReroute() == false) {
-                lastNodeCommitments = currentSearchNodeCommitments;
-                rerouteDecision = noThrottleDecision;
-            } else if (haveCalledRerouteRecently == false) {
-                lastNodeCommitments = currentSearchNodeCommitments;
-                lastRerouteTimeMillis = currentTimeMillis;
-                rerouteDecision = noThrottleDecision;
-            } else {
-                // A real transition was found, but the reroute is being suppressed by the throttle. Deliberately leave
-                // lastNodeCommitments unadvanced, so the next call still compares against the pre-transition snapshot.
-                rerouteDecision = RerouteDecision.no(noThrottleDecision.transitions());
-            }
-        }
+        final RerouteDecision rerouteDecision = decideReroute(currentSearchNodeCommitments, lastNodeCommitments, intervalElapsed);
+        lastNodeCommitments = currentSearchNodeCommitments;
 
         if (rerouteDecision.shouldReroute()) {
+            lastRerouteTimeMillis = currentTimeMillis;
             reroute(rerouteDecision.reason());
         }
     }
@@ -145,6 +130,9 @@ public class SharedCacheCapacityMonitor {
      * Whether a reroute is warranted and, if so, why, plus the {@link NodeWatermarkTransitions} the decision was based on.
      */
     record RerouteDecision(boolean shouldReroute, String reason, NodeWatermarkTransitions transitions) {
+
+        static final String EXCEEDED_HIGH_WATERMARK_REASON = "shared cache capacity exceeded high watermark";
+        static final String DROPPED_BELOW_LOW_WATERMARK_REASON = "shared cache capacity dropped below low watermark";
 
         private static RerouteDecision no(NodeWatermarkTransitions transitions) {
             return new RerouteDecision(false, null, transitions);
@@ -157,44 +145,54 @@ public class SharedCacheCapacityMonitor {
 
     /**
      * Compares each search node's current cache commitment against its commitment on the previous call and decides whether a reroute
-     * is warranted. Nodes that have no prior commitment to compare against (for example, newly observed nodes) are treated as having
-     * been below both watermarks, so they can still be reported as newly exceeding the high watermark. Nodes that leave the cluster
-     * between calls are naturally absent from the comparison and are never treated as having "dropped". An over-subscribed node, one
-     * that newly crosses the high watermark, is the more urgent condition, so it is checked first. The low watermark is checked only
-     * when the high watermark gives no reason to reroute.
+     * is warranted. Nodes that have no prior commitment to compare against, for example newly observed nodes, are treated as not
+     * having exceeded either watermark before, so a node that starts out over the high watermark is still reported as newly exceeding
+     * it. Nodes that leave the cluster between calls are naturally absent from the comparison and are never treated as having
+     * "dropped". A node newly crossing the high watermark, the more urgent condition, always triggers a reroute immediately,
+     * regardless of {@code intervalElapsed}. When no node newly crosses the high watermark but some node identified as over it on an
+     * earlier call is still over it, a reroute is retried once {@code intervalElapsed} is {@code true}, since the earlier reroute may
+     * not have relieved the pressure. The low watermark is checked only when neither high-watermark condition gives a reason to
+     * reroute.
      */
     RerouteDecision decideReroute(
         Map<DiscoveryNode, NodeCacheSizeAndCommitments> currentSearchNodeCommitments,
-        Map<DiscoveryNode, NodeCacheSizeAndCommitments> previousSearchNodeCommitments
+        Map<DiscoveryNode, NodeCacheSizeAndCommitments> previousSearchNodeCommitments,
+        boolean intervalElapsed
     ) {
         final NodeWatermarkTransitions transitions = classifyWatermarkTransitions(
             currentSearchNodeCommitments,
             previousSearchNodeCommitments
         );
 
-        if (transitions.nodesNewlyExceedingHighWatermark().size() > 0) {
+        if (transitions.nodesOverHighWatermark().isEmpty() == false) {
             if (transitions.nodesBelowLowWatermark().isEmpty()) {
                 // Every search node is already over the low watermark, so there is nowhere better to move shards to. Rerouting would
-                // not relieve the pressure, so we skip it and wait for the cluster to be scaled instead.
+                // not relieve the pressure, so we skip it and wait for the next clusterInfo.
                 logger.debug(
-                    "not rerouting for nodes {} newly exceeding the high watermark because all search nodes exceed the low watermark",
-                    shortDescriptions(transitions.nodesNewlyExceedingHighWatermark())
+                    "not rerouting for nodes {} over the high watermark because all search nodes exceed the low watermark",
+                    shortDescriptions(transitions.nodesOverHighWatermark())
                 );
-            } else {
+            } else if (transitions.nodesNewlyExceedingHighWatermark().isEmpty() == false) {
                 logger.debug(
                     "cache commitments exceeded the high watermark for nodes {}, triggering reroute",
                     shortDescriptions(transitions.nodesNewlyExceedingHighWatermark())
                 );
-                return RerouteDecision.yes("shared cache capacity exceeded high watermark", transitions);
+                return RerouteDecision.yes(RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON, transitions);
+            } else if (intervalElapsed) {
+                logger.debug(
+                    "cache commitments for nodes {} remain over the high watermark, retrying reroute",
+                    shortDescriptions(transitions.nodesOverHighWatermark())
+                );
+                return RerouteDecision.yes(RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON, transitions);
             }
         }
 
-        if (transitions.nodesNewlyDroppedBelowLowWatermark().size() > 0) {
+        if (transitions.nodesNewlyDroppedBelowLowWatermark().isEmpty() == false) {
             logger.debug(
                 "cache commitments dropped below the low watermark for nodes {}, triggering reroute",
                 shortDescriptions(transitions.nodesNewlyDroppedBelowLowWatermark())
             );
-            return RerouteDecision.yes("shared cache capacity dropped below low watermark", transitions);
+            return RerouteDecision.yes(RerouteDecision.DROPPED_BELOW_LOW_WATERMARK_REASON, transitions);
         }
 
         return RerouteDecision.no(transitions);
@@ -205,10 +203,13 @@ public class SharedCacheCapacityMonitor {
     }
 
     /**
-     * The per-node watermark transitions observed between the previous call and this one, plus the current search nodes below the low
-     * watermark right now.
+     * The per-node watermark state observed on this call, plus the transitions since the previous call.
+     * {@code nodesOverHighWatermark} is the full current set, a superset of {@code nodesNewlyExceedingHighWatermark}, so that a node
+     * identified as over the high watermark on an earlier call can still be recognized as remaining over it even when it is not a new
+     * transition this time.
      */
     record NodeWatermarkTransitions(
+        Set<DiscoveryNode> nodesOverHighWatermark,
         Set<DiscoveryNode> nodesNewlyExceedingHighWatermark,
         Set<DiscoveryNode> nodesNewlyDroppedBelowLowWatermark,
         Set<DiscoveryNode> nodesBelowLowWatermark
@@ -231,6 +232,7 @@ public class SharedCacheCapacityMonitor {
         final RatioValue lowWatermark = this.lowWatermark;
         final RatioValue highWatermark = this.highWatermark;
 
+        final Set<DiscoveryNode> nodesOverHighWatermark = new HashSet<>();
         final Set<DiscoveryNode> nodesNewlyExceedingHighWatermark = new HashSet<>();
         final Set<DiscoveryNode> nodesNewlyDroppedBelowLowWatermark = new HashSet<>();
         final Set<DiscoveryNode> nodesBelowLowWatermark = new HashSet<>();
@@ -239,13 +241,14 @@ public class SharedCacheCapacityMonitor {
             final DiscoveryNode node = entry.getKey();
             final NodeCacheSizeAndCommitments current = entry.getValue();
             final long currentCommitmentBytes = accountingMode.getCurrentCommitmentBytes(current);
-            final long lowWatermarkBytes = (long) (current.cacheSizeInBytes() * lowWatermark.getAsRatio());
-            final long highWatermarkBytes = (long) (current.cacheSizeInBytes() * highWatermark.getAsRatio());
-            final boolean exceedsLowWatermarkNow = currentCommitmentBytes > lowWatermarkBytes;
-            final boolean exceedsHighWatermarkNow = currentCommitmentBytes > highWatermarkBytes;
+            final boolean exceedsLowWatermarkNow = current.exceedsWatermark(currentCommitmentBytes, lowWatermark);
+            final boolean exceedsHighWatermarkNow = current.exceedsWatermark(currentCommitmentBytes, highWatermark);
 
             if (exceedsLowWatermarkNow == false) {
                 nodesBelowLowWatermark.add(node);
+            }
+            if (exceedsHighWatermarkNow) {
+                nodesOverHighWatermark.add(node);
             }
 
             final NodeCacheSizeAndCommitments previous = previousSearchNodeCommitments.get(node);
@@ -257,8 +260,8 @@ public class SharedCacheCapacityMonitor {
             }
 
             final long previousCommitmentBytes = accountingMode.getCurrentCommitmentBytes(previous);
-            final boolean exceededLowWatermarkBefore = previousCommitmentBytes > lowWatermarkBytes;
-            final boolean exceededHighWatermarkBefore = previousCommitmentBytes > highWatermarkBytes;
+            final boolean exceededLowWatermarkBefore = previous.exceedsWatermark(previousCommitmentBytes, lowWatermark);
+            final boolean exceededHighWatermarkBefore = previous.exceedsWatermark(previousCommitmentBytes, highWatermark);
 
             if (exceedsHighWatermarkNow && exceededHighWatermarkBefore == false) {
                 nodesNewlyExceedingHighWatermark.add(node);
@@ -268,7 +271,12 @@ public class SharedCacheCapacityMonitor {
             }
         }
 
-        return new NodeWatermarkTransitions(nodesNewlyExceedingHighWatermark, nodesNewlyDroppedBelowLowWatermark, nodesBelowLowWatermark);
+        return new NodeWatermarkTransitions(
+            nodesOverHighWatermark,
+            nodesNewlyExceedingHighWatermark,
+            nodesNewlyDroppedBelowLowWatermark,
+            nodesBelowLowWatermark
+        );
     }
 
     private void reroute(String reason) {

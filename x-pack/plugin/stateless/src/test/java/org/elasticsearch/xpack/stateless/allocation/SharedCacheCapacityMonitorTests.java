@@ -44,9 +44,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * Tests use a fixed cache size and derive commitments from the watermark percentage under test, so a commitment can never land exactly
- * on a watermark boundary regardless of how the randomization resolves. The clock is a manually-advanced {@link AtomicLong}, never a
- * real time source, so throttling assertions are deterministic rather than dependent on wall-clock timing.
+ * Tests derive commitments from a fixed cache size and the watermark percentage under test, so a commitment can never land on a
+ * watermark boundary. The clock is a manually-advanced {@link AtomicLong}, never a real time source, so throttling assertions are
+ * deterministic.
  */
 @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
 public class SharedCacheCapacityMonitorTests extends ESTestCase {
@@ -74,8 +74,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         rerouteService = mock(RerouteService.class);
-        // lastRerouteTimeMillis starts at 0, so the clock must start well beyond the longest reroute_interval used in this file
-        // (30 seconds). Otherwise, a small random starting value could make the very first reroute look throttled.
+        // lastRerouteTimeMillis starts at 0. The clock must start well beyond the longest reroute_interval used in this file (30
+        // seconds), or a small random starting value could make the very first reroute look throttled.
         currentTimeMillis = new AtomicLong(randomLongBetween(TimeValue.timeValueMinutes(10).millis(), 1_000_000_000));
     }
 
@@ -86,7 +86,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRerouteWhenNodeExceedsHighWatermark() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // All nodes start below the high watermark, so there is nothing to reroute for yet.
+        // All nodes start below the high watermark. search-1's low-watermark transition is recorded but has nothing to relieve.
         var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         var previousCommitments = Map.<DiscoveryNode, NodeCacheSizeAndCommitments>of();
         final boolean intervalElapsed = false;
@@ -99,12 +99,11 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(initialDecision.reason(), equalTo(null));
         assertThat(initialDecision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
         assertThat(initialDecision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
-        assertThat(initialDecision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(initialDecision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
         assertThat(initialDecision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
 
-        // One node crosses the high watermark. The anchor node stays below the low watermark, so there is somewhere to move
-        // shards to, and a reroute is warranted, naming that node's short description in the debug log. The interval has not
-        // elapsed, but a newly observed transition bypasses the throttle regardless.
+        // One node crosses the high watermark while the anchor node stays below the low watermark, so a reroute fires. The
+        // interval has not elapsed, but a newly observed transition bypasses the throttle regardless.
         previousCommitments = currentCommitments;
         currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
@@ -134,9 +133,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testNoRerouteWhenNodeStaysAboveHighWatermarkAndIntervalNotElapsed() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // The same node reports a slightly different, but still-over-the-high-watermark, commitment on the next call. It did not
-        // newly cross the watermark this time, so this falls to the retry rule, which is blocked while the interval has not
-        // elapsed.
+        // The same node reports a slightly higher, still-over-the-high-watermark, commitment. That is not a new transition, so
+        // the retry rule applies, and it is blocked while the interval has not elapsed.
         var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         var previousCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         final boolean intervalElapsed = false;
@@ -158,9 +156,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRetryWhenNodeStaysAboveHighWatermarkAndIntervalElapses() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // The same node reports a slightly different, but still-over-the-high-watermark, commitment on the next call. It did not
-        // newly cross the watermark this time, but the interval has elapsed, so the still-outstanding condition is retried, since
-        // the earlier reroute may not have relieved the pressure.
+        // Same scenario as above, but the interval has elapsed, so the still-outstanding condition is retried since the
+        // earlier reroute may not have relieved the pressure.
         var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 2, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         var previousCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         final boolean intervalElapsed = true;
@@ -182,9 +179,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRerouteWhenAdditionalNodeExceedsHighWatermark() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // A second node now also exceeds the high watermark, while the anchor node still sits below the low watermark. Even
-        // though the first node's already-known condition persists, the second node's transition is new and must trigger another
-        // reroute, naming only the newly transitioned node in the debug log, regardless of whether the interval has elapsed.
+        // A second node now also exceeds the high watermark. Its transition is new and triggers a reroute even though the first
+        // node's already-known condition is not, naming only the newly transitioned node in the debug log.
         var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
         );
@@ -220,9 +216,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testNoRerouteWhenHighWatermarkSetOnlyShrinks() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // Every node that was over the high watermark drops back below it, but stays above the low watermark. No node newly
-        // crossed the high watermark, no node newly dropped below the low watermark, and no node remains over the high
-        // watermark, so there is nothing to retry either, even though the interval has elapsed.
+        // Every node that was over the high watermark drops back below it, staying above the low watermark. No node remains
+        // over the high watermark, so there is nothing to retry even though the interval has elapsed.
         var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
         );
@@ -248,9 +243,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testNoRerouteWhenNoNodeRemainsOverHighWatermarkAndIntervalNotElapsed() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // Same scenario as above, every node that was over the high watermark drops back below it, but this time the interval
-        // has not elapsed either. The outcome must be identical either way, since there is nothing outstanding to retry
-        // regardless of the interval.
+        // Same scenario as above, but the interval has not elapsed either. The outcome is identical, since there is nothing
+        // outstanding to retry regardless of the interval.
         var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
         );
@@ -276,14 +270,13 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRerouteWhenNodeDropsBelowLowWatermark() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // The node that was above the low watermark drops back below it. Capacity has freed up, so previously NOT_PREFERRED
-        // allocations may now fit, warranting a reroute that names that node's short description in the debug log, regardless of
-        // whether the interval has elapsed.
+        // search-1 drops back below the low watermark while search-2 is over the high watermark, freeing capacity for it and
+        // warranting a reroute that names search-1 by its short description in the debug log.
         var currentCommitments = commitmentsAt(
-            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
         );
         var previousCommitments = commitmentsAt(
-            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT + 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
         );
         final boolean intervalElapsed = false;
 
@@ -293,7 +286,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                     "log names the node that dropped below the low watermark by its short description",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "cache commitments dropped below the low watermark for nodes [search-0/search-0]*"
+                    "cache commitments dropped below the low watermark for nodes [search-1/search-1]*"
                 )
             );
             final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
@@ -304,18 +297,45 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
             assertThat(decision.reason(), equalTo(DROPPED_BELOW_LOW_WATERMARK_REASON));
-            assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
+            assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_2)));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
-            assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_0)));
-            assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1, SEARCH_2)));
+            assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
+            assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
         }
+    }
+
+    public void testNoRerouteWhenNodeDropsBelowLowWatermarkButNoNodeIsOverHighWatermark() {
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
+
+        // search-0 drops below the low watermark, but no search node is over the high watermark, so the drop has nothing to
+        // relieve and must not trigger a reroute on its own.
+        var currentCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        var previousCommitments = commitmentsAt(
+            Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
+        );
+        final boolean intervalElapsed = false;
+
+        final SharedCacheCapacityMonitor.RerouteDecision decision = monitor.decideReroute(
+            currentCommitments,
+            previousCommitments,
+            intervalElapsed
+        );
+
+        assertThat(decision.shouldReroute(), equalTo(false));
+        assertThat(decision.reason(), equalTo(null));
+        assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_0)));
+        assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1, SEARCH_2)));
     }
 
     public void testNoRerouteWhenNodeDepartsRatherThanDropping() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // search-0 leaves the cluster entirely, rather than its commitment actually dropping. Its absence must not be mistaken for
-        // "dropped below the low watermark". There is no reroute reason here, only a node that is no longer part of the comparison.
+        // search-0 leaves the cluster entirely rather than its commitment dropping. Its absence must not be mistaken for a drop
+        // below the low watermark.
         var currentCommitments = commitmentsAt(Map.of(SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1));
         var previousCommitments = commitmentsAt(
             Map.of(SEARCH_0, LOW_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
@@ -339,9 +359,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRerouteWhenNewNodeJoinsAlreadyAboveHighWatermark() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // search-2 joins the cluster and is already, from its very first observation, above the high watermark. It has no
-        // prior commitment to compare against, but it must still be reported as newly exceeding the high watermark rather than
-        // being silently ignored because there is nothing to compare it to.
+        // search-2 joins already above the high watermark. It has no prior commitment to compare against, but it must still be
+        // reported as newly exceeding the high watermark.
         var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
         );
@@ -366,8 +385,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
         // Both nodes exceed the high watermark simultaneously, so no search node is below the low watermark and there is nowhere
-        // to move shards to. The monitor must not reroute even though both nodes newly crossed the high watermark, and even
-        // though the interval has elapsed.
+        // to move shards to. The monitor must not reroute even though both nodes newly crossed the high watermark.
         var currentCommitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1));
         var previousCommitments = commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         final boolean intervalElapsed = true;
@@ -415,7 +433,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
         assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
-        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
+        assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
         assertThat(decision.transitions().nodesBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
     }
 
@@ -442,6 +460,42 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         verifyNoInteractions(rerouteService);
     }
 
+    public void testDisablingResetsRecordedCommitments() {
+        // A non-zero reroute interval, with the clock never advanced across this test, blocks the retry path entirely, so a
+        // reroute on the final call can only be explained by the recorded commitments having been reset, not by the interval
+        // having elapsed.
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final ClusterSettings clusterSettings = clusterSettingsFor(
+            true,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
+            rerouteInterval
+        );
+        final SharedCacheCapacityMonitor monitor = new SharedCacheCapacityMonitor(
+            clusterSettings,
+            currentTimeMillis::get,
+            this::twoSearchNodeState,
+            rerouteService
+        );
+
+        // search-0 crosses the high watermark while enabled, recording it as already known on the next call.
+        var commitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
+        monitor.onNewInfo(clusterInfoOf(commitments));
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        reset(rerouteService);
+
+        // Disabling the decider must reset the recorded commitments, not just suppress the reroute.
+        clusterSettings.applySettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), false).build());
+        monitor.onNewInfo(clusterInfoOf(commitments));
+        verifyNoInteractions(rerouteService);
+
+        // Re-enabling and reporting the exact same commitments, with search-0 still over the high watermark, must reroute
+        // again as a fresh transition. Had the recorded commitments not been reset, search-0 would look unchanged, and with
+        // the interval nowhere near elapsed, this call would see no reason to reroute at all.
+        clusterSettings.applySettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true).build());
+        monitor.onNewInfo(clusterInfoOf(commitments));
+        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+    }
+
     public void testNonSearchNodesAreIgnoredEvenWhenConditionsWouldOtherwiseWarrantReroute() {
         final SharedCacheCapacityMonitor monitor = createMonitor(
             true,
@@ -449,9 +503,18 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             () -> ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0).add(INDEX_NODE)).build()
         );
 
-        // search-0 sits comfortably below the low watermark, so there is somewhere to move shards to, and the index node is
-        // fully committed, exceeding both watermarks. Every other condition for a reroute is satisfied here, but reroute should ignore
-        // index nodes
+        // A first call establishes search-0 as already below the low watermark, isolating the index node's effect as the only
+        // variable under test on the second call.
+        monitor.onNewInfo(
+            clusterInfoOf(
+                Map.of(SEARCH_0, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L))
+            )
+        );
+        verifyNoInteractions(rerouteService);
+        reset(rerouteService);
+
+        // search-0 still sits below the low watermark and the index node is fully committed, exceeding both watermarks. Every
+        // condition for a reroute is satisfied, but reroute should ignore index nodes.
         var commitments = Map.of(
             SEARCH_0,
             new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L),
@@ -465,9 +528,18 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testSearchNodeMissingFromClusterInfoIsSkipped() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO, this::twoSearchNodeState);
 
-        // search-1 is present in cluster state but has no recorded cache commitments yet, since cluster state and cluster info
-        // can disagree transiently while a node joins. The monitor must not throw and must simply classify search-0 alone,
-        // which sits comfortably below the low watermark, so no reroute is warranted.
+        // A first call establishes search-0 as already below the low watermark, isolating search-1's missing ClusterInfo entry
+        // as the only variable under test on the second call.
+        monitor.onNewInfo(
+            clusterInfoOf(
+                Map.of(SEARCH_0, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L))
+            )
+        );
+        verifyNoInteractions(rerouteService);
+        reset(rerouteService);
+
+        // search-1 is present in cluster state but has no recorded cache commitments yet. The monitor must not throw and must
+        // simply classify search-0 alone, which stays below the low watermark, so no reroute is warranted.
         monitor.onNewInfo(
             clusterInfoOf(
                 Map.of(SEARCH_0, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L))
@@ -490,8 +562,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // A different node now also crosses the high watermark, which is new information, and the clock has advanced by less
-        // than the reroute interval. A newly observed transition always bypasses the throttle, so the reroute still fires.
+        // A different node now also crosses the high watermark, and the clock has advanced by less than the reroute interval.
+        // A newly observed transition always bypasses the throttle, so the reroute still fires.
         currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
         monitor.onNewInfo(
             clusterInfoOf(
@@ -517,8 +589,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // Advance the clock by less than the reroute interval, and report the exact same commitments again. search-0 remains
-        // over the high watermark, but that's not a new transition, so the retry is blocked until the interval elapses.
+        // The same commitments are reported again with the clock advanced by less than the reroute interval. search-0 remains
+        // over the high watermark, but that is not a new transition, so the retry is blocked until the interval elapses.
         currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
         monitor.onNewInfo(
             clusterInfoOf(
@@ -544,9 +616,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // Once the interval has fully elapsed, the still-outstanding condition, search-0 remaining over the high watermark with
-        // no further change, is retried even though nothing newly crossed a watermark this time. The earlier reroute may not
-        // have relieved the pressure, for example due to concurrent-movement throttling elsewhere that may since have cleared.
+        // Once the interval has fully elapsed, search-0 remaining over the high watermark is retried even though nothing newly
+        // crossed a watermark this time. The earlier reroute may not have relieved the pressure, for example due to
+        // concurrent-movement throttling elsewhere that has since cleared.
         currentTimeMillis.addAndGet(rerouteInterval.millis());
         monitor.onNewInfo(
             clusterInfoOf(
@@ -567,11 +639,59 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         reset(rerouteService);
 
         // search-1 also crosses the high watermark, and the interval has fully elapsed, but every search node is now over the
-        // low watermark, so there is nowhere left to move shards to. The retry must be suppressed by the same "nowhere to move
-        // to" rule as a brand new transition would be.
+        // low watermark, so there is nowhere left to move shards to. The retry is suppressed the same way a new transition
+        // would be.
         currentTimeMillis.addAndGet(rerouteInterval.millis());
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1))));
         verifyNoInteractions(rerouteService);
+    }
+
+    public void testRerouteWhenNewNodeJoinsBelowLowWatermarkAfterAllSearchNodesWereOverSubscribed() {
+        // search-3 joins from the second call onward, already below the low watermark. This is new capacity information, just
+        // like an existing node dropping below the low watermark, and must bypass the throttle immediately.
+        final AtomicReference<ClusterState> clusterState = new AtomicReference<>(threeSearchNodeState());
+        final TimeValue rerouteInterval = TimeValue.timeValueSeconds(30);
+        final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, clusterState::get);
+
+        // search-0, search-1, and search-2 all exceed the high watermark, so there is nowhere to move shards to. The reroute is
+        // suppressed even though this is a genuine transition.
+        monitor.onNewInfo(
+            clusterInfoOf(
+                commitmentsAt(
+                    Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, HIGH_WATERMARK_PERCENT + 1)
+                )
+            )
+        );
+        verifyNoInteractions(rerouteService);
+
+        // search-3 joins, already below the low watermark, freeing up somewhere to move shards to. search-0, search-1, and
+        // search-2's over-high-watermark condition is not new, and the interval has not elapsed, but search-3's own
+        // low-watermark transition is new and bypasses the throttle.
+        final DiscoveryNode search3 = searchNode("search-3");
+        clusterState.set(
+            ClusterState.builder(ClusterState.EMPTY_STATE)
+                .nodes(DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1).add(SEARCH_2).add(search3))
+                .build()
+        );
+        final Map<DiscoveryNode, NodeCacheSizeAndCommitments> commitmentsWithSearch3 = new HashMap<>();
+        commitmentsWithSearch3.put(
+            SEARCH_0,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L)
+        );
+        commitmentsWithSearch3.put(
+            SEARCH_1,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L)
+        );
+        commitmentsWithSearch3.put(
+            SEARCH_2,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(HIGH_WATERMARK_PERCENT + 1), 0L)
+        );
+        commitmentsWithSearch3.put(
+            search3,
+            new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L)
+        );
+        monitor.onNewInfo(clusterInfoOf(commitmentsWithSearch3));
+        assertRerouted(DROPPED_BELOW_LOW_WATERMARK_REASON);
     }
 
     public void testRerouteForLowWatermarkDropBypassesIntervalButIsNotRetried() {
@@ -588,8 +708,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // search-1 drops back below the low watermark, which is new information, and the clock has advanced by less than the
-        // interval. A newly observed transition always bypasses the throttle, so the reroute still fires.
+        // search-1 drops back below the low watermark, and the clock has advanced by less than the interval. A newly observed
+        // transition always bypasses the throttle, so the reroute still fires.
         currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
         monitor.onNewInfo(
             clusterInfoOf(
@@ -601,9 +721,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(DROPPED_BELOW_LOW_WATERMARK_REASON);
         reset(rerouteService);
 
-        // The same commitments are reported again with no further change. search-0 remains over the high watermark, so that
-        // condition is retried once the interval elapses, but the low-watermark drop is a one-shot signal, not retried, so only
-        // the high-watermark reason is seen here.
+        // The same commitments are reported again with no further change. search-0's over-high condition is retried once the
+        // interval elapses, but the low-watermark drop is a one-shot signal and is not retried.
         currentTimeMillis.addAndGet(rerouteInterval.millis());
         monitor.onNewInfo(
             clusterInfoOf(
@@ -616,8 +735,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------------------------------------------
-    // Live settings updates: these apply a follow-up setting change to the same monitor instance and observe the effect on
-    // the very next onNewInfo call, so they necessarily drive onNewInfo rather than decideReroute directly.
+    // Live settings updates. These apply a follow-up setting change to the same monitor instance and observe the effect on
+    // the very next onNewInfo call, so they drive onNewInfo rather than decideReroute directly.
     // -----------------------------------------------------------------------------------------------------------------------
 
     public void testEnabledSettingChangeIsObservedOnTheSameInstance() {
@@ -657,6 +776,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             rerouteService
         );
 
+        // search-0 and search-1 are both newly observed below the low watermark, but no node is over the high watermark, so
+        // there is nothing to relieve yet.
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
 
@@ -665,9 +786,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             Settings.builder().put(SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(), "TOTAL").build()
         );
 
-        // search-2 joins. Neither its boosted nor its unboosted commitment alone exceeds the high watermark, but their sum does.
-        // Only TOTAL accounting, already in effect when search-2 is first classified, reports it as newly exceeding the high
-        // watermark.
+        // search-2 joins. Neither its boosted nor its unboosted commitment alone exceeds the high watermark, but their sum
+        // does. Only TOTAL accounting, already in effect when search-2 is first classified, reports it as newly exceeding.
         clusterState.set(threeSearchNodeState());
         final long halfOfHighWatermark = bytesForPercent(HIGH_WATERMARK_PERCENT) / 2 + 1;
         var commitments = new HashMap<DiscoveryNode, NodeCacheSizeAndCommitments>();
@@ -679,11 +799,10 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     public void testHighWatermarkSettingChangeIsObservedOnTheSameInstance() {
-        // A node whose commitment is unchanged between calls is judged the same way regardless of when a setting changed
-        // underneath it, since both its current and prior state are evaluated against whichever watermark is live at
-        // classification time. So search-1 joins for the very first time in the same call the lowered watermark first applies:
-        // it has no prior commitment to compare against, which is what lets the setting change, rather than a change in
-        // search-1's own commitment, explain the reroute.
+        // A node whose commitment is unchanged is judged the same way regardless of when a setting changed, since both its
+        // current and prior state are evaluated against whichever watermark is live at classification time. search-1 joins for
+        // the first time in the same call the lowered watermark first applies, so its lack of a prior commitment is what lets
+        // the setting change explain the reroute, rather than a change in search-1's own commitment.
         final AtomicReference<ClusterState> clusterState = new AtomicReference<>(
             ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0)).build()
         );
@@ -699,8 +818,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             rerouteService
         );
 
-        // search-0's commitment sits comfortably below the low watermark, anchoring it as somewhere shards could move to, so
-        // this call must not reroute.
+        // search-0's commitment sits below the low watermark, anchoring it as somewhere shards could move to, but no node is
+        // over the high watermark, so there is nothing to relieve yet.
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
 
@@ -712,8 +831,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         // search-1 joins with a commitment that exceeds the lowered high watermark but not the original one, while search-0
-        // remains below the low watermark, so there is somewhere to move shards to. Only the watermark that is live at the
-        // moment search-1 is first classified can explain the outcome.
+        // stays below the low watermark. Only the watermark live when search-1 is first classified can explain the reroute.
         clusterState.set(
             ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1)).build()
         );
@@ -722,8 +840,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     public void testLowWatermarkSettingChangeIsObservedOnTheSameInstance() {
-        // The cluster state supplier is mutable so a fourth node can join for the final call, isolating the setting change as
-        // the only variable for the reasons given in testAccountingModeSettingChangeIsObservedOnTheSameInstance.
+        // A fourth node joins on the final call, isolating the setting change as the only variable, for the same reason given
+        // in testAccountingModeSettingChangeIsObservedOnTheSameInstance.
         final AtomicReference<ClusterState> clusterState = new AtomicReference<>(threeSearchNodeState());
         final ClusterSettings clusterSettings = clusterSettingsFor(
             true,
@@ -737,8 +855,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             rerouteService
         );
 
-        // search-2 starts above the high watermark, while search-0 sits comfortably below the still-unchanged 75% low
-        // watermark, so there is somewhere to move shards to and this call must reroute.
+        // search-2 starts above the high watermark, while search-0 sits below the still-unchanged 75% low watermark, so this
+        // call must reroute.
         monitor.onNewInfo(
             clusterInfoOf(
                 commitmentsAt(
@@ -749,17 +867,15 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // Lower the low watermark below search-0's unchanged commitment (LOW_WATERMARK_PERCENT - 1) on the same live instance,
-        // before search-3 is ever observed.
+        // Lower the low watermark below search-0's unchanged commitment before search-3 is ever observed.
         clusterSettings.applySettings(
             Settings.builder()
                 .put(SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING.getKey(), (LOW_WATERMARK_PERCENT - 2) + "%")
                 .build()
         );
 
-        // search-3 joins, already above the high watermark, which is new information. With the lowered low watermark now in
-        // effect, search-0's unchanged commitment no longer counts as "below" it, so there is nowhere left to move shards to
-        // and the reroute must be suppressed by the "nowhere to move to" rule rather than fired.
+        // search-3 joins, already above the high watermark. With the lowered low watermark now in effect, search-0's unchanged
+        // commitment no longer counts as below it, so there is nowhere to move shards to and the reroute is suppressed.
         final DiscoveryNode search3 = searchNode("search-3");
         clusterState.set(
             ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -776,10 +892,9 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     }
 
     public void testRerouteIntervalSettingChangeIsObservedOnTheSameInstance() {
-        // A newly observed transition always bypasses the throttle, so a newly joining over-watermark node would reroute
-        // regardless of the interval setting and wouldn't isolate its effect. Reusing the same already-over-watermark node with
-        // an unchanged commitment across every call, instead, means only the retry rule is ever in play, so the interval
-        // setting's effect on retries is what's actually being observed here.
+        // A newly joining over-watermark node would bypass the throttle and reroute regardless of the interval setting, so the
+        // same already-over-watermark node is reused with an unchanged commitment across every call, isolating the retry rule's
+        // response to the interval setting.
         final TimeValue initialRerouteInterval = TimeValue.timeValueSeconds(30);
         final long delta = randomLongBetween(1, initialRerouteInterval.millis() - 1);
         final ClusterSettings clusterSettings = clusterSettingsFor(
@@ -802,9 +917,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
-        // The same commitments are reported again with no further change. search-0 remains over the high watermark, but the
-        // clock has advanced by only delta milliseconds against the still-unchanged 30 second interval, so the retry is
-        // throttled.
+        // The same commitments are reported again. search-0 remains over the high watermark, but the clock has advanced by
+        // only delta milliseconds against the still-unchanged 30 second interval, so the retry is throttled.
         currentTimeMillis.addAndGet(delta);
         monitor.onNewInfo(clusterInfoOf(commitments));
         verifyNoInteractions(rerouteService);

@@ -31,6 +31,9 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     private static final Set<String> allFieldTypes = Set.of("text", "semantic_text", "semantic");
     private static final Set<String> semanticFieldTypes = Set.of("semantic_text", "semantic");
 
+    // We don't use SPARSE_EMBEDDING for semantic_text since it becomes tricky to assert the order of results when
+    // both dense and sparse embeddings (which generate high score values) are used in the same query. We use boostLocalIndex() to
+    // ensure that local result is always ranked higher but for sparse embeddings, we need to provide a significanly higher boost value.
     private static final Map<String, Collection<TaskType>> taskTypes = Map.of(
         "semantic_text",
         List.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING),

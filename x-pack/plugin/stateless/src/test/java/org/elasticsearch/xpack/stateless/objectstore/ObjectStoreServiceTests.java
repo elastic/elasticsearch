@@ -1202,10 +1202,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
                         throws IOException {
                         if (purpose == OperationPurpose.TRANSLOG && exceedThreshold.get()) {
-                            safeSleep(randomLongBetween(
-                                slowTranslogUploadLogThreshold.millis() + 100,
-                                slowTranslogUploadLogThreshold.millis() + 300
-                            ));
+                            safeSleep(
+                                randomLongBetween(
+                                    slowTranslogUploadLogThreshold.millis() + 100,
+                                    slowTranslogUploadLogThreshold.millis() + 300
+                                )
+                            );
                         }
                         super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
                     }

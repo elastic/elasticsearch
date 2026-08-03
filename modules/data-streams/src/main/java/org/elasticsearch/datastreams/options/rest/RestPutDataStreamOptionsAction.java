@@ -34,6 +34,7 @@ public class RestPutDataStreamOptionsAction extends BaseRestHandler {
 
     private static final Set<String> CAPABILITIES = Set.of(
         RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY,
+        RestGetDataStreamsAction.DERIVED_METRICS_API_CAPABILITY,
         RestPutComponentTemplateAction.FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
     );
 
@@ -52,11 +53,11 @@ public class RestPutDataStreamOptionsAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             PutDataStreamOptionsAction.Request putOptionsRequest = PutDataStreamOptionsAction.Request.parseRequest(
                 parser,
-                (failureStore) -> new PutDataStreamOptionsAction.Request(
+                (dataStreamOptions) -> new PutDataStreamOptionsAction.Request(
                     getMasterNodeTimeout(request),
                     getAckTimeout(request),
                     Strings.splitStringByCommaToArray(request.param("name")),
-                    failureStore
+                    dataStreamOptions
                 )
             );
             putOptionsRequest.indicesOptions(IndicesOptions.fromRequest(request, putOptionsRequest.indicesOptions()));

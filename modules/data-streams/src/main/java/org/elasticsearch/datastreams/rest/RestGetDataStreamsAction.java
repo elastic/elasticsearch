@@ -46,9 +46,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         )
     );
     public static final String FAILURES_LIFECYCLE_API_CAPABILITY = "failure_store.lifecycle";
+    public static final String DERIVED_METRICS_API_CAPABILITY = "data_stream_options.derived_metrics";
     private static final Set<String> CAPABILITIES = Set.of(
         DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
         FAILURES_LIFECYCLE_API_CAPABILITY,
+        DERIVED_METRICS_API_CAPABILITY,
         "failure_store.lifecycle.default_retention"
     );
 

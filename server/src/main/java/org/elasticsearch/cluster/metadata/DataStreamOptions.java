@@ -28,24 +28,25 @@ import java.io.IOException;
 import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.FAILURE_STORE;
 
 /**
- * Holds data stream dedicated configuration options such as failure store, (in the future lifecycle). Currently, it
- * supports the following configurations:
+ * Holds data stream dedicated configuration options. Currently, it supports the following configurations:
  * - failure store
+ * - derived metrics
  */
-public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
+public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore, @Nullable DataStreamDerivedMetrics derivedMetrics)
     implements
         SimpleDiffable<DataStreamOptions>,
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
-    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true, null));
-    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null));
+    public static final ParseField DERIVED_METRICS_FIELD = new ParseField("derived_metrics");
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true, null), null);
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null), null);
     public static final DataStreamOptions EMPTY = new DataStreamOptions(null);
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
         "options",
         false,
-        (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0])
+        (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0], (DataStreamDerivedMetrics) args[1])
     );
 
     static {
@@ -54,12 +55,28 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             (p, c) -> DataStreamFailureStore.fromXContent(p),
             FAILURE_STORE_FIELD
         );
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamDerivedMetrics.fromXContent(p),
+            DERIVED_METRICS_FIELD
+        );
     }
 
     private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
+    public static final TransportVersion DERIVED_METRICS_IN_DATA_STREAM_OPTIONS = TransportVersion.fromName(
+        "derived_metrics_in_data_stream_options"
+    );
+
+    public DataStreamOptions(@Nullable DataStreamFailureStore failureStore) {
+        this(failureStore, null);
+    }
 
     public static DataStreamOptions read(StreamInput in) throws IOException {
-        return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::new));
+        DataStreamFailureStore failureStore = in.readOptionalWriteable(DataStreamFailureStore::new);
+        DataStreamDerivedMetrics derivedMetrics = in.getTransportVersion().supports(DERIVED_METRICS_IN_DATA_STREAM_OPTIONS)
+            ? in.readOptionalWriteable(DataStreamDerivedMetrics::new)
+            : null;
+        return new DataStreamOptions(failureStore, derivedMetrics);
     }
 
     public static Diff<DataStreamOptions> readDiffFrom(StreamInput in) throws IOException {
@@ -70,7 +87,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
      * @return true if none of the options are defined
      */
     public boolean isEmpty() {
-        return failureStore == null;
+        return failureStore == null && derivedMetrics == null;
     }
 
     @Override
@@ -81,6 +98,9 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
             // If the enabled flag is not defined, we treat it as null.
             out.writeOptionalWriteable(null);
+        }
+        if (out.getTransportVersion().supports(DERIVED_METRICS_IN_DATA_STREAM_OPTIONS)) {
+            out.writeOptionalWriteable(derivedMetrics);
         }
     }
 
@@ -95,6 +115,9 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         if (failureStore != null) {
             builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore);
         }
+        if (derivedMetrics != null) {
+            builder.field(DERIVED_METRICS_FIELD.getPreferredName(), derivedMetrics);
+        }
         builder.endObject();
         return builder;
     }
@@ -107,15 +130,19 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
      * This class is only used in template configuration. It wraps the fields of {@link DataStreamOptions} with {@link ResettableValue}
      * to allow a user to signal when they want to reset any previously encountered values during template composition.
      */
-    public record Template(ResettableValue<DataStreamFailureStore.Template> failureStore) implements Writeable, ToXContentObject {
-        public static final Template EMPTY = new Template(ResettableValue.undefined());
+    public record Template(
+        ResettableValue<DataStreamFailureStore.Template> failureStore,
+        ResettableValue<DataStreamDerivedMetrics.Template> derivedMetrics
+    ) implements Writeable, ToXContentObject {
+        public static final Template EMPTY = new Template(ResettableValue.undefined(), ResettableValue.undefined());
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_options_template",
             false,
             (args, unused) -> new Template(
-                args[0] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamFailureStore.Template>) args[0]
+                args[0] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamFailureStore.Template>) args[0],
+                args[1] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamDerivedMetrics.Template>) args[1]
             )
         );
 
@@ -126,14 +153,29 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
                 ResettableValue.reset(),
                 FAILURE_STORE_FIELD
             );
+            PARSER.declareObjectOrNull(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, s) -> ResettableValue.create(DataStreamDerivedMetrics.Template.fromXContent(p)),
+                ResettableValue.reset(),
+                DERIVED_METRICS_FIELD
+            );
         }
 
         public Template(DataStreamFailureStore.Template template) {
-            this(ResettableValue.create(template));
+            this(ResettableValue.create(template), ResettableValue.undefined());
+        }
+
+        public Template(ResettableValue<DataStreamFailureStore.Template> failureStore) {
+            this(failureStore, ResettableValue.undefined());
+        }
+
+        public Template(DataStreamDerivedMetrics.Template derivedMetrics) {
+            this(ResettableValue.undefined(), ResettableValue.create(derivedMetrics));
         }
 
         public Template {
             assert failureStore != null : "Template does not accept null values, please use Resettable.undefined()";
+            assert derivedMetrics != null : "Template does not accept null values, please use Resettable.undefined()";
         }
 
         @Override
@@ -150,11 +192,18 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
                     : ResettableValue.undefined();
                 ResettableValue.write(out, bwcFailureStore, (o, v) -> v.writeTo(o));
             }
+            if (out.getTransportVersion().supports(DERIVED_METRICS_IN_DATA_STREAM_OPTIONS)) {
+                ResettableValue.write(out, derivedMetrics, (o, v) -> v.writeTo(o));
+            }
         }
 
         public static Template read(StreamInput in) throws IOException {
             ResettableValue<DataStreamFailureStore.Template> failureStore = ResettableValue.read(in, DataStreamFailureStore.Template::read);
-            return new Template(failureStore);
+            ResettableValue<DataStreamDerivedMetrics.Template> derivedMetrics = in.getTransportVersion()
+                .supports(DERIVED_METRICS_IN_DATA_STREAM_OPTIONS)
+                    ? ResettableValue.read(in, DataStreamDerivedMetrics.Template::read)
+                    : ResettableValue.undefined();
+            return new Template(failureStore, derivedMetrics);
         }
 
         public static Template fromXContent(XContentParser parser) throws IOException {
@@ -169,6 +218,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             failureStore.toXContent(builder, params, FAILURE_STORE_FIELD.getPreferredName());
+            derivedMetrics.toXContent(builder, params, DERIVED_METRICS_FIELD.getPreferredName());
             builder.endObject();
             return builder;
         }
@@ -188,16 +238,23 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
      */
     public static class Builder {
         private DataStreamFailureStore.Builder failureStore = null;
+        private DataStreamDerivedMetrics.Builder derivedMetrics = null;
 
         public Builder(Template template) {
             if (template != null && template.failureStore().get() != null) {
                 failureStore = DataStreamFailureStore.builder(template.failureStore().get());
+            }
+            if (template != null && template.derivedMetrics().get() != null) {
+                derivedMetrics = new DataStreamDerivedMetrics.Builder(template.derivedMetrics().get());
             }
         }
 
         public Builder(DataStreamOptions options) {
             if (options != null && options.failureStore() != null) {
                 failureStore = DataStreamFailureStore.builder(options.failureStore());
+            }
+            if (options != null && options.derivedMetrics() != null) {
+                derivedMetrics = new DataStreamDerivedMetrics.Builder(options.derivedMetrics());
             }
         }
 
@@ -206,7 +263,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
          * inner values will be merged.
          */
         public Builder composeTemplate(DataStreamOptions.Template options) {
-            return failureStore(options.failureStore());
+            return failureStore(options.failureStore()).derivedMetrics(options.derivedMetrics());
         }
 
         /**
@@ -226,12 +283,31 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             return this;
         }
 
+        public Builder derivedMetrics(ResettableValue<DataStreamDerivedMetrics.Template> newDerivedMetrics) {
+            if (newDerivedMetrics.shouldReset()) {
+                derivedMetrics = null;
+            } else if (newDerivedMetrics.isDefined()) {
+                if (derivedMetrics == null) {
+                    derivedMetrics = new DataStreamDerivedMetrics.Builder(newDerivedMetrics.get());
+                } else {
+                    derivedMetrics.composeTemplate(newDerivedMetrics.get());
+                }
+            }
+            return this;
+        }
+
         public Template buildTemplate() {
-            return new Template(failureStore == null ? null : failureStore.buildTemplate());
+            return new Template(
+                ResettableValue.create(failureStore == null ? null : failureStore.buildTemplate()),
+                ResettableValue.create(derivedMetrics == null ? null : derivedMetrics.buildTemplate())
+            );
         }
 
         public DataStreamOptions build() {
-            return new DataStreamOptions(failureStore == null ? null : failureStore.build());
+            return new DataStreamOptions(
+                failureStore == null ? null : failureStore.build(),
+                derivedMetrics == null ? null : derivedMetrics.build()
+            );
         }
     }
 }

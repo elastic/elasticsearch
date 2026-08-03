@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 155711
+summary: Derive metrics from data stream writes into a managed TSDS
+type: feature

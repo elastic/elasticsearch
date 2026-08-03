@@ -1,0 +1,174 @@
+// ES|QL queries for the derived metrics demo. Paste into Kibana → Discover (ES|QL mode).
+//
+// The demo is configured with a single 10s interval, so nothing here has to filter on
+// `derived_metrics.interval`. Add more intervals in setup.sh and every query below needs a
+// `WHERE derived_metrics.interval == "10s"`, or it sums the same data at two resolutions.
+//
+// The one rule that always applies: reduce according to the metric type. Counters and rates are
+// per-node, per-dimension partials, so they SUM. A `max` gauge takes MAX, a `min` gauge MIN, an
+// `avg` gauge AVG. Summing a gauge gives you a number that means nothing.
+
+
+// ---------------------------------------------------------------------------------------------
+// 1. The whole point: how many source documents each derived document stands in for.
+//
+// derived_docs stays pinned while source_docs swings with the load, so `compression` climbs as the
+// write rate climbs. This is one query over one index — `ingest.docs.count` tells you what the
+// source stream received, COUNT(*) tells you what that cost to represent.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| STATS source_docs = SUM(CASE(metric.name == "ingest.docs.count", metric.value, 0.0)),
+        derived_docs = COUNT(*)
+    BY bucket = BUCKET(@timestamp, 10 second)
+| EVAL compression = TO_LONG(source_docs / derived_docs)
+| SORT bucket DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 2. Ingest rate per service, reconstructed from a handful of documents per interval.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.docs.rate"
+| STATS docs_per_sec = SUM(metric.value)
+    BY bucket = BUCKET(@timestamp, 10 second), service = dimensions.service.name
+| SORT bucket DESC, docs_per_sec DESC
+| LIMIT 25
+
+
+// ---------------------------------------------------------------------------------------------
+// 3. Every metric at a glance, over the last two minutes.
+//
+// Note the mixed reductions: the SUM column is only meaningful for the counters and rates.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE @timestamp > NOW() - 2 minutes
+| STATS total = SUM(metric.value), peak = MAX(metric.value), series = COUNT(*)
+    BY metric.name
+| SORT metric.name
+
+
+// ---------------------------------------------------------------------------------------------
+// 4. Error ratio per service, from two counters that were never joined at write time.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE @timestamp > NOW() - 5 minutes
+| STATS errors   = SUM(CASE(metric.name == "http.errors", metric.value, 0.0)),
+        requests = SUM(CASE(metric.name == "http.requests", metric.value, 0.0))
+    BY service = dimensions.service.name
+| EVAL error_pct = ROUND(100 * errors / requests, 2)
+| SORT error_pct DESC
+
+
+// ---------------------------------------------------------------------------------------------
+// 5. Errors broken down by the per-metric dimension (status code), which only http.errors carries.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "http.errors"
+| STATS errors = SUM(metric.value)
+    BY status = dimensions.http.response.status_code, service = dimensions.service.name
+| SORT errors DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 6. A gauge, reduced the way its aggregation says to. MAX, not SUM.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "queue.depth.max"
+| STATS peak_depth = MAX(metric.value)
+    BY bucket = BUCKET(@timestamp, 10 second), service = dimensions.service.name
+| SORT bucket DESC, peak_depth DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 7. Latency, from the avg gauge. metric.value carries the sum and metric.count the observation
+//    count, so SUM(value)/SUM(count) is the exact mean. Still not a substitute for a histogram: a
+//    mean tells you nothing about the tail.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "event.duration.avg"
+| STATS avg_ms = ROUND(SUM(metric.value) / SUM(metric.count) / 1000000, 1)
+    BY bucket = BUCKET(@timestamp, 10 second)
+| SORT bucket DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 8. Throughput in bytes per second, per region.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.bytes.rate"
+| STATS mb_per_sec = ROUND(SUM(metric.value) / 1048576, 2)
+    BY bucket = BUCKET(@timestamp, 10 second), region = dimensions.cloud.region
+| SORT bucket DESC, mb_per_sec DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 9. The partials themselves, per emitting node.
+//
+// This demo is a single node, so there is one row. On a real cluster there is one per writing node,
+// and every query above is summing across them.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.docs.count"
+    AND @timestamp > NOW() - 5 minutes
+| STATS docs = SUM(metric.value), series = COUNT(*)
+    BY node = derived_metrics.node_name, source = derived_metrics.source
+
+
+// ---------------------------------------------------------------------------------------------
+// 10. The TS command works too, since the destination is a real TSDS.
+// ---------------------------------------------------------------------------------------------
+TS derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.docs.rate"
+| STATS rate = SUM(metric.value) BY bucket = BUCKET(@timestamp, 30 second)
+| SORT bucket DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 11. For contrast: the same rate computed the expensive way, off the source stream.
+//
+// Same answer, but this one scans every document written in the window instead of a few hundred.
+// ---------------------------------------------------------------------------------------------
+FROM logs-derived-demo-default
+| WHERE @timestamp > NOW() - 5 minutes
+| STATS docs = COUNT(*) BY bucket = BUCKET(@timestamp, 10 second), service = service.name
+| EVAL docs_per_sec = docs / 10
+| SORT bucket DESC, docs_per_sec DESC
+| LIMIT 25
+
+
+// ---------------------------------------------------------------------------------------------
+// 12. Percentiles from a histogram metric.
+//
+// This is the one question a gauge cannot answer at any aggregation. event.duration.distribution
+// keeps the whole distribution per interval as an exponential_histogram, and PERCENTILE reads that
+// field directly — so the derived query is the source query with a different field name.
+// ---------------------------------------------------------------------------------------------
+FROM derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "event.duration.distribution"
+| STATS p50_ms = PERCENTILE(metric.histogram, 50) / 1000000,
+        p95_ms = PERCENTILE(metric.histogram, 95) / 1000000,
+        p99_ms = PERCENTILE(metric.histogram, 99) / 1000000
+    BY bucket = BUCKET(@timestamp, 1 minute)
+| SORT bucket DESC
+| LIMIT 20
+
+
+// ---------------------------------------------------------------------------------------------
+// 13. The same percentiles the expensive way, and per service.
+//
+// Compare the two. The derived query above reads one document per interval; this one reads every
+// document written in the window. They should agree to within the histogram's bucket resolution.
+// ---------------------------------------------------------------------------------------------
+FROM logs-derived-demo-default
+| WHERE @timestamp > NOW() - 5 minutes
+| STATS p50_ms = PERCENTILE(event.duration, 50) / 1000000,
+        p95_ms = PERCENTILE(event.duration, 95) / 1000000,
+        p99_ms = PERCENTILE(event.duration, 99) / 1000000
+    BY service = service.name
+| SORT p99_ms DESC

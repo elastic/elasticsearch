@@ -39,8 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * This action retrieves the data stream options from every data stream. Currently, data stream options only support
- * failure store.
+ * Retrieves the data stream options from every data stream.
  */
 public class GetDataStreamOptionsAction {
 

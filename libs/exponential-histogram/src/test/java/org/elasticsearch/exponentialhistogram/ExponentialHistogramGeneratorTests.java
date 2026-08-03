@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExponentialHistogramGeneratorTests extends ExponentialHistogramTestCase {
@@ -55,6 +56,71 @@ public class ExponentialHistogramGeneratorTests extends ExponentialHistogramTest
 
             assertThat(breaker.getUsed(), equalTo(0L));
         }
+    }
+
+    /**
+     * The raw value buffer and the histograms behind it are grown as values arrive rather than allocated at the bucket capacity, so
+     * every one of those growths has to be charged to the breaker, and every byte handed back on close.
+     */
+    public void testCircuitBreakerTripDuringGrowth() {
+        // enough values to grow the raw value buffer to its maximum several times over, and to fill the accumulator's buckets
+        double[] values = new double[500];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i + 1.0;
+        }
+
+        for (int allowedAllocations = 0; allowedAllocations < 40; allowedAllocations++) {
+            TrippingCircuitBreaker breaker = new TrippingCircuitBreaker(allowedAllocations);
+
+            try (ReleasableExponentialHistogram histo = ExponentialHistogram.create(100, breaker, values)) {
+                assertThat(breaker.getUsed(), greaterThan(0L));
+                assertThat(breaker.getUsed(), equalTo(histo.ramBytesUsed()));
+            } catch (DummyCircuitBreakerTripException dummyTrip) {}
+
+            assertThat("every growth must be given back", breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * A generator that has only been given a handful of values must not have paid for the bucket capacity it was created with, but the
+     * histogram it produces has to be exactly the one it would have produced if it had.
+     */
+    public void testGeneratorGrowsWithTheValuesItIsGiven() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (
+            ExponentialHistogramGenerator few = ExponentialHistogramGenerator.create(1000, breaker(esBreaker));
+            ExponentialHistogramGenerator many = ExponentialHistogramGenerator.create(1000, breaker(esBreaker))
+        ) {
+            long fresh = few.ramBytesUsed();
+            assertThat("a fresh generator must not have allocated for its bucket capacity", fresh, lessThan(1000L));
+
+            for (int i = 0; i < 5; i++) {
+                few.add(i + 1.0);
+            }
+            for (int i = 0; i < 5000; i++) {
+                many.add(i + 1.0);
+            }
+
+            assertThat(few.ramBytesUsed(), lessThan(many.ramBytesUsed()));
+            // not an equality: each generator also owns a merger factory, which accounts for its shared scratch space separately
+            assertThat(esBreaker.getUsed(), greaterThanOrEqualTo(few.ramBytesUsed() + many.ramBytesUsed()));
+
+            // whatever it cost, the distribution it describes must be the one a pre-sized generator would have produced
+            try (
+                ReleasableExponentialHistogram grown = few.getAndClear();
+                ReleasableExponentialHistogram reference = ExponentialHistogram.create(5, breaker(esBreaker), 1.0, 2.0, 3.0, 4.0, 5.0)
+            ) {
+                assertThat(grown.valueCount(), equalTo(5L));
+                for (double quantile : new double[] { 0.0, 0.25, 0.5, 0.75, 1.0 }) {
+                    assertThat(
+                        "quantile " + quantile + " must not depend on how the buffers grew",
+                        ExponentialHistogramQuantile.getQuantile(grown, quantile),
+                        equalTo(ExponentialHistogramQuantile.getQuantile(reference, quantile))
+                    );
+                }
+            }
+        }
+        assertThat("closing must give back exactly what was taken", esBreaker.getUsed(), equalTo(0L));
     }
 
     private static class DummyCircuitBreakerTripException extends RuntimeException {}

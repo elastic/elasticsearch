@@ -29,7 +29,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamOptionsAction extends BaseRestHandler {
 
-    private static final Set<String> CAPABILITIES = Set.of(RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY);
+    private static final Set<String> CAPABILITIES = Set.of(
+        RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY,
+        RestGetDataStreamsAction.DERIVED_METRICS_API_CAPABILITY
+    );
 
     @Override
     public String getName() {

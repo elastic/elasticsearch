@@ -28,9 +28,13 @@ import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleActi
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
@@ -45,6 +49,15 @@ import org.elasticsearch.datastreams.action.TransportPastTimeSeriesIndexCreation
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestinationLifecycle;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsIndexingListener;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShardEventListener;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShutdownListener;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsTemplateRegistry;
+import org.elasticsearch.datastreams.derivedmetrics.action.GetDerivedMetricsStatsAction;
+import org.elasticsearch.datastreams.derivedmetrics.action.TransportGetDerivedMetricsStatsAction;
+import org.elasticsearch.datastreams.derivedmetrics.rest.RestDerivedMetricsStatsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
@@ -85,13 +98,20 @@ import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -99,12 +119,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin, CircuitBreakerPlugin {
 
     public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
@@ -153,6 +174,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<DerivedMetricsService> derivedMetricsService = new SetOnce<>();
+    private final SetOnce<DerivedMetricsTemplateRegistry> derivedMetricsTemplateRegistry = new SetOnce<>();
+    private final SetOnce<DerivedMetricsShutdownListener> derivedMetricsShutdownListener = new SetOnce<>();
+    private final SetOnce<DerivedMetricsDestinationLifecycle> derivedMetricsDestinationLifecycle = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> derivedMetricsBreaker = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
     private FrozenTransitionInfoProvider frozenTransitionInfoProvider = FrozenTransitionInfoProvider.noop();
@@ -218,6 +245,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
+        pluginSettings.add(DerivedMetricsService.FLUSH_INTERVAL);
+        pluginSettings.add(DerivedMetricsService.FLUSH_GRACE_PERIOD);
+        pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_NODE);
+        pluginSettings.add(DerivedMetricsService.BULK_SIZE);
+        pluginSettings.add(DerivedMetricsService.MAX_SERIES_PER_STREAM);
+        pluginSettings.add(DerivedMetricsService.MAX_IN_FLIGHT_BULKS);
+        pluginSettings.add(DerivedMetricsService.MEMORY_PRESSURE_POLICY);
+        pluginSettings.add(DerivedMetricsService.HISTOGRAM_BUCKETS);
+        pluginSettings.add(DerivedMetricsService.MAX_DIMENSION_CARDINALITY);
+        pluginSettings.add(DerivedMetricsService.INDEXING_PRESSURE_CEILING);
         return pluginSettings;
     }
 
@@ -225,6 +262,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     public Collection<?> createComponents(PluginServices services) {
 
         Collection<Object> components = new ArrayList<>();
+        clusterService.set(services.clusterService());
         var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(
             services.environment().settings(),
             services.threadPool(),
@@ -260,8 +298,109 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+
+        derivedMetricsService.set(
+            new DerivedMetricsService(
+                settings,
+                services.client(),
+                services.threadPool(),
+                // Everything the buffer allocates has to land on the derived metrics breaker rather than the request breaker it would
+                // otherwise share, which means a BigArrays bound to this breaker by name. The pages are long lived rather than
+                // per-request, so giving up the recycler costs nothing.
+                new BigArrays(null, services.bigArrays().breakerService(), DerivedMetricsService.BREAKER_NAME).withCircuitBreaking(),
+                services.indexingPressure(),
+                services.telemetryProvider().getMeterRegistry(),
+                // The persistent node ID rather than the node name: node.name is typically the pod name in a containerised deployment
+                // and changes on every restart, and this is a tsid dimension, so every rename would mint a fresh set of series.
+                services.nodeEnvironment().nodeId(),
+                services.clusterService().getNodeName()
+            )
+        );
+        derivedMetricsService.get().init();
+        derivedMetricsShutdownListener.set(new DerivedMetricsShutdownListener(services.clusterService(), derivedMetricsService.get()));
+        derivedMetricsShutdownListener.get().init();
+        derivedMetricsTemplateRegistry.set(new DerivedMetricsTemplateRegistry(services.client(), services.clusterService()));
+        derivedMetricsTemplateRegistry.get().init();
+        derivedMetricsDestinationLifecycle.set(
+            new DerivedMetricsDestinationLifecycle(
+                services.client(),
+                services.clusterService(),
+                services.dataStreamGlobalRetentionSettings()
+            )
+        );
+        derivedMetricsDestinationLifecycle.get().init();
+        components.add(derivedMetricsService.get());
+        components.add(derivedMetricsTemplateRegistry.get());
+        components.add(derivedMetricsDestinationLifecycle.get());
         components.add(new PluginComponentBinding<>(FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider));
         return components;
+    }
+
+    /**
+     * Derived metrics do their periodic flushing and all of their emission on their own pool.
+     *
+     * <p>Without one they would run on {@code management}, which is capped at five threads, has an unbounded queue that never rejects, and
+     * carries dynamic mapping updates and cluster-info collection. A derived metrics flush storm there would delay work the cluster cannot
+     * afford to have delayed, and would do it invisibly, since nothing would ever be shed.
+     *
+     * <p>Small and bounded on purpose: this is background work that should be shed rather than queued when it cannot keep up, and the
+     * shedding is counted. Operators can resize it through {@code data_streams.derived_metrics.thread_pool}.
+     */
+    public static final String DERIVED_METRICS_THREAD_POOL = "derived_metrics";
+    private static final int DERIVED_METRICS_THREAD_POOL_QUEUE_SIZE = 128;
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(
+            new FixedExecutorBuilder(
+                settings,
+                DERIVED_METRICS_THREAD_POOL,
+                ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
+                DERIVED_METRICS_THREAD_POOL_QUEUE_SIZE,
+                "data_streams.derived_metrics.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
+        );
+    }
+
+    /**
+     * Derived metrics buffer node-local state whose size is driven by dimension cardinality, so it gets its own breaker rather than
+     * being invisible. Everything the buffer allocates goes through BigArrays against this breaker, which makes it both bounded and
+     * reportable through {@code _nodes/stats/breakers}.
+     */
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                DerivedMetricsService.BREAKER_NAME,
+                DerivedMetricsService.defaultBreakerLimit(),
+                DerivedMetricsService.DEFAULT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert circuitBreaker.getName().equals(DerivedMetricsService.BREAKER_NAME);
+        derivedMetricsBreaker.set(circuitBreaker);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        DerivedMetricsService service = derivedMetricsService.get();
+        if (service != null) {
+            // The mapping decides whether a configured path can be read from the already-parsed document rather than from _source, and
+            // IndexModule cannot hand out a MapperService here. The shard listener fills this in once a shard of the index exists.
+            AtomicReference<MapperService> mappers = new AtomicReference<>();
+            indexModule.addIndexOperationListener(
+                new DerivedMetricsIndexingListener(clusterService.get(), service, indexModule.getIndex(), mappers::get)
+            );
+            // flush what a shard collected before it leaves this node, so an avoidable loss is avoided
+            indexModule.addIndexEventListener(new DerivedMetricsShardEventListener(service, mappers));
+        }
     }
 
     @Override
@@ -288,6 +427,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
         actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
+        actions.add(new ActionHandler(GetDerivedMetricsStatsAction.INSTANCE, TransportGetDerivedMetricsStatsAction.class));
         return actions;
     }
 
@@ -317,6 +457,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestUpdateDataStreamSettingsAction());
         handlers.add(new RestGetDataStreamMappingsAction());
         handlers.add(new RestUpdateDataStreamMappingsAction());
+        handlers.add(new RestDerivedMetricsStatsAction());
         return handlers;
     }
 
@@ -330,8 +471,20 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public void close() throws IOException {
+        DerivedMetricsTemplateRegistry templateRegistry = derivedMetricsTemplateRegistry.get();
+        if (templateRegistry != null) {
+            templateRegistry.close();
+        }
+        DerivedMetricsDestinationLifecycle destinationLifecycle = derivedMetricsDestinationLifecycle.get();
+        if (destinationLifecycle != null) {
+            destinationLifecycle.close();
+        }
+        DerivedMetricsShutdownListener shutdownListener = derivedMetricsShutdownListener.get();
+        if (shutdownListener != null) {
+            shutdownListener.close();
+        }
         try {
-            IOUtils.close(dataLifecycleInitialisationService.get());
+            IOUtils.close(dataLifecycleInitialisationService.get(), derivedMetricsService.get());
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close the data stream lifecycle service", e);
         }

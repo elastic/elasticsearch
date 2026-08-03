@@ -1,0 +1,262 @@
+# Derived metrics vs. the original data stream, side by side.
+#
+# Paste this whole file into Kibana → Dev Tools. Each pair asks the same question twice: once of the
+# derived metrics (a few hundred documents) and once of the source stream (everything ever written).
+# The answers should agree.
+#
+# FIRST: pick a comparison window and replace WINDOW_START and WINDOW_END everywhere.
+#
+#     ./demo.sh window 5
+#
+# The window must be CLOSED (ending at least a flush interval + grace period ago, so the last
+# interval has actually been emitted) and ALIGNED to 10s (derived documents are stamped at the start
+# of their interval). `./demo.sh window` gives you both.
+#
+# WHY THE NUMBERS ARE CLOSE BUT NOT IDENTICAL
+#
+# Derived metrics bucket by INGEST time — when the write reached the shard. The source stream's
+# @timestamp is EVENT time — whatever the client put in the document. A document written at
+# 17:42:09.998 with an @timestamp of 17:42:09.990 can land in the 17:42:10 derived bucket and the
+# 17:42:00 source bucket. Over a multi-minute window only the documents straddling each boundary
+# differ, which measures at roughly 0.1%. Expect agreement, not equality.
+
+
+# =================================================================================================
+# 1. DOCUMENT COUNT.  Expect agreement within ~0.1%.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "ingest.docs.count"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS docs = SUM(metric.value), documents_scanned = COUNT(*)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS docs = COUNT(*), documents_scanned = COUNT(*)
+  """
+}
+
+
+# =================================================================================================
+# 2. 5xx ERRORS.  A counter with a range predicate, versus the same predicate applied at query time.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "http.errors"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS errors = SUM(metric.value)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+        AND http.response.status_code >= 500
+    | STATS errors = COUNT(*)
+  """
+}
+
+
+# =================================================================================================
+# 3. RESPONSE BYTES.  A counter whose value comes from a field rather than a constant.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "http.response.bytes"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS bytes = SUM(metric.value)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS bytes = SUM(http.response.body.bytes)
+  """
+}
+
+
+# =================================================================================================
+# 4. A MAX GAUGE.  Exact: the maximum of per-interval maxima is the maximum.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "queue.depth.max"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS peak = MAX(metric.value)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS peak = MAX(queue.depth)
+  """
+}
+
+
+# =================================================================================================
+# 5. AN AVG GAUGE.  Now exactly re-aggregatable, because it emits sum and count.
+#
+# An avg gauge does not emit the mean. metric.value carries the sum and metric.count the observation
+# count, so the mean is SUM(value)/SUM(count). That is exact across partials, across nodes and across
+# buckets of unequal volume.
+#
+# It used to emit the mean, which cannot be re-aggregated: averaging per-interval means weights every
+# interval equally regardless of how busy it was, and read 30-50% low on this data because the busy
+# intervals are also the slow ones.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "event.duration.avg"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS avg_ms = ROUND(SUM(metric.value) / SUM(metric.count) / 1000000, 2)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS avg_ms = ROUND(AVG(event.duration) / 1000000, 2)
+  """
+}
+
+
+# =================================================================================================
+# 6. RATE PER SERVICE.  Same shape from both sides, one bucket per 10s.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "ingest.docs.rate"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS docs_per_sec = ROUND(SUM(metric.value), 1)
+        BY bucket = BUCKET(@timestamp, 10 second), service = dimensions.service.name
+    | SORT bucket DESC, service
+    | LIMIT 25
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS docs_per_sec = ROUND(TO_DOUBLE(COUNT(*)) / 10, 1)
+        BY bucket = BUCKET(@timestamp, 10 second), service = service.name
+    | SORT bucket DESC, service
+    | LIMIT 25
+  """
+}
+
+
+# =================================================================================================
+# 7. REQUESTS BY METHOD.  A per-metric dimension the global dimensions do not carry.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "http.requests"
+        AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS requests = SUM(metric.value) BY method = dimensions.http.request.method
+    | SORT method
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS requests = COUNT(*) BY method = http.request.method
+    | SORT method
+  """
+}
+
+
+# =================================================================================================
+# 8. WHAT IT COST.  How many documents each side had to touch to answer any of the above.
+#
+# This is the whole argument for the feature. Both numbers describe the same window.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS derived_documents = COUNT(*)
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS source_documents = COUNT(*)
+  """
+}
+
+# =================================================================================================
+# 7. Percentiles: derived vs source
+#
+# A histogram metric keeps the whole distribution per interval, so percentiles survive the
+# reduction. The mean in section 5 cannot tell you this no matter how it is aggregated. The two
+# should agree to within the histogram's bucket resolution, which is a fraction of a percent.
+# =================================================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM derived-metrics-logs-derived-demo-default-10s
+    | WHERE metric.name == "event.duration.distribution"
+      AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS p50_ms = PERCENTILE(metric.histogram, 50) / 1000000,
+            p95_ms = PERCENTILE(metric.histogram, 95) / 1000000,
+            p99_ms = PERCENTILE(metric.histogram, 99) / 1000000
+  """
+}
+
+POST /_query?format=txt
+{
+  "query": """
+    FROM logs-derived-demo-default
+    | WHERE @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
+    | STATS p50_ms = PERCENTILE(event.duration, 50) / 1000000,
+            p95_ms = PERCENTILE(event.duration, 95) / 1000000,
+            p99_ms = PERCENTILE(event.duration, 99) / 1000000
+  """
+}

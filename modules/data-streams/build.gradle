@@ -24,6 +24,10 @@ dependencies {
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(':modules:rest-root')
   internalClusterTestImplementation project(':modules:reindex')
+  // The derived metrics destination maps metric.histogram as exponential_histogram, whose mapper ships in x-pack-analytics. That plugin
+  // is always bundled in the default distribution, so this is only needed to give the integration test cluster the same mapper.
+  internalClusterTestImplementation project(':x-pack:plugin:analytics')
+  internalClusterTestImplementation project(':x-pack:plugin:core')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

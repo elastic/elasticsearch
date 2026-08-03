@@ -15,6 +15,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
@@ -44,13 +45,13 @@ public class PutDataStreamOptionsAction {
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
         public interface Factory {
-            Request create(@Nullable DataStreamFailureStore dataStreamFailureStore);
+            Request create(DataStreamOptions dataStreamOptions);
         }
 
         public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_options_request",
             false,
-            (args, factory) -> factory.create((DataStreamFailureStore) args[0])
+            (args, factory) -> factory.create(new DataStreamOptions((DataStreamFailureStore) args[0], (DataStreamDerivedMetrics) args[1]))
         );
 
         static {
@@ -59,6 +60,12 @@ public class PutDataStreamOptionsAction {
                 (p, c) -> DataStreamFailureStore.PARSER.parse(p, null),
                 null,
                 new ParseField("failure_store")
+            );
+            PARSER.declareObjectOrNull(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataStreamDerivedMetrics.PARSER.parse(p, null),
+                null,
+                DataStreamOptions.DERIVED_METRICS_FIELD
             );
         }
 
@@ -95,7 +102,7 @@ public class PutDataStreamOptionsAction {
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, DataStreamOptions options) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
-            this.options = options;
+            this.options = Objects.requireNonNull(options);
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable DataStreamFailureStore failureStore) {
@@ -107,7 +114,7 @@ public class PutDataStreamOptionsAction {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (options.failureStore() == null) {
+            if (options.isEmpty()) {
                 validationException = addValidationError("At least one option needs to be provided", validationException);
             }
             if (options.failureStore() != null

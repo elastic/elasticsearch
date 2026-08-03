@@ -13,6 +13,7 @@ toc:
       - file: configuration-reference/health-diagnostic-settings.md
       - file: configuration-reference/index-lifecycle-management-settings.md
       - file: configuration-reference/data-stream-lifecycle-settings.md
+      - file: configuration-reference/derived-metrics-settings.md
       - file: configuration-reference/index-management-settings.md
       - file: configuration-reference/index-recovery-settings.md
       - file: configuration-reference/indexing-buffer-settings.md

@@ -1702,14 +1702,9 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-            (ignoredMaxThread, ignoredMaxMerge) -> {
-                // Re-resolve from merged settings so defaults see node.processors.
-                final Settings indexMetaSettings = this.indexMetadata.getSettings();
-                final Settings mergedSettings = Settings.builder().put(nodeSettings).put(indexMetaSettings).build();
-                mergeSchedulerConfig.setMaxThreadAndMergeCount(
-                    MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.get(mergedSettings),
-                    MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.get(mergedSettings)
-                );
+            (maxThreadCount, maxMergeCount) -> {
+                mergeSchedulerConfig.setMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+                warnIfMergeSchedulerMaxThreadCountClamped();
             }
         );
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
@@ -2046,6 +2041,15 @@ public final class IndexSettings {
      */
     public MergeSchedulerConfig getMergeSchedulerConfig() {
         return mergeSchedulerConfig;
+    }
+
+    /**
+     * Logs when an applied {@code max_thread_count} was clamped to {@code max_merge_count}.
+     * Call only from paths that own a live index (create or a real settings update), not from
+     * throwaway {@link IndexSettings} constructions used for validation.
+     */
+    public void warnIfMergeSchedulerMaxThreadCountClamped() {
+        mergeSchedulerConfig.warnIfMaxThreadCountClamped(logger);
     }
 
     /**

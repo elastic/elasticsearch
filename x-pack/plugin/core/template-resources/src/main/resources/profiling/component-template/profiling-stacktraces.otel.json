@@ -1,0 +1,41 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 16,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "routing.allocation.include._tier_preference": "data_hot",
+        "sort": {
+          "field": [
+            "Stacktrace.frame.ids"
+          ]
+        },
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
+        }
+      }
+    },
+    "mappings": {
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.stacktraces.otel.version},
+        "managed": true
+      },
+      "dynamic": false,
+      "properties": {
+        "Stacktrace.frame.ids": {
+          "type": "keyword",
+          "index": false
+        },
+        "Stacktrace.frame.types": {
+          "type": "keyword",
+          "index": false
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

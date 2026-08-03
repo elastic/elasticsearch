@@ -1,0 +1,24 @@
+{
+  "index_patterns": [
+    "profiling-hosts.otel-default*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-hosts.otel",
+    "profiling-hosts.otel@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-hosts.otel@custom"
+  ],
+  "priority": 250,
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "_meta": {
+    "description": "OTel data stream template for profiling-hosts",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

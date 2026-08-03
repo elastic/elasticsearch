@@ -186,7 +186,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder
     ) {
         StopWatch watch = new StopWatch("getResampledIndex");
-        EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
+        EventsIndex mediumDownsampled = request.isOtelSchema()
+            ? EventsIndex.MEDIUM_DOWNSAMPLED.withOtelSuffix()
+            : EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
             .setSize(0)
             .setQuery(request.getQuery())
@@ -209,7 +211,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 // checking for existence in all cases.
                 if (e instanceof IndexNotFoundException) {
                     String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                    EventsIndex fullIndex = request.isOtelSchema() ? EventsIndex.FULL_INDEX.withOtelSuffix() : EventsIndex.FULL_INDEX;
                     log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
                     searchRandomSampledProfilingEvents(submitTask, client, request, submitListener, responseBuilder, fullIndex);
                 } else {
@@ -594,7 +596,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         log.info("Using [{}] hostIds and [{}] stacktraceIds.", hostIds.size(), stacktraceIds.size());
 
         ClusterState clusterState = clusterService.state();
-        List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+        List<Index> indices = responseBuilder.isOtelSchema()
+            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-default")
+            : resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
         log.trace("Using [{}] slice(s) to lookup stacktraces.", sliceCount);
@@ -620,7 +624,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        client.prepareSearch("profiling-hosts")
+        client.prepareSearch(responseBuilder.isOtelSchema() ? "profiling-hosts.otel-default" : "profiling-hosts")
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -798,18 +802,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
-        List<Index> stackFrameIndices = resolver.resolve(
-            clusterState,
-            "profiling-stackframes",
-            responseBuilder.getStart(),
-            responseBuilder.getEnd()
-        );
-        List<Index> executableIndices = resolver.resolve(
-            clusterState,
-            "profiling-executables",
-            responseBuilder.getStart(),
-            responseBuilder.getEnd()
-        );
+        List<Index> stackFrameIndices = responseBuilder.isOtelSchema()
+            ? resolver.resolveDataStream(clusterState, "profiling-stackframes.otel-default")
+            : resolver.resolve(clusterState, "profiling-stackframes", responseBuilder.getStart(), responseBuilder.getEnd());
+        List<Index> executableIndices = responseBuilder.isOtelSchema()
+            ? resolver.resolveDataStream(clusterState, "profiling-executables.otel-default")
+            : resolver.resolve(clusterState, "profiling-executables", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;
         int executableSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, executableIndices) ? 1 : desiredDetailSlices;

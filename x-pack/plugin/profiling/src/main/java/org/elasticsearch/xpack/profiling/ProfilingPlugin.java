@@ -58,7 +58,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -66,6 +66,20 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     // *Internal* setting meant as an escape hatch if we need to skip the check for outdated indices for some reason.
     public static final Setting<Boolean> PROFILING_CHECK_OUTDATED_INDICES = Setting.boolSetting(
         "xpack.profiling.check_outdated_indices",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED = Setting.boolSetting(
+        "xpack.profiling.templates.schema.ecs.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED = Setting.boolSetting(
+        "xpack.profiling.templates.schema.otel.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -101,11 +115,24 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
                 services.featureService()
             )
         );
+        registry.get().setEcsSchemaEnabled(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.get(settings));
+        registry.get().setOtelSchemaEnabled(PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED.get(settings));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED, registry.get()::setEcsSchemaEnabled);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED, registry.get()::setOtelSchemaEnabled);
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
         dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
+        boolean ecsEnabled = PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.get(settings);
+        indexManager.get().setEcsSchemaEnabled(ecsEnabled);
+        dataStreamManager.get().setEcsSchemaEnabled(ecsEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED, v -> {
+            indexManager.get().setEcsSchemaEnabled(v);
+            dataStreamManager.get().setEcsSchemaEnabled(v);
+        });
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
@@ -158,6 +185,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             PROFILING_TEMPLATES_ENABLED,
             PROFILING_CHECK_OUTDATED_INDICES,
+            PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED,
+            PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED,
             TransportGetStackTracesAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_QUERY_REALTIME
@@ -196,4 +225,5 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         indexManager.get().close();
         dataStreamManager.get().close();
     }
+
 }

@@ -1,0 +1,44 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "routing.allocation.include._tier_preference": "data_hot",
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
+        }
+      }
+    },
+    "mappings": {
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.executables.otel.version},
+        "managed": true
+      },
+      "dynamic": false,
+      "properties": {
+        "Executable.build.id": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.file.name": {
+          "type": "keyword",
+          "index": true
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        },
+        "Symbolization.next_time": {
+          "type": "date",
+          "format": "epoch_second",
+          "index": true
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -51,6 +51,7 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
     public static final ParseField CUSTOM_PER_CORE_WATT_ARM64 = new ParseField("per_core_watt_arm64");
     public static final ParseField CUSTOM_COST_PER_CORE_HOUR = new ParseField("cost_per_core_hour");
+    public static final ParseField SCHEMA_FIELD = new ParseField("schema");
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
@@ -68,6 +69,8 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     private Double customPerCoreWattX86;
     private Double customPerCoreWattARM64;
     private Double customCostPerCoreHour;
+
+    private boolean useOtelSchema = false;
 
     // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -202,6 +205,10 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
         this.shardSeed = shardSeed;
     }
 
+    public boolean isOtelSchema() {
+        return useOtelSchema;
+    }
+
     public void parseXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -238,6 +245,8 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
                     this.customPerCoreWattARM64 = parser.doubleValue();
                 } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostPerCoreHour = parser.doubleValue();
+                } else if (SCHEMA_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.useOtelSchema = "otel".equals(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
@@ -408,13 +417,24 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     @Override
     public String[] indices() {
         Set<String> indices = new HashSet<>();
-        indices.add("profiling-stacktraces");
-        indices.add("profiling-stackframes");
-        indices.add("profiling-executables");
-        if (userProvidedIndices) {
-            indices.addAll(List.of(this.indices));
+        if (useOtelSchema) {
+            indices.add("profiling-stacktraces.otel-default");
+            indices.add("profiling-stackframes.otel-default");
+            indices.add("profiling-executables.otel-default");
+            if (userProvidedIndices) {
+                indices.addAll(List.of(this.indices));
+            } else {
+                indices.addAll(EventsIndex.otelIndexNames());
+            }
         } else {
-            indices.addAll(EventsIndex.indexNames());
+            indices.add("profiling-stacktraces");
+            indices.add("profiling-stackframes");
+            indices.add("profiling-executables");
+            if (userProvidedIndices) {
+                indices.addAll(List.of(this.indices));
+            } else {
+                indices.addAll(EventsIndex.indexNames());
+            }
         }
         return indices.toArray(new String[0]);
     }

@@ -1,0 +1,24 @@
+{
+  "index_patterns": [
+    "profiling-stackframes.otel-default*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-stackframes.otel",
+    "profiling-stackframes.otel@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-stackframes.otel@custom"
+  ],
+  "priority": 100,
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "_meta": {
+    "description": "OTel data stream template for profiling-stackframes",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

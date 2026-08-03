@@ -1,0 +1,24 @@
+{
+  "index_patterns": [
+    "profiling-executables.otel-default*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-executables.otel",
+    "profiling-executables.otel@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-executables.otel@custom"
+  ],
+  "priority": 100,
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "_meta": {
+    "description": "OTel data stream template for profiling-executables",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

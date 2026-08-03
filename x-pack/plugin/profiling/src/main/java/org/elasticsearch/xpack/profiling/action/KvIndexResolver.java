@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
@@ -111,5 +112,17 @@ public class KvIndexResolver {
             );
         }
         return Collections.unmodifiableList(matchingIndices);
+    }
+
+    /**
+     * Resolves a data stream to its backing indices. Used for OTel data streams which have no rollover alias.
+     */
+    public List<Index> resolveDataStream(ClusterState clusterState, String dataStreamName) {
+        DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            log.debug("Data stream [{}] does not exist.", dataStreamName);
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(dataStream.getIndices());
     }
 }

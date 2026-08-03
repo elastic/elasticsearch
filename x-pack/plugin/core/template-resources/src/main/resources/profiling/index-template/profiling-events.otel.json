@@ -1,0 +1,26 @@
+{
+  "index_patterns": [
+    "profiling-events*.otel-default"
+  ],
+  "data_stream": {
+    "hidden": false
+  },
+  "composed_of": [
+    "profiling-events.otel",
+    "profiling-events.otel@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-events.otel@custom"
+  ],
+  "priority": 250,
+  "template": {
+    "lifecycle": {
+      "data_retention": "60d"
+    }
+  },
+  "_meta": {
+    "description": "OTel data stream template for profiling-events",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -886,6 +886,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
         defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
 
+        // Propagate PATH so shell scripts (e.g. elasticsearch-keystore) can locate standard utilities
+        // such as `dirname`. This is essential on systems like NixOS where PATH is non-standard.
+        String systemPath = System.getenv("PATH");
+        if (systemPath != null) {
+            defaultEnv.put("PATH", systemPath);
+        }
+
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {

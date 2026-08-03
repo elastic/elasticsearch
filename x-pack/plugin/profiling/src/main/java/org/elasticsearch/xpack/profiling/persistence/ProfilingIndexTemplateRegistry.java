@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,8 +54,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 13: Added 'container.id' keyword mapping to profiling-events
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
-    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 15;
+    // version 16: Added OTel schema templates and fixed profiling-events.otel index pattern
+    public static final int INDEX_TEMPLATE_VERSION = 16;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 6;
@@ -67,9 +68,17 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final int PROFILING_RETURNPADS_PRIVATE_VERSION = 1;
     public static final int PROFILING_SQ_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_SQ_LEAFFRAMES_VERSION = 1;
+    // OTel index versions
+    public static final int PROFILING_EVENTS_OTEL_VERSION = 1;
+    public static final int PROFILING_HOSTS_OTEL_VERSION = 1;
+    public static final int PROFILING_STACKFRAMES_OTEL_VERSION = 1;
+    public static final int PROFILING_STACKTRACES_OTEL_VERSION = 1;
+    public static final int PROFILING_EXECUTABLES_OTEL_VERSION = 1;
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
+    private volatile boolean ecsSchemaEnabled = false;
+    private volatile boolean otelSchemaEnabled = true;
 
     public ProfilingIndexTemplateRegistry(
         Settings nodeSettings,
@@ -84,6 +93,14 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public void setTemplatesEnabled(boolean templatesEnabled) {
         this.templatesEnabled = templatesEnabled;
+    }
+
+    public void setEcsSchemaEnabled(boolean ecsSchemaEnabled) {
+        this.ecsSchemaEnabled = ecsSchemaEnabled;
+    }
+
+    public void setOtelSchemaEnabled(boolean otelSchemaEnabled) {
+        this.otelSchemaEnabled = otelSchemaEnabled;
     }
 
     public void close() {
@@ -115,10 +132,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
+        return (templatesEnabled && ecsSchemaEnabled) ? lifecyclePolicies : Collections.emptyList();
     }
 
-    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+    private final Map<String, ComponentTemplate> ecsComponentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/component-template/profiling-events.json",
@@ -182,16 +199,64 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
+    private final Map<String, ComponentTemplate> otelComponentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            "profiling-events.otel",
+            "/profiling/component-template/profiling-events.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("events.otel", PROFILING_EVENTS_OTEL_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-hosts.otel",
+            "/profiling/component-template/profiling-hosts.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("hosts.otel", PROFILING_HOSTS_OTEL_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-stackframes.otel",
+            "/profiling/component-template/profiling-stackframes.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("stackframes.otel", PROFILING_STACKFRAMES_OTEL_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-stacktraces.otel",
+            "/profiling/component-template/profiling-stacktraces.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("stacktraces.otel", PROFILING_STACKTRACES_OTEL_VERSION)
+        ),
+        new IndexTemplateConfig(
+            "profiling-executables.otel",
+            "/profiling/component-template/profiling-executables.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("executables.otel", PROFILING_EXECUTABLES_OTEL_VERSION)
+        )
+    );
+
     private static Map<String, String> indexVersion(String index, int version) {
         return Map.of(String.format(Locale.ROOT, "xpack.profiling.index.%s.version", index), String.valueOf(version));
     }
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return templatesEnabled ? componentTemplates : Collections.emptyMap();
+        if (templatesEnabled == false) {
+            return Collections.emptyMap();
+        }
+        Map<String, ComponentTemplate> result = new HashMap<>();
+        if (ecsSchemaEnabled) {
+            result.putAll(ecsComponentTemplates);
+        }
+        if (otelSchemaEnabled) {
+            result.putAll(otelComponentTemplates);
+        }
+        return Collections.unmodifiableMap(result);
     }
 
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> ecsComposableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/index-template/profiling-events.json",
@@ -264,9 +329,52 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
+    private final Map<String, ComposableIndexTemplate> otelComposableIndexTemplates = parseComposableTemplates(
+        new IndexTemplateConfig(
+            "profiling-events.otel",
+            "/profiling/index-template/profiling-events.otel.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-hosts.otel-default",
+            "/profiling/index-template/profiling-hosts.otel-default.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-stackframes.otel-default",
+            "/profiling/index-template/profiling-stackframes.otel-default.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-stacktraces.otel-default",
+            "/profiling/index-template/profiling-stacktraces.otel-default.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            "profiling-executables.otel-default",
+            "/profiling/index-template/profiling-executables.otel-default.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE
+        )
+    );
+
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return templatesEnabled ? composableIndexTemplates : Collections.emptyMap();
+        if (templatesEnabled == false) {
+            return Collections.emptyMap();
+        }
+        Map<String, ComposableIndexTemplate> result = new HashMap<>();
+        if (ecsSchemaEnabled) {
+            result.putAll(ecsComposableIndexTemplates);
+        }
+        if (otelSchemaEnabled) {
+            result.putAll(otelComposableIndexTemplates);
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     @Override
@@ -301,19 +409,33 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String name : componentTemplates.keySet()) {
+        Map<String, ComponentTemplate> expectedComponentTemplates = new HashMap<>();
+        if (ecsSchemaEnabled) {
+            expectedComponentTemplates.putAll(ecsComponentTemplates);
+        }
+        if (otelSchemaEnabled) {
+            expectedComponentTemplates.putAll(otelComponentTemplates);
+        }
+        for (String name : expectedComponentTemplates.keySet()) {
             ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String name : composableIndexTemplates.keySet()) {
+        Map<String, ComposableIndexTemplate> expectedComposableTemplates = new HashMap<>();
+        if (ecsSchemaEnabled) {
+            expectedComposableTemplates.putAll(ecsComposableIndexTemplates);
+        }
+        if (otelSchemaEnabled) {
+            expectedComposableTemplates.putAll(otelComposableIndexTemplates);
+        }
+        for (String name : expectedComposableTemplates.keySet()) {
             ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        if (isDataStreamsLifecycleOnlyMode(settings) == false) {
+        if (ecsSchemaEnabled && isDataStreamsLifecycleOnlyMode(settings) == false) {
             IndexLifecycleMetadata ilmMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (ilmMetadata == null) {
                 return false;

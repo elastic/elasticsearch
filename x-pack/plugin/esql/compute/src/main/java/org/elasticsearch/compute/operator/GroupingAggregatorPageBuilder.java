@@ -51,6 +51,24 @@ public final class GroupingAggregatorPageBuilder {
         return selected;
     };
 
+    /**
+     * Hook that selects which group ids to emit, applied once before {@link CustomizeSelected}.
+     * Receives the full set of non-empty group ids from {@link BlockHash#nonEmpty()} as
+     * {@code allKeys}; the caller closes {@code allKeys} after this returns. Implementations must
+     * either {@link IntVector#incRef() incRef} and return {@code allKeys} unchanged, or return a
+     * new vector. The returned vector is owned by the caller and will be released when the
+     * built iterator is closed.
+     */
+    public interface SelectKeys {
+        IntVector select(GroupingAggregatorEvaluationContext ctx, IntVector allKeys);
+    }
+
+    /** {@link SelectKeys} that emits every group: increments the ref count and returns {@code allKeys} unchanged. */
+    public static final SelectKeys ALL_KEYS = (ctx, allKeys) -> {
+        allKeys.incRef();
+        return allKeys;
+    };
+
     private final BlockHash blockHash;
     private final List<GroupingAggregator> aggregators;
     private final int maxPageSize;
@@ -79,8 +97,17 @@ public final class GroupingAggregatorPageBuilder {
      * the returned iterator's {@link ReleasableIterator#close} otherwise.
      */
     public ReleasableIterator<Page> build(GroupingAggregatorEvaluationContext ctx) {
+        return build(ctx, ALL_KEYS);
+    }
+
+    /**
+     * Like {@link #build(GroupingAggregatorEvaluationContext)}, but applies {@code selectKeys} to
+     * choose which group ids to emit before {@link CustomizeSelected} runs. Use this when only a
+     * subset of groups should appear in the output (e.g. top-N push-down).
+     */
+    public ReleasableIterator<Page> build(GroupingAggregatorEvaluationContext ctx, SelectKeys selectKeys) {
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        PreparedForEvaluation prepared = new PreparedForEvaluation(ctx);
+        PreparedForEvaluation prepared = new PreparedForEvaluation(ctx, selectKeys);
         try {
             if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
                 return ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
@@ -111,7 +138,7 @@ public final class GroupingAggregatorPageBuilder {
         GroupingAggregatorEvaluationContext ctx
     ) {
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        PreparedForEvaluation prepared = new PreparedForEvaluation(ctx);
+        PreparedForEvaluation prepared = new PreparedForEvaluation(ctx, ALL_KEYS);
         Page[] result = new Page[partitionCount];
         boolean success = false;
         try {
@@ -249,13 +276,15 @@ public final class GroupingAggregatorPageBuilder {
         private final Selected selected;
         private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
 
-        private PreparedForEvaluation(GroupingAggregatorEvaluationContext ctx) {
+        private PreparedForEvaluation(GroupingAggregatorEvaluationContext ctx, SelectKeys selectKeys) {
             int count = aggregators.size();
             Selected selected = null;
             List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
             boolean success = false;
             try {
-                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                try (var allKeys = blockHash.nonEmpty()) {
+                    selected = new Selected(selectKeys.select(ctx, allKeys), new IntVector[count]);
+                }
                 for (int a = 0; a < count; a++) {
                     selected.aggs[a] = customizeSelected.customize(aggregators.get(a), selected.keys);
                     preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));

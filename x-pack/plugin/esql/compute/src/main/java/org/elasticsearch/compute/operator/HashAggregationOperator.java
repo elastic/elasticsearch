@@ -596,12 +596,21 @@ public class HashAggregationOperator implements Operator {
         long startInNanos = System.nanoTime();
         try {
             var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, maxPageSize, this::customizeSelected);
-            output = timeEmitting(pageBuilder.build(evaluationContext(blockHash)));
+            output = timeEmitting(pageBuilder.build(evaluationContext(blockHash), this::keySelectionForEmit));
         } finally {
             rowsAddedInCurrentBatch = 0;
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    private IntVector keySelectionForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
+        if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
+            return aggregators.get(topAggregation.aggregatorIndex())
+                .aggregatorFunction()
+                .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
+        }
+        return selectedKeysForEmit(ctx, allKeys);
     }
 
     /**

@@ -16,15 +16,22 @@ import io.opentelemetry.sdk.resources.ResourceBuilder;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.os.OsProbe;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -42,6 +49,7 @@ final class OtelSdkResource {
     );
     private static final Pattern AWS_FARGATE = Pattern.compile("^[0-9a-fA-F]{32}-[0-9]{10}$");
     private static final Pattern POD_PATH = Pattern.compile("(?:^/kubepods[\\S]*/pod([^/]+)$)|(?:kubepods[^/]*-pod([^/]+)\\.slice)");
+    private static final Pattern CGROUP_V2_CONTAINER = Pattern.compile("^.*([0-9a-fA-F]{64}).*$");
 
     private OtelSdkResource() {}
 
@@ -114,7 +122,42 @@ final class OtelSdkResource {
 
     private static String containerId() {
         var cgroup = OsProbe.getInstance().osStats().getCgroup();
-        return cgroup == null ? null : parseContainerId(cgroup.getCpuAcctControlGroup());
+        String id = cgroup == null ? null : parseContainerId(cgroup.getCpuAcctControlGroup());
+        return id != null ? id : mountInfoContainerId();
+    }
+
+    /**
+     * Mirroring fallback logic for containerId from APM Agent
+     * @see <a href=
+     *      "https://github.com/elastic/apm-agent-java/blob/7961a5c7c4fc1fb28de8e41e40bb30f32da384f7/apm-agent-core/src/main/java/co/elastic/apm/agent/impl/metadata/SystemInfo.java">
+     *      SystemInfo#parseCgroupsV2ContainerId</a>
+     */
+    @SuppressForbidden(reason = "access /proc/self/mountinfo")
+    private static String mountInfoContainerId() {
+        Path mountInfo = PathUtils.get("/proc/self/mountinfo");
+        if (Files.isRegularFile(mountInfo) == false) {
+            return null;
+        }
+        try {
+            return parseMountInfoContainerId(Files.readAllLines(mountInfo, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    static String parseMountInfoContainerId(List<String> mountInfoLines) {
+        for (String line : mountInfoLines) {
+            if (line.indexOf("/etc/hostname") > 0) {
+                String[] fields = line.split(" ");
+                if (fields.length > 3) {
+                    Matcher matcher = CGROUP_V2_CONTAINER.matcher(fields[3]);
+                    if (matcher.matches()) {
+                        return matcher.group(1);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -127,5 +128,34 @@ public class OtelSdkResourceTests extends ESTestCase {
         );
 
         assertThat(OtelSdkResource.parseContainerId("/"), is(nullValue()));
+    }
+
+    public void testParseMountInfoContainerId() {
+        String dockerId = "6548c6863fb748e72d1e2a4f824fde92f720952d062dede1318c2d6219a672d6";
+        assertThat(
+            OtelSdkResource.parseMountInfoContainerId(
+                List.of(
+                    "1608 1584 0:52 / / rw,relatime - overlay overlay rw",
+                    "1620 1608 254:1 /var/lib/docker/containers/" + dockerId + "/hostname /etc/hostname rw,relatime - ext4 /dev/sda1 rw"
+                )
+            ),
+            is(dockerId)
+        );
+
+        String containerdId = "26a006f558da58874bc37863efe9d2b5d715afc54453d95b22a7809a4e65566c";
+        assertThat(
+            OtelSdkResource.parseMountInfoContainerId(
+                List.of(
+                    "10740 10112 8:3 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/" + containerdId
+                        + "/hostname /etc/hostname ro,relatime - ext4 /dev/sda3 rw"
+                )
+            ),
+            is(containerdId)
+        );
+
+        assertThat(
+            OtelSdkResource.parseMountInfoContainerId(List.of("1608 1584 0:52 / / rw,relatime - overlay overlay rw")),
+            is(nullValue())
+        );
     }
 }

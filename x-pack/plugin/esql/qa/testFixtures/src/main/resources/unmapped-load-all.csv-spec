@@ -58,8 +58,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | DISCONNECTED FROM 10.1.0.1      | 1                     | a                       | 1756468
 ;
 
-// EVAL shadows an unmapped source field name without referencing it (assigns a literal): the shadowed
-// field becomes a regular output column and is excluded from expansion.
 evalShadowsUnmappedFieldWithLiteral
 required_capability: optional_fields_load_all
 
@@ -98,7 +96,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 ;
 
-// KEEP a field that is present in neither the mapping nor _source: it is demand-loaded as a null keyword column.
 keepFieldAbsentFromSource
 required_capability: optional_fields_load_all
 
@@ -203,7 +200,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// RENAME's target name shadows the unmapped source field of the same name, so it is not expanded.
 renameMappedFieldConflictsWithUnmapped
 required_capability: optional_fields_load_all
 
@@ -223,10 +219,7 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// EVAL and RENAME targets deliberately clash with unmapped source field names
-// (unmapped_event_duration, unmapped_message): the shadowed fields become regular output columns
-// and are excluded from expansion, leaving only language_code and unmapped.nested expanded.
-complexDropRenameEval
+evalAndRenameShadowUnmappedFields
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -262,8 +255,6 @@ FROM no_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15       | 1756466                | 1                     | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// A DROP pattern that only matches unmapped source fields excludes those fields from expansion,
-// leaving unmapped.nested (which does not match the underscore).
 dropUnmappedByPattern
 required_capability: optional_fields_load_all
 

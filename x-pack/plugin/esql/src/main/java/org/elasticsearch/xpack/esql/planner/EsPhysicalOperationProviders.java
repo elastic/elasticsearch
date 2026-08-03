@@ -49,7 +49,6 @@ import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -93,7 +92,6 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -309,16 +307,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
-        }
-        if (attr instanceof UnmappedFieldsAttribute ufa) {
-            // Collect all mapped field names from the shard's live mapping so that fields
-            // absent from the field-caps response (e.g. counter metrics in TS queries due to
-            // the +dimension filter) are never surfaced in _unmapped_fields.
-            List<String> mappedFieldNames = new ArrayList<>();
-            for (Mapper mapper : shardContext.mappingLookup().fieldMappers()) {
-                mappedFieldNames.add(mapper.fullPath());
-            }
-            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern().withAdditionalExcludes(mappedFieldNames)));
         }
 
         // Apply any block loader function if present

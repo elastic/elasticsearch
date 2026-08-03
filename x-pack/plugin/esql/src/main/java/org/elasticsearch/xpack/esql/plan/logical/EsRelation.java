@@ -233,5 +233,4 @@ public class EsRelation extends LeafPlan {
     public EsRelation withIndexMode(IndexMode indexMode) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
-
 }

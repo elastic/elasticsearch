@@ -40,7 +40,6 @@ import java.util.Objects;
  * unreachable from a query — user field names cannot start with it.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
-
     public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

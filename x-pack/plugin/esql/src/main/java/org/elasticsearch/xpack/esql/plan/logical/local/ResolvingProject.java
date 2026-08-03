@@ -92,19 +92,9 @@ public class ResolvingProject extends Project {
         return unmappedFieldsPattern;
     }
 
-    private static ResolvingProject create(
-        Source source,
-        LogicalPlan child,
-        List<? extends NamedExpression> projections,
-        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
-        UnmappedFieldsPattern unmappedFieldsPattern
-    ) {
-        return new ResolvingProject(source, child, projections, resolver, unmappedFieldsPattern);
-    }
-
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(this, ResolvingProject::create, child(), projections(), resolver, unmappedFieldsPattern);
+        return NodeInfo.create(this, ResolvingProject::new, child(), projections(), resolver, unmappedFieldsPattern);
     }
 
     @Override

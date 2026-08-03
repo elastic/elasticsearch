@@ -834,6 +834,19 @@ public class DerivedMetricsService implements Closeable {
     }
 
     /** Observations skipped because the metric's value field was absent or not numeric — what a misspelled field name looks like. */
+    /**
+     * Documents this node has emitted that the destination has not answered for yet. Zero means the feature is quiet: nothing is being
+     * written, so nothing it started can still be holding a shard open.
+     */
+    public int inFlightDocuments() {
+        return inFlightDocuments.get();
+    }
+
+    /** Series still buffered on this node. While this is non-zero a later flush can still produce a write. */
+    public int bufferedSeries() {
+        return buffer.size();
+    }
+
     /** Documents read from the already-parsed document rather than by parsing {@code _source} again. */
     public long documentsReadFromIndex() {
         return documentsReadFromIndex.get();

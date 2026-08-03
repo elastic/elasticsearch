@@ -28,7 +28,6 @@ import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,7 +50,7 @@ import static org.hamcrest.Matchers.not;
  * End to end coverage of derived metrics: documents written to a source data stream should show up as compact metric documents in the
  * managed destination stream without the writer doing anything beyond configuring the option.
  */
-public class DerivedMetricsIT extends ESIntegTestCase {
+public class DerivedMetricsIT extends DerivedMetricsIntegTestCase {
 
     private static final TimeValue INTERVAL = TimeValue.timeValueSeconds(1);
 

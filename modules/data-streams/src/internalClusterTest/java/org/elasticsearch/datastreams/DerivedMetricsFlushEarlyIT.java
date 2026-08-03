@@ -23,7 +23,6 @@ import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * partials of the same series in the same bucket would produce the same {@code _id} and the second would be rejected by
  * {@code op_type=create}. That rejection is invisible from the buffer's side and would simply show up as a total that reads low.
  */
-public class DerivedMetricsFlushEarlyIT extends ESIntegTestCase {
+public class DerivedMetricsFlushEarlyIT extends DerivedMetricsIntegTestCase {
 
     private static final TimeValue INTERVAL = TimeValue.timeValueSeconds(1);
 

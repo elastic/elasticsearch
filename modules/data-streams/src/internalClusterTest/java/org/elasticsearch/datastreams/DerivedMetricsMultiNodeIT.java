@@ -25,7 +25,6 @@ import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ import static org.hamcrest.Matchers.in;
  * makes the whole scheme sound: recombining the partials reproduces the answer a scan of the source would give.
  */
 @ClusterScope(numDataNodes = 3)
-public class DerivedMetricsMultiNodeIT extends ESIntegTestCase {
+public class DerivedMetricsMultiNodeIT extends DerivedMetricsIntegTestCase {
 
     private static final TimeValue INTERVAL = TimeValue.timeValueSeconds(1);
 

@@ -157,6 +157,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+            Object first = randomBoolean() ? null : randomLiteral(DataType.AGGREGATE_METRIC_DOUBLE).value();
+            Object second = randomLiteral(DataType.AGGREGATE_METRIC_DOUBLE).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.AGGREGATE_METRIC_DOUBLE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.AGGREGATE_METRIC_DOUBLE, "second")
+                ),
+                "CoalesceAggregateMetricDoubleEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                equalTo(first == null ? second : first)
+            );
+        }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_RANGE, DataType.DATE_RANGE), () -> {
             assumeTrue("Requires COALESCE_DATE_RANGE capability", EsqlCapabilities.Cap.COALESCE_DATE_RANGE.isEnabled());
             long from1 = randomMillisUpToYear9999();

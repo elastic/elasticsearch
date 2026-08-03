@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154744
+pr: 155046
+summary: Support COALESCE for aggregate metric double values
+type: bug

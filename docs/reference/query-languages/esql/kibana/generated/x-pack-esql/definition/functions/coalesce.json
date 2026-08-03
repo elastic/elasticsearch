@@ -8,6 +8,24 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "aggregate_metric_double",
+          "optional" : false,
+          "description" : "Expression to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "aggregate_metric_double",
+          "optional" : true,
+          "description" : "Other expression to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "aggregate_metric_double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "boolean",
           "optional" : false,
           "description" : "Expression to evaluate."

@@ -8,15 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
 // begin generated imports
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-$endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.$Type$Block;
-$if(AggregateMetricDouble)$
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -33,11 +28,11 @@ import java.util.stream.IntStream;
  * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator permits // checkstyle hack
-    Coalesce$Type$Evaluator.Coalesce$Type$EagerEvaluator, // checkstyle hack
-    Coalesce$Type$Evaluator.Coalesce$Type$LazyEvaluator {
+abstract sealed class CoalesceAggregateMetricDoubleEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceAggregateMetricDoubleEvaluator.CoalesceAggregateMetricDoubleEagerEvaluator, // checkstyle hack
+    CoalesceAggregateMetricDoubleEvaluator.CoalesceAggregateMetricDoubleLazyEvaluator {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Coalesce$Type$Evaluator.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceAggregateMetricDoubleEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -45,7 +40,7 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new Coalesce$Type$EagerEvaluator(
+                    return new CoalesceAggregateMetricDoubleEagerEvaluator(
                         // comment to make spotless happy about line breaks
                         context,
                         childEvaluators.stream().map(x -> x.get(context)).toList()
@@ -54,14 +49,14 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
 
                 @Override
                 public String toString() {
-                    return "Coalesce$Type$EagerEvaluator[values=" + childEvaluators + ']';
+                    return "CoalesceAggregateMetricDoubleEagerEvaluator[values=" + childEvaluators + ']';
                 }
             };
         }
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new Coalesce$Type$LazyEvaluator(
+                return new CoalesceAggregateMetricDoubleLazyEvaluator(
                     // comment to make spotless happy about line breaks
                     context,
                     childEvaluators.stream().map(x -> x.get(context)).toList()
@@ -70,7 +65,7 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
 
             @Override
             public String toString() {
-                return "Coalesce$Type$LazyEvaluator[values=" + childEvaluators + ']';
+                return "CoalesceAggregateMetricDoubleLazyEvaluator[values=" + childEvaluators + ']';
             }
         };
     }
@@ -78,13 +73,13 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
     protected final DriverContext driverContext;
     protected final List<ExpressionEvaluator> evaluators;
 
-    protected Coalesce$Type$Evaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
+    protected CoalesceAggregateMetricDoubleEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
 
     @Override
-    public final $Type$Block eval(Page page) {
+    public final AggregateMetricDoubleBlock eval(Page page) {
         return entireBlock(page);
     }
 
@@ -106,10 +101,10 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
      *     </li>
      * </ul>
      */
-    private $Type$Block entireBlock(Page page) {
+    private AggregateMetricDoubleBlock entireBlock(Page page) {
         int lastFullBlockIdx = 0;
         while (true) {
-            $Type$Block lastFullBlock = ($Type$Block) evaluators.get(lastFullBlockIdx++).eval(page);
+            AggregateMetricDoubleBlock lastFullBlock = (AggregateMetricDoubleBlock) evaluators.get(lastFullBlockIdx++).eval(page);
             if (lastFullBlockIdx == evaluators.size() || lastFullBlock.asVector() != null) {
                 return lastFullBlock;
             }
@@ -139,7 +134,7 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
      * any way it likes.
      * </p>
      */
-    protected abstract $Type$Block perPosition(Page page, $Type$Block lastFullBlock, int firstToEvaluate);
+    protected abstract AggregateMetricDoubleBlock perPosition(Page page, AggregateMetricDoubleBlock lastFullBlock, int firstToEvaluate);
 
     @Override
     public final String toString() {
@@ -164,41 +159,33 @@ abstract sealed class Coalesce$Type$Evaluator implements ExpressionEvaluator per
      * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
      * First we evaluate all remaining evaluators, and then we pluck the first non-null
      * value from each one. This is <strong>much</strong> faster than
-     * {@link Coalesce$Type$LazyEvaluator} but will include spurious warnings if any of the
+     * {@link CoalesceAggregateMetricDoubleLazyEvaluator} but will include spurious warnings if any of the
      * evaluators make them so we only use it for evaluators that are
      * {@link Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
      * in a lazy environment.
      */
-    static final class Coalesce$Type$EagerEvaluator extends Coalesce$Type$Evaluator {
-        Coalesce$Type$EagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
+    static final class CoalesceAggregateMetricDoubleEagerEvaluator extends CoalesceAggregateMetricDoubleEvaluator {
+        CoalesceAggregateMetricDoubleEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
-        protected $Type$Block perPosition(Page page, $Type$Block lastFullBlock, int firstToEvaluate) {
-$if(BytesRef)$
-            BytesRef scratch = new BytesRef();
-$endif$
+        protected AggregateMetricDoubleBlock perPosition(Page page, AggregateMetricDoubleBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            $Type$Block[] flatten = new $Type$Block[evaluators.size() - firstToEvaluate + 1];
+            AggregateMetricDoubleBlock[] flatten = new AggregateMetricDoubleBlock[evaluators.size() - firstToEvaluate + 1];
             try {
                 flatten[0] = lastFullBlock;
                 for (int f = 1; f < flatten.length; f++) {
-                    flatten[f] = ($Type$Block) evaluators.get(firstToEvaluate + f - 1).eval(page);
+                    flatten[f] = (AggregateMetricDoubleBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
                 try (
-$if(AggregateMetricDouble)$
                     AggregateMetricDoubleBlockBuilder result = driverContext.blockFactory() //
                         .newAggregateMetricDoubleBlockBuilder(positionCount)
-$else$
-                    $Type$Block.Builder result = driverContext.blockFactory() //
-                        .new$Type$BlockBuilder(positionCount)
-$endif$
                 ) {
                     position: for (int p = 0; p < positionCount; p++) {
-                        for ($Type$Block f : flatten) {
+                        for (AggregateMetricDoubleBlock f : flatten) {
                             if (false == f.isNull(p)) {
-                                result.copyFrom(f, p$if(BytesRef)$, scratch$endif$);
+                                result.copyFrom(f, p);
                                 continue position;
                             }
                         }
@@ -223,25 +210,17 @@ $endif$
      *     </li>
      * </ul>
      */
-    static final class Coalesce$Type$LazyEvaluator extends Coalesce$Type$Evaluator {
-        Coalesce$Type$LazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
+    static final class CoalesceAggregateMetricDoubleLazyEvaluator extends CoalesceAggregateMetricDoubleEvaluator {
+        CoalesceAggregateMetricDoubleLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
-        protected $Type$Block perPosition(Page page, $Type$Block lastFullBlock, int firstToEvaluate) {
-$if(BytesRef)$
-            BytesRef scratch = new BytesRef();
-$endif$
+        protected AggregateMetricDoubleBlock perPosition(Page page, AggregateMetricDoubleBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
             try (
-$if(AggregateMetricDouble)$
                 AggregateMetricDoubleBlockBuilder result = driverContext.blockFactory() //
                     .newAggregateMetricDoubleBlockBuilder(positionCount)
-$else$
-                $Type$Block.Builder result = driverContext.blockFactory() //
-                    .new$Type$BlockBuilder(positionCount)
-$endif$
             ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
@@ -257,9 +236,9 @@ $endif$
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (int e = firstToEvaluate; e < evaluators.size(); e++) {
-                            try ($Type$Block block = ($Type$Block) evaluators.get(e).eval(limited)) {
+                            try (AggregateMetricDoubleBlock block = (AggregateMetricDoubleBlock) evaluators.get(e).eval(limited)) {
                                 if (false == block.isNull(0)) {
-                                    result.copyFrom(block, 0$if(BytesRef)$, scratch$endif$);
+                                    result.copyFrom(block, 0);
                                     continue position;
                                 }
                             }

@@ -179,8 +179,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     public void testRerouteWhenAdditionalNodeExceedsHighWatermark() {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, TimeValue.ZERO);
 
-        // A second node now also exceeds the high watermark. Its transition is new and triggers a reroute even though the first
-        // node's already-known condition is not, naming only the newly transitioned node in the debug log.
+        // A second node now also exceeds the high watermark. That is a new transition, so it triggers a reroute, and the debug
+        // log names only that newly transitioned node, not the first node's already-known condition.
         var currentCommitments = commitmentsAt(
             Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1, SEARCH_2, LOW_WATERMARK_PERCENT - 1)
         );

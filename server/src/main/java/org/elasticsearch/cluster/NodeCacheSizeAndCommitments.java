@@ -39,8 +39,8 @@ public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCac
     }
 
     /**
-     * The caller resolves {@code commitmentBytes} first, for example via a boosted-only or boosted-plus-unboosted accounting mode, since
-     * which commitment value to compare is a policy decision outside this record's concern.
+     * The caller resolves {@code commitmentBytes} first, since which commitment value to compare is a policy decision outside
+     * this record's concern.
      */
     public boolean exceedsWatermark(long commitmentBytes, RatioValue watermark) {
         return commitmentBytes > (long) (cacheSizeInBytes * watermark.getAsRatio());

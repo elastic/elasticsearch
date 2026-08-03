@@ -1054,10 +1054,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     result.diagnosisList(),
                     equalTo(
                         List.of(
-                            new Diagnosis(
-                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
-                            )
+                            new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, List.of("test-index"))))
                         )
                     )
                 );
@@ -1150,10 +1147,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     result.diagnosisList(),
                     equalTo(
                         List.of(
-                            new Diagnosis(
-                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
-                            )
+                            new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, List.of("test-index"))))
                         )
                     )
                 );
@@ -1324,12 +1318,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(
-                        new Diagnosis(
-                            DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                            List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
-                        )
-                    )
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))))
                 )
             )
         );
@@ -2488,11 +2477,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         IndexRoutingTable.Builder originalRoutes = IndexRoutingTable.builder(originalMetadata.getIndex());
         for (int shard = 0; shard < unavailableMountedPrimaries; shard++) {
             restoredRoutes.addShard(
-                createShardRouting(
-                    new ShardId(restoredMetadata.getIndex(), shard),
-                    true,
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE)
-                )
+                createShardRouting(new ShardId(restoredMetadata.getIndex(), shard), true, new ShardAllocation(randomNodeId(), UNAVAILABLE))
             );
             originalRoutes.addShard(
                 createShardRouting(new ShardId(originalMetadata.getIndex(), shard), true, new ShardAllocation(randomNodeId(), AVAILABLE))

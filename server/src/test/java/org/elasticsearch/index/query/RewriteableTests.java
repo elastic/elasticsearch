@@ -71,10 +71,6 @@ public class RewriteableTests extends ESTestCase {
         assertEquals("too many rewrite rounds, rewriteable might return new objects even if they are not rewritten", ise.getMessage());
     }
 
-    /**
-     * Rewriting recurses once per level of nesting, so a deeply enough nested request runs out of stack. That has to fail the request:
-     * an uncaught {@link StackOverflowError} reaches the uncaught exception handler, which halts the node.
-     */
     public void testRewriteAndFetchStackOverflow() {
         QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
@@ -82,9 +78,7 @@ public class RewriteableTests extends ESTestCase {
 
         Throwable failure = expectThrows(ExecutionException.class, future::get).getCause();
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertEquals("The request is too deeply nested to rewrite", failure.getMessage());
-        // EsExecutors#rethrowErrors digs through cause chains for a buried Error and rethrows it so that it reaches the uncaught
-        // exception handler. Attaching the StackOverflowError as the cause would halt the node anyway, defeating the catch above.
+        assertEquals("The request is too deeply nested to rewrite", failure.getMessage());.
         assertTrue("no Error may be reachable from the failure", ExceptionsHelper.maybeError(failure).isEmpty());
     }
 
@@ -312,9 +306,6 @@ public class RewriteableTests extends ESTestCase {
         }
     }
 
-    /**
-     * Stands in for a request nested deeply enough that rewriting it recurses until the stack is exhausted.
-     */
     private static class StackOverflowingTestRewriteable extends TestRewriteable {
 
         StackOverflowingTestRewriteable() {

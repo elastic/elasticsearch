@@ -1048,6 +1048,20 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 result.symptom(),
                 equalTo("This cluster has 1 " + symptomKeyword + " replica shard.")
             );
+            // INITIALIZING still emits wait-for-initialization even when the grace window keeps status GREEN.
+            if (replicaInitializing) {
+                assertThat(
+                    result.diagnosisList(),
+                    equalTo(
+                        List.of(
+                            new Diagnosis(
+                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
+                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                            )
+                        )
+                    )
+                );
+            }
         } else {
             assertThat("expected YELLOW for grace period reason " + reason, result.status(), equalTo(YELLOW));
             final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
@@ -1130,6 +1144,20 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 result.symptom(),
                 equalTo("This cluster has 1 " + symptomKeyword + " primary shard.")
             );
+            // INITIALIZING still emits wait-for-initialization even when the grace window keeps status GREEN.
+            if (primaryInitializing) {
+                assertThat(
+                    result.diagnosisList(),
+                    equalTo(
+                        List.of(
+                            new Diagnosis(
+                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
+                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                            )
+                        )
+                    )
+                );
+            }
         } else {
             assertThat("expected RED for non-grace period reason " + reason, result.status(), equalTo(RED));
             final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";

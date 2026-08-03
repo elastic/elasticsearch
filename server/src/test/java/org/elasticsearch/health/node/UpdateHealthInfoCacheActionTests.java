@@ -9,6 +9,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,6 +23,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction.Request;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -109,6 +112,19 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
     }
 
+    public void testOlderTransportVersionOmitsDlmFrozenTransitionsHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dlmFrozenTransitionsHealthInfo(HealthInfoTests.randomDlmFrozenTransitionsHealthInfo())
+            .build();
+        // Version that supports file_settings_health_info but not dlm_frozen_transitions_health_info.
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("dlm_frozen_transitions_health_info")
+        );
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getDlmFrozenTransitionsHealthInfo(), nullValue());
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
+    }
+
     public void testRequestSerialization() {
         // We start off with an "empty" request (i.e. only nodeId set), and let #mutateRequest change one of the fields at a time.
         Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).build();
@@ -125,13 +141,18 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         var dslHealthInfo = request.getDslHealthInfo();
         var repoHealthInfo = request.getRepositoriesHealthInfo();
         var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
-        switch (randomInt(4)) {
+        var dlmFrozenTransitionsHealthInfo = request.getDlmFrozenTransitionsHealthInfo();
+        switch (randomInt(5)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
             case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
             case 4 -> fileSettingsHealthInfo = HealthInfoTests.mutateFileSettingsHealthInfo(
                 (fileSettingsHealthInfo == null) ? FileSettingsHealthInfo.INDETERMINATE : fileSettingsHealthInfo
+            );
+            case 5 -> dlmFrozenTransitionsHealthInfo = randomValueOtherThan(
+                dlmFrozenTransitionsHealthInfo,
+                HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
             );
             default -> throw new IllegalStateException();
         }
@@ -140,6 +161,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             .dslHealthInfo(dslHealthInfo)
             .repositoriesHealthInfo(repoHealthInfo)
             .fileSettingsHealthInfo(fileSettingsHealthInfo)
+            .dlmFrozenTransitionsHealthInfo(dlmFrozenTransitionsHealthInfo)
             .build();
     }
 }

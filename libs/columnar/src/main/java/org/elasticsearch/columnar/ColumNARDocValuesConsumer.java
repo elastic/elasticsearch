@@ -52,12 +52,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IndexOutput meta;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
+    private final int blockSize;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, NumericColumnMetadata metadata) {}
 
-    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector) throws IOException {
+    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
         this.pipelineSelector = pipelineSelector;
+        this.blockSize = blockSize;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -202,7 +204,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
         // during the value-encode pass — no extra cursor over the data.
-        final NumericPipeline pipeline = pipelineSelector.select(field.name, type, NumericColumnWriter.BLOCK_SIZE);
+        final NumericPipeline pipeline = pipelineSelector.select(field.name, type).build(blockSize);
         NumericColumnMetadata metadata = NumericColumnWriter.write(
             maxDoc,
             numDocsWithField,

@@ -73,6 +73,9 @@ public class ColumnarNumericRangeSlicingBenchmark {
     @Param({ "MONOTONIC_TIMESTAMPS", "RANDOM_FULL" })
     private String workload;
 
+    @Param({ "128", "512" })
+    private int blockSize;
+
     // 0.0 is the near-empty worst case
     @Param({ "0.0", "0.001" })
     private double selectivity;
@@ -85,7 +88,7 @@ public class ColumnarNumericRangeSlicingBenchmark {
     @Setup(Level.Trial)
     public void setup() throws IOException {
         final long[] values = NumericData.generate(workload, numDocs);
-        directory = format.buildSegment(FIELD, workload, values, "columnar-range-slicing-");
+        directory = format.buildSegment(FIELD, workload, values, "columnar-range-slicing-", blockSize);
         reader = DirectoryReader.open(directory);
         maxDoc = reader.maxDoc();
 

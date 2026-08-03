@@ -75,6 +75,9 @@ public class ColumnarNumericIngestBenchmark {
     @Param({ "NONE", "NATURAL", "FORCE" })
     private Merge merge;
 
+    @Param({ "128", "512" })
+    private int blockSize;
+
     @Param("200000")
     private int docCount;
 
@@ -84,7 +87,7 @@ public class ColumnarNumericIngestBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         values = NumericData.generate(workload, docCount);
-        codec = format.codec(workload);
+        codec = format.codec(workload, blockSize);
     }
 
     /** Secondary metrics: bytes on disk at the end, and total bytes written across all segments. */

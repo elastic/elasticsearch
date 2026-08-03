@@ -34,33 +34,46 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** {@link org.apache.lucene.index.FieldInfo} attribute naming a field's {@link ColumnarFieldType}. The mapper sets it. */
     public static final String TYPE_ATTRIBUTE = "columnar.type";
 
+    /** Smallest allowed block size; also the default. Must be a power of 2. */
+    public static final int MIN_BLOCK_SIZE = 128;
+
     static final String DATA_CODEC = "ColumNARNumericData";
     static final String DATA_EXTENSION = "cnvd";
     static final String META_CODEC = "ColumNARNumericMeta";
     static final String META_EXTENSION = "cnvm";
 
     private final NumericPipelineSelector pipelineSelector;
+    private final int blockSize;
 
     /**
-     * Constructs the format with a custom per-field pipeline selector. The server module supplies
-     * an implementation that inspects field type, index mode, and metric role via the mapper.
+     * Constructs the format with a custom per-field pipeline selector and an explicit block size.
+     * The block size controls how many values are grouped into each encoded block; it must be a
+     * power of 2 and at least {@value #MIN_BLOCK_SIZE}.
+     *
+     * @throws IllegalArgumentException if {@code blockSize} is not a power of 2 >= {@value #MIN_BLOCK_SIZE}
      */
-    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector) {
+    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector, int blockSize) {
         super(ColumnarFormat.NAME);
+        if (blockSize < MIN_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
+            throw new IllegalArgumentException("blockSize must be a power of 2 >= " + MIN_BLOCK_SIZE + ", got: " + blockSize);
+        }
         this.pipelineSelector = pipelineSelector;
+        this.blockSize = blockSize;
     }
 
-    /**
-     * SPI constructor. Uses the default pipeline (delta, offset, GCD, FOR) for every field.
-     * Existing callers and tests that do not need per-field selection use this constructor.
-     */
+    /** Constructs the format with a custom per-field pipeline selector and the default block size. */
+    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector) {
+        this(pipelineSelector, MIN_BLOCK_SIZE);
+    }
+
+    /** SPI constructor. Uses the default pipeline for every field. */
     public ColumNARDocValuesFormat() {
-        this((fieldName, type, bs) -> NumericPipeline.defaultPipeline(bs));
+        this((fieldName, type) -> NumericPipeline::defaultPipeline);
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize);
     }
 
     @Override

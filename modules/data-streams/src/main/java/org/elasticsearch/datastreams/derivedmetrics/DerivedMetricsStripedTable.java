@@ -269,6 +269,22 @@ final class DerivedMetricsStripedTable implements Releasable {
         return bytes;
     }
 
+    /**
+     * How many series this bucket is holding, summed across its stripes. A series two stripes each interned counts twice here, matching
+     * what the node and per-stream budgets were charged for it: this is the memory the bucket is responsible for, not the number of
+     * documents it will emit, which is what {@link #merge()} decides.
+     */
+    long seriesHeld() {
+        long series = 0;
+        for (int index = 0; index < stripes.length(); index++) {
+            DerivedMetricsSeriesTable stripe = stripes.get(index);
+            if (stripe != null) {
+                series += stripe.size();
+            }
+        }
+        return series;
+    }
+
     /** How many stripes this bucket was created with. One means it is shared, which is the pre-striping behaviour. */
     int stripeCount() {
         return stripes.length();

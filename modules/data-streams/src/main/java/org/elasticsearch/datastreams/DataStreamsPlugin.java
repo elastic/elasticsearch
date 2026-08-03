@@ -55,6 +55,9 @@ import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsService;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShardEventListener;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsShutdownListener;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsTemplateRegistry;
+import org.elasticsearch.datastreams.derivedmetrics.action.GetDerivedMetricsStatsAction;
+import org.elasticsearch.datastreams.derivedmetrics.action.TransportGetDerivedMetricsStatsAction;
+import org.elasticsearch.datastreams.derivedmetrics.rest.RestDerivedMetricsStatsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -409,6 +412,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
         actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
+        actions.add(new ActionHandler(GetDerivedMetricsStatsAction.INSTANCE, TransportGetDerivedMetricsStatsAction.class));
         return actions;
     }
 
@@ -438,6 +442,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestUpdateDataStreamSettingsAction());
         handlers.add(new RestGetDataStreamMappingsAction());
         handlers.add(new RestUpdateDataStreamMappingsAction());
+        handlers.add(new RestDerivedMetricsStatsAction());
         return handlers;
     }
 

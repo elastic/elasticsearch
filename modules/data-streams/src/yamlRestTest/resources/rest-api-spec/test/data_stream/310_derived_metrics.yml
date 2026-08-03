@@ -242,3 +242,50 @@ teardown:
   - do:
       cluster.delete_component_template:
         name: "derived-metrics@custom"
+
+---
+"Derived metrics stats report the stream, its metrics and their dimension cardinality":
+  # The counters this feature publishes are node-wide with no attributes, so this API is the only place a breakdown by stream, metric and
+  # dimension exists. The default interval is 10s and buckets stay open past their end, so what is written here is still buffered when the
+  # stats are read — which is what makes the series and byte figures below observable at all.
+  - do:
+      index:
+        index: source-derived-metrics-ds
+        op_type: create
+        refresh: true
+        body:
+          "@timestamp": "2026-01-01T00:00:00Z"
+          service.name: "checkout"
+
+  - do:
+      index:
+        index: source-derived-metrics-ds
+        op_type: create
+        refresh: true
+        body:
+          "@timestamp": "2026-01-01T00:00:01Z"
+          service.name: "search"
+
+  - do:
+      indices.get_derived_metrics_stats: { }
+
+  - gte: { node_count: 1 }
+  - gte: { data_stream_count: 1 }
+  - match: { data_streams.0.name: "source-derived-metrics-ds" }
+  # two distinct service names were written, so two series of each built-in metric
+  - gte: { data_streams.0.series_held: 2 }
+  - gte: { data_streams.0.bytes_held_in_bytes: 1 }
+  - match: { data_streams.0.histogram_series_held: 0 }
+  - match: { data_streams.0.series_dropped.total: 0 }
+  - match: { data_streams.0.series_dropped.node_cap: 0 }
+  - match: { data_streams.0.series_dropped.stream_cap: 0 }
+  - match: { data_streams.0.metrics.0.name: "ingest.bytes.count" }
+  - match: { data_streams.0.metrics.0.interval: "10s" }
+  - match: { data_streams.0.metrics.0.type: "scalar" }
+  - gte: { data_streams.0.metrics.0.series_held: 2 }
+  # the dimension breakdown is the answer nothing else could give: which dimension of which metric is spending the series budget
+  - match: { data_streams.0.metrics.0.dimensions.0.name: "service.name" }
+  - match: { data_streams.0.metrics.0.dimensions.0.estimated_distinct_values: 2 }
+  - match: { data_streams.0.metrics.0.dimensions.0.collapsed: false }
+  # every document was read from the already-parsed document rather than by parsing _source a second time
+  - gte: { documents_read.from_index: 2 }

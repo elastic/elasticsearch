@@ -161,6 +161,92 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         }
     }
 
+    /**
+     * The node-wide refusal counters say the node ran out of budget; these say which stream spent it, which is the only form of the answer
+     * that names something an operator can change. Without this, "series were dropped" on a node serving hundreds of streams sends whoever
+     * reads it looking through all of them.
+     */
+    public void testRefusalsAreAttributedToTheStreamThatSufferedThem() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 2)) {
+            TableKey noisy = key("logs-noisy-default", Reduction.SUM, 0L);
+            TableKey quiet = key("logs-quiet-default", Reduction.SUM, 0L);
+
+            assertTrue(record(buffer, noisy, "a", 1.0));
+            assertTrue(record(buffer, noisy, "b", 1.0));
+            assertFalse(record(buffer, noisy, "c", 1.0));
+            assertFalse(record(buffer, noisy, "d", 1.0));
+            assertTrue(record(buffer, quiet, "a", 1.0));
+
+            List<DerivedMetricsBuffer.StreamRefusals> refusals = buffer.streamRefusals();
+            // only the stream that was actually refused appears: a stream inside its budget has nothing to report
+            assertEquals(1, refusals.size());
+            DerivedMetricsBuffer.StreamRefusals refused = refusals.get(0);
+            assertEquals("logs-noisy-default", refused.sourceDataStream());
+            assertEquals(ProjectId.DEFAULT, refused.project());
+            assertEquals(2L, refused.atStreamCap());
+            // which budget refused is the whole point: this one says go and find the stream, not raise the node's cap
+            assertEquals(0L, refused.atNodeCap());
+            assertEquals(0L, refused.atBreaker());
+            assertEquals(0L, refused.atHistogramCap());
+            assertEquals(2L, buffer.droppedSeriesAtStreamCap());
+        }
+    }
+
+    /** A refusal at the node cap is attributed to the stream that suffered it, but named as the node's problem rather than the stream's. */
+    public void testNodeCapRefusalsSayTheNodeIsFullRatherThanTheStream() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 2)) {
+            TableKey key = key("logs-my_app-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "a", 1.0));
+            assertTrue(record(buffer, key, "b", 1.0));
+            assertFalse(record(buffer, key, "c", 1.0));
+
+            DerivedMetricsBuffer.StreamRefusals refused = buffer.streamRefusals().get(0);
+            assertEquals(1L, refused.atNodeCap());
+            assertEquals(0L, refused.atStreamCap());
+        }
+    }
+
+    /**
+     * What a metric is holding has to be readable per metric rather than only as a node total, because "this node holds 10,000 series" does
+     * not say which of them to reduce. The numbers come from the same figures the shedding decision already keeps, so reporting them costs
+     * a walk of the live buckets and nothing on the write path.
+     */
+    public void testMetricSnapshotsReportWhatEachMetricIsHolding() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100)) {
+            TableKey busy = key("logs-busy-default", Reduction.SUM, 0L);
+            TableKey quiet = key("logs-quiet-default", Reduction.SUM, 0L);
+            assertTrue(record(buffer, busy, "a", 1.0));
+            assertTrue(record(buffer, busy, "b", 1.0));
+            assertTrue(record(buffer, busy, "c", 1.0));
+            assertTrue(record(buffer, quiet, "a", 1.0));
+            // a second bucket of the same metric, which a flush has not caught up with yet: the metric's cost is both of them together
+            assertTrue(record(buffer, key("logs-busy-default", Reduction.SUM, 10_000L), "d", 1.0));
+
+            List<DerivedMetricsBuffer.MetricSnapshot> snapshots = buffer.metricSnapshots();
+            assertEquals(2, snapshots.size());
+            DerivedMetricsBuffer.MetricSnapshot busiest = snapshots.stream()
+                .filter(snapshot -> snapshot.sourceDataStream().equals("logs-busy-default"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals("ingest.docs.count", busiest.metric());
+            assertEquals("10s", busiest.interval());
+            assertEquals(4L, busiest.seriesHeld());
+            assertFalse(busiest.histogram());
+            assertThat(busiest.bytesHeld(), greaterThan(0L));
+
+            DerivedMetricsBuffer.MetricSnapshot quietest = snapshots.stream()
+                .filter(snapshot -> snapshot.sourceDataStream().equals("logs-quiet-default"))
+                .findFirst()
+                .orElseThrow();
+            assertEquals(1L, quietest.seriesHeld());
+            assertThat(busiest.bytesHeld(), greaterThan(quietest.bytesHeld()));
+
+            // draining is what makes a bucket stop costing anything, so the snapshot has to follow it down
+            buffer.drainAll().forEach(drained -> drained.table().close());
+            assertEquals(List.of(), buffer.metricSnapshots());
+        }
+    }
+
     public void testDrainingReturnsBudgetToTheStream() {
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 100, 2)) {
             TableKey noisy = key("logs-noisy-default", Reduction.SUM, 0L);

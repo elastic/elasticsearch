@@ -21,6 +21,8 @@ module org.elasticsearch.datastreams {
     exports org.elasticsearch.datastreams.lifecycle;
     exports org.elasticsearch.datastreams.lifecycle.transitions.steps to org.elasticsearch.server;
     exports org.elasticsearch.datastreams.options.action to org.elasticsearch.server;
+    // the transport action is constructed by the server's injector, which cannot see a package this module does not export
+    exports org.elasticsearch.datastreams.derivedmetrics.action to org.elasticsearch.server;
     exports org.elasticsearch.datastreams;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.datastreams.DataStreamFeatures;

@@ -24,6 +24,7 @@ import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDimensionCodec
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +116,63 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     /**
+     * What one metric of one stream is holding on this node right now, summed across every bucket of it that is still open.
+     *
+     * <p>Built by walking the tables when someone asks, never kept: the numbers are already maintained for the shedding decision, so
+     * reporting them costs a walk of a map with one entry per live bucket and nothing at all on the write path.
+     *
+     * @param seriesHeld a series interned by two stripes of a striped bucket counts twice, because it really is held twice — this is the
+     *                   memory the metric is responsible for rather than the series a query of the destination would see
+     */
+    public record MetricSnapshot(
+        ProjectId project,
+        String sourceDataStream,
+        String metric,
+        String interval,
+        long seriesHeld,
+        long bytesHeld,
+        boolean histogram
+    ) {}
+
+    /**
+     * Series one source data stream has had refused, by which budget refused them. The node-wide totals say the node ran out; this says
+     * <em>which stream</em> spent it, which is the difference between an operator raising a setting and an operator fixing a stream.
+     */
+    public record StreamRefusals(
+        ProjectId project,
+        String sourceDataStream,
+        long atNodeCap,
+        long atStreamCap,
+        long atHistogramCap,
+        long atBreaker
+    ) {
+        boolean any() {
+            return atNodeCap > 0 || atStreamCap > 0 || atHistogramCap > 0 || atBreaker > 0;
+        }
+    }
+
+    /** The mutable form of {@link StreamRefusals}. Only ever touched when an observation was already being refused. */
+    private static final class Refusals {
+        private final LongAdder atNodeCap = new LongAdder();
+        private final LongAdder atStreamCap = new LongAdder();
+        private final LongAdder atHistogramCap = new LongAdder();
+        private final LongAdder atBreaker = new LongAdder();
+    }
+
+    /**
+     * Where refusals go for a stream past {@link #MAX_TRACKED_STREAMS}. Shared and never read, so the counting is thrown away rather than
+     * conditional — the alternative is a null check on a path that is already the degraded one.
+     */
+    private static final Refusals UNTRACKED = new Refusals();
+
+    /**
+     * How many source data streams the per-stream refusal breakdown is kept for. Each entry is four {@link LongAdder}s, and unlike the
+     * per-stream budgets these are never forgotten, because a total that resets when a stream briefly holds nothing would be worse than
+     * no total at all. A node whose streams are refused in the thousands has a problem the node-wide counters already report.
+     */
+    static final int MAX_TRACKED_STREAMS = 1_024;
+
+    /**
      * Identifies one metric of one stream across every bucket it will ever have, which is the scope the cardinality memory behind
      * {@link #stripesFor} is kept at.
      *
@@ -145,6 +203,27 @@ public class DerivedMetricsBuffer implements Releasable {
             .computeIfAbsent(key.sourceDataStream(), unused -> new AtomicInteger());
     }
 
+    /**
+     * The refusal counters for a table's stream, creating them if this is the first refusal it has suffered.
+     *
+     * <p>Only ever called once an observation is already being refused, so the two map probes it costs are paid by the path that is by
+     * definition not the fast one — and under {@code flush_early} they sit next to a walk of every bucket the node holds.
+     */
+    private Refusals refusalsFor(TableKey key) {
+        ConcurrentHashMap<String, Refusals> forProject = refusals.computeIfAbsent(key.project(), unused -> new ConcurrentHashMap<>());
+        Refusals known = forProject.get(key.sourceDataStream());
+        if (known != null) {
+            return known;
+        }
+        if (refusalStreamsTracked.get() >= MAX_TRACKED_STREAMS) {
+            return UNTRACKED;
+        }
+        return forProject.computeIfAbsent(key.sourceDataStream(), unused -> {
+            refusalStreamsTracked.incrementAndGet();
+            return new Refusals();
+        });
+    }
+
     private static boolean sameStream(StreamKey within, TableKey key) {
         return within.project().equals(key.project()) && within.sourceDataStream().equals(key.sourceDataStream());
     }
@@ -172,6 +251,13 @@ public class DerivedMetricsBuffer implements Releasable {
      * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
      */
     private final ConcurrentHashMap<ProjectId, ConcurrentHashMap<String, AtomicInteger>> perStream = new ConcurrentHashMap<>();
+    /**
+     * Refusals broken down by the stream that suffered them. Nested by project for the same reason {@link #perStream} is: a composite key
+     * would have to be allocated to look one up, and this is looked up from the write path — only on the refusal branch, but a cardinality
+     * explosion is exactly when every observation takes it.
+     */
+    private final ConcurrentHashMap<ProjectId, ConcurrentHashMap<String, Refusals>> refusals = new ConcurrentHashMap<>();
+    private final AtomicInteger refusalStreamsTracked = new AtomicInteger();
     private final LongAdder droppedSeriesAtNodeCap = new LongAdder();
     private final LongAdder droppedSeriesAtStreamCap = new LongAdder();
     private final LongAdder droppedSeriesAtBreaker = new LongAdder();
@@ -420,19 +506,25 @@ public class DerivedMetricsBuffer implements Releasable {
                 boolean atHistogramCap = histogram && histogramSeries.get() >= maxHistogramSeries;
                 if (atNodeCap || atStreamCap || atHistogramCap) {
                     if (table.contains(encoded) == false) {
+                        // Counted per stream as well as node-wide, because "the node is out of budget" and "this stream is out of budget"
+                        // send an operator to different places, and only the second one names the configuration to change.
+                        Refusals stream = refusalsFor(key);
                         if (atHistogramCap) {
                             // Named separately because the answer is different: this one says the node is full of distributions, not that
                             // it is full, and the two are raised by different settings.
                             droppedSeriesAtHistogramCap.increment();
+                            stream.atHistogramCap.increment();
                             return Outcome.REFUSED_HISTOGRAM_CAP;
                         }
                         // Which cap refused is the first thing an operator needs to know: one says raise the node budget, the other says
                         // go and find the stream. Counted separately rather than conflated into a single "dropped" number.
                         if (atNodeCap) {
                             droppedSeriesAtNodeCap.increment();
+                            stream.atNodeCap.increment();
                             return Outcome.REFUSED_NODE_CAP;
                         }
                         droppedSeriesAtStreamCap.increment();
+                        stream.atStreamCap.increment();
                         return Outcome.REFUSED_STREAM_CAP;
                     }
                 }
@@ -449,6 +541,7 @@ public class DerivedMetricsBuffer implements Releasable {
                     }
                 } catch (CircuitBreakingException e) {
                     droppedSeriesAtBreaker.increment();
+                    refusalsFor(key).atBreaker.increment();
                     if (table.poisoned()) {
                         // The hash cannot be probed again, so this table has to leave the map now rather than wait for its bucket to
                         // close. What it already holds is intact and still worth emitting, so it is set aside for the next flush rather
@@ -569,6 +662,7 @@ public class DerivedMetricsBuffer implements Releasable {
             );
         } catch (CircuitBreakingException e) {
             droppedSeriesAtBreaker.increment();
+            refusalsFor(key).atBreaker.increment();
             return null;
         }
     }
@@ -745,7 +839,11 @@ public class DerivedMetricsBuffer implements Releasable {
         DerivedMetricsSeriesTable merged = table.merge();
         // Merging allocates, so the breaker can refuse partway through it. The budget for those series was already given back above, so
         // the accounting stays exact; what is lost is the observations, which are counted where every other breaker loss is.
-        droppedSeriesAtBreaker.add(table.seriesLostMerging());
+        long lostMerging = table.seriesLostMerging();
+        droppedSeriesAtBreaker.add(lostMerging);
+        if (lostMerging > 0) {
+            refusalsFor(key).atBreaker.add(lostMerging);
+        }
         remember(key, merged.size());
         totalSeries.addAndGet(-(int) released);
         if (key.metric().reduction().isHistogram()) {
@@ -830,6 +928,61 @@ public class DerivedMetricsBuffer implements Releasable {
             }
         }
         return cardinalities;
+    }
+
+    /**
+     * What every metric currently buffered is holding, one entry per metric per interval rather than per bucket: a metric normally has one
+     * open bucket, but a flush that has not run yet leaves the previous one alongside it, and an operator asking what a metric costs means
+     * the total.
+     *
+     * <p>Built on demand from the same figures the shedding decision already keeps, so nothing here is maintained on the write path.
+     */
+    public List<MetricSnapshot> metricSnapshots() {
+        record Slot(ProjectId project, String sourceDataStream, String metric, String interval) {}
+        Map<Slot, long[]> totals = new HashMap<>();
+        Map<Slot, Boolean> histograms = new HashMap<>();
+        for (Map.Entry<TableKey, DerivedMetricsStripedTable> entry : tables.entrySet()) {
+            TableKey key = entry.getKey();
+            Slot slot = new Slot(key.project(), key.sourceDataStream(), key.metric().name(), key.metric().interval().name());
+            long[] held = totals.computeIfAbsent(slot, unused -> new long[2]);
+            held[0] += entry.getValue().seriesHeld();
+            held[1] += entry.getValue().bytesHeld();
+            histograms.put(slot, key.metric().reduction().isHistogram());
+        }
+        List<MetricSnapshot> snapshots = new ArrayList<>(totals.size());
+        totals.forEach(
+            (slot, held) -> snapshots.add(
+                new MetricSnapshot(
+                    slot.project(),
+                    slot.sourceDataStream(),
+                    slot.metric(),
+                    slot.interval(),
+                    held[0],
+                    held[1],
+                    histograms.get(slot)
+                )
+            )
+        );
+        return snapshots;
+    }
+
+    /** Refusals broken down by the source data stream that suffered them, for every stream that has suffered any. */
+    public List<StreamRefusals> streamRefusals() {
+        List<StreamRefusals> perStream = new ArrayList<>();
+        refusals.forEach((project, forProject) -> forProject.forEach((stream, counted) -> {
+            StreamRefusals refused = new StreamRefusals(
+                project,
+                stream,
+                counted.atNodeCap.sum(),
+                counted.atStreamCap.sum(),
+                counted.atHistogramCap.sum(),
+                counted.atBreaker.sum()
+            );
+            if (refused.any()) {
+                perStream.add(refused);
+            }
+        }));
+        return perStream;
     }
 
     /** Dimensions a metric has stopped breaking down by because they outgrew their budget, counted once each. */

@@ -901,11 +901,83 @@ public class DerivedMetricsService implements Closeable {
      * breaking down by.
      *
      * <p>Series refusals say that the node ran out of budget; this says <em>which dimension of which metric</em> spent it, which is the
-     * only form of the answer an operator can act on. There is no stats API for it yet — one is coming — so for now this is how the data
-     * is reached.
+     * only form of the answer an operator can act on.
+     *
+     * <p>Reading an estimate sums a sketch's registers, so this is called only when the derived metrics stats API asks for it — never on a
+     * schedule and never on the write path.
      */
     public List<DerivedMetricsBuffer.DimensionCardinality> dimensionCardinalities() {
         return buffer.dimensionCardinalities();
+    }
+
+    /** What every buffered metric is currently holding, per stream, per metric and per interval. */
+    public List<DerivedMetricsBuffer.MetricSnapshot> metricSnapshots() {
+        return buffer.metricSnapshots();
+    }
+
+    /** Series refusals broken down by the source data stream that suffered them. */
+    public List<DerivedMetricsBuffer.StreamRefusals> streamRefusals() {
+        return buffer.streamRefusals();
+    }
+
+    /** Histogram series buffered on this node, which spend a budget of their own as well as the general one. */
+    public int histogramSeries() {
+        return buffer.histogramSeries();
+    }
+
+    /** Series refused because this node had already spent its whole budget. */
+    public long droppedSeriesAtNodeCap() {
+        return buffer.droppedSeriesAtNodeCap();
+    }
+
+    /** Series refused because one source data stream had already taken its share. */
+    public long droppedSeriesAtStreamCap() {
+        return buffer.droppedSeriesAtStreamCap();
+    }
+
+    /** Series refused because this node already holds as many distributions as it is allowed to. */
+    public long droppedSeriesAtHistogramCap() {
+        return buffer.droppedSeriesAtHistogramCap();
+    }
+
+    /** Series refused because the circuit breaker would not give the memory they needed. */
+    public long droppedSeriesAtBreaker() {
+        return buffer.droppedSeriesAtBreaker();
+    }
+
+    /** Buckets that could not be flushed early because no timestamp offset was left inside their interval. */
+    public long partialsExhausted() {
+        return buffer.partialsExhausted();
+    }
+
+    /** Tables removed mid-bucket because their dimension hash could no longer be probed. */
+    public long tablesRetired() {
+        return buffer.tablesRetired();
+    }
+
+    /** Observations skipped because a predicate needed a {@code _source} that could not be read. */
+    public long skippedForUnreadableSource() {
+        return skippedForUnreadableSource.get();
+    }
+
+    /** Documents shed because the destination was not keeping up with what this node was emitting. */
+    public long droppedForBackpressure() {
+        return droppedForBackpressure.get();
+    }
+
+    /** Documents not emitted because the node was above its indexing pressure ceiling and user writes take precedence. */
+    public long droppedForIndexingPressure() {
+        return droppedForIndexingPressure.get();
+    }
+
+    /** Documents whose bulk request never landed, as opposed to documents the destination rejected individually. */
+    public long emissionFailures() {
+        return emissionFailures.get();
+    }
+
+    /** Buckets emitted before their interval closed because the buffer was full. Lossless, but it costs documents. */
+    public long earlyFlushes() {
+        return earlyFlushes.get();
     }
 
     /** Dimensions a metric has stopped breaking down by because they outgrew {@link #MAX_DIMENSION_CARDINALITY}. */

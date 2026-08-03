@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -28,13 +30,13 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
 public enum StatelessCacheEvictionPolicyType {
     ALWAYS {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new DefaultEvictionPolicy<>();
         }
     },
     PINNED_WINDOW {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new PinnedWindowEvictionPolicy(
                 clusterService.getClusterSettings(),
                 threadPool,
@@ -46,12 +48,19 @@ public enum StatelessCacheEvictionPolicyType {
     },
     INDEX_AGE {
         @Override
-        EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+        EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
             return new IndexAgeEvictionPolicy(clusterService);
         }
     };
 
-    abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
+    private static final Logger logger = LogManager.getLogger(StatelessCacheEvictionPolicyType.class);
+
+    public final EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool) {
+        logger.info("creating eviction policy of type [{}]", this);
+        return doCreate(clusterService, indicesService, threadPool);
+    }
+
+    abstract EvictionPolicy<FileCacheKey> doCreate(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         // Explicit configuration takes precedence when on search nodes
@@ -72,7 +81,7 @@ public enum StatelessCacheEvictionPolicyType {
         return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE) ? PINNED_WINDOW : ALWAYS;
     }
 
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+    public static EvictionPolicy<FileCacheKey> createEvictionPolicy(
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,

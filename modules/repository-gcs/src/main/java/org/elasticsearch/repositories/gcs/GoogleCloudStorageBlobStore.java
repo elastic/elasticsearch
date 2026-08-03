@@ -14,11 +14,18 @@ import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.RequestBody;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageClass;
 import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.multipartupload.model.AbortMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CompleteMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.CompletedMultipartUpload;
+import com.google.cloud.storage.multipartupload.model.CompletedPart;
+import com.google.cloud.storage.multipartupload.model.CreateMultipartUploadRequest;
+import com.google.cloud.storage.multipartupload.model.UploadPartRequest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,9 +71,13 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -623,6 +634,121 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
             }
             throw se;
+        }
+    }
+
+    /**
+     * Uploads a blob using the GCS XML API multipart upload protocol
+     *
+     * @param purpose             the operation purpose
+     * @param blobName            name of the blob
+     * @param blobSize            expected size of the blob to be written
+     * @param provider            supplies an {@link java.io.InputStream} for each part given its byte offset and length
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    void writeMultipartBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobContainer.BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        // GCS XML API does not support preconditions on the complete-multipart-upload request
+        if (failIfAlreadyExists && blobExists(purpose, blobName)) {
+            throw new FileAlreadyExistsException(blobName);
+        }
+        final long partSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final int nbParts = Math.toIntExact((blobSize + partSize - 1) / partSize);
+        final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
+
+        final StorageClass storageClass = resolveStorageClass(purpose);
+        final var createRequestBuilder = CreateMultipartUploadRequest.builder().bucket(bucketName).key(blobName);
+        if (storageClass != null) {
+            createRequestBuilder.storageClass(storageClass);
+        }
+        final String uploadId = client().meteredCreateMultipartUpload(purpose, createRequestBuilder.build()).uploadId();
+
+        boolean succeeded = false;
+        try {
+            final CompletedPart[] completedParts = new CompletedPart[nbParts];
+            final AtomicInteger nextPart = new AtomicInteger(1);
+            final CountDownLatch latch = new CountDownLatch(nbParts);
+            final AtomicReference<Throwable> firstError = new AtomicReference<>();
+
+            final Runnable worker = () -> {
+                int partNum;
+                while ((partNum = nextPart.getAndIncrement()) <= nbParts) {
+                    if (firstError.get() == null) {
+                        final boolean lastPart = partNum == nbParts;
+                        final long curPartSize = lastPart ? lastPartSize : partSize;
+                        final long offset = (long) (partNum - 1) * partSize;
+                        try {
+                            final var partRequest = UploadPartRequest.builder()
+                                .bucket(bucketName)
+                                .key(blobName)
+                                .uploadId(uploadId)
+                                .partNumber(partNum)
+                                .build();
+                            try (var stream = provider.apply(offset, curPartSize)) {
+                                final byte[] partBytes = stream.readNBytes(Math.toIntExact(curPartSize));
+                                final var partResponse = client().meteredUploadPart(
+                                    purpose,
+                                    partRequest,
+                                    RequestBody.of(ByteBuffer.wrap(partBytes))
+                                );
+                                completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(partResponse.eTag()).build();
+                            }
+                        } catch (Throwable t) {
+                            firstError.compareAndSet(null, t);
+                        }
+                    }
+                    latch.countDown();
+                }
+            };
+
+            for (int i = 0; i < nbParts - 1; i++) {
+                try {
+                    executor.execute(worker);
+                } catch (Exception e) {
+                    // ignore rejections, the calling thread will process unclaimed parts
+                }
+            }
+            worker.run();
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                firstError.compareAndSet(null, e);
+            }
+
+            final Throwable error = firstError.get();
+            if (error != null) {
+                throw new IOException("Failed to upload parts for [" + blobName + "]", error);
+            }
+
+            client().meteredCompleteMultipartUpload(
+                purpose,
+                CompleteMultipartUploadRequest.builder()
+                    .bucket(bucketName)
+                    .key(blobName)
+                    .uploadId(uploadId)
+                    .multipartUpload(CompletedMultipartUpload.builder().parts(List.of(completedParts)).build())
+                    .build()
+            );
+            succeeded = true;
+        } finally {
+            if (succeeded == false) {
+                try {
+                    client().meteredAbortMultipartUpload(
+                        purpose,
+                        AbortMultipartUploadRequest.builder().bucket(bucketName).key(blobName).uploadId(uploadId).build()
+                    );
+                } catch (Exception e) {
+                    logger.warn(() -> format("Failed to abort multipart upload [%s] for blob [%s]", uploadId, blobName), e);
+                }
+            }
         }
     }
 

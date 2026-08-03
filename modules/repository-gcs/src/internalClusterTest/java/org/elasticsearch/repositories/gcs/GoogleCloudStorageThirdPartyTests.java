@@ -113,6 +113,29 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
+    public void testMultipartUpload() {
+        final BlobStoreRepository repo = getRepository();
+        final int partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final int blobSize = randomIntBetween(partSize + 1, partSize * 6);
+        final byte[] data = randomByteArrayOfLength(blobSize);
+        final String blobKey = randomIdentifier();
+
+        executeOnBlobStore(repo, container -> {
+            container.writeBlobAtomic(
+                randomPurpose(),
+                blobKey,
+                blobSize,
+                (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
+                false,
+                command -> command.run()
+            );
+            try (InputStream stream = container.readBlob(randomPurpose(), blobKey)) {
+                assertArrayEquals(data, stream.readAllBytes());
+            }
+            return null;
+        });
+    }
+
     public void testReadFromPositionLargerThanBlobLength() {
         testReadFromPositionLargerThanBlobLength(
             e -> asInstanceOf(StorageException.class, e.getCause()).getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()

@@ -718,62 +718,70 @@ public class SearchDirectoryTests extends ESTestCase {
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, false)) {
             final var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertThat(
-                "time-based terminal fallback is MINIMAL",
+                "unexpected time-based terminal fallback",
                 directory.fallbackRegionTimestampMillis(),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
-            assertThat("a known raw value is kept", directory.resolveRegionTimestampMillis(5000L), equalTo(5000L));
+            assertThat("known raw timestamp should be preserved", directory.resolveRegionTimestampMillis(5000L), equalTo(5000L));
             assertThat(
-                "an unknown raw value falls back to MINIMAL",
+                "unknown raw timestamp should fall back to MINIMAL on time-based shards",
                 directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
             assertThat(
-                "a null range falls back to MINIMAL",
+                "null range should fall back to MINIMAL on time-based shards",
                 directory.resolveRegionTimestampMillis(null),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
-            assertThat("a known range resolves to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
+            assertThat("range should resolve to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
-                "without backfill a metadata-read clone inherits the shard terminal fallback",
+                "metadata-read clone should inherit shard terminal fallback when backfill is disabled",
                 directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
             assertThat(
-                "Explicit metadata-read backfill always stamps BACKFILL_IN_PROGRESS",
+                "metadata-read clone should stamp BACKFILL_IN_PROGRESS when backfill is enabled",
                 directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
-            assertThat("backfill is disabled when the setting is off", directory.timestampBackfillEnabled(), equalTo(false));
+            assertThat(
+                "backfill should be disabled when timestamp backfill setting is off",
+                directory.timestampBackfillEnabled(),
+                equalTo(false)
+            );
         }
 
         try (var node = createFakeStatelessNode(regionSize, cacheSize, false, false)) {
             var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertThat(
-                "non-time-based terminal fallback is UNKNOWN",
+                "unexpected non-time-based terminal fallback",
                 directory.fallbackRegionTimestampMillis(),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
-            assertThat("a known raw value is kept", directory.resolveRegionTimestampMillis(5000L), equalTo(5000L));
+            assertThat("known raw timestamp should be preserved", directory.resolveRegionTimestampMillis(5000L), equalTo(5000L));
             assertThat(
-                "an unknown raw value stays UNKNOWN",
+                "unknown raw timestamp should stay UNKNOWN on non-time-based shards",
                 directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
-            assertThat("a null range returns UNKNOWN_TIMESTAMP", directory.resolveRegionTimestampMillis(null), equalTo(UNKNOWN_TIMESTAMP));
-            assertThat("a known range resolves to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
-                "a metadata-read clone inherits the shard terminal fallback when backfill is disabled",
+                "null range should resolve to UNKNOWN_TIMESTAMP on non-time-based shards",
+                directory.resolveRegionTimestampMillis(null),
+                equalTo(UNKNOWN_TIMESTAMP)
+            );
+            assertThat("range should resolve to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
+            assertThat(
+                "metadata-read clone should inherit shard terminal fallback when backfill is disabled",
                 directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
-            assertThat("backfill is disabled on non-time-based shards", directory.timestampBackfillEnabled(), equalTo(false));
+            assertThat("backfill should be disabled on non-time-based shards", directory.timestampBackfillEnabled(), equalTo(false));
         }
 
         // Time-based shard with timestamp backfill enabled.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, true)) {
             assertThat(
-                "timestamp backfill setting enables backfill",
+                "backfill should be enabled when timestamp backfill setting is on",
                 SearchDirectory.unwrapDirectory(node.searchStore.directory()).timestampBackfillEnabled(),
                 equalTo(true)
             );

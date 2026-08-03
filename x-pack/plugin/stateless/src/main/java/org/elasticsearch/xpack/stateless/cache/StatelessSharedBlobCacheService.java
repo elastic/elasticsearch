@@ -88,9 +88,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
-     * Whether time-based search shards should stamp metadata-read cache regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP}
-     * and run completion backfill. Defaults to {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} so existing deployments keep
-     * current behavior, but can be toggled independently for rollout or as a kill switch.
+     * Whether time-based search shards should stamp metadata-read cache regions with
+     * {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and run completion backfill.
      */
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache_boost_preference.timestamp_backfill.enabled",

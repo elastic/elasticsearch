@@ -576,6 +576,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             // find the relocation source
                             ShardRouting sourceShard = getByAllocationId(routing.shardId(), routing.allocationId().getRelocationId());
                             // cancel relocation and start relocation to same node again
+                            // TODO: should restarting a relocation due to the primary moving be considered a "failure"?
                             ShardRouting startedReplica = failRelocation(sourceShard);
                             remove(routing);
                             routingChangesObserver.shardFailed(
@@ -818,7 +819,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private static final List<ShardRouting> EMPTY = Collections.emptyList();
 
     /**
-     * Cancels the give shard from the Routing nodes internal statistics and cancels
+     * Removes the given shard from the Routing nodes internal statistics and fails
      * the relocation if the shard is relocating.
      */
     private void remove(ShardRouting shard) {

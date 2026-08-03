@@ -438,6 +438,25 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
             assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
         });
+
+        // Consume the last retry with a genuine failure, relocation must then be blocked.
+        clusterState = withRoutingAllocation(clusterState, allocation -> {
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            var targetNodeId = "node1".equals(source.currentNodeId()) ? "node2" : "node1";
+            allocation.routingNodes().relocateShard(source, targetNodeId, 0, "test", allocation.changes());
+        });
+        final var lastTarget = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0).getTargetRelocatingShard();
+        clusterState = applyShardFailure(clusterState, lastTarget, "final-failure");
+
+        final var afterFinalFailure = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+        assertThat(afterFinalFailure.relocationFailureInfo().failedRelocations(), equalTo(maxRetries));
+        withRoutingAllocation(clusterState, allocation -> {
+            allocation.debugDecision(true);
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            final var decision = decider.canAllocate(source, allocation);
+            assertThat(decision.type(), equalTo(Decision.Type.NO));
+            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+        });
     }
 
     private ClusterState applyShardCancellation(ClusterState clusterState, ShardRouting shardRouting) {

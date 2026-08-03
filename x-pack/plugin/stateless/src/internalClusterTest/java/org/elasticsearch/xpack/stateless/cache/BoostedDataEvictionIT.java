@@ -231,9 +231,13 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         assertAcked(prepareCreate(unpinnedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
         ensureGreen(pinnedIdx, unpinnedIdx);
 
-        // Default 12-hour pinned window: pinned data (< 6h old, midpoint ~T-3h) is protected;
-        // unpinned data (> 14h old, midpoint ~T-26h) is evictable.
-        final long now = System.currentTimeMillis();
+        // PinnedWindowEvictionPolicy cutoff is computed from the actual system time at predicate-creation time.
+        // A fixed past timestamp cannot be used: data timestamps must fall within the real 12-hour window for the policy
+        // to protect them.
+        // TODO: Consider injecting a mock threadPool into the policy to precisely control the time for testing
+        final var threadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
+        final long now = threadPool.absoluteTimeInMillis();
+        // 12-hour pinned window: pinned data (< 6h old) is protected; unpinned data (> 14h old) is evictable.
         final long pinnedDataEndMillis = now;
         final long pinnedDataStartMillis = now - TimeValue.timeValueHours(6).millis();
         final long unpinnedDataEndMillis = now - TimeValue.timeValueHours(14).millis();

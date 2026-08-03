@@ -86,7 +86,9 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
                 // A distinct Field per element: for multi-valued (array) rows appendCurrentFields is
                 // called more than once for the same document and every emitted field is retained in
                 // the caller's list, so a single reused field object would collapse all values to the
-                // last one. cursor.value() already returns a fresh BytesRef per element.
+                // last one. cursor.value() returns a fresh BytesRef per element (a new header over the
+                // immutable column payload, or a copy when the value straddles chunk boundaries), so it
+                // is safe to store by reference in the Field and retain past subsequent nextDoc() calls.
                 out.add(new Field(name(), cursor.value(), fieldType()));
             }
         };
@@ -100,20 +102,8 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
     @Override
     public BytesRefValuesCursor values() {
         if (density() == Density.SPARSE) {
-            // SPARSE columns are never consulted via the dense values cursor.
             return super.values();
         }
-        final int count = data.docCount;
-        return new BytesRefValuesCursor(count) {
-            private int pos;
-
-            @Override
-            public BytesRef nextValue() {
-                if (pos >= size()) {
-                    throw new IllegalStateException("nextValue() called more than size()=" + size() + " times");
-                }
-                return data.getBinaryValue(pos++);
-            }
-        };
+        return ((AbstractVarColumn) data).bytesRefValuesCursor();
     }
 }

@@ -41,7 +41,7 @@ final class EscfLongColumn extends AbstractFixed64Column {
      * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
      * dense columns.
      */
-    LongValuesCursor longValuesCursor() {
+    DenseLongValuesCursor longValuesCursor() {
         assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseLongValuesCursor(docCount, this);
     }

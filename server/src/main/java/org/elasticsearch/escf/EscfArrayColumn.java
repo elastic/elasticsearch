@@ -77,24 +77,41 @@ final class EscfArrayColumn extends EscfColumn {
             throw new UnsupportedOperationException("longCursor() requires a long child column, got: " + EscfColumnKind.name(child.kind()));
         }
         final int numRows = docCount;
-        final int startElem = intAt(rowOffsets, 0);
+        // Hoist the IntsRef's backing array and base offset out of the loop: intAt() is two field loads plus an add.
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        final AbstractFixed64Column.DenseLongValuesCursor values = longChild.longValuesCursor();
+        final int startElem = offs[base];
+        if (numRows > 0 && startElem > 0) {
+            values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced
+        }
         return new LongTupleCursor() {
-            private int elemPos = startElem - 1;
-            private int currentDoc = 0;
+            private int currentDoc = -1;
+            private int rowEnd = startElem;  // element index one past the last element of the current row
+            private int remainingInRow;
+            private long currentValue;
 
             @Override
             public int nextDoc() {
-                elemPos++;
-                // Advance past all rows whose element range ends at or before the current element
-                while (currentDoc < numRows && intAt(rowOffsets, currentDoc + 1) <= elemPos) {
+                // Advance past rows with no elements (empty arrays and absent rows are both zero-width).
+                while (remainingInRow == 0) {
+                    if (currentDoc + 1 >= numRows) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     currentDoc++;
+                    // Rows are contiguous: one offset read per row, zero per mid-row element.
+                    int nextEnd = offs[base + currentDoc + 1];
+                    remainingInRow = nextEnd - rowEnd;
+                    rowEnd = nextEnd;
                 }
-                return currentDoc < numRows ? currentDoc : DocIdSetIterator.NO_MORE_DOCS;
+                remainingInRow--;
+                currentValue = values.nextLong();
+                return currentDoc;
             }
 
             @Override
             public long longValue() {
-                return longChild.getLongValue(elemPos);
+                return currentValue;
             }
         };
     }
@@ -117,24 +134,41 @@ final class EscfArrayColumn extends EscfColumn {
             );
         }
         final int numRows = docCount;
-        final int startElem = intAt(rowOffsets, 0);
+        // Hoist the IntsRef's backing array and base offset out of the loop: intAt() is two field loads plus an add.
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        final AbstractVarColumn.DenseBytesRefValuesCursor values = varChild.bytesRefValuesCursor();
+        final int startElem = offs[base];
+        if (numRows > 0 && startElem > 0) {
+            values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced
+        }
         return new ObjectTupleCursor<>() {
-            private int elemPos = startElem - 1;
-            private int currentDoc = 0;
+            private int currentDoc = -1;
+            private int rowEnd = startElem;  // element index one past the last element of the current row
+            private int remainingInRow;
+            private BytesRef currentValue;
 
             @Override
             public int nextDoc() {
-                elemPos++;
-                // Advance past all rows whose element range ends at or before the current element
-                while (currentDoc < numRows && intAt(rowOffsets, currentDoc + 1) <= elemPos) {
+                // Advance past rows with no elements (empty arrays and absent rows are both zero-width).
+                while (remainingInRow == 0) {
+                    if (currentDoc + 1 >= numRows) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     currentDoc++;
+                    // Rows are contiguous: one offset read per row, zero per mid-row element.
+                    int nextEnd = offs[base + currentDoc + 1];
+                    remainingInRow = nextEnd - rowEnd;
+                    rowEnd = nextEnd;
                 }
-                return currentDoc < numRows ? currentDoc : DocIdSetIterator.NO_MORE_DOCS;
+                remainingInRow--;
+                currentValue = values.nextValueRetained();
+                return currentDoc;
             }
 
             @Override
             public BytesRef value() {
-                return varChild.getBinaryValue(elemPos);
+                return currentValue;
             }
         };
     }

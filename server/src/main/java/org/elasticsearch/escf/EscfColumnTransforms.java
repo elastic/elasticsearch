@@ -59,7 +59,7 @@ public final class EscfColumnTransforms {
         }
         return new ObjectTupleCursor<>() {
 
-            private int row = 0;
+            private final PresentDocIterator present = column.presentDocs();
             private int currentDoc = -1;
             private BytesRef currentValue = null;
             // Stack of active array readers; grows on nested arrays, shrinks on exhaustion.
@@ -68,56 +68,44 @@ public final class EscfColumnTransforms {
 
             @Override
             public int nextDoc() {
-                if (arDepth > 0) {
-                    if (advanceArray()) {
-                        return currentDoc;
-                    }
-                    row++;
+                if (arDepth > 0 && advanceArray()) {
+                    return currentDoc;
                 }
-                while (row < column.docCount) {
-                    if (column.isAbsent(row)) {
-                        row++;
-                        continue;
-                    }
-                    byte t = column.typeByteForPresent(row);
+                int doc;
+                while ((doc = present.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    currentDoc = doc;
+                    byte t = column.typeByteForPresent(doc);
                     switch (t) {
                         case SourceValueType.NULL -> {
-                            currentDoc = row++;
                             currentValue = null;
-                            return currentDoc;
+                            return doc;
                         }
                         case SourceValueType.TRUE -> {
-                            currentDoc = row++;
                             currentValue = BOOLEAN_TRUE;
-                            return currentDoc;
+                            return doc;
                         }
                         case SourceValueType.FALSE -> {
-                            currentDoc = row++;
                             currentValue = BOOLEAN_FALSE;
-                            return currentDoc;
+                            return doc;
                         }
                         case SourceValueType.LONG -> {
-                            currentDoc = row++;
-                            currentValue = new BytesRef(Long.toString(column.getLongValue(currentDoc)));
-                            return currentDoc;
+                            currentValue = new BytesRef(Long.toString(column.getLongValue(doc)));
+                            return doc;
                         }
                         case SourceValueType.DOUBLE -> {
-                            currentDoc = row++;
-                            currentValue = new BytesRef(Double.toString(column.getDoubleValue(currentDoc)));
-                            return currentDoc;
+                            currentValue = new BytesRef(Double.toString(column.getDoubleValue(doc)));
+                            return doc;
                         }
                         case SourceValueType.STRING -> {
-                            currentDoc = row++;
-                            currentValue = column.getBinaryValue(currentDoc);
-                            return currentDoc;
+                            currentValue = column.getBinaryValue(doc);
+                            return doc;
                         }
                         case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
-                            currentDoc = row;
-                            pushArray(column.getArrayValue(row));
+                            pushArray(column.getArrayValue(doc));
                             if (advanceArray()) {
-                                return currentDoc;
+                                return doc;
                             }
-                            row++;
+                            // empty array: fall through to the next present doc
                         }
                         // Unsupported scalar type bytes. BINARY and KEY_VALUE are structurally
                         // incompatible with keyword conversion. INT and FLOAT are never written

@@ -12,11 +12,16 @@ package org.elasticsearch.escf;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
@@ -55,7 +60,7 @@ abstract class AbstractVarColumn extends EscfColumn {
      * dense columns. The returned {@link BytesRef} per {@link BytesRefValuesCursor#nextValue()} is
      * valid only until the next call to {@code nextValue()}.
      */
-    final BytesRefValuesCursor bytesRefValuesCursor() {
+    final DenseBytesRefValuesCursor bytesRefValuesCursor() {
         assert validity == null : "values cursor is only valid for dense (fully-present) columns";
         return new DenseBytesRefValuesCursor(docCount, this);
     }
@@ -80,36 +85,123 @@ abstract class AbstractVarColumn extends EscfColumn {
     }
 
     private static final class BytesRefTupleCursor extends ObjectTupleCursor<BytesRef> {
-        private final AbstractVarColumn column;
-        private int row = -1;
+        private final PresentDocIterator present;
+        private final DenseBytesRefValuesCursor values;
+        private int lastRow = -1;
+        private BytesRef currentValue;
 
         BytesRefTupleCursor(AbstractVarColumn column) {
-            this.column = column;
+            this.present = column.presentDocs();
+            this.values = new DenseBytesRefValuesCursor(column.docCount, column);
         }
 
         @Override
         public int nextDoc() {
-            while (++row < column.docCount) {
-                if (column.isAbsent(row) == false) {
-                    return row;
-                }
+            int doc = present.nextDoc();
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                return doc;
             }
-            return DocIdSetIterator.NO_MORE_DOCS;
+            int toSkip = doc - lastRow - 1; // absent rows between the previous present row and this one
+            if (toSkip > 0) {
+                values.skip(toSkip);
+            }
+            currentValue = values.nextValueRetained();
+            lastRow = doc;
+            return doc;
         }
 
         @Override
         public BytesRef value() {
-            return column.getBinaryValue(row);
+            return currentValue;
         }
     }
 
-    private static final class DenseBytesRefValuesCursor extends BytesRefValuesCursor {
-        private final AbstractVarColumn column;
+    static final class DenseBytesRefValuesCursor extends BytesRefValuesCursor {
+
+        private final BytesRefIterator iter;
+        private final int[] offsets;
+        private final BytesRef value = new BytesRef();
+        private byte[] currentBytes = BytesRef.EMPTY_BYTES;
+        private byte[] scratch = BytesRef.EMPTY_BYTES;
+        private int currentBytesOffset;
+        private int currentBytesEnd;
+        private int nextOffsetIndex;
+        private int valueOffset;
         private int pos;
 
         DenseBytesRefValuesCursor(int count, AbstractVarColumn column) {
             super(count);
-            this.column = column;
+            this.iter = sliceData(column.offsets, column.data, count).iterator();
+            this.offsets = column.offsets.ints;
+            this.nextOffsetIndex = column.offsets.offset + 1;
+            this.valueOffset = offsets[column.offsets.offset];
+        }
+
+        private void nextChunk() {
+            try {
+                BytesRef chunk = iter.next();
+                if (chunk == null) {
+                    throw new IllegalStateException("variable-width column data exhausted before all values were read");
+                }
+                currentBytes = chunk.bytes;
+                currentBytesOffset = chunk.offset;
+                currentBytesEnd = chunk.offset + chunk.length;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        private BytesRef readNextValue(int valueSize) {
+            if (valueSize == 0) {
+                value.bytes = BytesRef.EMPTY_BYTES;
+                value.offset = 0;
+                value.length = 0;
+                return value;
+            }
+            if (currentBytesOffset >= currentBytesEnd) {
+                nextChunk();
+            }
+            int remaining = currentBytesEnd - currentBytesOffset;
+            if (valueSize <= remaining) {
+                value.bytes = currentBytes;
+                value.offset = currentBytesOffset;
+                value.length = valueSize;
+                currentBytesOffset += valueSize;
+                return value;
+            }
+
+            scratch = ArrayUtil.growNoCopy(scratch, valueSize);
+            int copied = 0;
+            while (copied < valueSize) {
+                if (currentBytesOffset >= currentBytesEnd) {
+                    nextChunk();
+                }
+                int toCopy = Math.min(valueSize - copied, currentBytesEnd - currentBytesOffset);
+                System.arraycopy(currentBytes, currentBytesOffset, scratch, copied, toCopy);
+                currentBytesOffset += toCopy;
+                copied += toCopy;
+            }
+            value.bytes = scratch;
+            value.offset = 0;
+            value.length = valueSize;
+            return value;
+        }
+
+        /** Advances past {@code n} values without reading them. */
+        void skip(int n) {
+            pos += n;
+            nextOffsetIndex += n;
+            int newOffset = offsets[nextOffsetIndex - 1];
+            int byteDelta = newOffset - valueOffset; // 0 when every skipped row is absent (zero-width offsets)
+            valueOffset = newOffset;
+            while (byteDelta > 0) {
+                if (currentBytesOffset >= currentBytesEnd) {
+                    nextChunk();
+                }
+                int toSkip = Math.min(byteDelta, currentBytesEnd - currentBytesOffset);
+                currentBytesOffset += toSkip;
+                byteDelta -= toSkip;
+            }
         }
 
         @Override
@@ -117,7 +209,25 @@ abstract class AbstractVarColumn extends EscfColumn {
             if (pos >= size()) {
                 throw new IllegalStateException("nextValue() called more than size()=" + size() + " times");
             }
-            return column.getBinaryValue(pos++);
+            int nextOffset = offsets[nextOffsetIndex++];
+            int valueSize = nextOffset - valueOffset;
+            valueOffset = nextOffset;
+            pos++;
+            return readNextValue(valueSize);
+        }
+
+        /**
+         * Like {@link #nextValue()}, but the returned {@link BytesRef} stays valid after later calls to
+         * this cursor: it is a fresh header over the immutable payload rather than the shared instance.
+         * Use this when the returned value must be retained across a subsequent {@code nextValue()} or
+         * {@link #skip} call — for example when emitting a {@link org.apache.lucene.document.Field}
+         * that must outlive the next {@link org.apache.lucene.document.column.ObjectTupleCursor#nextDoc()}.
+         */
+        BytesRef nextValueRetained() {
+            BytesRef v = nextValue();
+            // The contiguous fast path points straight into a data chunk, which never changes, so a new
+            // header is enough. A straddling value lives in the reusable scratch buffer and must be copied.
+            return v.bytes == scratch ? BytesRef.deepCopyOf(v) : new BytesRef(v.bytes, v.offset, v.length);
         }
     }
 }

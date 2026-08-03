@@ -44,6 +44,7 @@ public abstract class EscfColumn implements SliceableColumn {
                 "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
             );
         }
+        assert validity == null || validity.length() == docCount : "validity length " + validity.length() + " != docCount " + docCount;
         this.docCount = docCount;
         this.validity = validity;
     }
@@ -99,6 +100,11 @@ public abstract class EscfColumn implements SliceableColumn {
     /** The number of documents in this column window (present and absent). */
     public final int docCount() {
         return docCount;
+    }
+
+    /** A forward-only iterator over this column's present (non-absent) doc ids. */
+    final PresentDocIterator presentDocs() {
+        return new PresentDocIterator(validity, docCount);
     }
 
     final boolean isAbsent(int row) {

@@ -317,6 +317,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgErrorTests is missing")
+                // NESTED_ANY takes a lambda predicate, which the generated-case function test harness does not
+                // model; NestedAnyTests/NestedAnyErrorTests are a follow-up (it is validated via AnalyzerTests
+                // + csv-spec, and NestedAnySerializationTests covers wire round-trip).
+                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.NestedAnyErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.NestedAnyTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")

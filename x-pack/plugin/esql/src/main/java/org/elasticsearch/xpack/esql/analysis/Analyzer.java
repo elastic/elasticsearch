@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -104,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -1152,10 +1154,79 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
-                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                default -> resolveDefault(plan, childrenOutput);
             };
 
             return resolved;
+        }
+
+        private LogicalPlan resolveDefault(LogicalPlan plan, List<Attribute> childrenOutput) {
+            // NESTED_ANY binds its lambda predicate against the nested field's sub-fields, not the row columns,
+            // so resolve it first — otherwise the generic pass below would (wrongly) try to resolve e.g.
+            // `u.role` against the child output and fail.
+            boolean[] hasNestedAny = { false };
+            plan.forEachExpression(NestedAny.class, na -> hasNestedAny[0] = true);
+            LogicalPlan p = plan;
+            if (hasNestedAny[0]) {
+                Map<String, NestedEsField> nestedFields = nestedFieldsOf(plan);
+                p = plan.transformExpressionsOnly(NestedAny.class, na -> resolveNestedAny(na, nestedFields));
+            }
+            return p.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        /** Nested fields (by path) reachable from the source relation(s) below this plan. */
+        private static Map<String, NestedEsField> nestedFieldsOf(LogicalPlan plan) {
+            Map<String, NestedEsField> result = new HashMap<>();
+            plan.forEachDown(EsRelation.class, r -> result.putAll(r.nestedFields()));
+            return result;
+        }
+
+        /**
+         * Binds a {@code NESTED_ANY(field, u -> predicate)}: resolves the field to the {@link NestedEsField}
+         * carried on the relation, then rewrites the lambda body's {@code u.<sub>} references to the real
+         * nested sub-field paths (e.g. {@code users.role}). References that are not sub-fields of the bound
+         * field are rejected — the predicate may only touch the nested object. Idempotent: a call whose field
+         * is already resolved returns the node unchanged.
+         * <p>
+         * This is an interim, bespoke lambda binding. When the generic lambda-aware-function support lands
+         * (the follow-up to the lambda syntax in #153694), this should be reconciled with that shared
+         * parameter-binding mechanism rather than resolving the lambda here by hand.
+         */
+        private static Expression resolveNestedAny(NestedAny na, Map<String, NestedEsField> nestedFields) {
+            if ((na.field() instanceof UnresolvedAttribute) == false) {
+                return na;
+            }
+            UnresolvedAttribute fieldRef = (UnresolvedAttribute) na.field();
+            String path = fieldRef.name();
+            NestedEsField nested = nestedFields.get(path);
+            if (nested == null) {
+                // Not a (one-level) nested field — leave unresolved with a clear message.
+                return na.replaceChildren(List.of(fieldRef.withUnresolvedMessage("[" + path + "] is not a nested field"), na.predicate()));
+            }
+            if (na.predicate() instanceof Lambda lambda && lambda.parameters().size() == 1) {
+                String param = lambda.parameters().get(0).name();
+                Expression body = lambda.body().transformDown(UnresolvedAttribute.class, ua -> {
+                    String name = ua.name();
+                    if (name.equals(param)) {
+                        return ua.withUnresolvedMessage(
+                            "nested object [" + param + "] cannot be used directly; reference a sub-field like [" + param + ".<field>]"
+                        );
+                    }
+                    if (name.startsWith(param + ".")) {
+                        String leaf = name.substring(param.length() + 1);
+                        EsField sub = nested.getProperties().get(leaf);
+                        if (sub != null) {
+                            return new FieldAttribute(ua.source(), path + "." + leaf, sub);
+                        }
+                        return ua.withUnresolvedMessage("no sub-field [" + leaf + "] in nested field [" + path + "]");
+                    }
+                    return ua.withUnresolvedMessage(
+                        "predicate of [NESTED_ANY] may only reference sub-fields of [" + path + "] via [" + param + "]"
+                    );
+                });
+                return new NestedAny(na.source(), new FieldAttribute(fieldRef.source(), path, nested), body, na.queryBuilder());
+            }
+            return na;
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {

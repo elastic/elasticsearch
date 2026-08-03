@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -45,6 +46,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NestedQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -59,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -87,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -112,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -1093,6 +1099,52 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep dep.dep_id.keyword
             """, containsString("Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]"));
+    }
+
+    public void testNestedAnyResolves() {
+        assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
+        var plan = multiFieldWithNested().query("""
+            from test
+            | where nested_any(dep, d -> d.dep_name == "eng")
+            """);
+        var filters = new ArrayList<Filter>();
+        plan.forEachDown(Filter.class, filters::add);
+        assertThat(filters, hasSize(1));
+        var nestedAny = as(filters.get(0).condition(), NestedAny.class);
+        assertTrue("NESTED_ANY should be resolved", nestedAny.resolved());
+        var field = as(nestedAny.field(), FieldAttribute.class);
+        assertEquals("dep", field.name());
+        // the lambda's sub-field reference is rewritten to the real nested path
+        var refs = new ArrayList<FieldAttribute>();
+        nestedAny.predicate().forEachDown(FieldAttribute.class, refs::add);
+        assertTrue("predicate should reference dep.dep_name", refs.stream().anyMatch(f -> f.name().equals("dep.dep_name")));
+    }
+
+    public void testNestedAnyTranslatesToNestedQuery() {
+        assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
+        // dep_id has a keyword multi-field, so the equality is pushable to an exact-match query.
+        var plan = multiFieldWithNested().query("""
+            from test
+            | where nested_any(dep, d -> d.dep_id == "eng")
+            """);
+        var filters = new ArrayList<Filter>();
+        plan.forEachDown(Filter.class, filters::add);
+        var nestedAny = as(filters.get(0).condition(), NestedAny.class);
+
+        Query q = nestedAny.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        var nested = as(q, NestedQuery.class);
+        assertEquals("dep", nested.path());
+        assertEquals(ScoreMode.Max, nested.scoreMode());
+        // the inner predicate targets the real nested sub-field path
+        assertThat(nested.child().toQueryBuilder().toString(), containsString("dep.dep_id"));
+    }
+
+    public void testNestedAnyRejectsCrossScopeReference() {
+        assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
+        multiFieldWithNested().error("""
+            from test
+            | where nested_any(dep, d -> keyword == "eng")
+            """, containsString("may only reference sub-fields of [dep] via [d]"));
     }
 
     public void testNestedFieldSurfacedOnRelationNotFlattened() {

@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "host": {
+      "type": "keyword"
+    },
+    "users": {
+      "type": "nested",
+      "properties": {
+        "name": {
+          "type": "keyword"
+        },
+        "role": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

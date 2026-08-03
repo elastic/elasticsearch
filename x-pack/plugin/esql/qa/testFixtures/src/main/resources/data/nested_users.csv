@@ -1,0 +1,7 @@
+host:keyword,users:nested
+web01,[{"name":"alice"\,"role":"admin"}\,{"name":"bob"\,"role":"viewer"}]
+web02,[{"name":"carol"\,"role":"admin"}]
+web03,[{"name":"dave"\,"role":"viewer"}\,{"name":"erin"\,"role":"viewer"}]
+web04,
+web05,[{"name":"frank"\,"role":"admin"}\,{"name":"grace"\,"role":"admin"}]
+web06,[{"name":"heidi"\,"role":["admin"\,"root"]}]

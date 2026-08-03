@@ -1,0 +1,82 @@
+// NESTED_ANY: filter parent documents by a predicate over their nested objects.
+// Runs against a real cluster (the nested_users index) so the nested query actually executes.
+
+filterByNestedRole
+required_capability: nested_any_function
+
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.role == "admin")
+| KEEP host
+| SORT host
+;
+
+host:keyword
+web01
+web02
+web05
+;
+
+sameObjectAndMatches
+required_capability: nested_any_function
+
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.name == "alice" AND u.role == "admin")
+| KEEP host
+;
+
+host:keyword
+web01
+;
+
+crossObjectAndDoesNotMatch
+required_capability: nested_any_function
+
+// alice is an admin and bob is a viewer, but no single object is both alice and a viewer.
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.name == "alice" AND u.role == "viewer")
+| KEEP host
+;
+
+host:keyword
+;
+
+orInsideOneObject
+required_capability: nested_any_function
+
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.role == "admin" OR u.name == "dave")
+| KEEP host
+| SORT host
+;
+
+host:keyword
+web01
+web02
+web03
+web05
+;
+
+twoIndependentNestedFieldsAreNotExpanded
+required_capability: nested_any_function
+
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.role == "admin") AND host == "web01"
+| KEEP host
+;
+
+host:keyword
+web01
+;
+
+multivaluedSubfieldObjectIsNotMatched
+required_capability: nested_any_function
+
+// web06's only object (heidi) has a multivalued role [admin, root]; ES|QL single-value
+// semantics mean an equality on role does not match a multivalued object, so web06 is excluded.
+FROM nested_users
+| WHERE NESTED_ANY(users, u -> u.role == "admin") AND host == "web06"
+| KEEP host
+;
+
+host:keyword
+;

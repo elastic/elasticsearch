@@ -1032,6 +1032,12 @@ public class EsqlCapabilities {
         KQL_FUNCTION,
 
         /**
+         * NESTED_ANY function: filter documents by a predicate over their nested objects. Snapshot-only while
+         * under development (its lambda syntax is dev-gated).
+         */
+        NESTED_ANY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for optional parameters in KQL function (case_insensitive, time_zone, default_field, boost).
          */
         KQL_FUNCTION_OPTIONS,

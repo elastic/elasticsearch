@@ -107,6 +107,7 @@ public class CsvTestsDataLoader {
             .withDynamic("false"),
         new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
         new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
+        new TestDataset("nested_users", "mapping-nested_users.json", "nested_users.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -1281,6 +1282,14 @@ public class CsvTestsDataLoader {
                     content = content.substring(1, content.length() - 1);
                 }
                 yield "\"" + content.replace("\"", "\\\"") + "\"";
+            }
+            // A nested field holds an array of objects. The multi-value CSV tokenizer strips the
+            // outer [ ] from a bracketed cell (see multiValuesAwareCsvToStringArray), so re-wrap the
+            // objects into an array here; the escaped commas separating and within them are turned
+            // back into plain commas by the ESCAPED_COMMA_SEQUENCE pass in parseDocument.
+            case "nested" -> {
+                String content = value.strip();
+                yield content.startsWith("[") ? content : "[" + content + "]";
             }
             default -> {
                 boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));

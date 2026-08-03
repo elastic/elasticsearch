@@ -853,7 +853,6 @@ public class SharedBlobCacheWarmingService {
                                     }
                                 },
                                 l1.map(aVoid -> {
-
                                     Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
                                     for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
                                         assert blobSizes.containsKey(blobFile);

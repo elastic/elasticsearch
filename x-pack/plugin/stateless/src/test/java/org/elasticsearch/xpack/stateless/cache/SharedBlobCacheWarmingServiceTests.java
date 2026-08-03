@@ -1873,64 +1873,98 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
      * Verifies that {@link SharedBlobCacheWarmingService#BLOB_CACHE_WARMING_RATIO_METRIC} is recorded with the correct value and
      * BCC size bucket attribute after a successful {@code warmBlobOffsets} call. Uses asymmetric {@code endOffset} and {@code blobSize}
      * to detect argument swaps: if the two were swapped inside the metric-recording code the ratio would be 2.0, not 0.5.
+     * The blob container is backed by synthetic bytes so no real BCC blob needs to be created or uploaded.
      */
     public void testOfflineWarmingRecordsRatioMetric() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         try (
-            FakeStatelessNode fakeNode = createCacheCapturingFakeNode(
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
                 primaryTerm,
-                regionSizeInBytes,
-                new TimestampCapturingEvictionPolicy(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 recordingMeterRegistry
-            )
-        ) {
-            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
-            var vbcc = new VirtualBatchedCompoundCommit(
-                fakeNode.shardId,
-                "fake-node-id",
-                primaryTerm,
-                indexCommits.get(0).getGeneration(),
-                (v) -> null,
-                ESTestCase::randomNonNegativeLong,
-                fakeNode.sharedCacheService.getRegionSize(),
-                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
-            );
-            do {
-                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
-                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes) {
-                    break;
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(2))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .build();
                 }
-                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
-            } while (true);
-            vbcc.freeze();
 
-            final long totalSizeInBytes = vbcc.getTotalSizeInBytes();
-            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
-                fakeNode.getShardContainer()
-                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, totalSizeInBytes, true);
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    );
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    // Always use the object-store reader so warming proceeds through the blob container (not the indexing path).
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobFile blobFile,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor,
+                            String fileName
+                        ) {
+                            return new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
+                                cacheService.getRangeSize(),
+                                objectStoreFetchExecutor
+                            );
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    // Serve synthetic bytes for any ranged read so the warming succeeds without a real blob in the object store.
+                    return FakeStatelessNode.syntheticBytesContainer(innerContainer);
+                }
             }
-            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
-            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
-                fakeNode.searchDirectory,
-                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
-                fakeNode.clusterService.localNode().getId()
-            );
-
+        ) {
             var indexShard = mock(IndexShard.class);
             when(indexShard.store()).thenReturn(fakeNode.searchStore);
             when(indexShard.shardId()).thenReturn(fakeNode.shardId);
 
-            final var blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
-            // blobSizeForMetric is intentionally 2× the actual blob content so the expected ratio is 0.5.
-            // If endOffset and blobSize were swapped inside the recording code the ratio would be 2.0 and the assertion would fail.
-            final long blobSizeForMetric = totalSizeInBytes * 2;
+            // endOffset = 1 region, blobSizeForMetric = 2 regions → ratio = 0.5.
+            // If endOffset and blobSize were swapped in record() the ratio would be 2.0 and the assertion would fail.
+            final long endOffset = regionSizeInBytes;
+            final long blobSizeForMetric = regionSizeInBytes * 2;
+            final var blobFile = new BlobFile(
+                StatelessCompoundCommit.blobNameFromGeneration(1L),
+                new PrimaryTermAndGeneration(primaryTerm, 1L)
+            );
             PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, WarmTarget.withUnknownTimestamp(totalSizeInBytes, blobSizeForMetric)),
+                Map.of(blobFile, WarmTarget.withUnknownTimestamp(endOffset, blobSizeForMetric)),
                 warmListener
             );
             safeGet(warmListener);
@@ -1939,7 +1973,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_RATIO_METRIC);
             assertThat(measurements, hasSize(1));
             Measurement measurement = measurements.get(0);
-            assertThat(measurement.getDouble(), equalTo((double) totalSizeInBytes / blobSizeForMetric));
+            assertThat(measurement.getDouble(), equalTo(0.5));
             assertThat(
                 measurement.attributes(),
                 equalTo(Map.of(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(blobSizeForMetric)))

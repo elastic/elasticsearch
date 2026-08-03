@@ -96,15 +96,177 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
     public void testMemoryAccounting() {
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
         try (FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(100, breaker(esBreaker))) {
-            // a fresh histogram pays for its bucket indices in full, but for its counts only at the narrowest width
+            // The capacity is a ceiling, not an allocation: a fresh histogram has not paid for a single one of its 100 buckets, so it
+            // costs less than the bucket index array alone would at full capacity.
+            long fresh = histogram.ramBytesUsed();
             assertThat(
-                histogram.ramBytesUsed(),
-                greaterThan(RamEstimationUtil.estimateLongArray(100) + RamEstimationUtil.estimateByteArray(100))
+                "a fresh histogram must not have allocated for its capacity",
+                fresh,
+                lessThan(RamEstimationUtil.estimateLongArray(100))
             );
-            assertThat(histogram.ramBytesUsed(), lessThan(2 * RamEstimationUtil.estimateLongArray(100)));
-            assertThat(esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
+            assertThat(esBreaker.getUsed(), equalTo(fresh));
+
+            // Filling it to capacity grows it to what it used to cost eagerly: the indices in full, the counts at the narrowest width.
+            for (int i = 0; i < 100; i++) {
+                assertTrue(histogram.tryAddBucket(i, 1, true));
+                assertThat("the breaker must track every growth", esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
+            }
+            long full = histogram.ramBytesUsed();
+            assertThat("a histogram filled to capacity holds more than a fresh one", full, greaterThan(fresh));
+            assertThat(full, greaterThan(RamEstimationUtil.estimateLongArray(100) + RamEstimationUtil.estimateByteArray(100)));
+            assertThat(full, lessThan(2 * RamEstimationUtil.estimateLongArray(100)));
+            assertThat(esBreaker.getUsed(), equalTo(full));
         }
         assertThat(esBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The bucket arrays grow on demand, so what a histogram costs must follow how many buckets it was actually given rather than the
+     * capacity it was created with — which is the whole point of growing them.
+     */
+    public void testHistogramWithFewBucketsHoldsLessThanOneWithMany() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (
+            FixedCapacityExponentialHistogram few = FixedCapacityExponentialHistogram.create(1000, breaker(esBreaker));
+            FixedCapacityExponentialHistogram many = FixedCapacityExponentialHistogram.create(1000, breaker(esBreaker))
+        ) {
+            for (int i = 0; i < 5; i++) {
+                assertTrue(few.tryAddBucket(i, 1, true));
+            }
+            for (int i = 0; i < 900; i++) {
+                assertTrue(many.tryAddBucket(i, 1, true));
+            }
+
+            assertThat(few.ramBytesUsed(), lessThan(many.ramBytesUsed()));
+            assertThat("a sparsely populated histogram must not pay for its capacity", few.ramBytesUsed(), lessThan(1000L));
+            assertThat(esBreaker.getUsed(), equalTo(few.ramBytesUsed() + many.ramBytesUsed()));
+        }
+        assertThat("closing must give back exactly what was taken", esBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Growth must be invisible to consumers: a histogram which reached its buckets one at a time, growing repeatedly on the way, has to
+     * answer identically to one which was given the same buckets at its full size from the start.
+     */
+    public void testGrownHistogramIsIndistinguishableFromAPreSizedOne() {
+        int buckets = randomIntBetween(2, 200);
+        long[] indices = new long[buckets];
+        long[] counts = new long[buckets];
+        for (int i = 0; i < buckets; i++) {
+            indices[i] = i == 0 ? randomLongBetween(-1000, 0) : indices[i - 1] + randomLongBetween(1, 20);
+            counts[i] = randomLongBetween(1, 100);
+        }
+
+        // the second one is created at exactly the number of buckets it will receive, so it never grows
+        FixedCapacityExponentialHistogram grown = FixedCapacityExponentialHistogram.create(1000, breaker());
+        autoReleaseOnTestEnd(grown);
+        FixedCapacityExponentialHistogram preSized = FixedCapacityExponentialHistogram.create(buckets, breaker());
+        autoReleaseOnTestEnd(preSized);
+
+        for (FixedCapacityExponentialHistogram histogram : List.of(grown, preSized)) {
+            for (int i = 0; i < buckets; i++) {
+                assertTrue(histogram.tryAddBucket(indices[i], counts[i], true));
+            }
+            histogram.setSum(123.5);
+            histogram.setMin(0.5);
+            histogram.setMax(9000.0);
+        }
+
+        assertThat(grown.valueCount(), equalTo(preSized.valueCount()));
+        for (double quantile : new double[] { 0.0, 0.01, 0.25, 0.5, 0.75, 0.99, 1.0 }) {
+            assertThat(
+                "quantile " + quantile + " must not depend on how the buckets were grown",
+                ExponentialHistogramQuantile.getQuantile(grown, quantile),
+                equalTo(ExponentialHistogramQuantile.getQuantile(preSized, quantile))
+            );
+        }
+        assertTrue(ExponentialHistogram.equals(grown, preSized));
+    }
+
+    /**
+     * A growth the circuit breaker refuses must leave the histogram exactly as it was — still holding every bucket it had, still usable
+     * up to the size it had already reached, and accounted for to the byte.
+     */
+    public void testHistogramSurvivesARefusedGrowth() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        RefusingCircuitBreaker refusing = new RefusingCircuitBreaker(breaker(esBreaker));
+        FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(1000, refusing);
+        try {
+            // fill until a growth is refused, which must happen well before the capacity is reached
+            int added = 0;
+            refusing.refuseFrom(esBreaker.getUsed() + 512);
+            while (added < 1000) {
+                try {
+                    assertTrue(histogram.tryAddBucket(added, added + 1, true));
+                } catch (RefusedException expected) {
+                    break;
+                }
+                added++;
+            }
+            assertThat("the breaker should have refused a growth before the capacity was reached", added, lessThan(1000));
+            assertThat("some buckets must have been added before the refusal", added, greaterThan(0));
+
+            long afterRefusal = histogram.ramBytesUsed();
+            assertThat("a refused growth must not leave the breaker charged for it", esBreaker.getUsed(), equalTo(afterRefusal));
+
+            // the histogram is still perfectly usable, it just cannot grow any further
+            assertThat(histogram.positiveBuckets().bucketCount(), equalTo(added));
+            long expectedCount = 0;
+            for (int i = 0; i < added; i++) {
+                expectedCount += i + 1;
+            }
+            assertThat(histogram.positiveBuckets().valueCount(), equalTo(expectedCount));
+            BucketIterator it = histogram.positiveBuckets().iterator();
+            for (int i = 0; i < added; i++) {
+                assertThat(it.peekIndex(), equalTo((long) i));
+                assertThat(it.peekCount(), equalTo((long) i + 1));
+                it.advance();
+            }
+            assertFalse(it.hasNext());
+
+            // and once the breaker relents it can grow again
+            refusing.allowEverything();
+            assertTrue(histogram.tryAddBucket(added, 1, true));
+            assertThat(esBreaker.getUsed(), equalTo(histogram.ramBytesUsed()));
+        } finally {
+            histogram.close();
+        }
+        assertThat("closing must give back exactly what was taken", esBreaker.getUsed(), equalTo(0L));
+    }
+
+    private static class RefusedException extends RuntimeException {}
+
+    /**
+     * Refuses every allocation that would take the delegate above a given number of bytes, so that a growth can be made to fail at a
+     * chosen point. A real {@link CircuitBreaker} would do this too, but only at a limit large enough to make the test slow and its
+     * failure point dependent on the exact object layout.
+     */
+    private static class RefusingCircuitBreaker implements ExponentialHistogramCircuitBreaker {
+
+        private final ExponentialHistogramCircuitBreaker delegate;
+        private long used;
+        private long limit = Long.MAX_VALUE;
+
+        RefusingCircuitBreaker(ExponentialHistogramCircuitBreaker delegate) {
+            this.delegate = delegate;
+        }
+
+        void refuseFrom(long limit) {
+            this.limit = limit;
+        }
+
+        void allowEverything() {
+            this.limit = Long.MAX_VALUE;
+        }
+
+        @Override
+        public void adjustBreaker(long bytesAllocated) {
+            if (bytesAllocated > 0 && used + bytesAllocated > limit) {
+                throw new RefusedException();
+            }
+            used += bytesAllocated;
+            delegate.adjustBreaker(bytesAllocated);
+        }
     }
 
     /**

@@ -23,6 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.util.Arrays;
 import java.util.OptionalLong;
 
 /**
@@ -40,6 +41,14 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedCapacityExponentialHistogram.class) + ZeroBucket.SHALLOW_SIZE
         + 2 * Buckets.SHALLOW_SIZE;
 
+    /**
+     * The number of bucket slots a histogram allocates up front, whatever its capacity. Published measurements of production histograms
+     * put the number of buckets a real series populates in the tens, against capacities in the hundreds, so allocating for the capacity
+     * up front wastes the great majority of what it reserves. The arrays grow geometrically from here as slots are actually used, so a
+     * histogram that does populate its capacity pays only a handful of copies for the privilege.
+     */
+    private static final int INITIAL_BUCKET_SLOTS = 8;
+
     // These arrays represent both the positive and the negative buckets.
     // To avoid confusion, we refer to positions within the array as "slots" instead of indices in this file
     // When we use term "index", we mean the exponential histogram bucket index.
@@ -47,11 +56,17 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     // followed by all buckets for the positive range, also with their indices in ascending order.
     // This means we store all the negative buckets first, ordered by their boundaries in descending order (from 0 to -INF),
     // followed by all the positive buckets, ordered by their boundaries in ascending order (from 0 to +INF).
-    private final long[] bucketIndices;
+    // Only bucketCapacity slots are ever addressable; the array itself starts shorter and is grown on demand.
+    private long[] bucketIndices;
     // Counts, unlike indices, are stored in the narrowest integer width that fits them, see AdaptiveBucketCountArray.
     // Indices cannot get the same treatment: at high scales a bucket index for an everyday value already needs more than 32 bits,
     // so narrowing them would pay off only for histograms that have been downscaled a long way.
     private final AdaptiveBucketCountArray bucketCounts;
+
+    /**
+     * The maximum total number of positive and negative buckets this histogram can hold. A ceiling, not the size of the backing arrays.
+     */
+    private final int bucketCapacity;
 
     private int bucketScale;
 
@@ -87,13 +102,19 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
      */
     private FixedCapacityExponentialHistogram(int bucketCapacity, ExponentialHistogramCircuitBreaker circuitBreaker) {
         this.circuitBreaker = circuitBreaker;
-        bucketIndices = new long[bucketCapacity];
-        bucketCounts = new AdaptiveBucketCountArray(bucketCapacity, circuitBreaker);
+        this.bucketCapacity = bucketCapacity;
+        int initialSlots = initialSlots(bucketCapacity);
+        bucketIndices = new long[initialSlots];
+        bucketCounts = new AdaptiveBucketCountArray(initialSlots, bucketCapacity, circuitBreaker);
         reset();
     }
 
+    private static int initialSlots(int bucketCapacity) {
+        return Math.min(bucketCapacity, INITIAL_BUCKET_SLOTS);
+    }
+
     int getCapacity() {
-        return bucketIndices.length;
+        return bucketCapacity;
     }
 
     /**
@@ -108,6 +129,8 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         // A full reset means the previous contents are gone, so any width this histogram was promoted to for them can be given back.
         // resetBuckets() deliberately does not do this: it runs on every merge, and a histogram that is repeatedly used as a merge
         // target would otherwise re-promote immediately, paying for an allocation each time to no benefit.
+        // The number of slots is deliberately kept for the same reason: reset() itself runs on every fold of a generator's value
+        // buffer, so shrinking here would trade a bounded, one-off growth for an unbounded stream of reallocations.
         bucketCounts.demoteToMinimalWidth();
     }
 
@@ -352,11 +375,38 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     }
 
     /**
-     * @return the number of bytes a freshly created histogram of the given capacity occupies. A histogram whose counts have been
-     * promoted to a wider integer type occupies more than this; use {@link #ramBytesUsed()} for the current figure.
+     * @return the number of bytes a freshly created histogram of the given capacity occupies. Note that this is far less than what a
+     * histogram filled to its capacity occupies, because the bucket arrays are grown on demand rather than allocated at the capacity.
+     * A histogram which has grown, or whose counts have been promoted to a wider integer type, occupies more than this; use
+     * {@link #ramBytesUsed()} for the current figure.
      */
     static long estimateSize(int bucketCapacity) {
-        return BASE_SIZE + RamEstimationUtil.estimateLongArray(bucketCapacity) + AdaptiveBucketCountArray.estimateSize(bucketCapacity);
+        int initialSlots = initialSlots(bucketCapacity);
+        return BASE_SIZE + RamEstimationUtil.estimateLongArray(initialSlots) + AdaptiveBucketCountArray.estimateSize(initialSlots);
+    }
+
+    /**
+     * Makes at least {@code minSlots} bucket slots addressable, growing the bucket arrays geometrically and charging the circuit breaker
+     * for the difference before anything is allocated. If the breaker rejects the growth this throws, leaving this histogram exactly as
+     * it was and the breaker unchanged, so the caller can continue to use it at its previous size.
+     */
+    private void growBuckets(int minSlots) {
+        assert minSlots <= bucketCapacity : "cannot grow beyond the bucket capacity";
+        int newLength = Math.min(bucketCapacity, Math.max(minSlots, bucketIndices.length * 2));
+        // The counts are grown first and account for themselves, so that the counts array is never shorter than the indices array. If
+        // the breaker rejects this growth nothing has changed at all; if it rejects the one below, the counts are left longer than the
+        // indices, which is harmless — it is correctly accounted, no slot beyond the indices array is ever addressed, and the next
+        // attempt to grow finds the counts already long enough and simply retries the indices.
+        bucketCounts.ensureLength(newLength);
+        long delta = RamEstimationUtil.estimateLongArray(newLength) - RamEstimationUtil.estimateLongArray(bucketIndices.length);
+        // charge before allocating, so that a rejected growth leaves this histogram untouched
+        circuitBreaker.adjustBreaker(delta);
+        try {
+            bucketIndices = Arrays.copyOf(bucketIndices, newLength);
+        } catch (RuntimeException | Error e) {
+            circuitBreaker.adjustBreaker(-delta);
+            throw e;
+        }
     }
 
     @Override
@@ -399,8 +449,13 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
             int slot = startSlot() + numBuckets;
             assert numBuckets == 0 || bucketIndices[slot - 1] < index
                 : "Histogram buckets must be added with their indices in ascending order";
-            if (slot >= bucketCounts.length()) {
+            if (slot >= bucketCapacity) {
                 return false; // no more space
+            }
+            if (slot >= bucketIndices.length) {
+                // may throw if the circuit breaker rejects the growth; numBuckets is only advanced afterwards,
+                // so a rejected growth leaves this histogram exactly as it was
+                growBuckets(slot + 1);
             }
             bucketIndices[slot] = index;
             // may widen the counts and therefore throw if the circuit breaker trips; numBuckets is only advanced afterwards,

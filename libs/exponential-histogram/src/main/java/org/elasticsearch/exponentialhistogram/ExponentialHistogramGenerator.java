@@ -42,11 +42,21 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramGenerator.class);
 
+    /**
+     * The number of raw values buffered up front. Most series never see enough observations between two collections to fill a buffer
+     * sized for the bucket capacity, and one such buffer is held per live series, so the buffer starts here and is grown geometrically
+     * towards {@link #maxBucketCount} only as values actually arrive.
+     */
+    private static final int INITIAL_RAW_VALUE_SLOTS = 8;
+
     // Merging individual values into a histogram would be way too slow with our sparse, array-backed histogram representation.
     // Therefore, for a bucket capacity of c, we first buffer c raw values to be inserted.
     // We then turn those into an "exact" histogram, which in turn we merge with our actual result accumulator.
     // This yields an amortized runtime of O(log(c)).
-    private final double[] rawValueBuffer;
+    // The buffer is only folded into the accumulator once it holds maxBucketCount values, whatever its current length, so growing it
+    // does not change when folding happens or what the resulting histogram contains.
+    private double[] rawValueBuffer;
+    private final int maxBucketCount;
     private int valueCount;
 
     private final ExponentialHistogramMerger resultMerger;
@@ -80,7 +90,7 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         @Nullable ExponentialHistogramMerger.Factory factory,
         ExponentialHistogramCircuitBreaker circuitBreaker
     ) {
-        long size = estimateBaseSize(maxBucketCount);
+        long size = estimateBaseSize(initialRawValueSlots(maxBucketCount));
         circuitBreaker.adjustBreaker(size);
         try {
             return new ExponentialHistogramGenerator(maxBucketCount, factory, circuitBreaker);
@@ -96,7 +106,8 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         ExponentialHistogramCircuitBreaker circuitBreaker
     ) {
         this.circuitBreaker = circuitBreaker;
-        rawValueBuffer = new double[maxBucketCount];
+        this.maxBucketCount = maxBucketCount;
+        rawValueBuffer = new double[initialRawValueSlots(maxBucketCount)];
         valueCount = 0;
         FixedCapacityExponentialHistogram buffer = null;
         ExponentialHistogramMerger merger = null;
@@ -119,10 +130,31 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
     public void add(double value) {
         assert closed == false : "ExponentialHistogramGenerator has already been closed";
         if (valueCount == rawValueBuffer.length) {
-            mergeValuesToHistogram();
+            if (rawValueBuffer.length < maxBucketCount) {
+                growRawValueBuffer();
+            } else {
+                mergeValuesToHistogram();
+            }
         }
         rawValueBuffer[valueCount] = value;
         valueCount++;
+    }
+
+    /**
+     * Grows the raw value buffer geometrically towards {@link #maxBucketCount}, charging the circuit breaker for the difference before
+     * anything is allocated. If the breaker rejects the growth this throws, leaving the buffer and the breaker exactly as they were, so
+     * the generator remains usable at its previous size.
+     */
+    private void growRawValueBuffer() {
+        int newLength = Math.min(maxBucketCount, Math.max(1, rawValueBuffer.length * 2));
+        long delta = RamEstimationUtil.estimateDoubleArray(newLength) - RamEstimationUtil.estimateDoubleArray(rawValueBuffer.length);
+        circuitBreaker.adjustBreaker(delta);
+        try {
+            rawValueBuffer = Arrays.copyOf(rawValueBuffer, newLength);
+        } catch (RuntimeException | Error e) {
+            circuitBreaker.adjustBreaker(-delta);
+            throw e;
+        }
     }
 
     /**
@@ -203,8 +235,12 @@ public class ExponentialHistogramGenerator implements Accountable, Releasable {
         return new Aggregates(sum, min, max);
     }
 
-    private static long estimateBaseSize(int numBuckets) {
-        return SHALLOW_SIZE + RamEstimationUtil.estimateDoubleArray(numBuckets);
+    private static int initialRawValueSlots(int maxBucketCount) {
+        return Math.min(maxBucketCount, INITIAL_RAW_VALUE_SLOTS);
+    }
+
+    private static long estimateBaseSize(int rawValueSlots) {
+        return SHALLOW_SIZE + RamEstimationUtil.estimateDoubleArray(rawValueSlots);
     };
 
     @Override

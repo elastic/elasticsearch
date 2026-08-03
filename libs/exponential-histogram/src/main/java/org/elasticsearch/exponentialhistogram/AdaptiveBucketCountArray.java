@@ -23,21 +23,30 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.util.Arrays;
+
 /**
- * A fixed-length array of non-negative bucket counts which stores its elements in the narrowest integer width that still fits every
+ * A growable array of non-negative bucket counts which stores its elements in the narrowest integer width that still fits every
  * value it has been given.
  * <p>
- * Bucket count arrays are allocated eagerly at the full bucket capacity of a histogram, but the counts themselves are almost always
- * tiny: a histogram of latencies over one collection interval rarely has a single bucket observed more than a hundred times, and the
- * great majority of its buckets are empty. Sizing every slot for the worst case (a {@code long}) therefore costs eight bytes per bucket
- * to represent numbers that overwhelmingly fit in one. That waste is irrelevant for a single histogram but dominates when thousands of
- * live histogram series are held in memory at once and charged against a circuit breaker.
+ * The counts a histogram holds are almost always tiny: a histogram of latencies over one collection interval rarely has a single bucket
+ * observed more than a hundred times, and the great majority of its buckets are empty. Sizing every slot for the worst case (a
+ * {@code long}) therefore costs eight bytes per bucket to represent numbers that overwhelmingly fit in one. That waste is irrelevant
+ * for a single histogram but dominates when thousands of live histogram series are held in memory at once and charged against a circuit
+ * breaker.
  * <p>
  * So this array starts out as a {@code byte[]} and promotes itself in place — to {@code short[]}, then {@code int[]}, then
  * {@code long[]} — the first time a value is stored that the current width cannot hold. Promotion is one-way: a histogram that has
  * genuinely seen large counts keeps paying for them until it is {@link #demoteToMinimalWidth() reset}. Reads always return a
  * {@code long}, so callers cannot observe which width is currently in use. This mirrors {@code AdaptingIntegerArray} in the
  * OpenTelemetry Java SDK.
+ * <p>
+ * The same argument applies to the number of slots. A histogram's bucket capacity is a ceiling chosen so that no realistic distribution
+ * overflows it, not a prediction of how many buckets a series will actually populate, and measurements of production histograms put the
+ * typical figure at a small fraction of it. The array therefore starts short and is grown geometrically by
+ * {@link #ensureLength(int)} as slots are actually used, never beyond the ceiling it was created with. Growth, like width promotion, is
+ * one-way: the arrays are reused across merges and resets, and giving the slots back on every reset would make a histogram that is used
+ * repeatedly as a merge target pay for a fresh allocation each time to no benefit.
  * <p>
  * Instances are not thread-safe for writes, matching {@link FixedCapacityExponentialHistogram}.
  */
@@ -46,13 +55,21 @@ final class AdaptiveBucketCountArray {
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AdaptiveBucketCountArray.class);
 
     /**
-     * The circuit breaker to charge width promotions to. Owned by whoever created this array; this class only ever adjusts the breaker
-     * by the delta a promotion or demotion causes, never by the full size, so that the owner can keep accounting for the array as part
-     * of its own {@code ramBytesUsed()}.
+     * The circuit breaker to charge width promotions and growth to. Owned by whoever created this array; this class only ever adjusts
+     * the breaker by the delta a promotion, growth or demotion causes, never by the full size, so that the owner can keep accounting for
+     * the array as part of its own {@code ramBytesUsed()}.
      */
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
 
-    private final int length;
+    /**
+     * The number of slots currently allocated. Never exceeds {@link #maxLength} and only ever grows.
+     */
+    private int length;
+
+    /**
+     * The ceiling {@link #ensureLength(int)} will grow to, i.e. the bucket capacity of the owning histogram.
+     */
+    private final int maxLength;
 
     /**
      * The backing store, always exactly one of {@code byte[]}, {@code short[]}, {@code int[]} or {@code long[]}, all of {@link #length}
@@ -62,20 +79,28 @@ final class AdaptiveBucketCountArray {
     private Object counts;
 
     /**
-     * @return the number of bytes a freshly created array of the given length occupies, i.e. before any promotion has happened
+     * @return the number of bytes a freshly created array of the given initial length occupies, i.e. before any promotion or growth has
+     * happened
      */
-    static long estimateSize(int length) {
-        return SHALLOW_SIZE + RamEstimationUtil.estimateByteArray(length);
+    static long estimateSize(int initialLength) {
+        return SHALLOW_SIZE + RamEstimationUtil.estimateByteArray(initialLength);
     }
 
-    AdaptiveBucketCountArray(int length, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        this.length = length;
+    /**
+     * @param initialLength  the number of slots to allocate up front
+     * @param maxLength      the largest number of slots this array may ever grow to
+     */
+    AdaptiveBucketCountArray(int initialLength, int maxLength, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        assert initialLength <= maxLength : "the initial length must not exceed the maximum length";
+        this.length = initialLength;
+        this.maxLength = maxLength;
         this.circuitBreaker = circuitBreaker;
-        this.counts = new byte[length];
+        this.counts = new byte[initialLength];
     }
 
     private AdaptiveBucketCountArray(long[] values) {
         this.length = values.length;
+        this.maxLength = values.length;
         this.circuitBreaker = ExponentialHistogramCircuitBreaker.noop();
         this.counts = values;
     }
@@ -88,8 +113,32 @@ final class AdaptiveBucketCountArray {
         return new AdaptiveBucketCountArray(values);
     }
 
-    int length() {
-        return length;
+    /**
+     * Grows this array so that at least {@code minLength} slots are addressable, preserving the current contents and width. Growth is
+     * geometric so that filling a histogram slot by slot stays amortized constant time, and is clamped to the maximum length this array
+     * was created with.
+     * <p>
+     * If the circuit breaker rejects the growth, this throws and leaves both the array and the breaker exactly as they were before the
+     * call.
+     *
+     * @param minLength the number of slots that must be addressable afterwards, must not exceed the maximum length
+     */
+    void ensureLength(int minLength) {
+        assert minLength <= maxLength : "cannot grow beyond the maximum length";
+        if (minLength <= length) {
+            return;
+        }
+        int newLength = Math.min(maxLength, Math.max(minLength, length * 2));
+        long delta = storeSizeFor(counts, newLength) - storeSizeFor(counts, length);
+        // charge before allocating, so that a rejected growth leaves this array untouched
+        circuitBreaker.adjustBreaker(delta);
+        try {
+            counts = copyOf(counts, newLength);
+        } catch (RuntimeException | Error e) {
+            circuitBreaker.adjustBreaker(-delta);
+            throw e;
+        }
+        length = newLength;
     }
 
     long get(int slot) {
@@ -148,21 +197,21 @@ final class AdaptiveBucketCountArray {
         if (counts instanceof byte[]) {
             return;
         }
-        long delta = RamEstimationUtil.estimateByteArray(length) - storeSize(counts);
+        long delta = RamEstimationUtil.estimateByteArray(length) - storeSizeFor(counts, length);
         counts = new byte[length];
         // never positive, so this cannot throw
         circuitBreaker.adjustBreaker(delta);
     }
 
     long ramBytesUsed() {
-        return SHALLOW_SIZE + storeSize(counts);
+        return SHALLOW_SIZE + storeSizeFor(counts, length);
     }
 
     /**
      * Replaces the backing store with the narrowest one that can hold the given value, preserving the current contents.
      */
     private void widenFor(long value) {
-        long currentSize = storeSize(counts);
+        long currentSize = storeSizeFor(counts, length);
         long widenedSize;
         if (value <= Short.MAX_VALUE) {
             widenedSize = RamEstimationUtil.estimateShortArray(length);
@@ -201,15 +250,30 @@ final class AdaptiveBucketCountArray {
         }
     }
 
-    private static long storeSize(Object store) {
+    private static Object copyOf(Object store, int newLength) {
         if (store instanceof byte[] bytes) {
-            return RamEstimationUtil.estimateByteArray(bytes.length);
+            return Arrays.copyOf(bytes, newLength);
         } else if (store instanceof short[] shorts) {
-            return RamEstimationUtil.estimateShortArray(shorts.length);
+            return Arrays.copyOf(shorts, newLength);
         } else if (store instanceof int[] ints) {
-            return RamEstimationUtil.estimateIntArray(ints.length);
+            return Arrays.copyOf(ints, newLength);
         } else {
-            return RamEstimationUtil.estimateLongArray(((long[]) store).length);
+            return Arrays.copyOf((long[]) store, newLength);
+        }
+    }
+
+    /**
+     * @return the number of bytes a store of the same width as the given one, but with the given length, would occupy
+     */
+    private static long storeSizeFor(Object store, int length) {
+        if (store instanceof byte[]) {
+            return RamEstimationUtil.estimateByteArray(length);
+        } else if (store instanceof short[]) {
+            return RamEstimationUtil.estimateShortArray(length);
+        } else if (store instanceof int[]) {
+            return RamEstimationUtil.estimateIntArray(length);
+        } else {
+            return RamEstimationUtil.estimateLongArray(length);
         }
     }
 }

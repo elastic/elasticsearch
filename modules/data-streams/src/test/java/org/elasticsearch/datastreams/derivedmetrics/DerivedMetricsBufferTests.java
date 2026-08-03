@@ -357,7 +357,11 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         logger.info("bytes per series: scalar [{}], histogram [{}]", scalar, histogram);
 
         assertThat("a scalar series is a handful of primitives in shared arrays", scalar, lessThan(200L));
-        assertThat("a histogram series keeps a whole distribution", histogram, greaterThan(1000L));
+        // Expressed against the scalar cost rather than as an absolute, because the absolute moves whenever the histogram storage gets
+        // cheaper — it has twice already — while the thing worth guarding is that a distribution is in a different class of cost from a
+        // handful of primitives. These series see one observation each, so they never grow their buckets towards capacity; the busy case
+        // is measured separately by testABusyHistogramSeriesCostsMoreThanAnIdleOne.
+        assertThat("a histogram series keeps a whole distribution", histogram, greaterThan(scalar * 5));
         assertThat("but it must still be bounded by its bucket count", histogram, lessThan(20_000L));
     }
 

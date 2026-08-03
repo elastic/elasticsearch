@@ -71,7 +71,7 @@ public final class GlobExpander {
 
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
-     * (DictionaryFileList or HiveFileList). This is the primary entry point for the resolver.
+     * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
      */
     public static FileList expandAndCompact(
         String path,

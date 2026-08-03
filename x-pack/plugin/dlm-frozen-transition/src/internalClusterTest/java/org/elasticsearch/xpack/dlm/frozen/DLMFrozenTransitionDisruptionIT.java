@@ -773,18 +773,21 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 ActionListener listener,
                 BiConsumer<ActionRequest, ActionListener> proceed
             ) {
-                if (latch.getCount() > 0) {
+                if (disruptionDone.compareAndSet(false, true)) {
                     logger.info("--> intercepted [{}], running disruption action now", actionName);
-                    latch.countDown();
-                    if (disruptionDone.compareAndSet(false, true)) {
-                        if (async) {
-                            Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
-                            disruptionThreadsToJoin.add(t);
-                            t.start();
-                        } else {
-                            disruptionAction.run();
-                        }
+                    if (async) {
+                        Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
+                        disruptionThreadsToJoin.add(t);
+                        t.start();
+                    } else {
+                        disruptionAction.run();
                     }
+                    // Count down only after the disruption thread is started (or the sync action
+                    // completed): waitForStableCluster joins threads in disruptionThreadsToJoin
+                    // after awaiting this latch. Thread.join on a not-yet-started thread returns
+                    // immediately, so counting down before t.start() would let the test race ahead
+                    // while the master node is still being stopped.
+                    latch.countDown();
                 }
                 proceed.accept(request, listener);
             }

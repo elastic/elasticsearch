@@ -666,6 +666,40 @@ count:long
 200
 ;
 
+compactedViewWithAliasGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_alias_deduplication_bugfix
+
+// FROM alias, view where the view expands to the same index as the alias should give two copies.
+// employees_alias is an index alias pointing to employees; employees_all is a view defined as "FROM employees".
+// The result must contain 200 rows (two independent copies of the 100-row employees index),
+// not 100 rows (which would indicate the alias and view were incorrectly merged and deduplicated).
+FROM employees_alias, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+compactedViewWithAliasInBodyGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_alias_deduplication_bugfix
+
+// FROM index, view where the view body references an alias pointing to that index should give two copies.
+// employees_via_alias is a view defined as "FROM employees_alias"; employees_alias is an index alias pointing to employees.
+// The result must contain 200 rows (two independent copies of the 100-row employees index),
+// not 100 rows (which would indicate the alias inside the view body was incorrectly merged with the direct index reference).
+FROM employees, employees_via_alias
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
 wildcardExcludeEmployeeViewsNoFalseCircularReference
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
@@ -706,6 +740,47 @@ warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired 
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+at_least_one:boolean
+true
+;
+
+concreteViewIncludeAndConcreteExcludeAlongsideIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_explicit_include_exclude_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/147863
+// FROM airports, employees_rehired, -employees_rehired should return only airports data.
+// Before the fix, stripValidConcreteViewExclusions removed -employees_rehired but left the
+// literal view name employees_rehired in the pattern. That literal then leaked into
+// EsRelation#originalIndices and caused IndexNotFoundException at search-shards time because
+// the strict search-shards options (resolveViews=false, ignoreUnavailable=false) cannot
+// resolve a view name as a concrete index.
+FROM airports, employees_rehired, -employees_rehired
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
+
+at_least_one:boolean
+true
+;
+
+concreteViewIncludeAndWildcardExcludeAlongsideIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_explicit_include_exclude_fix
+
+// Reproduces https://github.com/elastic/elasticsearch/issues/147863 (wildcard-exclusion variant).
+// FROM airports, employees_rehired, -employees_* should return only airports data.
+// The wildcard -employees_* matched and excluded the view employees_rehired, but before the fix
+// the positive view-name literal stayed in the pattern and caused the same IndexNotFoundException.
+FROM airports, employees_rehired, -employees_*
+| STATS total = COUNT(*)
+| EVAL at_least_one = total > 0
+| KEEP at_least_one
+;
 
 at_least_one:boolean
 true

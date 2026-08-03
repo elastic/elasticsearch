@@ -282,7 +282,13 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
         assertEquals(1, splits.size());
-        assertEquals(config, ((FileSplit) splits.get(0)).config());
+        Map<String, Object> splitConfig = ((FileSplit) splits.get(0)).config();
+        // Every caller-supplied entry reaches the split untouched. The split config is a superset, not a
+        // copy: the provider also stamps this split's position in its file (here, a whole-file split, so
+        // both first and last), which readers need for the record-boundary protocol.
+        assertEquals("https://s3.example.com", splitConfig.get("endpoint"));
+        assertEquals("true", splitConfig.get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("true", splitConfig.get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
     public void testSingleSplitProvider() {
@@ -671,8 +677,12 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplit whole = (FileSplit) splits.get(0);
         assertEquals(0, whole.offset());
         assertEquals(fileSize, whole.length());
-        assertNull(whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        // A whole-file split states its position explicitly: it is both the first and the last split of
+        // the file. Readers run the split-boundary protocol off these flags — a non-last split drops its
+        // trailing partial record because the next split re-reads those bytes — so leaving them unstamped
+        // made a whole-file read discard a final record that no other split would ever read.
+        assertEquals("true", whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("true", whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
     public void testNewlineMacroSplitCandidateExtensionsIncludeCsvAndTsv() {
@@ -2377,6 +2387,122 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThan(SRC, intLiteral(2024), fieldAttr("year")), values));
         // 2024 < year -> 2024 < 2020 -> FALSE (the file cannot match, and may be pruned)
         assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new LessThan(SRC, intLiteral(2024), fieldAttr("year")), values));
+    }
+
+    /**
+     * A compressed file whose codec finds no block boundaries falls back to one whole-file split, and that
+     * split still states its position.
+     * <p>
+     * Pinned at the producer rather than through the position helpers: a whole-file split with no keys is
+     * currently rescued by the compatibility path for splits from older coordinators, so an unstamped
+     * producer looks correct until that path is deleted — at which point the file's final record would go
+     * missing again with every other test still green.
+     */
+    public void testCompressedFallbackWithNoBoundariesStampsPosition() {
+        assertWholeFileSplitStamped(splitsFromCompressedFallback());
+    }
+
+    private static List<ExternalSplit> splitsFromCompressedFallback() {
+        // A codec that reports no block boundaries at all sends the provider down its whole-file fallback.
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(new FakeSplittableCodec(new long[0]));
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            new FormatReaderRegistry(codecRegistry),
+            Settings.EMPTY
+        );
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/noboundaries.ndjson.bz2"), 1_000_000L, Instant.EPOCH);
+        return splitter.discoverSplits(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            )
+        ).splits();
+    }
+
+    private static void assertWholeFileSplitStamped(List<ExternalSplit> splits) {
+        assertEquals("the fallback emits exactly one whole-file split", 1, splits.size());
+        FileSplit whole = (FileSplit) splits.get(0);
+        assertEquals(0, whole.offset());
+        assertEquals("true", whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertEquals("true", whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
+
+    /**
+     * Every shape of split this class can produce, with the position it must report.
+     * <p>
+     * Split position used to be re-derived at each consumer under differing rules, so a whole-file read
+     * answered "first" in one place and "not last" in another — and readers discarded its final record.
+     * This table is the single statement of the contract. <b>A new split shape must add a row here.</b>
+     */
+    public void testSplitPositionAcrossEveryProducibleShape() {
+        StoragePath p = StoragePath.of("s3://b/f.ndjson");
+
+        // Whole file: owns both ends.
+        assertPosition("stamped whole-file", split(p, 0, 100, Map.of("_first_split", "true", "_last_split", "true")), true, true);
+
+        // Newline-aligned macro-splits: the edges are stamped, the middle is stamped as neither.
+        Map<String, Object> ram = Map.of("_record_aligned_macro_split", "true");
+        assertPosition("newline macro first", split(p, 0, 40, withKeys(ram, "_first_split")), true, false);
+        assertPosition("newline macro middle", split(p, 40, 40, ram), false, false);
+        assertPosition("newline macro last", split(p, 80, 20, withKeys(ram, "_last_split")), false, true);
+
+        // Compressed block-aligned macro-splits. The first starts at offset 0, so an offset-based rule
+        // would call it whole-file; its protocol key is what rules it out.
+        Map<String, Object> cos = Map.of("_compressed_offset_split", "true");
+        assertPosition("compressed macro first", split(p, 0, 40, withKeys(cos, "_first_split")), true, false);
+        assertPosition("compressed macro middle", split(p, 40, 40, cos), false, false);
+        assertPosition("compressed macro last", split(p, 80, 20, withKeys(cos, "_last_split")), false, true);
+
+        // Range splits carry no position keys by design — byte ranges are not a record-boundary protocol.
+        Map<String, Object> range = Map.of("_range_split", "true");
+        assertPosition("range split at offset 0", split(p, 0, 40, range), true, false);
+        assertPosition("range split mid-file", split(p, 40, 40, range), false, false);
+
+        // A split from a coordinator that predates position stamping: recognised by the BWC belt.
+        assertPosition("legacy unstamped whole-file", split(p, 0, 100, Map.of()), true, true);
+    }
+
+    /** The belt must recognise only genuine whole-file splits — anything covering part of a file is excluded. */
+    public void testLegacyBeltExcludesEveryPartialFileShape() {
+        StoragePath p = StoragePath.of("s3://b/f.ndjson");
+        assertFalse("mid-file offset is never whole-file", FileSplitProvider.isLastInFile(split(p, 500, 40, Map.of())));
+        assertFalse(
+            "record-aligned macro at offset 0 is not whole-file",
+            FileSplitProvider.isLastInFile(split(p, 0, 40, Map.of("_record_aligned_macro_split", "true")))
+        );
+        assertFalse(
+            "compressed macro at offset 0 is not whole-file",
+            FileSplitProvider.isLastInFile(split(p, 0, 40, Map.of("_compressed_offset_split", "true")))
+        );
+        assertFalse(
+            "range split at offset 0 is not whole-file",
+            FileSplitProvider.isLastInFile(split(p, 0, 40, Map.of("_range_split", "true")))
+        );
+        // An explicit stamp always wins over the belt's inference.
+        assertTrue(FileSplitProvider.isLastInFile(split(p, 500, 40, Map.of("_last_split", "true"))));
+    }
+
+    private static void assertPosition(String shape, FileSplit split, boolean first, boolean last) {
+        assertEquals(shape + ": isFirstInFile", first, FileSplitProvider.isFirstInFile(split));
+        assertEquals(shape + ": isLastInFile", last, FileSplitProvider.isLastInFile(split));
+    }
+
+    private static FileSplit split(StoragePath path, long offset, long length, Map<String, Object> config) {
+        return new FileSplit("file", path, offset, length, ".ndjson", config, Map.of());
+    }
+
+    private static Map<String, Object> withKeys(Map<String, Object> base, String... extra) {
+        Map<String, Object> out = new HashMap<>(base);
+        for (String k : extra) {
+            out.put(k, "true");
+        }
+        return out;
     }
 
     // -- helpers --

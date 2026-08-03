@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -253,10 +252,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             .map(s -> (UpdateSettingsStep) s)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no UpdateSettingsStep found in steps returned by AllocateAction#toSteps"));
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0))
-            .build();
-        return updateSettingsStep.getSettingsSupplier().apply(indexMetadata);
+        return updateSettingsStep.getSettings();
     }
 
 }

@@ -1,6 +1,6 @@
 area: ILM
 breaking:
-  area: ILM
+  area: Index setting
   details: >-
     When `number_of_replicas` is specified in the ILM `allocate` action, the
     `auto_expand_replicas` setting is now explicitly removed from the index.

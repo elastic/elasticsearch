@@ -297,7 +297,8 @@ The following settings apply to all file-based data sources:
 | `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
-| `schema_sample_size` | `20000` | Rows sampled to infer column types. |
+% | `schema_sample_size` | `20000` | Rows sampled to infer column types. |
+% Hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |
 | `trim_spaces` | `false` | Whether to remove surrounding ASCII whitespace from string field values. |
 | `multi_value_syntax` | `none` | Whether bracketed multi-values are recognized. Valid values: `"none"`, `"brackets"`. |
@@ -309,7 +310,8 @@ The following settings apply to all file-based data sources:
 
 | Setting | Default | Description |
 |---|---|---|
-| `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+% | `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
+% Hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
 
 **Advanced:**
 

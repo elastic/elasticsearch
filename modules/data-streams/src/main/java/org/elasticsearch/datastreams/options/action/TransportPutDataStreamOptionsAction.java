@@ -17,15 +17,20 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodePr
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamDerivedMetrics;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsDestination;
+import org.elasticsearch.datastreams.derivedmetrics.DerivedMetricsMappingValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -85,6 +90,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
         for (String name : dataStreamNames) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
             validateDerivedMetricsDestinations(name, request.getOptions());
+            DerivedMetricsMappingValidator.validate(name, request.getOptions().derivedMetrics(), writeIndexMapping(state, name));
         }
         metadataDataStreamsService.setDataStreamOptions(
             state.projectId(),
@@ -110,6 +116,22 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
         for (TimeValue interval : derivedMetrics.activeIntervals()) {
             DerivedMetricsDestination.validateDestinationName(dataStreamName, interval.getStringRep());
         }
+    }
+
+    /**
+     * The mapping of the stream's write index, or null when there is nothing to look at yet.
+     *
+     * <p>A stream configured before it has an index, or before the field a metric names has ever been written, cannot be checked — which
+     * is the ordinary case and not an error. See {@link DerivedMetricsMappingValidator}.
+     */
+    @Nullable
+    private static MappingMetadata writeIndexMapping(ProjectState state, String dataStreamName) {
+        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            return null;
+        }
+        IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
+        return writeIndex == null ? null : writeIndex.mapping();
     }
 
     @Override

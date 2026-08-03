@@ -792,6 +792,12 @@ managed template.
 
 The destination is hidden rather than dot-prefixed, so it stays out of ordinary wildcard expressions while remaining directly queryable.
 
+Configuring metrics against a stream also checks them against that stream's write index mapping, on one rule: **reject a type conflict,
+trust an absence.** A metric value pointing at a keyword, a `range` predicate on a field with no ordering, or a dimension pointing at an
+object are all rejected, because no future document can make any of them work and the metric would otherwise emit nothing for as long as
+it stayed configured, silently. A field the mapping has never heard of is accepted, because that is precisely what configuring a metric
+before its data looks like — an absence is a promise of data, and dynamic mapping means most fields arrive that way.
+
 Because the name is a concatenation rather than a hash, a long source stream produces a destination whose backing indices would exceed the
 255-byte index name limit. `derived-metrics-`, the interval suffix and the `.ds-<date>-<generation>` a backing index adds leave roughly 213
 bytes for the source name at a 10s interval, and fewer at a longer one. Enabling derived metrics on a stream that does not fit is rejected

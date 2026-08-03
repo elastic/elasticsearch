@@ -592,3 +592,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
   method: testIncludeEmptyBuckets_timeSeriesAndDimension
   issue: https://github.com/elastic/elasticsearch/issues/155779
+- class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
+  method: testScoreMIP
+  issue: https://github.com/elastic/elasticsearch/issues/155783

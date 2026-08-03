@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
+import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -52,6 +53,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.PackDimsOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -64,6 +66,7 @@ import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
+import org.elasticsearch.compute.operator.UnpackDimsOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -124,6 +127,7 @@ import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFacto
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
@@ -144,6 +148,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -172,6 +177,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -181,8 +187,10 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
@@ -193,6 +201,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -206,11 +215,13 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -367,6 +378,12 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof ReadDimsExec readDimsExec) {
+            return planReadDimsNode(readDimsExec, context);
+        } else if (node instanceof PackDimsExec packDims) {
+            return planPackDims(packDims, context);
+        } else if (node instanceof UnpackDimsExec unpackDims) {
+            return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
@@ -385,6 +402,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof InsertEmptyBucketsExec insertEmptyBuckets) {
+            return planInsertEmptyBuckets(insertEmptyBuckets, context);
         } else if (node instanceof LimitByExec limitBy) {
             return planLimitBy(limitBy, context);
         } else if (node instanceof LimitExec limit) {
@@ -605,7 +624,7 @@ public class LocalExecutionPlanner {
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
         var queryFunction = switch (stat) {
-            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplierForField(basic.filter(statsQuery.query()), basic.name());
             case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
         };
         final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
@@ -619,6 +638,34 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
+    }
+
+    private PhysicalOperation planReadDimsNode(ReadDimsExec readDimsExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.readDimsPhysicalOperation(readDimsExec, plan(readDimsExec.child(), context), context);
+    }
+
+    private PhysicalOperation planPackDims(PackDimsExec packDimsExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(packDimsExec.child(), context);
+        int[] channels = new int[packDimsExec.dims().size()];
+        for (int i = 0; i < channels.length; i++) {
+            channels[i] = source.layout.get(packDimsExec.dims().get(i).id()).channel();
+        }
+        Layout layout = source.layout.builder().append(packDimsExec.packed()).build();
+        return source.with(new PackDimsOperator.Factory(channels), layout);
+    }
+
+    private PhysicalOperation planUnpackDims(UnpackDimsExec unpackDimsExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(unpackDimsExec.child(), context);
+        List<Attribute> dims = unpackDimsExec.dims();
+        ElementType[] types = new ElementType[dims.size()];
+        Layout.Builder layout = source.layout.builder();
+        for (int i = 0; i < dims.size(); i++) {
+            Attribute attr = dims.get(i);
+            layout.append(attr);
+            types[i] = PlannerUtils.toElementType(attr.dataType());
+        }
+        var packedChannel = source.layout.get(unpackDimsExec.packed().id()).channel();
+        return source.with(new UnpackDimsOperator.Factory(packedChannel, types), layout.build());
     }
 
     /**
@@ -798,7 +845,7 @@ public class LocalExecutionPlanner {
         }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+        if (parallelWorkerExecutor != null) {
             int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
             parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
                 parallelWorkerExecutor,
@@ -1622,7 +1669,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
 
         // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -1729,7 +1776,7 @@ public class LocalExecutionPlanner {
 
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -1850,6 +1897,17 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+        // Federation gate, operator-build backstop. This is where an external source becomes a running operator, so
+        // enforcing here refuses any already-rewritten ExternalSourceExec that reaches a node without federation
+        // regardless of who planned the query: an enabled coordinator, a remote cluster in CCS/CPS, or an enabled
+        // coordinator during a rolling restart that has not yet reached this node. An external request arriving at a
+        // data node is already refused earlier, in DataNodeComputeHandler.handleExternalSourceRequest, which also
+        // covers the plans this backstop cannot see because local planning folded the source away. The coordinator
+        // FROM <dataset> path is closed earlier by the DatasetResolver gate; the snapshot-only inline EXTERNAL command
+        // bypasses that gate and is stopped only here, after its planning-time source resolution and split discovery
+        // have run.
+        Federation.ensureEnabled(settings);
+
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 
@@ -2034,6 +2092,71 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(insertEmptyBuckets.child(), context);
+
+        SequencedMap<Integer, InsertEmptyBucketsOperator.BucketCursorFactory> bucketChannels = new LinkedHashMap<>();
+        insertEmptyBuckets.buckets().forEach((attribute, bucket) -> {
+            Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+            if (channelAndType != null) {
+                bucketChannels.put(channelAndType.channel(), bucketCursorFactory(bucket, context.foldCtx));
+            }
+        });
+
+        List<Integer> groupChannels = insertEmptyBuckets.groups()
+            .stream()
+            .map(group -> getAttributeChannel(group, source.layout(), "InsertEmptyBuckets group must be an attribute"))
+            .toList();
+
+        // One entry per value channel (= every input channel that is neither a bucket nor a group).
+        Map<Integer, InsertEmptyBucketsOperator.DefaultValue> defaultValues = new HashMap<>();
+        if (insertEmptyBuckets.defaultValues() != null) {
+            insertEmptyBuckets.defaultValues().forEach((attribute, defaultValue) -> {
+                Layout.ChannelAndType channelAndType = source.layout().get(attribute.id());
+                if (channelAndType != null) {
+                    defaultValues.put(channelAndType.channel(), defaultValue);
+                }
+            });
+        }
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < source.layout.numberOfChannels(); channel++) {
+            if (bucketChannels.containsKey(channel) || groupChannels.contains(channel) || defaultValues.containsKey(channel)) {
+                continue;
+            }
+            defaultValues.put(
+                channel,
+                new InsertEmptyBucketsOperator.DefaultValue(PlannerUtils.toElementType(inverse.get(channel).type()), null)
+            );
+        }
+
+        return source.with(
+            new InsertEmptyBucketsOperator.Factory(
+                bucketChannels,
+                groupChannels,
+                defaultValues,
+                context.pageSize(insertEmptyBuckets, insertEmptyBuckets.estimatedRowSize())
+            ),
+            source.layout
+        );
+    }
+
+    private static InsertEmptyBucketsOperator.BucketCursorFactory bucketCursorFactory(Bucket bucket, FoldContext foldCtx) {
+        return switch (bucket.dataType()) {
+            case DATETIME, DATE_NANOS -> new InsertEmptyBucketsOperator.DateCursorFactory(
+                bucket.getDateRoundingOrNull(foldCtx),
+                bucket.rangeFromMillis(foldCtx),
+                bucket.rangeToMillis(foldCtx),
+                bucket.dataType() == DataType.DATE_NANOS
+            );
+            case DOUBLE -> new InsertEmptyBucketsOperator.NumericCursorFactory(
+                bucket.getNumberRoundTo(foldCtx),
+                ((Number) Foldables.valueOf(foldCtx, bucket.from())).doubleValue(),
+                ((Number) Foldables.valueOf(foldCtx, bucket.to())).doubleValue()
+            );
+            default -> throw new EsqlIllegalArgumentException("unexpected data type [{}]", bucket.dataType());
+        };
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

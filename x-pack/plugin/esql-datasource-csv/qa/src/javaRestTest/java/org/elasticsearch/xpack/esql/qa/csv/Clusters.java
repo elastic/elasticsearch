@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -51,6 +52,10 @@ public class Clusters {
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            // Every suite here queries external data, so the federation gate is pinned rather than left to the build
+            // default. This default is a supplier rather than a plain value so that a per-node override added later
+            // still wins: explicit settings beat suppliers.
+            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
@@ -111,6 +116,21 @@ public class Clusters {
     public static ElasticsearchCluster multiNodeTestCluster(Supplier<String> s3EndpointSupplier) {
         return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
             .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
+            .build();
+    }
+
+    /**
+     * A split-role two-node cluster (coordinator-only node 0, master+data node 1) that boots the data node with
+     * federation turned off while the coordinator keeps it on. This reproduces the rolling-restart window the data-node
+     * backstop in {@code LocalExecutionPlanner.planExternalSource} guards: the enabled coordinator resolves
+     * {@code FROM <dataset>} into an external scan and dispatches it to the data node, which must refuse it at operator
+     * build rather than reading external storage. Federation is read once at boot, so the override is supplied per node
+     * rather than toggled at runtime.
+     */
+    public static ElasticsearchCluster multiNodeCoordinatorEnabledDataNodeDisabledCluster(Supplier<String> s3EndpointSupplier) {
+        return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
+            .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
+            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()))
             .build();
     }
 }

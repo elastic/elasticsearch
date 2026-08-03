@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
@@ -21,6 +22,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -44,7 +46,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -94,7 +98,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 shardContexts,
                 queryFunction,
                 dataPartitioning,
-                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : (ctx, q) -> {
                     throw new UnsupportedOperationException("locked in " + dataPartitioning);
                 },
                 docThresholdForAutoStrategy,
@@ -145,10 +149,26 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Pick a strategy for the {@link DataPartitioning#AUTO} partitioning.
+         * The {@link DataPartitioning.AutoStrategy#DEFAULT default} strategy, without a cost threshold: a no-limit scan
+         * parallelizes with {@link PartitioningStrategy#DOC} unless costly, a limited scan keeps the low-overhead
+         * {@link PartitioningStrategy#SHARD}. The production non-time-series source uses {@link #autoStrategy(long)}
+         * instead, which also folds cheap no-limit scans onto {@link PartitioningStrategy#SEGMENT}.
          */
-        public static Function<Query, PartitioningStrategy> autoStrategy(int limit) {
+        public static BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy(int limit) {
             return limit == NO_LIMIT ? Factory::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
+        }
+
+        /**
+         * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
+         * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. A query with a {@code limit} early-terminates
+         * after matching {@code N} docs — whether DOC pays off then depends on match density, which the cost can't see —
+         * so that case is deferred and keeps the low-overhead {@link PartitioningStrategy#SHARD}.
+         */
+        public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
+            return limit -> limit == NO_LIMIT
+                ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
+                : Factory::lowOverheadAutoStrategy;
         }
 
         /**
@@ -159,27 +179,17 @@ public class LuceneSourceOperator extends LuceneOperator {
          * to Lucene. In those cases we're better off with the lowest overhead we can
          * manage - and that's {@link PartitioningStrategy#SHARD}.
          */
-        private static PartitioningStrategy lowOverheadAutoStrategy(Query query) {
+        private static PartitioningStrategy lowOverheadAutoStrategy(ShardContext ctx, Query query) {
             return SHARD;
         }
 
         /**
-         * Select the {@link PartitioningStrategy} based on the (already rewritten) {@link Query}.
-         * <ul>
-         *     <li>{@link MatchNoDocsQuery} at the root → {@link PartitioningStrategy#SHARD} (minimal overhead for an empty result).</li>
-         *     <li>{@link MatchAllDocsQuery} at the root → {@link PartitioningStrategy#DOC} (cheap scorer, maximize CPU usage).</li>
-         *     <li>
-         *         Otherwise walk the full query tree (including compound clauses such as
-         *         {@code BooleanQuery}, {@code IndexOrDocValuesQuery}, and {@code MUST_NOT} branches)
-         *         via a {@link QueryVisitor}. If any sub-query is costly to build a scorer for
-         *         (point ranges, multi-term wrappers — see {@link #isCostlyToBuildScorer}), pick
-         *         {@link PartitioningStrategy#SEGMENT}; else {@link PartitioningStrategy#DOC}.
-         *     </li>
-         * </ul>
+         * The no-limit branch of {@link #autoStrategy(int)}: parallelize the full scan with {@link PartitioningStrategy#DOC}
+         * unless a clause is costly to build ({@link PartitioningStrategy#SEGMENT}); {@link MatchAllDocsQuery} → DOC,
+         * {@link MatchNoDocsQuery} → SHARD. Unlike {@link #autoPartitioning} this applies no cost threshold.
          */
-        private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+        private static PartitioningStrategy highSpeedAutoStrategy(ShardContext ctx, Query query) {
             Query unwrapped = unwrapQuery(query);
-            log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
             if (unwrapped instanceof MatchAllDocsQuery) {
                 return DOC;
             }
@@ -187,6 +197,69 @@ public class LuceneSourceOperator extends LuceneOperator {
                 return SHARD;
             }
             return containsCostlyClause(query) ? SEGMENT : DOC;
+        }
+
+        /**
+         * Shared {@link DataPartitioning#AUTO} decision for the "cheap scorer, parallelize the scan" operators that visit
+         * every matching doc: the no-limit unsorted source ({@code STATS}), the count ({@link LuceneCountOperator}) and
+         * the field-sorted TopN ({@link LuceneTopNSourceOperator}). They all protect against the same two things:
+         * <ul>
+         *     <li>a costly-to-build clause (point range, multi-term) whose full-segment scorer a sub-segment DOC slice
+         *         would rebuild → {@link PartitioningStrategy#SEGMENT};</li>
+         *     <li>a query too cheap ({@code cost < minCostForDoc}) to amortize DOC's per-slice overhead → {@code cheap}.</li>
+         * </ul>
+         * Otherwise the scan is heavy enough to parallelize → {@link PartitioningStrategy#DOC}. The source's implicit-limit
+         * case is <em>not</em> routed here: it early-terminates after {@code N} matches, so the cost isn't the right signal.
+         *
+         * @param matchAll outcome for a root {@link MatchAllDocsQuery}: SHARD when the match set needs no scan (count is
+         *                 {@code maxDoc}), DOC when it must be fully scanned (a field sort, or a no-limit scan)
+         * @param cheap    outcome below {@code minCostForDoc} (and for an empty {@link MatchNoDocsQuery})
+         */
+        static PartitioningStrategy autoPartitioning(
+            ShardContext ctx,
+            Query query,
+            PartitioningStrategy matchAll,
+            long minCostForDoc,
+            PartitioningStrategy cheap
+        ) {
+            Query unwrapped = unwrapQuery(query);
+            if (unwrapped instanceof MatchAllDocsQuery) {
+                return matchAll;
+            }
+            if (unwrapped instanceof MatchNoDocsQuery) {
+                return cheap;
+            }
+            if (containsCostlyClause(query)) {
+                return SEGMENT;
+            }
+            try {
+                return queryCost(ctx, query, minCostForDoc) < minCostForDoc ? cheap : DOC;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        /**
+         * Sum of the per-leaf {@link org.apache.lucene.search.ScorerSupplier#cost()} for {@code query}, short-circuiting
+         * once it reaches {@code ceiling} (callers only need to know whether it clears the threshold). Tells a scan-heavy
+         * query — a doc-values-only filter reports ~{@code maxDoc} — from a cheap indexed lookup that skips to its matches.
+         */
+        static long queryCost(ShardContext ctx, Query query, long ceiling) throws IOException {
+            // Use an uncached weight so this cost probe doesn't count the query against the caching policy.
+            // Query#createWeight requires a rewritten query (the slice queue rewrites before picking).
+            assert query == ctx.searcher().rewrite(query) : "query must be rewritten before createWeight: " + query;
+            Weight weight = query.createWeight(ctx.searcher(), COMPLETE_NO_SCORES, 1f);
+            long cost = 0;
+            for (LeafReaderContext leaf : ctx.searcher().getIndexReader().leaves()) {
+                var scorerSupplier = weight.scorerSupplier(leaf);
+                if (scorerSupplier != null) {
+                    cost += scorerSupplier.cost();
+                    if (cost >= ceiling) {
+                        break;
+                    }
+                }
+            }
+            return cost;
         }
 
         /**

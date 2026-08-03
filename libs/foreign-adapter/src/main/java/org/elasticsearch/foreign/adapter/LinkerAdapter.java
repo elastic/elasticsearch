@@ -47,5 +47,23 @@ public final class LinkerAdapter {
         }
     }
 
+    /**
+     * Handles a {@code @Critical} binding declared with the {@code Critical.UnsupportedFallback}
+     * sentinel. {@code Linker.Option.critical(true)} is unavailable on JDK 21; a user declaring
+     * {@code Critical.UnsupportedFallback} states that this combination (JDK 21 + Critical call) is not
+     * supported. To enforce this, we replace {@code rawHandle} with a handle of the same {@link MethodType} that
+     * throws {@link AssertionError} on any invocation, turning it into a loud failure. {@code name}
+     * identifies the binding in the error message.
+     */
+    public static MethodHandle unsupportedFallback(MethodHandle rawHandle, String name) {
+        MethodType type = rawHandle.type();
+        AssertionError error = new AssertionError("@Critical binding [" + name + "] is gated to JDK 22+ but was invoked on JDK 21");
+        MethodHandle thrower = MethodHandles.throwException(type.returnType(), AssertionError.class);
+        // thrower: (AssertionError) -> R; bind the error, then pad with the original parameters so the result
+        // has exactly rawHandle's type and can be invoked from the generated $Impl via invokeExact.
+        MethodHandle throwing = MethodHandles.insertArguments(thrower, 0, error);
+        return MethodHandles.dropArguments(throwing, 0, type.parameterList());
+    }
+
     private LinkerAdapter() {}
 }

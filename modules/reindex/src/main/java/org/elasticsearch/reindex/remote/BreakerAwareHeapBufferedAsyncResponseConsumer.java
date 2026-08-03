@@ -41,11 +41,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /// The low-level REST client buffers each async response in a [SimpleInputBuffer] before
 /// invoking the application callback, so heap can be exhausted before the caller sees any bytes. This
 /// consumer accounts the actual [ByteBuffer] allocations used by that Apache buffer, including
-/// growth for responses without a `Content-Length` header. Responses with a known
-/// `Content-Length` still fail fast above `knownContentLengthLimitBytes`; unknown-length
-/// (chunked) responses are not subject to that fixed cap and instead grow under the control of the
-/// circuit breaker, which is expected to trip before heap is exhausted, up to a hard `MAX_BUFFER_CAPACITY`
-/// ceiling that only guards against overflowing the `int`-indexed buffer.
+/// growth for responses without a `Content-Length` header. Responses are not subject to a fixed size
+/// cap, whether the length is known or chunked; they grow under the control of the circuit breaker,
+/// which is expected to trip before heap is exhausted, up to a hard `MAX_BUFFER_CAPACITY` ceiling that
+/// only guards against overflowing the `int`-indexed buffer.
 ///
 /// On a successful response, Apache calls [#releaseResources()] before the caller reads the
 /// returned entity. For that reason the breaker reservation is attached to the response entity and
@@ -63,23 +62,14 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
      */
     private static final int MAX_BUFFER_CAPACITY = Integer.MAX_VALUE - 8;
 
-    private final int knownContentLengthLimitBytes;
     private final AccountingByteBufferAllocator allocator;
 
     private volatile HttpResponse response;
     private volatile ContentInputBuffer contentBuffer;
     private volatile boolean responseDelivered;
 
-    BreakerAwareHeapBufferedAsyncResponseConsumer(CircuitBreaker breaker, int knownContentLengthLimitBytes) {
-        if (knownContentLengthLimitBytes <= 0) {
-            throw new IllegalArgumentException("knownContentLengthLimitBytes must be > 0, was " + knownContentLengthLimitBytes);
-        }
-        this.knownContentLengthLimitBytes = knownContentLengthLimitBytes;
+    BreakerAwareHeapBufferedAsyncResponseConsumer(CircuitBreaker breaker) {
         this.allocator = new AccountingByteBufferAllocator(Objects.requireNonNull(breaker, "breaker"));
-    }
-
-    int getKnownContentLengthLimitBytes() {
-        return knownContentLengthLimitBytes;
     }
 
     // Visible for testing
@@ -95,9 +85,9 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
     @Override
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
-        if (len > knownContentLengthLimitBytes) {
+        if (len > MAX_BUFFER_CAPACITY) {
             throw new ContentTooLongException(
-                "entity content is too long [" + len + "] for the configured buffer limit [" + knownContentLengthLimitBytes + "]"
+                "entity content is too long [" + len + "] for the maximum buffer capacity [" + MAX_BUFFER_CAPACITY + "]"
             );
         }
         int initialBufferSize = len < 0 ? INITIAL_BUFFER_SIZE : Math.toIntExact(len);
@@ -149,8 +139,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
 
         @Override
         protected void expand() {
-            // Unknown-length (chunked) responses are not subject to the fixed knownContentLengthLimitBytes cap:
-            // growth is bounded by the REQUEST breaker, charged in allocator.allocate() below, up to a
+            // Growth is bounded by the REQUEST breaker, charged in allocator.allocate() below, up to a
             // hard MAX_BUFFER_CAPACITY ceiling. We override expand() here to ensure the
             // previous buffer's reserved bytes against the circuit breaker are released.
             int oldCapacity = buffer.capacity();

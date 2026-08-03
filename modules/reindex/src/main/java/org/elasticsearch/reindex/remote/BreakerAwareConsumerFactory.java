@@ -21,29 +21,14 @@ import java.util.Objects;
  */
 final class BreakerAwareConsumerFactory implements HttpAsyncResponseConsumerFactory {
 
-    /**
-     * Mirrors {@code HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.DEFAULT_BUFFER_LIMIT}
-     * for known Content-Length responses.
-     */
-    static final int DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT = 100 * 1024 * 1024;
-
     private final CircuitBreaker breaker;
-    private final int knownContentLengthBufferLimitBytes;
 
     BreakerAwareConsumerFactory(CircuitBreaker breaker) {
-        this(breaker, DEFAULT_KNOWN_CONTENT_LENGTH_BUFFER_LIMIT);
-    }
-
-    BreakerAwareConsumerFactory(CircuitBreaker breaker, int knownContentLengthBufferLimitBytes) {
         this.breaker = Objects.requireNonNull(breaker, "breaker");
-        if (knownContentLengthBufferLimitBytes <= 0) {
-            throw new IllegalArgumentException("knownContentLengthBufferLimitBytes must be > 0, was " + knownContentLengthBufferLimitBytes);
-        }
-        this.knownContentLengthBufferLimitBytes = knownContentLengthBufferLimitBytes;
     }
 
     @Override
     public HttpAsyncResponseConsumer<HttpResponse> createHttpAsyncResponseConsumer() {
-        return new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, knownContentLengthBufferLimitBytes);
+        return new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
     }
 }

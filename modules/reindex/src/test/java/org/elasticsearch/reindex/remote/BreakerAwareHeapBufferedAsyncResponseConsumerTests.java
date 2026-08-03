@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reindex.remote;
 
-import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
@@ -106,7 +105,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testKnownContentLengthReservationIsReleasedWhenEntityIsClosed() throws Exception {
         var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(512));
         assertThat(breaker.getUsed(), equalTo(512L));
@@ -123,7 +122,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testBufferingNonRepeatableEntityReleasesReservation() throws Exception {
         var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(512));
         consumer.consumeContent(new FixedBytesContentDecoder(512), null);
@@ -139,7 +138,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testChunkedResponseGrowthIsAccountedAndReleasedWhenEntityIsClosed() throws Exception {
         var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(-1));
         assertThat("unknown-length responses start with the REST client default initial buffer", breaker.getUsed(), equalTo(4096L));
@@ -154,7 +153,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testBreakerTripDuringChunkedGrowthIsReleasedOnFailure() throws Exception {
         var breaker = new TrackingBreaker(10_000L);
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(-1));
         assertThat(breaker.getUsed(), equalTo(4096L));
@@ -169,33 +168,9 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testChunkedResponseGrowsBeyondBufferLimit() throws Exception {
-        var breaker = new TrackingBreaker();
-        // bufferLimitBytes only governs known-length responses now; chunked responses ignore it and
-        // are bounded by the circuit breaker instead.
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 8194);
-
-        consumer.responseReceived(responseWithContentLength(-1));
-        // 10_000 bytes exceeds the 8194 limit, which would previously have thrown ContentTooLongException.
-        consumer.consumeContent(new FixedBytesContentDecoder(10_000), null);
-        consumer.responseCompleted(null);
-        assertThat("buffer grows past the limit: 4096 -> 8194 -> 16390", breaker.getUsed(), equalTo(16_390L));
-
-        ((Releasable) consumer.getResult().getEntity()).close();
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testKnownContentLengthTooLongDoesNotReserveBytes() {
-        var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
-
-        expectThrows(ContentTooLongException.class, () -> consumer.responseReceived(responseWithContentLength(1025)));
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
     public void testFailureBeforeResponseCompletionReleasesReservation() throws Exception {
         var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(512));
         assertThat(breaker.getUsed(), equalTo(512L));
@@ -206,7 +181,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testEntityCloseIsIdempotent() throws Exception {
         var breaker = new TrackingBreaker();
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker);
 
         consumer.responseReceived(responseWithContentLength(512));
         consumer.responseCompleted(null);
@@ -219,7 +194,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testNoopBreakerDoesNotTrip() throws Exception {
         CircuitBreaker noop = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
-        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(noop, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(noop);
 
         consumer.responseReceived(responseWithContentLength(1024));
         assertThat(noop.getUsed(), equalTo(0L));
@@ -231,11 +206,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testConstructorValidation() {
-        var breaker = new TrackingBreaker();
-
-        expectThrows(IllegalArgumentException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 0));
-        expectThrows(IllegalArgumentException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, -1));
-        expectThrows(NullPointerException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(null, 1024));
+        expectThrows(NullPointerException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(null));
     }
 
     private static BasicHttpResponse responseWithContentLength(long len) {

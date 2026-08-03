@@ -23,7 +23,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 ## 9.4.4 [elasticsearch-9.4.4-release-notes]
 
 ::::{important} 
-The 9.4.4 release contains fixes for potential security vulnerabilities. For details, go to https://discuss.elastic.co/c/announcements/security-announcements/31[security announcements].
+The 9.4.4 release contains fixes for potential security vulnerabilities. For details, go to [security announcements](https://discuss.elastic.co/c/announcements/security-announcements/31).
 ::::
 
 ### Features and enhancements [elasticsearch-9.4.4-features-enhancements]

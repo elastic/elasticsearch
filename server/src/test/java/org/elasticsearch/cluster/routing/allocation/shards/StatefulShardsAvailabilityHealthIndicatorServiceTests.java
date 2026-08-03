@@ -922,7 +922,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.nanoTime()))),
-            // This creates node shutdowns that do not match 'node-0', forcing the indicator to treat the shard as unavailable
             randomMismatchedRestartShutdowns("node-0")
         );
         final var service = createShardsAvailabilityIndicatorService(
@@ -1048,20 +1047,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 result.symptom(),
                 equalTo("This cluster has 1 " + symptomKeyword + " replica shard.")
             );
-            // INITIALIZING still emits wait-for-initialization even when the grace window keeps status GREEN.
-            if (replicaInitializing) {
-                assertThat(
-                    result.diagnosisList(),
-                    equalTo(
-                        List.of(
-                            new Diagnosis(
-                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
-                            )
-                        )
-                    )
-                );
-            }
         } else {
             assertThat("expected YELLOW for grace period reason " + reason, result.status(), equalTo(YELLOW));
             final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
@@ -1071,6 +1056,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo("This cluster has 1 " + symptomKeyword + " replica shard.")
             );
         }
+        assertThat(
+            result.diagnosisList(),
+            equalTo(
+                List.of(
+                    new Diagnosis(
+                        replicaInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                    )
+                )
+            )
+        );
     }
 
     public void testShouldBeYellowWhenReplicaGracePeriodExpires() {
@@ -1105,6 +1101,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         assertThat(result.status(), equalTo(YELLOW));
         final var symptomKeyword = replicaInitializing ? "initializing" : "unavailable";
         assertThat(result.symptom(), equalTo("This cluster has 1 " + symptomKeyword + " replica shard."));
+        assertThat(
+            result.diagnosisList(),
+            equalTo(
+                List.of(
+                    new Diagnosis(
+                        replicaInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                    )
+                )
+            )
+        );
     }
 
     public void testPrimaryInactiveWithinGracePeriod() {
@@ -1144,20 +1151,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 result.symptom(),
                 equalTo("This cluster has 1 " + symptomKeyword + " primary shard.")
             );
-            // INITIALIZING still emits wait-for-initialization even when the grace window keeps status GREEN.
-            if (primaryInitializing) {
-                assertThat(
-                    result.diagnosisList(),
-                    equalTo(
-                        List.of(
-                            new Diagnosis(
-                                DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                                List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
-                            )
-                        )
-                    )
-                );
-            }
         } else {
             assertThat("expected RED for non-grace period reason " + reason, result.status(), equalTo(RED));
             final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
@@ -1167,6 +1160,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 equalTo("This cluster has 1 " + symptomKeyword + " primary shard.")
             );
         }
+        assertThat(
+            result.diagnosisList(),
+            equalTo(
+                List.of(
+                    new Diagnosis(
+                        primaryInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                    )
+                )
+            )
+        );
     }
 
     public void testShouldBeRedWhenPrimaryGracePeriodExpires() {
@@ -1200,6 +1204,17 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         assertThat(result.status(), equalTo(RED));
         final var symptomKeyword = primaryInitializing ? "initializing" : "unavailable";
         assertThat(result.symptom(), equalTo("This cluster has 1 " + symptomKeyword + " primary shard."));
+        assertThat(
+            result.diagnosisList(),
+            equalTo(
+                List.of(
+                    new Diagnosis(
+                        primaryInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                    )
+                )
+            )
+        );
     }
 
     /// A primary shard that became inactive only moments ago is usually given a short grace period before the
@@ -1281,7 +1296,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             .numberOfReplicas(1)
             .build();
         final var shardId = new ShardId(indexMetadata.getIndex(), 0);
-        // INITIALIZING with a relocating node id is the ShardRouting shape necessary to hit isInactiveWithinGracePeriod().
         final var relocatingTargetReplica = TestShardRouting.newShardRouting(
             shardId,
             randomNodeId(),

@@ -26,14 +26,13 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesConsumer.FLATTENED_COLUMNAR_BINARY;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;

@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -427,7 +428,7 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
 
         final LuceneDocument luceneDoc = new LuceneDocument();
         for (byte[] val : values) {
-            final String kv = key + "\0" + new String(val);
+            final String kv = key + "\0" + new String(val, StandardCharsets.UTF_8);
             MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(luceneDoc, KEYED_FIELD, new BytesRef(kv));
         }
         final byte[] blob = extractBlob(luceneDoc);
@@ -452,7 +453,7 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
                 assertNotNull("key must be present", got);
                 assertEquals("all slots must survive", numValues, got.size());
                 for (int v = 0; v < numValues; v++) {
-                    assertEquals("value " + v, new String(values[v]), got.get(v));
+                    assertEquals("value " + v, new String(values[v], StandardCharsets.UTF_8), got.get(v));
                 }
             }
         }
@@ -482,11 +483,13 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
             IndexWriterConfig cfg = new IndexWriterConfig();
             cfg.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
             try (IndexWriter writer = new IndexWriter(dir, cfg)) {
-                for (byte[] blob : blobsA)
+                for (byte[] blob : blobsA) {
                     writer.addDocument(docWithBlob(blob));
+                }
                 writer.commit();
-                for (byte[] blob : blobsB)
+                for (byte[] blob : blobsB) {
                     writer.addDocument(docWithBlob(blob));
+                }
                 writer.forceMerge(1);
             }
 
@@ -498,10 +501,12 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
 
                 // Build expected set (all blobs from both segments, sorted).
                 final List<BytesRef> expected = new ArrayList<>();
-                for (byte[] b : blobsA)
+                for (byte[] b : blobsA) {
                     expected.add(new BytesRef(b));
-                for (byte[] b : blobsB)
+                }
+                for (byte[] b : blobsB) {
                     expected.add(new BytesRef(b));
+                }
                 expected.sort(BytesRef::compareTo);
 
                 final List<BytesRef> actual = new ArrayList<>();
@@ -702,12 +707,13 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
             // Read key bytes up to \0.
             final int keyStart = pos;
             int sep = keyStart;
-            while (sep < end && blob.bytes[sep] != 0)
+            while (sep < end && blob.bytes[sep] != 0) {
                 sep++;
-            final String key = new String(blob.bytes, keyStart, sep - keyStart);
+            }
+            final String key = new String(blob.bytes, keyStart, sep - keyStart, StandardCharsets.UTF_8);
             pos = sep + 1; // skip \0
 
-            final String value = isNull ? "" : new String(blob.bytes, pos, valueLen);
+            final String value = isNull ? "" : new String(blob.bytes, pos, valueLen, StandardCharsets.UTF_8);
             pos += valueLen;
 
             map.computeIfAbsent(key, k -> new ArrayList<>()).add(value);

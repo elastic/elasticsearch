@@ -226,8 +226,9 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
                 final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
                 final int maxDoc = leaf.maxDoc();
                 if (dv == null) {
-                    for (int d = 0; d < maxDoc; d++)
+                    for (int d = 0; d < maxDoc; d++) {
                         result.add(null);
+                    }
                 } else {
                     for (int d = 0; d < maxDoc; d++) {
                         result.add(dv.advanceExact(d) ? BytesRef.deepCopyOf(dv.binaryValue()) : null);
@@ -253,8 +254,9 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
     private static byte[] buildOneDoc(int numKeys, int docSeed, boolean withNulls, boolean withArrays) {
         // Deterministic Fisher-Yates shuffle keyed on docSeed.
         final int[] perm = new int[numKeys];
-        for (int i = 0; i < numKeys; i++)
+        for (int i = 0; i < numKeys; i++) {
             perm[i] = i;
+        }
         for (int i = numKeys - 1; i > 0; i--) {
             final int j = (docSeed * 31 + i) % (i + 1);
             final int tmp = perm[i];
@@ -333,8 +335,9 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
             final boolean isNull = (prefix == 0);
             final int valLen = isNull ? 0 : (prefix - 1);
             final int keyStart = pos;
-            while (pos < end && blob.bytes[pos] != 0)
+            while (pos < end && blob.bytes[pos] != 0) {
                 pos++;
+            }
             final String key = new String(blob.bytes, keyStart, pos - keyStart, StandardCharsets.UTF_8);
             pos++; // skip \0
             final String value = isNull ? null : new String(blob.bytes, pos, valLen, StandardCharsets.UTF_8);
@@ -358,8 +361,9 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
             }
             final int valLen = (prefix == 0) ? 0 : (prefix - 1);
             final int keyStart = pos;
-            while (pos < end && blob.bytes[pos] != 0)
+            while (pos < end && blob.bytes[pos] != 0) {
                 pos++;
+            }
             final int keyLen = pos - keyStart;
             pos++; // skip \0
             if (keyLen == key.length) {

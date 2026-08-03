@@ -24,7 +24,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.DISIAccumulator;
@@ -176,8 +176,9 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
 
                     final int keyStart = pos;
                     int sep = keyStart;
-                    while (sep < end && blob.bytes[sep] != 0)
+                    while (sep < end && blob.bytes[sep] != 0) {
                         sep++;
+                    }
                     final int keyLen = sep - keyStart;
                     pos = sep + 1; // skip \0; pos now points to value bytes
 
@@ -203,8 +204,9 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
             final int numKeys = keyHash.size();
             final int[] sortedOrds = keyHash.sort(); // sortedOrds[lexRank] = hashOrd
             final int[] lexRankOf = new int[numKeys];
-            for (int lr = 0; lr < numKeys; lr++)
+            for (int lr = 0; lr < numKeys; lr++) {
                 lexRankOf[sortedOrds[lr]] = lr;
+            }
 
             final FieldBlockWriter.ColumnAddress[] addresses = new FieldBlockWriter.ColumnAddress[numKeys];
             int maxUncompressedBlockLen = 0;

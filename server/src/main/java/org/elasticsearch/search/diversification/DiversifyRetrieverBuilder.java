@@ -557,8 +557,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (values.get(i) instanceof Number n) {
                 vec[i] = n.floatValue();
             } else {
-                throw new IllegalArgumentException("Field [" + diversificationField + "] value is not a well-formed dense vector." +
-                    " Is it a [dense_vector] field?"
+                throw new IllegalArgumentException(
+                    "Field [" + diversificationField + "] value is not a well-formed dense vector. Is it a [dense_vector] field?"
                 );
             }
         }
@@ -571,8 +571,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (value instanceof float[] floatArray) {
                 embeddings.add(new VectorData(floatArray));
             } else {
-                throw new IllegalArgumentException("Field [" + diversificationField + "] value is not a well-formed list of dense vectors." +
-                    " Is it a [semantic] or [semantic_text] field?");
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + diversificationField
+                        + "] value is not a well-formed list of dense vectors. Is it a [semantic] or [semantic_text] field?"
+                );
             }
         }
         return embeddings;
@@ -586,7 +589,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             }
         }
 
-        throw new IllegalArgumentException("Field [" + diversificationField + "] contains sparse vectors, which are not supported by" +
-            " result diversification.");
+        throw new IllegalArgumentException(
+            "Field [" + diversificationField + "] contains sparse vectors, which are not supported by result diversification."
+        );
     }
 }

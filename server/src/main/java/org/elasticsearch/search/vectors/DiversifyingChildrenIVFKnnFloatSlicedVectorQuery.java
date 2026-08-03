@@ -58,6 +58,22 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector) {
+        return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+            field,
+            queryVector,
+            k,
+            numCands,
+            filter,
+            parentsFilter,
+            providedVisitRatio,
+            ivfQueryConfigResolver,
+            sliceField,
+            sliceIds
+        );
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;

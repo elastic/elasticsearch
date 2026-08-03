@@ -22,8 +22,8 @@ import java.util.Objects;
 /** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
 public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
-    private final String sliceField;
-    private final BytesRef[] sliceIds;
+    protected final String sliceField;
+    protected final BytesRef[] sliceIds;
 
     /**
      * Creates a new {@link IVFKnnFloatSlicedVectorQuery} with the given parameters.
@@ -50,6 +50,21 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
+    }
+
+    @Override
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector) {
+        return new IVFKnnFloatSlicedVectorQuery(
+            field,
+            queryVector,
+            k,
+            numCands,
+            filter,
+            providedVisitRatio,
+            ivfQueryConfigResolver,
+            sliceField,
+            sliceIds
+        );
     }
 
     @Override

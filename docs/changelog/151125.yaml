@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 151125
+summary: Post filtering for knn search - ivf implementation
+type: enhancement

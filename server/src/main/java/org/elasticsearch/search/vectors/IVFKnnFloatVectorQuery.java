@@ -65,6 +65,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float[] queryVector) {
+        return new IVFKnnFloatVectorQuery(field, queryVector, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
+    }
+
+    @Override
+    protected float[] queryVector() {
+        return query;
+    }
+
+    @Override
     public String toString(String field) {
         StringBuilder buffer = new StringBuilder();
         buffer.append(getClass().getSimpleName())

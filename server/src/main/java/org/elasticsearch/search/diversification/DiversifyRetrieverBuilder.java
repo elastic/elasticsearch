@@ -464,8 +464,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     /**
-     * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if none is
-     * available.
+     * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if the field is
+     * absent or has no values.
+     *
+     * @throws IllegalArgumentException if the field has values that cannot be interpreted as dense vectors (e.g. sparse
+     *     embeddings or a non-vector field type that happens to expose an embeddings format).
      */
     private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext) {
         DocumentField field = doc.hit.getFields().get(diversificationField);
@@ -516,10 +519,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
      *   <li><em>List of individual embeddings</em> (e.g. {@code List<float[]>} — one entry per chunk for chunked
      *       {@code semantic_text} fields): each element is converted independently.</li>
      * </ul>
-     * Returns an empty list when the values are absent, when they represent a non-dense type (e.g. a sparse
-     * {@code Map<String, Float>}), or when any element of a multi-embedding list cannot be parsed as a dense vector.
+     * Returns an empty list when the values are absent or null.
+     *
+     * @throws IllegalArgumentException if any value is present but cannot be interpreted as a dense vector
      */
-    private static List<VectorData> extractDenseEmbeddings(List<Object> values) {
+    private List<VectorData> extractDenseEmbeddings(List<Object> values) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }
@@ -531,7 +535,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 if (values.get(i) instanceof Number n) {
                     vec[i] = n.floatValue();
                 } else {
-                    return List.of();
+                    throw unsupportedEmbeddingValue(values.get(i));
                 }
             }
             return List.of(new VectorData(vec));
@@ -544,9 +548,29 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (value instanceof float[] floatArray) {
                 embeddings.add(new VectorData(floatArray));
             } else {
-                return List.of();
+                throw unsupportedEmbeddingValue(value);
             }
         }
         return embeddings;
+    }
+
+    private IllegalArgumentException unsupportedEmbeddingValue(Object value) {
+        if (value instanceof Map) {
+            return new IllegalArgumentException(
+                Strings.format(
+                    "Field [%s] contains sparse embeddings, which are not supported by [%s] result diversification. "
+                        + "Diversification requires a field with dense vector embeddings.",
+                    diversificationField,
+                    diversificationType.value
+                )
+            );
+        }
+        return new IllegalArgumentException(
+            Strings.format(
+                "Unable to get the embeddings of field [%s] as dense vectors. "
+                    + "Is it a [dense_vector] or [semantic_text] field with dense embeddings?",
+                diversificationField
+            )
+        );
     }
 }

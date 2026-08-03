@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -21,13 +20,11 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiStreamingProcessor;
 
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 /**
@@ -63,13 +60,6 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(outboundRequest, result);
-        checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
-    }
-
-    @Override
     public boolean canHandleStreamingResponses() {
         return canHandleStreamingResponses;
     }
@@ -84,11 +74,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         return new StreamingChatCompletionResults(openAiProcessor);
     }
 
-    public void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    public void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {

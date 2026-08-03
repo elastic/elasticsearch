@@ -11,6 +11,8 @@ applies_to:
 
 This page provides reference content for the `semantic_text` field type, including parameter descriptions, {{infer}} endpoint configuration options, chunking behavior, update operations, querying options, and limitations.
 
+The `semantic_text` field type accepts text only. To use images, audio, video, or PDF files, use [`semantic`](./semantic-field.md) with a compatible multimodal embedding endpoint.
+
 ## Parameters for `semantic_text` [semantic-text-params]
 
 The `semantic_text` field type uses default indexing settings based on the [{{infer}} endpoint](#configuring-inference-endpoints) specified, enabling you to get started without providing additional configuration details. You can override these defaults by customizing the parameters described below.
@@ -127,13 +129,17 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default](./semantic-text-setup-configuration.md#default-endpoints) and [preconfigured](./semantic-text-setup-configuration.md#preconfigured-endpoints) endpoints: Use `semantic_text` without creating an {{infer}} endpoint manually.
+- [Default endpoints](./semantic-text-setup-configuration.md#default-endpoints): Use `semantic_text` without specifying an `inference_id`.
 
-- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
+- [Jina on EIS (recommended)](./semantic-text-setup-configuration.md#using-jina-on-eis): Use Jina embedding models through Elastic {{infer-cap}} Service. 
 
-- [Custom endpoints](./semantic-text-setup-configuration.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
+- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through Elastic {{infer-cap}} Service.
 
-If you use a [custom {{infer}} endpoint](./semantic-text-setup-configuration.md#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
+- [Third-party models on EIS](./semantic-text-setup-configuration.md#using-eis-models): Use other embedding models available through Elastic {{infer-cap}} Service.
+
+- [External {{infer}}](./semantic-text-setup-configuration.md#using-external-inference): Create an {{infer}} endpoint for a third-party model provider with the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put).
+
+If you use an {{infer}} endpoint through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 
@@ -232,6 +238,7 @@ POST /_query
 
 `semantic_text` field types have the following limitations:
 
+* `semantic_text` fields accept text only. For images, audio, video, or PDF files, use [`semantic`](./semantic-field.md).
 * `semantic_text` fields are not currently supported as elements
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can't currently be set as part

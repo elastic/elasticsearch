@@ -14,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -44,7 +45,11 @@ public class KeyedFlattenedExistsQueryTests extends ESTestCase {
     }
 
     private static RandomIndexWriter newRowWriter(Directory dir) throws IOException {
-        IndexWriterConfig iwc = newIndexWriterConfig().setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+        // NoMergePolicy prevents the row writer from auto-merging the pre-existing columnar segment
+        // into the new row-format segment, which would collapse two leaves into one and break the
+        // mixed-segment assertion.
+        IndexWriterConfig iwc = newIndexWriterConfig().setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()))
+            .setMergePolicy(NoMergePolicy.INSTANCE);
         return new RandomIndexWriter(random(), dir, iwc);
     }
 

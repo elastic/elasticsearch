@@ -1,4 +1,4 @@
-ExchangeSinkExec[[hire_date{f}#0, salary{f}#1, does_not_exist{f}#2],false]
+ExchangeSinkExec[[hire_date{f}#0, salary{f}#1, does_not_exist{f(MissingEsField)}#2],false]
 \_ProjectExec[[hire_date{f}#0, salary{f}#1, does_not_exist{r}#2]]
   \_FieldExtractExec[hire_date{f}#0, salary{f}#1]<[],[],[]>
     \_EvalExec[[null[NULL] AS does_not_exist#2]]

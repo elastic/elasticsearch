@@ -14,7 +14,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
@@ -24,12 +24,11 @@ import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
     final int dims;
-    final int maxOrd;
     final float scoreCorrectionConstant;
     final IndexInput input;
     final LegacyQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
@@ -44,7 +43,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.vectorDataBytes = dims;
         this.vectorTotalBytes = vectorDataBytes + Float.BYTES;
@@ -53,7 +51,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

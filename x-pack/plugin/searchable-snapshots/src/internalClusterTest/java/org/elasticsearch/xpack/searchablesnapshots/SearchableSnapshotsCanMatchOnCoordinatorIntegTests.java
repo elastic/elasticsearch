@@ -201,20 +201,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
             .source(new SearchSourceBuilder().query(rangeQuery));
 
-        if (includeIndexCoveringSearchRangeInSearchRequest) {
-            assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexWithinSearchRangeShardCount));
-                // All the searchable snapshots shard search failed
-                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getSkippedShards(), equalTo(0));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-            });
-        } else {
-            // All shards failed, since all shards are unassigned and the IndexMetadata min/max timestamp
-            // is not available yet
-            expectThrows(SearchPhaseExecutionException.class, () -> client().search(request).actionGet());
-        }
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShardsAPI
         {
@@ -643,18 +631,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final int totalShards = indexOutsideSearchRangeShardCount + searchableSnapshotShardCount;
 
-        // test with Search API
-        {
-            assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
-                // All the searchable snapshots shard search failed
-                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
-            });
-        }
+        // Deliberately no full search here: against recovering shards it can block on
+        // IndexShard#waitForSearchReady.
 
         // test with SearchShards API
         {

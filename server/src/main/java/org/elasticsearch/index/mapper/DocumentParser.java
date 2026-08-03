@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -168,15 +169,18 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.processArrayOffsets(context);
-            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-                metadataMapper.postParse(context);
-            }
             // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
             // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
             // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
             // empty-doc ({}) short-circuit above still reaches this call.
+            // Must run before the metadata mappers' postParse loop below, since IgnoredFieldMapper.postParse builds _ignored from
+            // getIgnoredFields() and on_failure=ignore marks fields ignored here rather than throwing.
             context.enforceRequiredFields();
+
+            context.processArrayOffsets(context);
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.postParse(context);
+            }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -495,7 +499,12 @@ public final class DocumentParser {
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                // Skip the _ignored_source pre-capture for fields that redirect multi_value=false violations to ._on_failure:
+                // the duplicate value must land in exactly one storage location, and on_failure=ignore already handles that write.
+                boolean redirectsMultiValueViolations = fieldMapper.isSingleValueEnforced()
+                    && fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
                 if (context.canAddIgnoredField()
+                    && redirectsMultiValueViolations == false
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
                         || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)
@@ -889,7 +898,8 @@ public final class DocumentParser {
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
             context.getVectorFormatProviders(),
-            context.indexSettings().isIndexDisabledByDefault()
+            context.indexSettings().isIndexDisabledByDefault(),
+            context.indexSettings().getPostFilterSelectivityThreshold()
         );
         builder.dimensions(arraySize);
         context.updateDynamicMappers(fullFieldName, List.of(builder));
@@ -937,7 +947,14 @@ public final class DocumentParser {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else {
-            ensureNotStrict(context.resolveDynamic(lastFieldName), context, lastFieldName);
+            ObjectMapper.Dynamic dynamic = context.resolveDynamic(lastFieldName);
+            ensureNotStrict(dynamic, context, lastFieldName);
+            if (dynamic == ObjectMapper.Dynamic.FLATTENED) {
+                // Absorb the null slot so columnar array order (e.g. [1, null, 3]) is preserved for the unmapped field.
+                FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup()
+                    .getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+                sink.indexValueAtPath(context, context.path().pathAsText(lastFieldName));
+            }
         }
     }
 

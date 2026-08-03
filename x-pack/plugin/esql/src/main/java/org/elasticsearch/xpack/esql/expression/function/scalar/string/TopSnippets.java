@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +87,8 @@ public class TopSnippets extends EsqlScalarFunction
     implements
         OptionalArgument,
         PostAnalysisVerificationAware,
-        PostOptimizationVerificationAware {
+        PostOptimizationVerificationAware,
+        AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -331,19 +334,10 @@ public class TopSnippets extends EsqlScalarFunction
 
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
-        String name = topSnippetsOptions().analyzerName();
-        if (name == null) {
-            return;
-        }
-        Analyzer resolved;
         try {
-            resolved = analysisRegistry.getAnalyzer(name);
-        } catch (IOException e) {
-            failures.add(fail(this, "failed to load analyzer [{}]: {}", name, e.getMessage()));
-            return;
-        }
-        if (resolved == null) {
-            failures.add(fail(this, "'analyzer' must be a registered analyzer, found [{}]", name));
+            PlannerUtils.resolveAnalyzer(topSnippetsOptions().analyzerName(), analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
         }
     }
 

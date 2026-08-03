@@ -78,6 +78,12 @@ tasks.named("test").configure {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+// Exclude grpc-context: intentionally empty compatibility shim since gRPC 1.57.0
+// (classes absorbed into grpc-api). Bundling it triggers lintian codeless-jar warnings.
+configurations.runtimeClasspath {
+  exclude group: 'io.grpc', module: 'grpc-context'
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /arrow-.*/, to: 'arrow'
   mapping from: /flight-.*/, to: 'arrow'

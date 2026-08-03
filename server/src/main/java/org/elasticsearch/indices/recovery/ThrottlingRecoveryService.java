@@ -107,11 +107,15 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Consumer<RecoveryListener> task
     ) {
         final Supplier<ThreadContext.StoredContext> context = restorableContextForProject(projectId);
+        final ShardId shardId = recoveryState.getShardId();
         final PendingRecovery pendingRecovery;
         final boolean serviceClosed;
         synchronized (this) {
             serviceClosed = isClosed();
-            if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
+            if (serviceClosed || cancelledAllocationIds.containsKey(allocationId)) {
+                final ShardId cancelled = cancelledAllocationIds.get(allocationId);
+                assert serviceClosed || cancelled.equals(shardId)
+                    : "mismatch between cached cancellation [" + cancelled + "] and enqueue recovery: [" + recoveryState + "]";
                 pendingRecovery = null;
             } else {
                 pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);
@@ -363,7 +367,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     ) {}
 
     /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
+    /// with `assertOnce` (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

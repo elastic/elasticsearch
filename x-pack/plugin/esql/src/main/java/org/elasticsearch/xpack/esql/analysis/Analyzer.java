@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -410,6 +411,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
+            // Nested fields are not flattened into attributes; carry them on the relation so a NESTED_ANY
+            // predicate can resolve its sub-fields. See NestedEsField / EsRelation#nestedFields.
+            Map<String, NestedEsField> nestedFields = new HashMap<>();
+            collectNestedFields(null, esIndex.mapping(), nestedFields);
+
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -417,8 +423,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                nestedFields
             );
+        }
+
+        /**
+         * Collects nested fields (keyed by full dotted path) from a mapping tree. Recurses through plain
+         * objects but not into a nested field's own properties — nested-inside-nested is out of scope for
+         * the initial implementation.
+         */
+        private static void collectNestedFields(String parent, Map<String, EsField> mapping, Map<String, NestedEsField> out) {
+            for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+                String name = parent == null ? entry.getKey() : parent + "." + entry.getKey();
+                EsField field = entry.getValue();
+                if (field instanceof NestedEsField nested) {
+                    out.put(name, nested);
+                } else if (field.getDataType() == DataType.OBJECT) {
+                    collectNestedFields(name, field.getProperties(), out);
+                }
+            }
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
@@ -488,6 +512,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsField t = entry.getValue();
 
             if (t != null) {
+                // A nested field is not flattened into queryable attributes: neither the container nor its
+                // sub-fields become columns. The sub-fields stay in the NestedEsField's properties and are
+                // only reachable inside a NESTED_ANY predicate. A bare reference therefore fails as unknown.
+                if (t instanceof NestedEsField) {
+                    continue;
+                }
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
                 t = t.withWidenedSmallNumeric();

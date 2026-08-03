@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -80,7 +81,9 @@ public class LoadMapping {
             Map<String, Object> content = (Map<String, Object>) value;
 
             if ("nested".equals(content.get("type"))) {
-                // Nested fields are entirely removed by IndexResolver so we mimic it.
+                // Mirror IndexResolver: a nested field becomes a NestedEsField holding its sub-fields in its
+                // properties; it is not flattened into queryable attributes.
+                mapping.put(name, new NestedEsField(name, fromEs(content), false, EsField.TimeSeriesFieldType.NONE));
                 return;
             }
             // extract field type

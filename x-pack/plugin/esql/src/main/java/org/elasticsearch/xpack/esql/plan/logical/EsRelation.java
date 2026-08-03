@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.NestedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.util.Set;
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+    private static final TransportVersion NESTED_FIELDS = TransportVersion.fromName("esql_es_relation_nested_fields");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -47,6 +50,12 @@ public class EsRelation extends LeafPlan {
     private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
+    /**
+     * Nested fields (by name) that are present in the index but deliberately not flattened into
+     * {@link #attrs} — see {@link NestedEsField}. They are carried here so a {@code NESTED_ANY} predicate
+     * can resolve its sub-fields, without the nested field ever becoming a queryable/returnable column.
+     */
+    private final Map<String, NestedEsField> nestedFields;
 
     public EsRelation(
         Source source,
@@ -57,6 +66,19 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
+        this(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes, Map.of());
+    }
+
+    public EsRelation(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes,
+        Map<String, NestedEsField> nestedFields
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
@@ -64,6 +86,7 @@ public class EsRelation extends LeafPlan {
         this.concreteIndices = concreteIndices;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
+        this.nestedFields = nestedFields;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
@@ -81,7 +104,19 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
+        Map<String, NestedEsField> nestedFields = in.getTransportVersion().supports(NESTED_FIELDS)
+            ? in.readImmutableMap(input -> (NestedEsField) EsField.readFrom(input))
+            : Map.of();
+        return new EsRelation(
+            source,
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attributes,
+            nestedFields
+        );
     }
 
     @Override
@@ -95,6 +130,9 @@ public class EsRelation extends LeafPlan {
         out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
+        if (out.getTransportVersion().supports(NESTED_FIELDS)) {
+            out.writeMap(nestedFields, (o, v) -> v.writeTo(o));
+        }
     }
 
     @Override
@@ -104,7 +142,17 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return NodeInfo.create(
+            this,
+            EsRelation::new,
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attrs,
+            nestedFields
+        );
     }
 
     public String indexPattern() {
@@ -127,6 +175,14 @@ public class EsRelation extends LeafPlan {
         return indexNameWithModes;
     }
 
+    /**
+     * Nested fields present in the index but not exposed as columns; keyed by field name. Used by
+     * {@code NESTED_ANY} to resolve a nested predicate's sub-fields. See {@link NestedEsField}.
+     */
+    public Map<String, NestedEsField> nestedFields() {
+        return nestedFields;
+    }
+
     @Override
     public List<Attribute> output() {
         return attrs;
@@ -145,7 +201,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs, nestedFields);
     }
 
     @Override
@@ -164,7 +220,8 @@ public class EsRelation extends LeafPlan {
             && Objects.equals(originalIndices, other.originalIndices)
             && Objects.equals(concreteIndices, other.concreteIndices)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
-            && Objects.equals(attrs, other.attrs);
+            && Objects.equals(attrs, other.attrs)
+            && Objects.equals(nestedFields, other.nestedFields);
     }
 
     @Override
@@ -213,7 +270,29 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            newAttributes,
+            nestedFields
+        );
+    }
+
+    public EsRelation withNestedFields(Map<String, NestedEsField> newNestedFields) {
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attrs,
+            newNestedFields
+        );
     }
 
     public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
@@ -231,6 +310,6 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs, nestedFields);
     }
 }

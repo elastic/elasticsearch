@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
@@ -517,6 +518,12 @@ public class IndexResolver {
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
+        // A nested container becomes a NestedEsField holding its sub-fields; those sub-fields are placed into
+        // its properties by the hierarchical tree-building above (nested paths sort before their sub-fields).
+        // The nested field is not flattened into queryable attributes, so it is only reachable via NESTED_ANY.
+        if ("nested".equals(first.type())) {
+            return new NestedEsField(name, new HashMap<>(), isAlias, EsField.TimeSeriesFieldType.NONE);
+        }
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         if (isTypeSupported(type, fieldsInfo) == false) {
             type = UNSUPPORTED;
@@ -696,11 +703,14 @@ public class IndexResolver {
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
-        // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
+        // Nested fields are surfaced (as NestedEsField) so ES|QL can support NESTED_ANY / NESTED_EXPAND.
+        // They are not flattened into queryable attributes, so this is transparent to queries that ignore them.
+        // (Previously filtered out with "-nested" since https://github.com/elastic/elasticsearch/pull/111495.)
+        // TRADEOFF: this is unconditional, so field-caps now returns nested sub-fields for every query, even
+        // those that never reference a nested field. This is negligible for indices without nested mappings
+        // (the common case). Follow-up: gate the lift on the query actually referencing a nested field.
         if (includeAllDimensions) {
-            request.filters("-nested", "+dimension");
-        } else {
-            request.filters("-nested");
+            request.filters("+dimension");
         }
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);

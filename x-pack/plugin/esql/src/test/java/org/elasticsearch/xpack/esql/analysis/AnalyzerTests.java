@@ -1095,6 +1095,22 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]"));
     }
 
+    public void testNestedFieldSurfacedOnRelationNotFlattened() {
+        var plan = multiFieldWithNested().query("from test");
+        var relations = new ArrayList<EsRelation>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        EsRelation relation = relations.get(0);
+        // the nested field is carried on the relation, keyed by path, with its sub-fields available
+        assertThat(relation.nestedFields().keySet(), hasItem("dep"));
+        var dep = relation.nestedFields().get("dep");
+        assertThat(dep.getProperties().keySet(), hasItem("dep_name"));
+        assertThat(dep.getProperties().keySet(), hasItem("dep_id"));
+        // but neither the nested field nor its sub-fields are flattened into queryable columns
+        var columns = relation.output().stream().map(Attribute::name).toList();
+        assertThat(columns, not(hasItem("dep")));
+        assertThat(columns, not(hasItem("dep.dep_name")));
+    }
+
     public void testUnsupportedObjectAndNested() {
         multiFieldWithNested().error("""
             from test

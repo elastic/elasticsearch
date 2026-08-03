@@ -105,6 +105,7 @@ public class EsField implements Writeable {
         Map.entry("EsField", EsField::new),
         Map.entry("KeywordEsField", KeywordEsField::new),
         Map.entry("MissingEsField", MissingEsField::new),
+        Map.entry("NestedEsField", NestedEsField::new),
         Map.entry("MultiTypeEsField", MultiTypeEsField::new),
         Map.entry("CompactMultiTypeEsField", CompactMultiTypeEsField::new),
         Map.entry("PotentiallyUnmappedKeywordEsField", PotentiallyUnmappedKeywordEsField::new),

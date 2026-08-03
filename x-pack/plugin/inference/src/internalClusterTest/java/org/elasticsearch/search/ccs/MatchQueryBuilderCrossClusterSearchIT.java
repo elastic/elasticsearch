@@ -78,14 +78,14 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     public void testBlankQueryHandlingWithCcsMinimizeRoundTripsTrue() throws Exception {
-        testBlankQueryHandling(true);
+        blankQueryHandlingTestCase(true);
     }
 
     public void testBlankQueryHandlingWithCcsMinimizeRoundTripsFalse() throws Exception {
-        testBlankQueryHandling(false);
+        blankQueryHandlingTestCase(false);
     }
 
-    private void testBlankQueryHandling(boolean ccsMinimizeRoundTrips) throws Exception {
+    private void blankQueryHandlingTestCase(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
         final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 

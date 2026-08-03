@@ -772,3 +772,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackageTests
   method: test70RestartServer
   issue: https://github.com/elastic/elasticsearch/issues/155704
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testPutDataSourceForbiddenWithoutManagePrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/155705

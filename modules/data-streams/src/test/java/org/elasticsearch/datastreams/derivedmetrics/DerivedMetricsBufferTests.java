@@ -30,7 +30,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.Matchers.both;
@@ -131,6 +133,34 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             }
             assertThat("the backlog outran the flush", buffer.bucketsDropped(), greaterThan(0L));
             assertThat("and it is reported as how short of slots it came", buffer.maxBucketsDroppedInACycle(), greaterThan(0L));
+        }
+    }
+
+    /**
+     * The assertion that has to hold for a bucket to be allowed more than one result at all. A time series id is derived from the tsid and
+     * the timestamp, so two results for the same series and bucket stamped at the same offset are the same document, and the second is
+     * rejected by {@code op_type=create} with its observations lost.
+     *
+     * <p>Every route that produces a second result therefore has to advance the offset: a bucket flushed early and written to again, and a
+     * bucket that closed normally and was reopened by a document whose timestamp falls inside it. The second is the ordinary case once
+     * metrics are bucketed by event time, so it is not enough for the early-flush route alone to be right.
+     */
+    public void testEveryResultForABucketIsStampedSomewhereNew() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 7, 1, 0, 1_000, 2)) {
+            CompiledMetric metric = metric(Reduction.SUM);
+            TableKey key = new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, 0L, TEN_SECONDS.millis());
+
+            Set<Integer> offsets = new HashSet<>();
+            for (int round = 0; round < 5; round++) {
+                assertTrue(buffer.record(key, new String[] { "checkout" }, new Scratch(), 1.0).recorded());
+                // closed on its own idleness, which is how a bucket normally leaves; the reopen is the next round's observation
+                for (Drained drained : buffer.drainClosed(1_000_000L, 0)) {
+                    offsets.add(drained.partial());
+                    drained.table().close();
+                }
+            }
+
+            assertEquals("five results, five distinct timestamps", 5, offsets.size());
         }
     }
 

@@ -740,7 +740,7 @@ public class DerivedMetricsBuffer implements Releasable {
         if (largest == null) {
             return null;
         }
-        return take(largestKey, largest, true);
+        return take(largestKey, largest);
     }
 
     /**
@@ -767,7 +767,7 @@ public class DerivedMetricsBuffer implements Releasable {
      * emitted rather than discarded. Called with one of the bucket's stripes' monitors held.
      */
     private void retire(TableKey key, DerivedMetricsStripedTable table) {
-        Drained taken = take(key, table, true);
+        Drained taken = take(key, table);
         if (taken == null) {
             // someone else drained the bucket first, and it is already on its way to being emitted
             return;
@@ -941,7 +941,7 @@ public class DerivedMetricsBuffer implements Releasable {
         // than now and would be written out one document at a time.
         BiPredicate<TableKey, DerivedMetricsStripedTable> closed = (key, table) -> table.lastWrittenMillis() + key.intervalMillis()
             + graceMillis <= nowMillis;
-        List<Drained> drained = drain(closed, false);
+        List<Drained> drained = drain(closed);
         drainRetired(drained);
         long dropped = droppedThisCycle.sumThenReset();
         if (dropped > maxDroppedInACycle) {
@@ -971,14 +971,14 @@ public class DerivedMetricsBuffer implements Releasable {
             partialsExhausted.increment();
             return null;
         }
-        return take(key, table, true);
+        return take(key, table);
     }
 
     /**
      * Removes everything currently buffered, including buckets that are still open. Used on shutdown so partial intervals are not lost.
      */
     public List<Drained> drainAll() {
-        List<Drained> drained = drain((key, table) -> true, false);
+        List<Drained> drained = drain((key, table) -> true);
         drainRetired(drained);
         partials.clear();
         return drained;
@@ -992,7 +992,7 @@ public class DerivedMetricsBuffer implements Releasable {
         }
     }
 
-    private List<Drained> drain(BiPredicate<TableKey, DerivedMetricsStripedTable> take, boolean reopening) {
+    private List<Drained> drain(BiPredicate<TableKey, DerivedMetricsStripedTable> take) {
         List<Drained> drained = new ArrayList<>();
         Iterator<Map.Entry<TableKey, DerivedMetricsStripedTable>> iterator = tables.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -1002,7 +1002,7 @@ public class DerivedMetricsBuffer implements Releasable {
             if (take.test(key, table) == false) {
                 continue;
             }
-            Drained taken = take(key, table, reopening);
+            Drained taken = take(key, table);
             if (taken != null) {
                 drained.add(taken);
             }
@@ -1022,15 +1022,15 @@ public class DerivedMetricsBuffer implements Releasable {
     /**
      * Removes one bucket and gives back everything it was holding, including its slot, so a metric can open a bucket somewhere else.
      */
-    private Drained take(TableKey key, DerivedMetricsStripedTable table, boolean reopening) {
+    private Drained take(TableKey key, DerivedMetricsStripedTable table) {
         OpenBuckets open = openBuckets.get(metricKey(key));
         if (open != null) {
             open.release(key.bucketStartMillis());
         }
-        return takeTable(key, table, reopening);
+        return takeTable(key, table);
     }
 
-    private Drained takeTable(TableKey key, DerivedMetricsStripedTable table, boolean reopening) {
+    private Drained takeTable(TableKey key, DerivedMetricsStripedTable table) {
         if (tables.remove(key, table) == false) {
             return null;
         }
@@ -1051,11 +1051,11 @@ public class DerivedMetricsBuffer implements Releasable {
             histogramSeries.addAndGet(-(int) released);
         }
         releaseStreamBudget(key, released);
-        AtomicInteger counter = partials.get(key);
-        int partial = counter == null ? partialSeed : counter.get();
-        if (reopening) {
-            partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).incrementAndGet();
-        }
+        // Advanced on every drain, not only on the ones expected to be followed by another. A bucket's results are told apart by this
+        // offset alone, since a time series id is the tsid and the timestamp, so a second result stamped where the first was would be
+        // rejected by op_type=create and its observations lost. Whether a bucket will be written again is not knowable here: a late
+        // document reopens one that closed normally, which under event time is ordinary rather than rare.
+        int partial = partials.computeIfAbsent(key, unused -> new AtomicInteger(partialSeed)).getAndIncrement();
         return new Drained(key, merged, partial);
     }
 

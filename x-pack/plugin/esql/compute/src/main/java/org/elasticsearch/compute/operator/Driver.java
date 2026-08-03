@@ -346,12 +346,14 @@ public class Driver implements Releasable, Describable {
                         page.releaseBlocks();
                         throw e;
                     }
-                    nextOp.addInput(page);
-                    movedPage = true;
-                    Operator promoted = nextOp.tryPromote(driverContext);
+                    Operator promoted = nextOp.tryPromote(driverContext, page);
                     if (promoted != nextOp) {
                         activeOperators.set(iterator.nextIndex(), promoted);
+                        promoted.addInput(page);
+                    } else {
+                        nextOp.addInput(page);
                     }
+                    movedPage = true;
                 }
             }
 

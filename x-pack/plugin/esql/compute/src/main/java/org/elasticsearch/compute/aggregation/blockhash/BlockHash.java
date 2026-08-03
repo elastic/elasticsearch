@@ -31,6 +31,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Specialized hash table implementations that map rows to a <strong>set</strong>
@@ -116,6 +117,23 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     // TODO merge with nonEmpty
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
+
+    /**
+     * Returns a function that maps each non-empty group id (as returned by {@link #nonEmpty()}) to a
+     * partition index in {@code [0, partitionCount)}, reading the stored key directly from the hash
+     * table rather than from an intermediate page. This avoids materializing a full output page just
+     * to re-hash the keys for routing.
+     *
+     * <p>Group ids representing {@code null} keys (always group id {@code 0} in single-type hashes)
+     * are mapped to partition {@code 0}.
+     *
+     * <p>Returns {@code null} when the implementation does not support key-space partitioning
+     * (e.g. the underlying Swiss-hash is unavailable on this JVM). Callers should treat a
+     * {@code null} result as "emit unpartitioned".
+     */
+    public IntUnaryOperator partitioner(int partitionCount) {
+        return null;
+    }
 
     /**
      * A single sort key entry in a composite {@link TopNDef}.

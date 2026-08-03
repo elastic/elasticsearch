@@ -36,7 +36,7 @@ import org.elasticsearch.core.ReleasableIterator;
 $if(BytesRef)$
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
-$if(long)$
+$if(long || int || double)$
 import org.elasticsearch.swisshash.LongSwissHash;
 $endif$
 import java.util.BitSet;
@@ -361,6 +361,33 @@ $endif$
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }
 
+$if(long || int || double)$
+    @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof LongSwissHash swiss) {
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod(LongSwissHash.hash(swiss.get(groupId - 1)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+$endif$
+$if(BytesRef)$
+    @Override
+    public java.util.function.IntUnaryOperator partitioner(int partitionCount) {
+        if (hash instanceof BytesRefSwissHash swiss) {
+            BytesRef scratch = new BytesRef();
+            return groupId -> {
+                if (groupId == 0) return 0;
+                return Math.floorMod((int) BytesRefSwissHash.hash64(swiss.get(groupId - 1, scratch)), partitionCount);
+            };
+        }
+        return null;
+    }
+
+$endif$
     @Override
     public void close() {
 $if(BytesRef)$

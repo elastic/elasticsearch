@@ -20,6 +20,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
+import java.util.function.IntUnaryOperator;
 
 /**
  * A {@link BlockHash} that can adapt between multiple {@link BlockHash} implementations
@@ -79,6 +80,11 @@ abstract class AdaptiveBlockHash extends BlockHash {
     @Override
     public final BitArray seenGroupIds(BigArrays bigArrays) {
         return current.seenGroupIds(bigArrays);
+    }
+
+    @Override
+    public final IntUnaryOperator partitioner(int partitionCount) {
+        return current.partitioner(partitionCount);
     }
 
     @Override

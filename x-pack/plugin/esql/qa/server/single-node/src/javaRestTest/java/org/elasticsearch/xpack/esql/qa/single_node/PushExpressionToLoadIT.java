@@ -1030,7 +1030,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
-                        .item("HashAggregationOperator")
+                        .item("PartitionedHashAggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
             }

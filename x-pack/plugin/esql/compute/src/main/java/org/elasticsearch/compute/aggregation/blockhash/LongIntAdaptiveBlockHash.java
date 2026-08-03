@@ -25,12 +25,14 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntUnaryOperator;
 
 /**
  * An {@link AdaptiveBlockHash} between {@link LongLongHash} and {@link PackedValuesBlockHash}.
@@ -271,6 +273,14 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             } else {
                 return new Block[] { longKeys, intKeys };
             }
+        }
+
+        @Override
+        public IntUnaryOperator partitioner(int partitionCount) {
+            return groupId -> Math.floorMod(
+                (int) LongLongSwissHash.hash(longLongHash.getKey1(groupId), longLongHash.getKey2(groupId)),
+                partitionCount
+            );
         }
 
         @Override

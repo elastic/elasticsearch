@@ -19,12 +19,11 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -33,9 +32,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -170,6 +169,24 @@ public class HashAggregationOperator implements Operator {
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
     /**
+     * Configuration for promoting this operator to a {@link PartitionedHashMergeOperator} at
+     * runtime when the first tagged (partitioned) page arrives.
+     *
+     * @param groupSpecs group key specs as seen in the exchange output (channels 0..keyCount-1)
+     * @param partitionCount number of partition buckets (must match PHAO's partition count)
+     * @param workerCount maximum number of background merge workers
+     * @param aggregationBatchSize hash-table emit batch size passed to each worker's BlockHash
+     * @param executor thread pool on which background workers run
+     */
+    public record PromotionConfig(
+        List<BlockHash.GroupSpec> groupSpecs,
+        int partitionCount,
+        int workerCount,
+        int aggregationBatchSize,
+        Executor executor
+    ) {}
+
+    /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
      * and {@link #aggregators(List)} are required. The other parameters default to reasonable values
      * <strong>for tests</strong>. In production, set them all.
@@ -184,6 +201,8 @@ public class HashAggregationOperator implements Operator {
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
         private TopAggregation topAggregation;
+        @Nullable
+        private PromotionConfig promotionConfig;
 
         public Builder groups(List<BlockHash.GroupSpec> groups) {
             this.groups = groups;
@@ -226,6 +245,11 @@ public class HashAggregationOperator implements Operator {
             return this;
         }
 
+        public Builder promotionConfig(PromotionConfig promotionConfig) {
+            this.promotionConfig = promotionConfig;
+            return this;
+        }
+
         public Factory build() {
             return new Factory(this);
         }
@@ -241,6 +265,8 @@ public class HashAggregationOperator implements Operator {
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
         private final TopAggregation topAggregation;
+        @Nullable
+        private final PromotionConfig promotionConfig;
 
         protected Factory(Builder builder) {
             this.groups = requireNonNull(builder.groups, "groups");
@@ -252,6 +278,7 @@ public class HashAggregationOperator implements Operator {
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
             this.topAggregation = builder.topAggregation;
+            this.promotionConfig = builder.promotionConfig;
         }
 
         @Override
@@ -274,7 +301,8 @@ public class HashAggregationOperator implements Operator {
                     1.0,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
                     topAggregation,
-                    driverContext
+                    driverContext,
+                    null // categorize does not support promotion
                 );
             }
             return new HashAggregationOperator(
@@ -285,7 +313,8 @@ public class HashAggregationOperator implements Operator {
                 partialEmitUniquenessThreshold,
                 maxPageSize,
                 topAggregation,
-                driverContext
+                driverContext,
+                promotionConfig
             );
         }
 
@@ -312,6 +341,9 @@ public class HashAggregationOperator implements Operator {
 
     protected final DriverContext driverContext;
 
+    @Nullable
+    private final PromotionConfig promotionConfig;
+
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     private boolean finished;
@@ -320,7 +352,7 @@ public class HashAggregationOperator implements Operator {
     /**
      * Maximum number of rows per output page.
      */
-    private final int maxPageSize;
+    protected final int maxPageSize;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -333,11 +365,11 @@ public class HashAggregationOperator implements Operator {
     /**
      * Count of pages this operator has processed.
      */
-    private int pagesProcessed;
+    protected int pagesProcessed;
     /**
      * Count of rows this operator has received.
      */
-    private long rowsReceived;
+    protected long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */
@@ -367,7 +399,8 @@ public class HashAggregationOperator implements Operator {
         double partialEmitUniquenessThreshold,
         int maxPageSize,
         TopAggregation topAggregation,
-        DriverContext driverContext
+        DriverContext driverContext,
+        @Nullable PromotionConfig promotionConfig
     ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
@@ -381,6 +414,7 @@ public class HashAggregationOperator implements Operator {
         this.blockHashSupplier = blockHashSupplier;
         this.aggregators = new ArrayList<>();
         this.topAggregation = topAggregation;
+        this.promotionConfig = promotionConfig;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.get();
@@ -405,77 +439,118 @@ public class HashAggregationOperator implements Operator {
     @Override
     public void addInput(Page page) {
         try {
-            maybeReinitializeAfterPeriodicallyEmitted();
-            List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
-            class AddInput implements GroupingAggregatorFunction.AddInput {
-                long hashStart = System.nanoTime();
-                long aggStart;
-
-                @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
-                    }
-                    end();
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
-                    }
-                    end();
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
-                    }
-                    end();
-                }
-
-                private void startAggEndHash() {
-                    aggStart = System.nanoTime();
-                    hashNanos += aggStart - hashStart;
-                }
-
-                private void end() {
-                    hashStart = System.nanoTime();
-                    aggregationNanos += hashStart - aggStart;
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(Releasables.wrap(prepared));
-                }
-            }
-            try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
-                requireNonNull(page, "page is null");
-
-                for (GroupingAggregator aggregator : aggregators) {
-                    GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
-                    if (p != null) {
-                        prepared.add(p);
-                    }
-                }
-
-                // TODO we can skip the page *entirely* if we know we don't need "empty" results.
-                blockHash.add(page, add);
-                hashNanos += System.nanoTime() - add.hashStart;
-            }
-            rowsAddedInCurrentBatch += page.getPositionCount();
-            if (shouldEmitPartialResultsPeriodically()) {
-                emit();
-            }
+            processPage(page);
         } finally {
             page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
+        }
+    }
+
+    /**
+     * If this operator is configured with a {@link PromotionConfig} and the incoming page is
+     * tagged (partitioned), promotes to a {@link PartitionedHashMergeOperator}. The Driver calls
+     * this before {@link #addInput}, so the triggering page goes directly to the promoted operator
+     * rather than being processed here first.
+     *
+     * <p>This operator's accumulated state (from all prior untagged pages) is handed off as the
+     * initial {@code noneOp} of the promoted operator; it will be redistributed to workers at
+     * finish time via {@code distributeNoneOpToWorkers()}.
+     */
+    @Override
+    public Operator tryPromote(DriverContext driverContext, Page page) {
+        if (promotionConfig == null || page.partitionId() == null) {
+            return this;
+        }
+        return new PartitionedHashMergeOperator(
+            PartitionedHashMergeOperator.buildInternalGroupSpecs(promotionConfig.groupSpecs()),
+            aggregatorFactories,
+            promotionConfig.partitionCount(),
+            promotionConfig.workerCount(),
+            maxPageSize,
+            promotionConfig.aggregationBatchSize(),
+            promotionConfig.executor(),
+            driverContext,
+            this
+        );
+    }
+
+    /**
+     * Hashes and aggregates one page without releasing it. Unlike {@link #addInput}, the caller
+     * retains ownership of {@code page} and is responsible for releasing it. Does not update
+     * {@link #pagesProcessed} or {@link #rowsReceived} — those are managed by {@link #addInput}.
+     * <p>
+     * Used by {@link PartitionedHashAggregationOperator}, which feeds filtered sub-pages it
+     * created and owns.
+     * </p>
+     */
+    protected void processPage(Page page) {
+        maybeReinitializeAfterPeriodicallyEmitted();
+        List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
+        class AddInput implements GroupingAggregatorFunction.AddInput {
+            long hashStart = System.nanoTime();
+            long aggStart;
+
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                startAggEndHash();
+                for (GroupingAggregatorFunction.AddInput p : prepared) {
+                    p.add(positionOffset, groupIds);
+                }
+                end();
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                startAggEndHash();
+                for (GroupingAggregatorFunction.AddInput p : prepared) {
+                    p.add(positionOffset, groupIds);
+                }
+                end();
+            }
+
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                startAggEndHash();
+                for (GroupingAggregatorFunction.AddInput p : prepared) {
+                    p.add(positionOffset, groupIds);
+                }
+                end();
+            }
+
+            private void startAggEndHash() {
+                aggStart = System.nanoTime();
+                hashNanos += aggStart - hashStart;
+            }
+
+            private void end() {
+                hashStart = System.nanoTime();
+                aggregationNanos += hashStart - aggStart;
+            }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(Releasables.wrap(prepared));
+            }
+        }
+        try (AddInput add = new AddInput()) {
+            checkState(needsInput(), "Operator is already finishing");
+            requireNonNull(page, "page is null");
+
+            for (GroupingAggregator aggregator : aggregators) {
+                GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
+                if (p != null) {
+                    prepared.add(p);
+                }
+            }
+
+            // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+            blockHash.add(page, add);
+            hashNanos += System.nanoTime() - add.hashStart;
+        }
+        rowsAddedInCurrentBatch += page.getPositionCount();
+        if (shouldEmitPartialResultsPeriodically()) {
+            emit();
         }
     }
 
@@ -518,22 +593,44 @@ public class HashAggregationOperator implements Operator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
         long startInNanos = System.nanoTime();
-        PreparedForEvaluation prepared = new PreparedForEvaluation();
         try {
-            if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
-            } else {
-                output = new MultiPageResult(prepared, aggBlockCounts);
-                prepared = null; // Prepared has moved into the output
-            }
+            var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, maxPageSize, this::customizeSelected);
+            output = timeEmitting(pageBuilder.build(evaluationContext(blockHash)));
         } finally {
             rowsAddedInCurrentBatch = 0;
-            Releasables.close(prepared);
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    /**
+     * Wraps {@code delegate} so each {@link ReleasableIterator#next} call's time is folded into
+     * {@link #emitNanos}, matching this operator's own emit-time accounting for pages built after
+     * the first (e.g. when a result is split across multiple pages).
+     */
+    private ReleasableIterator<Page> timeEmitting(ReleasableIterator<Page> delegate) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return delegate.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                long start = System.nanoTime();
+                try {
+                    return delegate.next();
+                } finally {
+                    emitNanos += System.nanoTime() - start;
+                }
+            }
+
+            @Override
+            public void close() {
+                delegate.close();
+            }
+        };
     }
 
     /**
@@ -597,6 +694,20 @@ public class HashAggregationOperator implements Operator {
     @Override
     public Operator.Status status() {
         return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount);
+    }
+
+    /**
+     * Evaluates this operator's current contents as final output, regardless of
+     * its own aggregator mode. Used by {@link PartitionedHashMergeOperator} when the
+     * non-promoted path needs to emit final results from an INTERMEDIATE-mode
+     * accumulator without a re-ingest round trip.
+     */
+    protected ReleasableIterator<Page> evaluateAsFinal() {
+        List<GroupingAggregator> finalAggs = aggregators.stream()
+            .map(a -> new GroupingAggregator(a.aggregatorFunction(), AggregatorMode.FINAL))
+            .toList();
+        var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, finalAggs, maxPageSize, this::customizeSelected);
+        return pageBuilder.build(evaluationContext(blockHash));
     }
 
     protected static void checkState(boolean condition, String msg) {
@@ -826,143 +937,4 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    /**
-     * Returns many pages of results from aggregations. Works by breaking chunks off
-     * of the {@code selected} and {@code keys}.
-     * <p>
-     *     This is a step towards a system that breaks rows off of the {@link BlockHash}
-     *     itself. Right now, the {@link BlockHash} implementations returns all results
-     *     at once so the best we can do is break pieces off. But soon! Soon we can make
-     *     them smarter.
-     * </p>
-     */
-    class MultiPageResult implements ReleasableIterator<Page> {
-        private final PreparedForEvaluation prepared;
-        private final int[] aggBlockCounts;
-
-        private int rowOffset = 0;
-
-        MultiPageResult(PreparedForEvaluation prepared, int[] aggBlockCounts) {
-            this.prepared = prepared;
-            this.aggBlockCounts = aggBlockCounts;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return rowOffset < prepared.selected.keys.getPositionCount();
-        }
-
-        @Override
-        public Page next() {
-            long startInNanos = System.nanoTime();
-            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
-            try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
-                Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
-                rowOffset = endOffset;
-                return output;
-            } finally {
-                emitNanos += System.nanoTime() - startInNanos;
-            }
-        }
-
-        @Override
-        public void close() {
-            prepared.close();
-        }
-    }
-
-    private class PreparedForEvaluation implements Releasable {
-        private final GroupingAggregatorEvaluationContext ctx;
-        private final Selected selected;
-        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
-
-        private PreparedForEvaluation() {
-            int count = aggregators.size();
-            GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
-            Selected selected = null;
-            List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
-            boolean success = false;
-            try {
-                final IntVector keys;
-                if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
-                    // push down TopN by selecting a subset of keys
-                    try (var allKeys = blockHash.nonEmpty()) {
-                        keys = aggregators.get(topAggregation.aggregatorIndex())
-                            .aggregatorFunction()
-                            .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
-                    }
-                } else {
-                    try (var allKeys = blockHash.nonEmpty()) {
-                        keys = selectedKeysForEmit(ctx, allKeys);
-                    }
-                }
-                selected = new Selected(keys, new IntVector[count]);
-                for (int a = 0; a < count; a++) {
-                    selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
-                    preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
-                }
-            }
-            this.ctx = ctx;
-            this.selected = selected;
-            this.preparedAggregators = preparedAggregators;
-        }
-
-        /**
-         * Build a page or results.
-         * @param selectedInPage The subset of {@link #selected} for this page. If we're
-         *                       emitting a single page then this is {@code ==} to {@link #selected}.
-         */
-        Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
-            Block[] keys = blockHash.getKeys(selectedInPage.keys);
-            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            try {
-                int blockOffset = keys.length;
-                for (int i = 0; i < preparedAggregators.size(); i++) {
-                    var aggregator = preparedAggregators.get(i);
-                    aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
-                    blockOffset += aggBlockCounts[i];
-                }
-                Page result = new Page(blocks);
-                blocks = null;
-                return result;
-            } finally {
-                if (blocks != null) {
-                    Releasables.close(blocks);
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
-        }
-    }
-
-    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
-        public Selected slice(int beginInclude, int endExclusive) {
-            Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
-            try {
-                for (int a = 0; a < aggs.length; a++) {
-                    result.aggs[a] = aggs[a].slice(beginInclude, endExclusive);
-                }
-                Selected r = result;
-                result = null;
-                return r;
-            } finally {
-                Releasables.close(result);
-            }
-
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(keys, Releasables.wrap(aggs));
-        }
-    }
 }

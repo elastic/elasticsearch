@@ -110,7 +110,7 @@ public interface Operator extends Releasable {
 
     IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
-    default Operator tryPromote(DriverContext driverContext) {
+    default Operator tryPromote(DriverContext driverContext, Page page) {
         return this;
     }
 

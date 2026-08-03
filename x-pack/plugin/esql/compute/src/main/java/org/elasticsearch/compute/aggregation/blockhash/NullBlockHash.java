@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 
+import java.util.function.IntUnaryOperator;
+
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
  * {@code 0} to {@code false} and group {@code 1} to {@code true}.
@@ -76,6 +78,11 @@ final class NullBlockHash extends BlockHash {
             seen.set(0);
         }
         return seen;
+    }
+
+    @Override
+    public IntUnaryOperator partitioner(int partitionCount) {
+        return groupId -> 0;
     }
 
     @Override

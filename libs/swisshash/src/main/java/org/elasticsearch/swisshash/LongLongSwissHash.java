@@ -658,7 +658,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         return (long) id * KEY_SIZE;
     }
 
-    private static long hash(long key1, long key2) {
+    public static long hash(long key1, long key2) {
         long h = key1 * 0x9E3779B97F4A7C15L ^ key2;
         h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
         h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;

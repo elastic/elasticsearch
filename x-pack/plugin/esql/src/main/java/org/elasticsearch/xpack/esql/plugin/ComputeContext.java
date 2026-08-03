@@ -26,6 +26,7 @@ record ComputeContext(
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
+    boolean nodeLevelReductionActive,
     boolean retainSearchContexts
 ) {
     IndexedByShardId<? extends SearchExecutionContext> searchExecutionContexts() {

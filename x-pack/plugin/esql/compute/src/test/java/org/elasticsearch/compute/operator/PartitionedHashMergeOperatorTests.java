@@ -1,0 +1,543 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.operator;
+
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executor;
+
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * End-to-end tests for {@link PartitionedHashMergeOperator}: the coordinator-side counterpart to
+ * {@link PartitionedHashAggregationOperator}. Each test drives the full data-node → coordinator
+ * pipeline:
+ * <ol>
+ *   <li>Raw (key, value) pages → {@link PartitionedHashAggregationOperator} → intermediate pages
+ *       (some tagged with a partition id, some untagged depending on whether conversion happened).
+ *   <li>Intermediate pages → {@link PartitionedHashMergeOperator} → final (key, sum) pages.
+ *   <li>Final pages are validated against the expected per-key sums.
+ * </ol>
+ */
+public class PartitionedHashMergeOperatorTests extends ESTestCase {
+
+    private static final String ESQL_WORKER = "esql_worker";
+
+    private BlockFactory blockFactory;
+    private TestThreadPool threadPool;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        blockFactory = new BlockFactory(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_WORKER, 4, 1000, ESQL_WORKER, EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
+    }
+
+    /**
+     * Data node with a high emit threshold that is not crossed mid-stream — all keys accumulate in
+     * one pass and are flushed at finish(). The small input stays below the partition threshold, so
+     * the operator emits untagged pages (the small-query path). Results must still be correct.
+     */
+    public void testNonPromotedPath() {
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> raw = rawInput(500, 20, oracle);
+
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, 10_000 /* not crossed mid-stream */);
+        assertTrue(
+            "expected untagged pages: small input stays below partition threshold",
+            intermediate.stream().allMatch(p -> p.partitionId() == null)
+        );
+
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Data node converts to partitioned mode → intermediate pages are tagged.
+     * Merge operator promotes on the first tagged page and routes subsequent ones to the correct worker.
+     */
+    public void testPromotedPath() {
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> raw = rawInput(4_000, 200, oracle);
+
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 80) /* crossed quickly */);
+        assertTrue("expected at least some tagged pages after conversion", intermediate.stream().anyMatch(p -> p.partitionId() != null));
+
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Two simulated data nodes, one with a low emit threshold (multiple flushes) and one with a high
+     * threshold (single flush at finish()). Both produce tagged pages; the merge operator must
+     * correctly route and reconcile pages from both.
+     */
+    public void testMixedTaggedAndUntagged() {
+        Map<Long, Long> oracle = new HashMap<>();
+
+        int partitionCount = between(2, 16);
+
+        // Node A: frequent intermediate flushes
+        List<Page> rawA = rawInput(3_000, 150, oracle);
+        List<Page> intermediateA = runDataNodeOp(rawA, partitionCount, between(5, 50));
+
+        // Node B: single flush at finish()
+        List<Page> rawB = rawInput(500, 20, oracle);
+        List<Page> intermediateB = runDataNodeOp(rawB, partitionCount, 10_000);
+
+        // Interleave pages from both nodes as the coordinator would see them.
+        List<Page> allIntermediate = new ArrayList<>();
+        allIntermediate.addAll(intermediateA);
+        allIntermediate.addAll(intermediateB);
+
+        Map<Long, Long> actual = runMergeOp(allIntermediate, partitionCount);
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Pages from a high-cardinality data node (many intermediate flushes) arrive before pages from
+     * a low-cardinality node (single flush at finish()). Verifies correct reconciliation when pages
+     * from both nodes are interleaved in non-trivial order.
+     */
+    public void testUntaggedArrivingAfterPromotion() {
+        Map<Long, Long> oracle = new HashMap<>();
+
+        int partitionCount = between(2, 8);
+        List<Page> rawConverting = rawInput(4_000, 200, oracle);
+        List<Page> tagged = runDataNodeOp(rawConverting, partitionCount, 30);
+
+        List<Page> rawLowCardinality = rawInput(800, 50, oracle);
+        List<Page> untagged = runDataNodeOp(rawLowCardinality, partitionCount, 10_000);
+
+        // Feed the frequent-flush node's pages first, then the single-flush node's pages.
+        List<Page> ordered = new ArrayList<>(tagged);
+        ordered.addAll(untagged);
+
+        Map<Long, Long> actual = runMergeOp(ordered, partitionCount);
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Exercises the null-key path: null grouping keys should be routed to partition 0 (NULL_PARTITION)
+     * on the data node and again to partition 0 during NONE-table reconciliation on the coordinator.
+     */
+    public void testNullKeyHandling() {
+        Map<Long, Long> oracle = new HashMap<>();
+        List<Page> raw = rawInputWithNulls(3_000, 100, oracle);
+
+        int partitionCount = between(2, 16);
+        List<Page> intermediate = runDataNodeOp(raw, partitionCount, between(5, 50));
+        Map<Long, Long> actual = runMergeOp(intermediate, partitionCount);
+        assertThat(actual, equalTo(oracle));
+    }
+
+    /**
+     * Regression test: after {@link PartitionedHashMergeOperator#finish()} is called and all
+     * background workers complete, {@link PartitionedHashMergeOperator#isFinished()} must still
+     * return {@code false} until {@link PartitionedHashMergeOperator#getOutput()} has been called.
+     * <p>
+     * The ES|QL {@link org.elasticsearch.compute.operator.Driver} loop checks {@code isFinished()}
+     * <em>before</em> calling {@code getOutput()}. Returning {@code true} too early caused the
+     * operator to be closed without ever producing output, yielding empty results.
+     */
+    public void testIsFinishedGateRequiresGetOutput() {
+        Map<Long, Long> oracle = new HashMap<>();
+        // Low conversion threshold ensures the promoted (partitioned) path is exercised.
+        List<Page> raw = rawInput(4_000, 200, oracle);
+        List<Page> intermediate = runDataNodeOp(raw, 8, 30);
+        assertTrue("expected promoted pages", intermediate.stream().anyMatch(p -> p.partitionId() != null));
+
+        SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
+        int intermediateBlockCount = sumSupplier.groupingIntermediateStateDesc().size();
+        List<Integer> intChannels = new ArrayList<>(intermediateBlockCount);
+        for (int c = 0; c < intermediateBlockCount; c++) {
+            intChannels.add(1 + c);
+        }
+
+        DriverContext driverContext = driverContext();
+        PartitionedHashMergeOperator mergeOp = new PartitionedHashMergeOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(new PartitionedHashMergeOperator.AggregatorSpec(sumSupplier, intChannels)))
+            .partitionCount(8)
+            .maxPageSize(Integer.MAX_VALUE)
+            .aggregationBatchSize(Integer.MAX_VALUE)
+            .executor(workerExecutor())
+            .build()
+            .get(driverContext);
+        try {
+            for (Page page : intermediate) {
+                mergeOp.addInput(page);
+            }
+            mergeOp.finish();
+
+            // Wait for background workers exactly as the Driver would via its isBlocked() check.
+            IsBlockedResult blocked = mergeOp.isBlocked();
+            if (blocked != Operator.NOT_BLOCKED) {
+                safeAwait(blocked.listener());
+            }
+
+            // KEY ASSERTION: isFinished() must be false before getOutput() is ever called.
+            // The driver checks isFinished() before calling getOutput(); returning true here skips
+            // output production entirely, producing empty results.
+            assertFalse("isFinished() must be false before getOutput() is first called", mergeOp.isFinished());
+            assertTrue(
+                "canProduceMoreDataWithoutExtraInput() must be true before first getOutput() call",
+                mergeOp.canProduceMoreDataWithoutExtraInput()
+            );
+
+            // Drain output — the driver calls getOutput() in a loop.
+            Map<Long, Long> actual = new HashMap<>();
+            Page out;
+            while ((out = mergeOp.getOutput()) != null) {
+                LongBlock keys = out.getBlock(0);
+                LongBlock sums = out.getBlock(1);
+                for (int i = 0; i < out.getPositionCount(); i++) {
+                    long key = keys.isNull(i) ? 0L : keys.getLong(i);
+                    actual.merge(key, sums.getLong(i), Long::sum);
+                }
+                out.releaseBlocks();
+            }
+
+            // After all pages are drained, isFinished() must be true.
+            assertTrue("isFinished() must be true after output is exhausted", mergeOp.isFinished());
+            assertThat(actual, equalTo(oracle));
+        } finally {
+            mergeOp.close();
+        }
+    }
+
+    /**
+     * Regression test: COUNT aggregation works correctly through the promoted (partitioned) path.
+     */
+    public void testCountAggregationPromotedPath() {
+        Map<Long, Long> countOracle = new HashMap<>();
+        List<Page> raw = rawCountInput(4_000, 200, countOracle);
+
+        // Data-node operator: COUNT(*) with low threshold to trigger conversion to partitioned mode.
+        AggregatorFunctionSupplier countSupplier = CountAggregatorFunction.supplier();
+        PartitionedHashAggregationOperator dataNodeOp = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(countSupplier, List.of())))
+            .partitionCount(8)
+            .emitKeysThreshold(30)
+            .maxPageSize(Integer.MAX_VALUE)
+            .aggregationBatchSize(Integer.MAX_VALUE)
+            .build()
+            .get(driverContext());
+        List<Page> intermediate = new ArrayList<>();
+        try {
+            for (Page page : raw) {
+                dataNodeOp.addInput(copyPage(page));
+                Page out;
+                while ((out = dataNodeOp.getOutput()) != null) {
+                    intermediate.add(out);
+                }
+            }
+            dataNodeOp.finish();
+            Page out;
+            while ((out = dataNodeOp.getOutput()) != null) {
+                intermediate.add(out);
+            }
+        } finally {
+            dataNodeOp.close();
+        }
+
+        assertTrue("expected promoted pages in COUNT test", intermediate.stream().anyMatch(p -> p.partitionId() != null));
+
+        // Coordinator: COUNT(*) intermediate state is 1 block (count), so ch layout is key=0, count=1.
+        int countIntBlocks = countSupplier.groupingIntermediateStateDesc().size();
+        List<Integer> intChannels = new ArrayList<>(countIntBlocks);
+        for (int c = 0; c < countIntBlocks; c++) {
+            intChannels.add(1 + c);
+        }
+
+        DriverContext driverContext = driverContext();
+        PartitionedHashMergeOperator mergeOp = new PartitionedHashMergeOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(new PartitionedHashMergeOperator.AggregatorSpec(countSupplier, intChannels)))
+            .partitionCount(8)
+            .maxPageSize(Integer.MAX_VALUE)
+            .aggregationBatchSize(Integer.MAX_VALUE)
+            .executor(workerExecutor())
+            .build()
+            .get(driverContext);
+        Map<Long, Long> actual = new HashMap<>();
+        try {
+            for (Page page : intermediate) {
+                assertTrue(mergeOp.needsInput());
+                mergeOp.addInput(page);
+            }
+            mergeOp.finish();
+            IsBlockedResult blocked = mergeOp.isBlocked();
+            if (blocked != Operator.NOT_BLOCKED) {
+                safeAwait(blocked.listener());
+            }
+            Page out;
+            while ((out = mergeOp.getOutput()) != null) {
+                LongBlock keys = out.getBlock(0);
+                LongBlock counts = out.getBlock(1);
+                for (int i = 0; i < out.getPositionCount(); i++) {
+                    long key = keys.isNull(i) ? 0L : keys.getLong(i);
+                    actual.merge(key, counts.getLong(i), Long::sum);
+                }
+                out.releaseBlocks();
+            }
+        } finally {
+            mergeOp.close();
+        }
+        assertThat(actual, equalTo(countOracle));
+    }
+
+    // ---- helpers ----
+
+    /**
+     * Builds {@code rows} random (LONG key, LONG value) pairs over {@code cardinality} distinct
+     * keys, split across small pages, updating {@code oracle} (key → expected sum) in place.
+     */
+    private List<Page> rawInput(int rows, int cardinality, Map<Long, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 300));
+            remaining -= pageSize;
+            try (
+                LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key = randomLongBetween(0, cardinality - 1);
+                    long value = randomLongBetween(-1_000, 1_000);
+                    keyBuilder.appendLong(key);
+                    valueBuilder.appendLong(value);
+                    oracle.merge(key, value, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    /** Like {@link #rawInput} but occasionally emits null keys (folded into oracle key 0L). */
+    private List<Page> rawInputWithNulls(int rows, int cardinality, Map<Long, Long> oracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 300));
+            remaining -= pageSize;
+            try (
+                LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize);
+                LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(pageSize)
+            ) {
+                for (int i = 0; i < pageSize; i++) {
+                    long value = randomLongBetween(-1_000, 1_000);
+                    if (rarely()) {
+                        keyBuilder.appendNull();
+                        oracle.merge(0L, value, Long::sum);
+                    } else {
+                        long key = randomLongBetween(0, cardinality - 1);
+                        keyBuilder.appendLong(key);
+                        oracle.merge(key, value, Long::sum);
+                    }
+                    valueBuilder.appendLong(value);
+                }
+                pages.add(new Page(keyBuilder.build(), valueBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    /**
+     * Runs {@link PartitionedHashAggregationOperator} on {@code raw} pages (grouping key at
+     * channel 0, value at channel 1) and returns all emitted intermediate pages. Tagged pages have
+     * {@link Page#partitionId()} set; untagged pages have it null.
+     * <p>
+     *     The returned pages are owned by the caller; they must be passed to
+     *     {@link #runMergeOp} (which consumes them) or released explicitly.
+     */
+    private List<Page> runDataNodeOp(List<Page> raw, int partitionCount, int emitKeysThreshold) {
+        SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
+        PartitionedHashAggregationOperator op = new PartitionedHashAggregationOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(new PartitionedHashAggregationOperator.AggregatorSpec(sumSupplier, List.of(1))))
+            .partitionCount(partitionCount)
+            .emitKeysThreshold(emitKeysThreshold)
+            .maxPageSize(Integer.MAX_VALUE)
+            .aggregationBatchSize(Integer.MAX_VALUE)
+            .build()
+            .get(driverContext());
+        List<Page> output = new ArrayList<>();
+        try {
+            for (Page page : raw) {
+                op.addInput(copyPage(page)); // data-node op's addInput releases the copy's blocks
+                Page out;
+                while ((out = op.getOutput()) != null) {
+                    output.add(out);
+                }
+            }
+            op.finish();
+            Page out;
+            while ((out = op.getOutput()) != null) {
+                output.add(out);
+            }
+        } finally {
+            op.close();
+        }
+        return output;
+    }
+
+    /**
+     * Feeds {@code intermediatePages} (from {@link #runDataNodeOp}) through a
+     * {@link PartitionedHashMergeOperator} and returns the per-key final sums.
+     * <p>
+     *     Consumes (releases) all pages in {@code intermediatePages}.
+     */
+    private Map<Long, Long> runMergeOp(List<Page> intermediatePages, int partitionCount) {
+        SumLongAggregatorFunctionSupplier sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
+        // The data-node op emits intermediate pages with: key at ch 0, sum+seen+failed at ch 1,2,3.
+        int intermediateBlockCount = sumSupplier.groupingIntermediateStateDesc().size(); // 3 for SumLong
+        List<Integer> intChannels = new ArrayList<>(intermediateBlockCount);
+        for (int c = 0; c < intermediateBlockCount; c++) {
+            intChannels.add(1 + c); // key is at 0; intermediate state starts at 1
+        }
+
+        DriverContext driverContext = driverContext();
+        PartitionedHashMergeOperator mergeOp = new PartitionedHashMergeOperator.Builder().groupSpecs(
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+        )
+            .aggregators(List.of(new PartitionedHashMergeOperator.AggregatorSpec(sumSupplier, intChannels)))
+            .partitionCount(partitionCount)
+            .maxPageSize(Integer.MAX_VALUE)
+            .aggregationBatchSize(Integer.MAX_VALUE)
+            .executor(workerExecutor())
+            .build()
+            .get(driverContext);
+        try {
+            for (Page page : intermediatePages) {
+                assertTrue(mergeOp.needsInput());
+                mergeOp.addInput(page); // consumes (releases) the page
+                mergeOp.tryPromote(driverContext, page); // simulate Driver promotion check
+            }
+            mergeOp.finish();
+
+            // Simulate the Driver's isBlocked() protocol: wait for background workers before polling output.
+            IsBlockedResult blocked = mergeOp.isBlocked();
+            if (blocked != Operator.NOT_BLOCKED) {
+                safeAwait(blocked.listener());
+            }
+
+            Map<Long, Long> actual = new HashMap<>();
+            Page out;
+            while ((out = mergeOp.getOutput()) != null) {
+                // Final output: key at ch 0, sum at ch 1 (FINAL mode → one block per aggregator).
+                LongBlock keys = out.getBlock(0);
+                LongBlock sums = out.getBlock(1);
+                for (int i = 0; i < out.getPositionCount(); i++) {
+                    long key = keys.isNull(i) ? 0L : keys.getLong(i);
+                    actual.merge(key, sums.getLong(i), Long::sum);
+                }
+                out.releaseBlocks();
+            }
+            return actual;
+        } finally {
+            mergeOp.close();
+        }
+    }
+
+    /**
+     * Builds {@code rows} random single-column (LONG key) pages over {@code cardinality} distinct
+     * keys, updating {@code countOracle} (key → expected count) in place. Suitable for COUNT(*)
+     * aggregation tests where no value column is needed.
+     */
+    private List<Page> rawCountInput(int rows, int cardinality, Map<Long, Long> countOracle) {
+        List<Page> pages = new ArrayList<>();
+        int remaining = rows;
+        while (remaining > 0) {
+            int pageSize = Math.min(remaining, between(50, 300));
+            remaining -= pageSize;
+            try (LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(pageSize)) {
+                for (int i = 0; i < pageSize; i++) {
+                    long key = randomLongBetween(0, cardinality - 1);
+                    keyBuilder.appendLong(key);
+                    countOracle.merge(key, 1L, Long::sum);
+                }
+                pages.add(new Page(keyBuilder.build()));
+            }
+        }
+        return pages;
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        super.tearDown();
+    }
+
+    private Executor workerExecutor() {
+        return threadPool.executor(ESQL_WORKER);
+    }
+
+    private DriverContext driverContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+    }
+
+    private Page copyPage(Page page) {
+        Block[] blocks = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                Block b = page.getBlock(i);
+                blocks[i] = b.elementType()
+                    .newBlockBuilder(b.getPositionCount(), blockFactory)
+                    .copyFrom(b, 0, b.getPositionCount())
+                    .build();
+            }
+            Page copy = new Page(blocks);
+            success = true;
+            return copy;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
+        }
+    }
+}

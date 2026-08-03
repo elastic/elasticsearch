@@ -253,7 +253,10 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         );
         DriverContext driverContext = driverContext();
         try (TopNOperator op = factory.get(driverContext)) {
-            Operator promoted = op.tryPromote(driverContext);
+            // TopNOperator.tryPromote ignores the page; any page is sufficient here.
+            Page page = buildLongPage(driverContext.blockFactory(), LongStream.of(1L));
+            Operator promoted = op.tryPromote(driverContext, page);
+            page.releaseBlocks();
             assertThat(promoted, sameInstance(op));
         }
     }
@@ -279,7 +282,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
             // Feed 10 rows, well below the threshold of 1000.
             Page page = buildLongPage(driverContext().blockFactory(), LongStream.range(0, 10));
             op.addInput(page);
-            Operator promoted = op.tryPromote(driverContext);
+            Operator promoted = op.tryPromote(driverContext, page);
             assertThat(promoted, instanceOf(TopNOperator.class));
             assertThat(promoted, sameInstance(op));
         }
@@ -305,7 +308,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator op = factory.get(driverContext);
         Page page = buildLongPage(driverContext().blockFactory(), LongStream.of(42L));
         op.addInput(page);
-        Operator promoted = op.tryPromote(driverContext);
+        Operator promoted = op.tryPromote(driverContext, page);
         try {
             assertThat(promoted, instanceOf(ParallelTopNOperator.class));
         } finally {

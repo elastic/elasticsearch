@@ -28,11 +28,14 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.function.IntUnaryOperator;
 
 /**
  * An {@link AdaptiveBlockHash} for the two-key {@code (LONG, BYTES_REF)} (or {@code (BYTES_REF, LONG)})
@@ -406,6 +409,17 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
         @Override
         public BitArray seenGroupIds(BigArrays bigArrays) {
             return new SeenGroupIds.Range(0, numKeys()).seenGroupIds(bigArrays);
+        }
+
+        @Override
+        public IntUnaryOperator partitioner(int partitionCount) {
+            BytesRef scratch = new BytesRef();
+            return groupId -> {
+                long bytesRefOrd = longLongHash.getKey1(groupId);
+                long longKey = longLongHash.getKey2(groupId);
+                long h1 = bytesRefOrd == 0 ? 0 : BytesRefSwissHash.hash64(bytesHash.hash.get(bytesRefOrd - 1, scratch));
+                return Math.floorMod((int) LongLongSwissHash.hash(h1, longKey), partitionCount);
+            };
         }
 
         @Override

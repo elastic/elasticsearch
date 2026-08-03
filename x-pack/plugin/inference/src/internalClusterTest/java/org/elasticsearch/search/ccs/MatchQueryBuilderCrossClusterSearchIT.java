@@ -58,7 +58,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
 
     @After
     public void cleanup() {
-        // delete inference endpoints so that next test can register them again
+        // The cleanup method of base class only deletes user indices and not the system indices. Hence, we explicitly delete
+        // the inference endpoints so that next test can create them again
         for (var entry : localInferenceIds.entrySet()) {
             deleteInferenceEndpoint(client(LOCAL_CLUSTER), entry.getValue().taskType(), entry.getKey());
         }

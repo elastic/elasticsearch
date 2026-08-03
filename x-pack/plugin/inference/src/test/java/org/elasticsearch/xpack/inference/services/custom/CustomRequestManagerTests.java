@@ -35,16 +35,12 @@ public class CustomRequestManagerTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createThreadPool() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         terminate(threadPool);
     }
 

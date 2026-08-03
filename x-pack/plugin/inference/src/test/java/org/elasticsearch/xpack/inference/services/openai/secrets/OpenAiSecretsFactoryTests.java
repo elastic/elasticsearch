@@ -49,8 +49,7 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
     private TokenCache tokenCache;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         tokenCache = new NoopTokenCache();
     }

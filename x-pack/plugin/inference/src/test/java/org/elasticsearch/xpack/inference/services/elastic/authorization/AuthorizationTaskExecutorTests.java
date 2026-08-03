@@ -60,8 +60,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     private CCMService mockCCMService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createClusterAndMocks() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clusterService = createClusterService(threadPool);
         persistentTasksService = mock(PersistentTasksService.class);
@@ -75,8 +74,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownClusterAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
     }

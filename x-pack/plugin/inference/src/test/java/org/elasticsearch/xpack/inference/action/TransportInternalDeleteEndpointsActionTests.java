@@ -40,8 +40,7 @@ public class TransportInternalDeleteEndpointsActionTests extends ESTestCase {
     private ModelRegistry mockModelRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         mockModelRegistry = mock(ModelRegistry.class);
         action = new TransportInternalDeleteEndpointsAction(
@@ -54,8 +53,7 @@ public class TransportInternalDeleteEndpointsActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         terminate(threadPool);
     }
 

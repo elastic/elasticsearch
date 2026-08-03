@@ -48,18 +48,14 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createHttpClient() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownHttpClient() throws Exception {
         clientManager.close();
         terminate(threadPool);
     }

@@ -348,6 +348,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             Literal.timeDuration(Source.EMPTY, step),
             null,
             null,
+            null,
             ConfigurationAware.CONFIGURATION_MARKER,
             0L,
             Rounding.RoundingConvention.DOWN

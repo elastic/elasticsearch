@@ -13,9 +13,11 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +38,16 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractXpackRollingUpgradeW
     private static final String QUERYABLE_BUILT_IN_ROLES_NODE_FEATURE = "security.queryable_built_in_roles";
     public static final String INDEX_METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST = "queryable_built_in_roles_digest";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public QueryableBuiltInRolesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @Before

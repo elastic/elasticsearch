@@ -16,11 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
-import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.MockElasticInferenceServiceAuthorizationServer;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -110,8 +110,13 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
     }
 
     @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
+    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
+        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     /**

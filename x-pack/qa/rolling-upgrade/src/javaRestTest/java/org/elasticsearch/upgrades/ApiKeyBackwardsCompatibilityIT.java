@@ -14,7 +14,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,8 +32,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeW
 
     private static final String CERTIFICATE_IDENTITY_FIELD_FEATURE = "certificate_identity_field";
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testCertificateIdentityBackwardsCompatibility() throws Exception {

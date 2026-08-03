@@ -14,8 +14,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,8 +36,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RolesBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public RolesBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testRolesWithDescription() throws Exception {

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -81,8 +82,13 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
+    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
+        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     public void testFileSettingsApplied() throws IOException {

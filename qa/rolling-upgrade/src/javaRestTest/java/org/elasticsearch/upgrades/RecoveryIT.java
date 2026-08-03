@@ -513,7 +513,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
                 indexName,
                 indexSettings(1, 0).put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "24h")
-                    .put("index.routing.allocation.include._name", getUpgradeCluster().getName(0))
+                    .put("index.routing.allocation.include._name", cluster.getName(0))
                     .build()
             );
             ensureGreen(indexName);
@@ -534,7 +534,7 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
             if (isOldCluster() == false) {
-                assertNoopRecoveries(indexName, s -> isUpgradedCluster() || s.startsWith(getUpgradeCluster().getName(0)));
+                assertNoopRecoveries(indexName, s -> isUpgradedCluster() || s.startsWith(cluster.getName(0)));
             }
         } else {
             assertClosedIndex(indexName, false);
@@ -689,8 +689,8 @@ public class RecoveryIT extends AbstractRollingUpgradeTestCase {
             assertNoFileBasedRecovery(
                 index,
                 nodeName -> isUpgradedCluster()
-                    || nodeName.startsWith(getUpgradeCluster().getName(0))
-                    || (nodeName.startsWith(getUpgradeCluster().getName(1)) && isFirstMixedCluster() == false)
+                    || nodeName.startsWith(cluster.getName(0))
+                    || (nodeName.startsWith(cluster.getName(1)) && isFirstMixedCluster() == false)
             );
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
             ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);

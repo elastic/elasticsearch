@@ -391,9 +391,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceIT
-  method: testCreateIndexBatching
-  issue: https://github.com/elastic/elasticsearch/issues/152041
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/152113
@@ -763,3 +760,33 @@ tests:
 - class: org.elasticsearch.cluster.routing.OperationRoutingTests
   method: testARSStatsAdjustment
   issue: https://github.com/elastic/elasticsearch/issues/155673
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155532
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test70RestartServer
+  issue: https://github.com/elastic/elasticsearch/issues/155704
+- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
+  method: testPutDataSourceForbiddenWithoutManagePrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/155705
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:mv_union.testMvUnionNullReturnedWhenFirstArgIsNull}
+  issue: https://github.com/elastic/elasticsearch/issues/155707
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/155541
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsSampleIT
+  method: test {csv-spec:stats_sample.sample geo_point}
+  issue: https://github.com/elastic/elasticsearch/pull/155536
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsSampleIT
+  method: test {csv-spec:stats_sample.sample cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/pull/155536
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsSampleIT
+  method: test {csv-spec:stats_sample.sample geo_point}
+  issue: https://github.com/elastic/elasticsearch/pull/155536
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsSampleIT
+  method: test {csv-spec:stats_sample.sample cartesian_point}
+  issue: https://github.com/elastic/elasticsearch/pull/155536
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/155740

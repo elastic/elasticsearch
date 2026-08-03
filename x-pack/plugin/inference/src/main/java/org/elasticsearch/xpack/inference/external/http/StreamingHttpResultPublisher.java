@@ -232,14 +232,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             });
         }
 
-        private void cancelUpstream() {
-            if (subscriptionCanceled.compareAndSet(false, true)) {
+        private void stopUpstream(){
+            if(subscriptionCanceled.compareAndSet(false, true)){
                 backpressure.releaseTrackedBytes();
-                // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
-                // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
                 backpressure.shutdownProducer();
-                taskRunner.cancel();
             }
+        }
+
+        private void cancelUpstream() {
+            stopUpstream();
+            taskRunner.cancel();
         }
 
         @Override

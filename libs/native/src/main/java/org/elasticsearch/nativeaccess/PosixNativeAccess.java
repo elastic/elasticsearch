@@ -30,7 +30,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final VectorSimilarityFunctions vectorDistance;
+    protected final SimdVecLibrary vectorDistance;
     protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
@@ -69,11 +69,11 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull() {
+    static SimdVecLibrary vectorSimilarityFunctionsOrNull() {
         if (isNativeVectorLibSupported() == false) {
             return null;
         }
-        var lib = VectorSimilarityFunctions.tryLoad().orElse(null);
+        var lib = SimdVecLibrary.tryLoad().orElse(null);
         if (lib != null) {
             logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
         }
@@ -208,7 +208,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         return Optional.ofNullable(vectorDistance);
     }
 

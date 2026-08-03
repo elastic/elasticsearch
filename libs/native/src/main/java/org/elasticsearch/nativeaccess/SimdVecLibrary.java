@@ -33,9 +33,9 @@ import static org.elasticsearch.nativeaccess.SimdVecChecks.validateBulkSparse;
     unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 },
     symbolResolver = VecCapsSymbolResolver.class
 )
-public abstract class VectorSimilarityFunctions {
+public abstract class SimdVecLibrary {
 
-    private static final Logger logger = LogManager.getLogger(VectorSimilarityFunctions.class);
+    private static final Logger logger = LogManager.getLogger(SimdVecLibrary.class);
 
     public enum SimilarityFunction {
         /**
@@ -122,7 +122,7 @@ public abstract class VectorSimilarityFunctions {
         }
     }
 
-    static Optional<VectorSimilarityFunctions> tryLoad() {
+    static Optional<SimdVecLibrary> tryLoad() {
         int capability = VecCaps.caps();
         if (capability < 0) {
             logger.warn("""
@@ -134,7 +134,9 @@ public abstract class VectorSimilarityFunctions {
         if (capability == 0) {
             return Optional.empty();
         }
-        return Optional.ofNullable(LibraryProvider.lookupLibrary(VectorSimilarityFunctions.class));
+        var lib = LibraryProvider.lookupLibrary(SimdVecLibrary.class);
+        assert lib != null;
+        return Optional.of(lib);
     }
 
     // --- INT7U: dot product and square distance ---

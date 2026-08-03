@@ -23,7 +23,8 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
 
     private void checkLimitByLateMaterializationFeatureFlag() {
         assumeTrue(
-            "late materialization for LimitBy/TopNBy requires " + LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG,
+            "late materialization for LimitBy/TopNBy requires "
+                + LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG,
             LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled()
         );
     }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -28,10 +31,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class QueryableBuiltInRolesUpgradeIT extends AbstractUpgradeTestCase {
+public class QueryableBuiltInRolesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     private static final String QUERYABLE_BUILT_IN_ROLES_NODE_FEATURE = "security.queryable_built_in_roles";
     public static final String INDEX_METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST = "queryable_built_in_roles_digest";
+
+    public QueryableBuiltInRolesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @Before
     public void initializeReservedRolesStore() {
@@ -42,14 +49,14 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractUpgradeTestCase {
      * Test upgrades from an older cluster versions that do not support queryable built-in roles feature.
      */
     public void testBuiltInRolesSyncedOnClusterUpgrade() throws Exception {
-        final int numberOfNodes = 3; // defined in build.gradle
+        final int numberOfNodes = 3;
         waitForNodes(numberOfNodes);
 
-        final Set<TestNodeInfo> nodes = collectNodeInfos(adminClient());
+        final List<NodeInfo> nodes = NodeInfo.getAll(adminClient());
         assertThat("cluster should have " + numberOfNodes + " nodes", nodes.size(), equalTo(numberOfNodes));
 
-        final Set<TestNodeInfo> newVersionNodes = nodes.stream().filter(TestNodeInfo::isUpgradedVersionCluster).collect(toSet());
-        final Set<TestNodeInfo> oldVersionNodes = nodes.stream().filter(TestNodeInfo::isOriginalVersionCluster).collect(toSet());
+        final Set<NodeInfo> newVersionNodes = nodes.stream().filter(NodeInfo::isUpgradedVersionCluster).collect(toSet());
+        final Set<NodeInfo> oldVersionNodes = nodes.stream().filter(NodeInfo::isOriginalVersionCluster).collect(toSet());
 
         assumeTrue(
             "Old version nodes must not support queryable feature",
@@ -60,17 +67,14 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractUpgradeTestCase {
             newVersionNodes.stream().allMatch(info -> info.supportsFeature(QUERYABLE_BUILT_IN_ROLES_NODE_FEATURE))
         );
 
-        switch (CLUSTER_TYPE) {
-            case OLD, MIXED -> {
-                // none of the old version nodes should support the queryable feature,
-                // hence the built-in roles should not exist in the security index
-                // in the mixed version cluster we do not attempt to sync the built-in roles
-                assertBuiltInRolesNotIndexed();
-            }
-            case UPGRADED -> {
-                // the built-in roles should be synced after the upgrade
-                assertBusy(() -> assertBuiltInRolesIndexed(ReservedRolesStore.names()), 45, TimeUnit.SECONDS);
-            }
+        if (isOldCluster() || isMixedCluster()) {
+            // none of the old version nodes should support the queryable feature,
+            // hence the built-in roles should not exist in the security index
+            // in the mixed version cluster we do not attempt to sync the built-in roles
+            assertBuiltInRolesNotIndexed();
+        } else if (isUpgradedCluster()) {
+            // the built-in roles should be synced after the upgrade
+            assertBusy(() -> assertBuiltInRolesIndexed(ReservedRolesStore.names()), 45, TimeUnit.SECONDS);
         }
     }
 

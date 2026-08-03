@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -900,6 +901,50 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         final SnapshotInfo snapshotInfo = createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx*"));
         assertThat(snapshotInfo.indices().size(), equalTo(2));
+    }
+
+    public void testSnapshotClosedIndexWithoutRoutingEntry() throws Exception {
+        final String repoName = "test-repo";
+        final String indexName = "test-idx";
+
+        createRepository(repoName, "fs");
+        assertAcked(prepareCreate(indexName, 1, indexSettingsNoReplicas(1)));
+        ensureGreen(indexName);
+
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(state.metadata().getProject().index(indexName), notNullValue());
+        assertThat(state.metadata().getProject().index(indexName).getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(state.routingTable().index(indexName), notNullValue());
+
+        updateClusterState(currentState -> currentState.copyAndUpdate(builder -> {
+            var routingTable = RoutingTable.builder(currentState.routingTable());
+            routingTable.remove(indexName);
+            builder.routingTable(routingTable.build());
+        }));
+
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(state.metadata().getProject().index(indexName), notNullValue());
+        assertThat(state.metadata().getProject().index(indexName).getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(state.routingTable().index(indexName), nullValue());
+
+        final SnapshotException sne = expectThrows(
+            SnapshotException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
+                .setIndices(indexName)
+                .setWaitForCompletion(true)
+                .get()
+        );
+
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
+            .setIndices(indexName)
+            .setPartial(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        assertThat(response.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(sne.getMessage(), containsString("unassigned primary shards"));
     }
 
     public void testMoveShardWhileSnapshotting() throws Exception {

@@ -471,6 +471,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
+        MappedFieldType blockLoaderFieldType(String name) {
+            // The fast full-name-map probe cannot see the unmapped field we are loading (it is absent from the mapping),
+            // nor dynamic sub-keys of flattened fields that this wrapped context intentionally lets through.
+            return isMappedField(name) ? fieldType(name) : null;
+        }
+
+        @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
@@ -843,17 +850,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
             }
-            // Don't use fieldType() for the existence check — it resolves sub-keys of
-            // flattened fields dynamically, but those are not reported by field caps
-            // and would cause element_type mismatches at runtime.
-            // Use isMappedField() (virtual) so subclasses such as DefaultShardContextForUnmappedField
-            // can allow specific unmapped fields to pass through.
-            if (isMappedField(name) == false) {
-                return ConstantNull.INSTANCE;
-            }
-            MappedFieldType fieldType = fieldType(name);
+            MappedFieldType fieldType = blockLoaderFieldType(name);
             if (fieldType == null) {
-                // the field does not exist in this context
+                // the field does not exist in this context (or is a flattened sub-key that must not be extracted)
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(
@@ -872,6 +871,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
 
             return loader;
+        }
+
+        /**
+         * Resolve the {@link MappedFieldType} to extract for {@code name}, or {@code null} if it must not be extracted
+         * (the field is absent, or is a dynamically-resolved sub-key of a {@code flattened} field).
+         * <p>
+         * Only a dotted name can be a dynamically-resolved metadata sub-field (e.g. {@code _inference_fields.*}); those
+         * (rare) cases fall back to the virtual {@code isMappedField}/{@code fieldType} gate. Field-level security,
+         * query-time {@code runtime_mappings} and slice aliases are not applied on the ES|QL data path, so for a name
+         * present in the map {@code ctx.getFieldType(name)} returns this same type.
+         */
+        @Nullable
+        MappedFieldType blockLoaderFieldType(String name) {
+            MappedFieldType fieldType = mappingLookup().getFullNameToFieldType().get(name);
+            if (fieldType != null) {
+                return fieldType;
+            }
+            if (name.indexOf('.') > 0 && isMappedField(name)) {
+                return fieldType(name);
+            }
+            return null;
         }
 
         @Override

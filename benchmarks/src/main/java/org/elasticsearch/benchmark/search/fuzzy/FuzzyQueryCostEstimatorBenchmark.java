@@ -50,6 +50,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
@@ -130,7 +131,7 @@ public class FuzzyQueryCostEstimatorBenchmark {
     @Param({ "10", "50", "200" })
     public int maxExpansions;
 
-    @Param({ "1", "4", "16" })
+    @Param({ "1", "4", "16", "64", "128" })
     public int segments;
 
     private String term;
@@ -273,9 +274,7 @@ public class FuzzyQueryCostEstimatorBenchmark {
         rewritten.visit(new QueryVisitor() {
             @Override
             public void consumeTerms(Query q, Term... ts) {
-                for (Term t : ts) {
-                    terms.add(t);
-                }
+                Collections.addAll(terms, ts);
             }
 
             @Override

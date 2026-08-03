@@ -11,7 +11,6 @@ package org.elasticsearch.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
@@ -78,8 +77,10 @@ public final class FuzzyQueries {
 
     /**
      * Effective expansion count for the breaker charge: a {@link TopTermsRewrite}'s configured size,
-     * {@link IndexSearcher#getMaxClauseCount()} for the boolean-producing rewrites that can expand up to it,
-     * or {@link FuzzyQuery#defaultMaxExpansions} otherwise; clamped to
+     * {@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS} for the boolean-producing rewrites that
+     * can expand up to {@code IndexSearcher.getMaxClauseCount()} (which is never lower, since
+     * {@code SearchUtils.calculateMaxClauseValue} floors it at that same value), or
+     * {@link FuzzyQuery#defaultMaxExpansions} otherwise; clamped to
      * {@code [1, }{@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS}{@code ]}.
      */
     private static int effectiveMaxExpansions(FuzzyQuery query) {
@@ -88,7 +89,7 @@ public final class FuzzyQueries {
         if (rewrite instanceof TopTermsRewrite<?> topTerms) {
             requested = topTerms.getSize();
         } else if (rewrite == MultiTermQuery.SCORING_BOOLEAN_REWRITE || rewrite == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
-            requested = IndexSearcher.getMaxClauseCount();
+            requested = FuzzyQueryCostEstimator.MAX_CHARGED_EXPANSIONS;
         } else {
             requested = FuzzyQuery.defaultMaxExpansions;
         }

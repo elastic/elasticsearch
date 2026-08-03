@@ -7,7 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,12 +19,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,16 +33,12 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
-    private static final Logger log = LogManager.getLogger(SystemIndicesUpgradeIT.class);
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
-        "test_user",
-        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
-    );
+public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
-    @BeforeClass
-    public static void avoidBugIn8_0_1() {
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/125168", isOriginalClusterVersionAtLeast(Version.V_8_1_0));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+
+    public XpackSystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
     }
 
     @Override
@@ -58,13 +53,13 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
     public void testUpgradeSystemIndexAndDataStream() throws Exception {
         String dataStreamName = ".fleet-actions-results";
         String indexName = ".fleet-actions";
-        if (CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
+        if (isOldCluster()) {
             addDataTo(dataStreamName);
             addDataTo(indexName);
             verifyDataStream(dataStreamName);
             verifyAccessToIndex(dataStreamName);
             verifyAccessToIndex(indexName);
-        } else if (CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             upgradeSystemIndices();
             verifyDataStream(dataStreamName);
             verifyIndex(indexName);
@@ -129,7 +124,7 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
         createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
 
         try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
-            boolean upgradeRequired = Version.fromString(UPGRADE_FROM_VERSION).before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION);
+            boolean upgradeRequired = getOldClusterTestVersion().before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION.toString());
             String expectedStatus = (upgradeRequired) ? "MIGRATION_NEEDED" : "NO_MIGRATION_NEEDED";
 
             assertThat(

@@ -41,15 +41,10 @@ public class FromBase64 extends UnaryScalarFunction {
         FromBase64::new
     );
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Decode a base64 string.",
-        detailedDescription = """
-            Returns `null` and adds a warning header to the response if the decoded bytes are not
-            well-formed UTF-8.
-            """,
-        examples = @Example(file = "string", tag = "from_base64")
-    )
+    @FunctionInfo(returnType = "keyword", description = "Decode a base64 string.", detailedDescription = """
+        Returns `null` and adds a warning header to the response if the decoded bytes are not
+        well-formed UTF-8.
+        """, examples = @Example(file = "string", tag = "from_base64"))
     public FromBase64(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "A base64 string.") Expression string

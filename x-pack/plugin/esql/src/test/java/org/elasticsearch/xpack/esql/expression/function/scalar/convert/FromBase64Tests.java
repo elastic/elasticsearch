@@ -72,10 +72,20 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
         }
 
         // Valid base64, but decoded bytes are not well-formed UTF-8 → null + warning
-        addNullWarningCase(suppliers, "truncated lead byte", encode(new byte[] { 'a', (byte) 0xF0 }), evaluator,
-            "decoded value is not valid UTF-8, which is not supported yet");
-        addNullWarningCase(suppliers, "lone lead byte", encode(new byte[] { (byte) 0xF0 }), evaluator,
-            "decoded value is not valid UTF-8, which is not supported yet");
+        addNullWarningCase(
+            suppliers,
+            "truncated lead byte",
+            encode(new byte[] { 'a', (byte) 0xF0 }),
+            evaluator,
+            "decoded value is not valid UTF-8, which is not supported yet"
+        );
+        addNullWarningCase(
+            suppliers,
+            "lone lead byte",
+            encode(new byte[] { (byte) 0xF0 }),
+            evaluator,
+            "decoded value is not valid UTF-8, which is not supported yet"
+        );
 
         // Not valid base64 at all → null + warning (decode throws before UTF-8 check)
         addNullWarningCase(suppliers, "invalid alphabet", "not!!base64", evaluator, decodeErrorMessage("not!!base64"));

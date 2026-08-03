@@ -108,20 +108,11 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
   )
 
   ignoreMissingClasses(
@@ -146,6 +137,9 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
 
+    // optional Conscrypt TLS provider referenced by gax
+    'org.conscrypt.Conscrypt',
+
     // grpc/proto stuff
     'com.google.api.gax.grpc.GrpcCallContext',
     'com.google.api.gax.grpc.GrpcCallSettings',
@@ -155,6 +149,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.api.gax.grpc.GrpcStubCallableFactory',
     'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
     'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$Builder',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$HardBoundTokenTypes',
+    'com.google.api.gax.grpc.GrpcTransportChannel',
     'com.google.cloud.grpc.GrpcTransportOptions',
     'com.google.cloud.grpc.GrpcTransportOptions$Builder',
     'com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter',
@@ -165,7 +161,9 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.storage.v2.StorageSettings',
     'com.google.storage.v2.StorageSettings$Builder',
     'com.google.storage.v2.stub.GrpcStorageStub',
+    'com.google.storage.v2.stub.StorageStub',
     'com.google.storage.v2.stub.StorageStubSettings',
+    'com.google.storage.v2.stub.StorageStubSettings$Builder',
     // opentelemetry implementation stuff
     'io.grpc.opentelemetry.GrpcOpenTelemetry',
     'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',

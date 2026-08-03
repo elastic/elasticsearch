@@ -263,6 +263,7 @@ public class DerivedMetricsBuffer implements Releasable {
     private final LongAdder droppedSeriesAtBreaker = new LongAdder();
     private final LongAdder partialsExhausted = new LongAdder();
     private final LongAdder tablesRetired = new LongAdder();
+    private final LongAdder bucketsReopened = new LongAdder();
     /** Dimensions a metric has given up breaking down by, counted once each so that degrading is visible rather than silent. */
     private final LongAdder dimensionsCollapsed = new LongAdder();
     /**
@@ -494,7 +495,10 @@ public class DerivedMetricsBuffer implements Releasable {
             boolean created = false;
             synchronized (table) {
                 if (table.sealed()) {
-                    // drained while we were waiting for the lock, so it will never be emitted again; start over on the fresh bucket
+                    // Drained while we were waiting for the lock, so it will never be emitted again. Starting over opens a fresh table
+                    // for the same bucket, which the next flush emits as a further partial that sums with the one already written. That
+                    // is how a late observation is counted in the bucket it belongs to rather than the one it arrived in.
+                    bucketsReopened.increment();
                     continue;
                 }
                 // Probing the table is the expensive part of this critical section, so the common path does it once: record and let
@@ -988,6 +992,11 @@ public class DerivedMetricsBuffer implements Releasable {
     /** Dimensions a metric has stopped breaking down by because they outgrew their budget, counted once each. */
     public long dimensionsCollapsed() {
         return dimensionsCollapsed.sum();
+    }
+
+    /** Observations that arrived for a bucket already emitted, and reopened it as a further partial. */
+    public long bucketsReopened() {
+        return bucketsReopened.sum();
     }
 
     /** Tables removed mid-bucket because their dimension hash could no longer be probed. */

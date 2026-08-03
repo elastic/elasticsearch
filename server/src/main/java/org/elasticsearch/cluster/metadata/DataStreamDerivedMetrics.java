@@ -428,6 +428,30 @@ public record DataStreamDerivedMetrics(
         }
     }
 
+    /**
+     * Which clock decides the bucket an observation belongs to.
+     *
+     * <p>The built-in ingest metrics measure the act of ingesting, so they are always {@link #INGEST} and cannot be configured otherwise.
+     * A user metric counts something that happened before the write, so it defaults to {@link #EVENT}: a pipeline running thirty seconds
+     * behind would otherwise shift the whole series by thirty seconds, and a bulk load of older documents would report a spike now rather
+     * than describing the period it came from.
+     */
+    public enum TimeSource {
+        /** The document's own {@code @timestamp}, so the metric describes when things happened. */
+        EVENT,
+        /** The clock at the moment the write was observed, so the metric describes when things were written. */
+        INGEST;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        static TimeSource fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+    }
+
     public record Metric(
         String name,
         MetricType type,
@@ -441,7 +465,12 @@ public record DataStreamDerivedMetrics(
          * {@link #DEFAULT_PREFERENCE}. Null means no preference, which is the normal case: shedding then ranks purely by what each
          * metric is actually costing.
          */
-        @Nullable Integer preference
+        @Nullable Integer preference,
+        /**
+         * Which clock buckets this metric, or null to take the default. Null means {@link TimeSource#EVENT} for a user metric; the
+         * built-ins ignore this entirely and are always {@link TimeSource#INGEST}.
+         */
+        @Nullable TimeSource timeSource
     ) implements Writeable, ToXContentObject {
 
         public static final ParseField NAME_FIELD = new ParseField("name");
@@ -450,6 +479,7 @@ public record DataStreamDerivedMetrics(
         public static final ParseField VALUE_FIELD = new ParseField("value");
         public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation");
         public static final ParseField PREFERENCE_FIELD = new ParseField("preference");
+        public static final ParseField TIME_SOURCE_FIELD = new ParseField("time_source");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Metric, Void> PARSER = new ConstructingObjectParser<>(
@@ -463,7 +493,8 @@ public record DataStreamDerivedMetrics(
                 args[4] == null ? null : GaugeAggregation.fromString((String) args[4]),
                 (List<String>) args[5],
                 parseInterval((String) args[6], INTERVAL_FIELD.getPreferredName()),
-                (Integer) args[7]
+                (Integer) args[7],
+                args[8] == null ? null : TimeSource.fromString((String) args[8])
             )
         );
 
@@ -481,6 +512,12 @@ public record DataStreamDerivedMetrics(
             PARSER.declareStringArray(optionalConstructorArg(), DIMENSIONS_FIELD);
             PARSER.declareString(optionalConstructorArg(), INTERVAL_FIELD);
             PARSER.declareInt(optionalConstructorArg(), PREFERENCE_FIELD);
+            PARSER.declareString(optionalConstructorArg(), TIME_SOURCE_FIELD);
+        }
+
+        /** Which clock buckets this metric, resolving the default for a user metric. */
+        public TimeSource timeSourceOrDefault() {
+            return timeSource == null ? TimeSource.EVENT : timeSource;
         }
 
         /** A metric that states no shedding preference, which is the normal case. */
@@ -493,7 +530,21 @@ public record DataStreamDerivedMetrics(
             List<String> dimensions,
             @Nullable TimeValue interval
         ) {
-            this(name, type, when, value, aggregation, dimensions, interval, null);
+            this(name, type, when, value, aggregation, dimensions, interval, null, null);
+        }
+
+        /** A metric that states a shedding preference but takes the default clock. */
+        public Metric(
+            String name,
+            MetricType type,
+            @Nullable Map<String, Object> when,
+            MetricValue value,
+            @Nullable GaugeAggregation aggregation,
+            List<String> dimensions,
+            @Nullable TimeValue interval,
+            @Nullable Integer preference
+        ) {
+            this(name, type, when, value, aggregation, dimensions, interval, preference, null);
         }
 
         /** This metric's preference, or the default when it does not state one. */
@@ -551,7 +602,8 @@ public record DataStreamDerivedMetrics(
                 // No version guard of its own. A Metric only ever crosses the wire inside DataStreamDerivedMetrics, which
                 // DataStreamOptions already guards with DERIVED_METRICS_IN_DATA_STREAM_OPTIONS, so any node that can read one at all is
                 // a node that has this field too.
-                in.readOptionalVInt()
+                in.readOptionalVInt(),
+                in.readOptionalEnum(TimeSource.class)
             );
         }
 
@@ -569,6 +621,7 @@ public record DataStreamDerivedMetrics(
             out.writeStringCollection(dimensions);
             out.writeOptionalTimeValue(interval);
             out.writeOptionalVInt(preference);
+            out.writeOptionalEnum(timeSource);
         }
 
         @Override
@@ -591,6 +644,9 @@ public record DataStreamDerivedMetrics(
             }
             if (preference != null) {
                 builder.field(PREFERENCE_FIELD.getPreferredName(), preference);
+            }
+            if (timeSource != null) {
+                builder.field(TIME_SOURCE_FIELD.getPreferredName(), timeSource);
             }
             builder.endObject();
             return builder;

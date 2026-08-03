@@ -106,6 +106,35 @@ series accumulates into a bounded exponential histogram of `data_streams.derived
 that trades a histogram series' precision against its size. A histogram series is by far the most expensive kind: hundreds of buckets
 against the handful of primitives a scalar series needs, which is why the circuit breaker matters more here than anywhere else.
 
+### Which clock a metric is bucketed by
+
+A metric's `time_source` decides which moment an observation belongs to.
+
+| | `time_source` | why |
+|---|---|---|
+| built-in `ingest.*` metrics | always `ingest`, not configurable | they measure the act of ingesting, and a document's own timestamp says nothing about when it was ingested |
+| user metrics | `event` by default, `ingest` on request | they count something that happened before the write |
+
+Event time matters because the alternative silently misplaces the series. A pipeline running thirty seconds behind shifts every user metric by thirty seconds, and a bulk load of older documents reports a spike at the moment of the load rather than describing the period the documents came from.
+
+The timestamp is read from the keyed slot the date mapper stores it in, which exists so that `TsidExtractingIdFieldMapper` does not have to scan the document's fields. It is one map lookup. Two things about it are easy to get wrong and are handled: it is added with `onlyAddKey`, so it is invisible to the field walk every other value is read by and must be fetched by key; and a `date_nanos` timestamp is stored in nanoseconds, which is converted once per mapping rather than once per document.
+
+A document with no timestamp this can read falls back to the write clock and is counted as
+`observations.skipped.no_timestamp`. That is not hypothetical: some failure paths carry no parsed document, and the columnar parse does not record the timestamp yet.
+
+#### How late is too late
+
+`max_event_lateness_intervals` bounds how far behind a document may be, in whole intervals, default `0` and at most `3`. Zero matches Prometheus and Mimir, where out-of-order ingestion is off unless asked for.
+
+Beyond the bound the observation is refused and counted rather than being placed in whatever interval happens to be open, which would be worse than not counting it: the number would be wrong rather than absent, and nothing would say so.
+
+Within the bound, a document whose interval has already been written **reopens** it. Buckets are not held open for longer, which would delay every emission and give away the freshness guarantee; instead a fresh table is created for the earlier bucket start and the next flush emits it as a further partial, which sums with the one already written. Two consequences follow, and both are properties worth having:
+
+- **The ordinary case allocates nothing extra.** Tables are created on demand, so a stream with punctual documents holds exactly what it held before, whatever the allowance is set to.
+- **The bound is denominated in what it costs.** At most this many additional buckets per metric can exist, and only while late data is arriving.
+
+The cap of three is not arbitrary. It keeps a late bucket at most four intervals old, comfortably inside the ten-interval window `forget()` uses before releasing a metric's dimension sketches, so a live bucket can never have its sketch closed underneath it.
+
 ## Predicates
 
 Supported predicates are intentionally limited to deterministic, script-free forms that runtime code can evaluate on the write path:

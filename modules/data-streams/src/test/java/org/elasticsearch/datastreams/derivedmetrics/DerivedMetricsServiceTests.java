@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -235,6 +236,85 @@ public class DerivedMetricsServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * With the default of zero, a document whose bucket has already closed is refused rather than being quietly counted in whichever
+     * bucket happens to be open. Refusing it is a choice, and it is reported rather than dropped in silence.
+     */
+    public void testAnObservationTooLateToBucketIsRefusedAndCounted() throws Exception {
+        try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
+            CompiledDerivedMetrics eventTime = eventTimeMetric();
+            // an hour old against a ten second interval, with no lateness allowed
+            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueHours(1)), true, null);
+
+            assertEquals("nothing may be buffered for a bucket long gone", 0, service.bufferedSeries());
+            assertEquals(1L, service.skippedForLateness());
+        }
+    }
+
+    /**
+     * Raising the allowance is what lets a late document be counted where it belongs. The bound is expressed in whole intervals because
+     * that is also the number of extra buckets a metric may hold, so the cost is legible where it is configured.
+     */
+    public void testRaisingTheAllowanceLetsALateObservationCount() throws Exception {
+        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_EVENT_LATENESS_INTERVALS.getKey(), 3).build();
+        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
+            CompiledDerivedMetrics eventTime = eventTimeMetric();
+            // two intervals behind, inside an allowance of three
+            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueSeconds(20)), true, null);
+
+            assertEquals("it belongs in a bucket, so it must be held", 1, service.bufferedSeries());
+            assertEquals(0L, service.skippedForLateness());
+        }
+    }
+
+    /**
+     * The property that keeps the ordinary case unchanged: a stream with no late data holds exactly what it held before any of this,
+     * because the extra buckets are created on demand rather than reserved.
+     */
+    public void testPunctualDataHoldsNoExtraBuckets() throws Exception {
+        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_EVENT_LATENESS_INTERVALS.getKey(), 3).build();
+        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
+            CompiledDerivedMetrics eventTime = eventTimeMetric();
+            for (int i = 0; i < 20; i++) {
+                service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.ZERO), true, null);
+            }
+            assertEquals("one series, in one bucket, however generous the allowance", 1, service.bufferedSeries());
+        }
+    }
+
+    /** A metric that asked for the write clock ignores the document's timestamp entirely, however old it is. */
+    public void testAMetricOnTheWriteClockIgnoresAnOldTimestamp() throws Exception {
+        try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
+            service.record(ProjectId.DEFAULT, "logs-my_app-default", compiled, agedDocument(TimeValue.timeValueHours(1)), true, null);
+
+            assertEquals("the write clock does not care when the document says it happened", 1, service.bufferedSeries());
+            assertEquals(0L, service.skippedForLateness());
+        }
+    }
+
+    private static CompiledDerivedMetrics eventTimeMetric() {
+        return CompiledDerivedMetrics.compile(
+            new DataStreamDerivedMetrics(
+                true,
+                List.of(),
+                TimeValue.timeValueSeconds(10),
+                null,
+                List.of("service.name"),
+                List.of(
+                    new DataStreamDerivedMetrics.Metric(
+                        "http.requests",
+                        DataStreamDerivedMetrics.MetricType.COUNTER,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            )
+        );
+    }
+
     /** How many series are still held, so a test can wait for an asynchronous flush to have drained them. */
     private static int buffered(DerivedMetricsService service) {
         return service.buffer().size();
@@ -257,6 +337,26 @@ public class DerivedMetricsServiceTests extends ESTestCase {
 
     private void observeService(DerivedMetricsService service, String serviceName) {
         service.record(ProjectId.DEFAULT, "logs-my_app-default", compiled, document(serviceName), true);
+    }
+
+    /**
+     * A document whose timestamp is the given age, stashed the same way the date mapper stashes it so that the write path finds it
+     * exactly where it would in production.
+     */
+    private static ParsedDocument agedDocument(TimeValue age) {
+        LuceneDocument root = new LuceneDocument();
+        DataStreamTimestampFieldMapper.storeTimestampValueForReuse(root, System.currentTimeMillis() - age.millis());
+        String source = "{\"@timestamp\":\"2026-01-01T00:00:00.000Z\",\"service\":{\"name\":\"checkout\"}}";
+        return new ParsedDocument(
+            null,
+            null,
+            "doc-1",
+            null,
+            List.of(root),
+            SourceToParse.Source.fromBytes(new BytesArray(source), XContentType.JSON),
+            null,
+            0L
+        );
     }
 
     private static ParsedDocument document(String serviceName) {

@@ -11,9 +11,12 @@ package org.elasticsearch.datastreams.derivedmetrics;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -73,7 +76,7 @@ public final class DerivedMetricsDocumentReader {
      * @param bySlot   what to do with each configured path, indexed by its slot
      * @param complete whether every path can be served, which is the only case where the document may be read instead of its source
      */
-    public record Strategies(Strategy[] bySlot, boolean complete, Map<String, Integer> slotsByField) {}
+    public record Strategies(Strategy[] bySlot, boolean complete, Map<String, Integer> slotsByField, boolean timestampInNanos) {}
 
     /**
      * Decides, for one index mapping, which configured paths can be read back from a parsed document.
@@ -108,8 +111,49 @@ public final class DerivedMetricsDocumentReader {
                 slotsByField.put(path, slot);
             }
         }
-        return new Strategies(bySlot, complete, Map.copyOf(slotsByField));
+        return new Strategies(bySlot, complete, Map.copyOf(slotsByField), timestampInNanos(mappings));
     }
+
+    /**
+     * Whether this mapping stores {@code @timestamp} in nanoseconds rather than milliseconds.
+     *
+     * <p>Resolved once per mapping rather than per document, because it is a property of the mapping and the answer is needed on the
+     * write path. A {@code date_nanos} timestamp is stored as nanoseconds since the epoch, so bucketing an observation by it without
+     * converting would put the document a million times too far into the future.
+     */
+    private static boolean timestampInNanos(MappingLookup mappings) {
+        Mapper timestamp = mappings.getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        return timestamp != null && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(timestamp.typeName());
+    }
+
+    /**
+     * The document's {@code @timestamp} in milliseconds, or {@link #NO_TIMESTAMP} when it cannot be read.
+     *
+     * <p>It is fetched by key rather than found among the document's fields. The date mapper stores it in a keyed slot precisely so that
+     * {@code TsidExtractingIdFieldMapper} does not have to scan, and because it is added with {@code onlyAddKey} it is invisible to the
+     * field walk in {@link #read}.
+     *
+     * <p>It can genuinely be absent. Some failure paths hand over no parsed document at all, and the columnar parse does not record the
+     * timestamp yet, so the caller has to have an answer for that rather than assume a data stream guarantees one.
+     */
+    public static long timestampMillis(ParsedDocument document, Strategies strategies) {
+        if (document == null) {
+            return NO_TIMESTAMP;
+        }
+        LuceneDocument root = document.rootDoc();
+        if (root == null) {
+            return NO_TIMESTAMP;
+        }
+        IndexableField field = root.getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
+        if (field == null || field.numericValue() == null) {
+            return NO_TIMESTAMP;
+        }
+        long value = field.numericValue().longValue();
+        return strategies != null && strategies.timestampInNanos() ? value / 1_000_000L : value;
+    }
+
+    /** Returned when a document carries no timestamp this can read. */
+    public static final long NO_TIMESTAMP = Long.MIN_VALUE;
 
     private static Strategy strategyFor(MappingLookup mappings, String path) {
         MappedFieldType type = mappings.getFieldType(path);

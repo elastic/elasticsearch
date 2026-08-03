@@ -122,8 +122,42 @@ public record CompiledDerivedMetrics(
          * metric that says nothing sits at {@link DataStreamDerivedMetrics#DEFAULT_PREFERENCE}, so an unconfigured stream is ranked
          * purely by size.
          */
-        int preference
+        int preference,
+        /**
+         * Which clock decides this metric's bucket. Resolved at compile time so the write path never has to ask: the built-ins are pinned
+         * to {@link DataStreamDerivedMetrics.TimeSource#INGEST} because they measure the act of ingesting, and a user metric defaults to
+         * {@link DataStreamDerivedMetrics.TimeSource#EVENT} because it counts something that happened before the write.
+         */
+        DataStreamDerivedMetrics.TimeSource timeSource
     ) {
+        /** A metric bucketed by the clock at the time of the write, which is what a test not concerned with event time wants. */
+        public CompiledMetric(
+            String name,
+            Trigger trigger,
+            Reduction reduction,
+            DerivedMetricsPredicate predicate,
+            Source source,
+            List<String> dimensions,
+            int[] dimensionSlots,
+            int dimensionSet,
+            Interval interval,
+            int preference
+        ) {
+            this(
+                name,
+                trigger,
+                reduction,
+                predicate,
+                source,
+                dimensions,
+                dimensionSlots,
+                dimensionSet,
+                interval,
+                preference,
+                DataStreamDerivedMetrics.TimeSource.INGEST
+            );
+        }
+
         /** A metric whose stream expressed no shedding preference, which is the normal case. */
         public CompiledMetric(
             String name,
@@ -146,7 +180,8 @@ public record CompiledDerivedMetrics(
                 dimensionSlots,
                 dimensionSet,
                 interval,
-                DataStreamDerivedMetrics.DEFAULT_PREFERENCE
+                DataStreamDerivedMetrics.DEFAULT_PREFERENCE,
+                DataStreamDerivedMetrics.TimeSource.INGEST
             );
         }
     }
@@ -196,7 +231,8 @@ public record CompiledDerivedMetrics(
                     slotsFor(dimensions, paths),
                     0,
                     intervalOf(config.intervalOf(metric)),
-                    metric.preferenceOrDefault()
+                    metric.preferenceOrDefault(),
+                    metric.timeSourceOrDefault()
                 )
             );
         }
@@ -247,7 +283,8 @@ public record CompiledDerivedMetrics(
                     metric.dimensionSlots(),
                     set,
                     metric.interval(),
-                    metric.preference()
+                    metric.preference(),
+                    metric.timeSource()
                 )
             );
         }
@@ -344,7 +381,9 @@ public record CompiledDerivedMetrics(
             slotsFor(copy, paths),
             0,
             interval,
-            DataStreamDerivedMetrics.DEFAULT_PREFERENCE
+            DataStreamDerivedMetrics.DEFAULT_PREFERENCE,
+            // the built-ins count writes, so the clock that matters is the one at the moment of the write
+            DataStreamDerivedMetrics.TimeSource.INGEST
         );
     }
 

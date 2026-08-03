@@ -27,10 +27,8 @@ import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils
 
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String TEXT_FIELD = "text-field";
-
     private static final Set<String> allFieldTypes = Set.of("text", "semantic_text", "semantic");
     private static final Set<String> semanticFieldTypes = Set.of("semantic_text", "semantic");
-
     // We don't use SPARSE_EMBEDDING for semantic_text since it becomes tricky to assert the order of results when
     // both dense and sparse embeddings (which generate high score values) are used in the same query. We use boostLocalIndex() to
     // ensure that local result is always ranked higher but for sparse embeddings, we need to provide a significanly higher boost value.
@@ -41,8 +39,8 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         List.of(TaskType.EMBEDDING)
     );
 
-    final Map<String, MinimalServiceSettings> localInferenceIds = new HashMap<>();
-    final Map<String, MinimalServiceSettings> remoteInferenceIds = new HashMap<>();
+    private final Map<String, MinimalServiceSettings> localInferenceIds = new HashMap<>();
+    private final Map<String, MinimalServiceSettings> remoteInferenceIds = new HashMap<>();
 
     @Override
     protected boolean reuseClusters() {
@@ -59,7 +57,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     @After
     public void cleanup() {
         // The cleanup method of base class only deletes user indices and not the system indices. Hence, we explicitly delete
-        // the inference endpoints so that next test can create them again
+        // the inference endpoints so that next test can re-create them with the same inference ID values.
         for (var entry : localInferenceIds.entrySet()) {
             deleteInferenceEndpoint(client(LOCAL_CLUSTER), entry.getValue().taskType(), entry.getKey());
         }
@@ -306,7 +304,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         return localFieldType + "-mixed-type-field-" + remoteFieldType;
     }
 
-    private String commonInferenceIdFieldName(String semanticFieldType) {
+    private static String commonInferenceIdFieldName(String semanticFieldType) {
         return semanticFieldType + "_common_inference_id_field";
     }
 

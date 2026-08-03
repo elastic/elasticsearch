@@ -353,7 +353,6 @@ id:l | same:boolean
 limitByDenseVectorAllUnique
 required_capability: dense_vector_field_type_released
 required_capability: esql_limit_by
-required_capability: limit_by_dense_vector
 
 FROM dense_vector
 | SORT id
@@ -373,7 +372,6 @@ id:l | float_vector:dense_vector
 // LIMIT 1 BY float_vector: one row per distinct vector value.
 // Group [1,2,3] → id=0; group [4,5,6] → id=2; null group → id=5.
 limitByDenseVector
-required_capability: limit_by_dense_vector
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by
@@ -392,7 +390,6 @@ id:l | float_vector:dense_vector
 // LIMIT 2 BY float_vector: at most two rows per distinct vector value.
 // Group [1,2,3] → id=0,1; group [4,5,6] → id=2,3; null group → id=5 (only one null row).
 limitByDenseVectorN2
-required_capability: limit_by_dense_vector
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by
@@ -412,7 +409,6 @@ id:l | float_vector:dense_vector
 
 // LIMIT 0 BY float_vector: returns no rows.
 limitByDenseVectorZero
-required_capability: limit_by_dense_vector
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by
@@ -426,7 +422,6 @@ id:l | float_vector:dense_vector
 
 // LIMIT with a large N returns every row since no group exceeds 6 members.
 limitByDenseVectorLargeN
-required_capability: limit_by_dense_vector
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by
@@ -448,7 +443,6 @@ id:l | float_vector:dense_vector
 // SORT id DESC | LIMIT 1 BY float_vector picks the highest id per group.
 // Group [1,2,3] → id=1; group [4,5,6] → id=4; null group → id=5.
 sortLimitByDenseVector
-required_capability: limit_by_dense_vector
 required_capability: esql_topn_by
 
 FROM dense_vector_limit_by
@@ -466,7 +460,6 @@ id:l | float_vector:dense_vector
 
 // SORT id DESC | LIMIT 2 BY float_vector picks the two highest ids per group.
 sortLimitByDenseVectorN2
-required_capability: limit_by_dense_vector
 required_capability: esql_topn_by
 
 FROM dense_vector_limit_by
@@ -486,7 +479,6 @@ id:l | float_vector:dense_vector
 
 // After LIMIT BY, downstream STATS sees one row per group.
 limitByDenseVectorThenStats
-required_capability: limit_by_dense_vector
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by

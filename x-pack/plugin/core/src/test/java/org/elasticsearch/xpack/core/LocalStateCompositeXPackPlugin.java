@@ -42,6 +42,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -67,6 +68,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -140,7 +142,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         InternalSearchPlugin,
         ShutdownAwarePlugin,
         RestServerActionPlugin,
-        InternalVectorFormatProviderPlugin {
+        InternalVectorFormatProviderPlugin,
+        HealthPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -213,6 +216,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ArrayList<Setting<?>> settings = new ArrayList<>(super.getSettings());
         filterPlugins(Plugin.class).forEach(p -> settings.addAll(p.getSettings()));
         return settings;
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        List<HealthIndicatorService> services = new ArrayList<>();
+        filterPlugins(HealthPlugin.class).forEach(p -> services.addAll(p.getHealthIndicatorServices()));
+        return services;
     }
 
     @Override

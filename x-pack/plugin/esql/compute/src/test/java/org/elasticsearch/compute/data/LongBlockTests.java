@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -62,6 +63,11 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
     @Override
     protected Long randomValue() {
         return randomLong();
+    }
+
+    @Override
+    protected boolean positionHasValue(LongBlock block, int position, Long value) {
+        return block.hasValue(position, value);
     }
 
     @Override
@@ -262,19 +268,28 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
         }
     }
 
+    public void testVectorFactorySerialization() throws IOException {
+        // asBlock() takes ownership of the vector — close only the block.
+        try (LongBlock emptyBlock = blockFactory().newLongVectorBuilder(0).build().asBlock()) {
+            assertSerializationAtSupportedVersions(emptyBlock, List.of());
+        }
+        try (LongVector toFilter = blockFactory().newLongVectorBuilder(1).appendLong(randomLong()).build()) {
+            // filter() returns a new vector; asBlock() owns that filtered vector, not toFilter.
+            try (LongBlock filtered = toFilter.filter(false).asBlock()) {
+                assertSerializationAtSupportedVersions(filtered, List.of());
+            }
+        }
+        try (LongVector toFilter = blockFactory().newLongVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build()) {
+            long expected = toFilter.getLong(0);
+            try (LongBlock filtered = toFilter.filter(false, 0).asBlock()) {
+                assertSerializationAtSupportedVersions(filtered, List.of(List.of(expected)));
+            }
+        }
+    }
+
     @Override
     protected void assertAdditionalInvariants(LongBlock block, List<List<Long>> expected) {
         assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Long.BYTES));
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            List<Long> values = expected.get(p);
-            if (values == null) {
-                continue;
-            }
-            for (long value : values) {
-                assertTrue(block.hasValue(p, value));
-            }
-            assertFalse(block.hasValue(p, randomValueOtherThanMany(v -> values.contains(v), this::randomValue)));
-        }
     }
 
     private LongBlock newSequentialArrayVectorBlock(int positionCount) {

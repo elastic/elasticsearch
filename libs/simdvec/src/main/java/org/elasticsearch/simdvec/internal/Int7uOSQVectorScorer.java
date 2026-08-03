@@ -16,7 +16,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
@@ -33,7 +33,7 @@ import java.util.Optional;
 public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer permits
     Int7uOSQVectorScorer.DotProductScorer, Int7uOSQVectorScorer.EuclideanScorer, Int7uOSQVectorScorer.MaxInnerProductScorer {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 

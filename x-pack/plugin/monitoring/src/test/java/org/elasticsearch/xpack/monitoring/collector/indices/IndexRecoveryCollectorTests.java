@@ -107,7 +107,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
                 source,
                 unassignedInfo,
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             ).initialize(localNode.getId(), "_allocation_id", 10 * i);
 
             final RecoveryState recoveryState = new RecoveryState(shardRouting, localNode, localNode);

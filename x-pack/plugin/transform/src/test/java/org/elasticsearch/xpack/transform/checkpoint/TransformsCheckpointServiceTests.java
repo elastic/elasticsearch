@@ -177,7 +177,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                         primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
                         ShardRouting.Role.DEFAULT,
-                        ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                     );
                     shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

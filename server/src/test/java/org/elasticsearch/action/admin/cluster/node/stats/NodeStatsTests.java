@@ -682,7 +682,7 @@ public class NodeStatsTests extends ESTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())

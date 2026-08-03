@@ -484,7 +484,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, randomIdentifier()),
             role,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

@@ -109,7 +109,7 @@ public class IndexAllocationTests extends ESTestCase {
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             );
 
             shardRouting = shardRouting.initialize("n-" + index.getName(), null, 0).moveToStarted(0);

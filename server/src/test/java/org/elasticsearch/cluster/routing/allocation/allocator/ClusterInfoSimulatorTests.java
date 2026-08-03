@@ -754,7 +754,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(REINITIALIZED, "simulation"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
 
         // New shard without relocation

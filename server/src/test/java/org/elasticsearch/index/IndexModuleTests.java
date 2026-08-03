@@ -775,7 +775,7 @@ public class IndexModuleTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
@@ -824,7 +824,7 @@ public class IndexModuleTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         shard = shard.initialize("node1", null, -1);
         return shard;

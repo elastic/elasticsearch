@@ -563,8 +563,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                 try (StreamInput in = output.bytes().streamInput()) {
                     LegacyRecoveryPriority copyPriority = in.readEnum(LegacyRecoveryPriority.class);
                     LegacyRecoveryPriority expectedPriority = switch (originalPriority) {
-                        case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_EXISTING -> LegacyRecoveryPriority.UNASSIGNED_EXISTING;
-                        case UNASSIGNED_NEW -> LegacyRecoveryPriority.UNASSIGNED_NEW;
+                        case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> LegacyRecoveryPriority.UNASSIGNED_EXISTING;
+                        case UNASSIGNED_EXPECTED -> LegacyRecoveryPriority.UNASSIGNED_NEW;
                         case RELOCATION_CAN_REMAIN_NO -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
                         case RELOCATE_REBALANCING, UNKNOWN -> LegacyRecoveryPriority.RELOCATE_REBALANCING;
@@ -587,8 +587,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     in.setTransportVersion(version);
                     ShardRouting.RecoveryPriority copyPriority = ShardRouting.RecoveryPriority.readFrom(in);
                     ShardRouting.RecoveryPriority expectedPriority = switch (originalPriority) {
-                        case UNASSIGNED_EXISTING -> ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
-                        case UNASSIGNED_NEW -> ShardRouting.RecoveryPriority.UNASSIGNED_NEW;
+                        case UNASSIGNED_EXISTING -> ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                        case UNASSIGNED_NEW -> ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
                         case RELOCATION_CAN_REMAIN_NO -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
                         case RELOCATE_REBALANCING -> ShardRouting.RecoveryPriority.RELOCATE_REBALANCING;

@@ -57,7 +57,7 @@ public class ShardRoutingHelper {
             recoverySource,
             copy.relocatingNodeId() != null
                 ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING, // for testing, use arbitrary (highest) allowed priority
+                : ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED, // for testing, use arbitrary (highest) allowed priority
             copy.relocatingNodeId() != null ? null : new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
@@ -82,8 +82,8 @@ public class ShardRoutingHelper {
                 // for testing, use arbitrary (highest) priority
                 case INITIALIZING -> routing.relocatingNodeId() != null
                     ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
-                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
+                    : ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
                 case RELOCATING -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                 case STARTED -> null;
             },

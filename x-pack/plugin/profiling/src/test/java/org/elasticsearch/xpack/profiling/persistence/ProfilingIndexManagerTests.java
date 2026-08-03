@@ -523,7 +523,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             );
             if (allShardsAssigned) {
                 shardRouting = shardRouting.initialize("node0", null, 0).moveToStarted(0);

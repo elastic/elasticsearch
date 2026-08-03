@@ -71,7 +71,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "");
-    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_NEW;
+    private final ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
     private final ShardRouting newUnassignedPrimaryIndexOnly = ShardRouting.newUnassigned(
         shardId,
         true,

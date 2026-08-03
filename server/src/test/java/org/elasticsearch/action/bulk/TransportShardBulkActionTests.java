@@ -810,7 +810,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
             role,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
     }
 

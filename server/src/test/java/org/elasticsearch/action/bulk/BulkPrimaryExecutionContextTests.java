@@ -188,7 +188,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
             role,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
     }
 }

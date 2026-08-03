@@ -212,7 +212,7 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
 
         final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(primary).addShard(unassignedReplica).build();

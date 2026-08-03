@@ -51,7 +51,7 @@ public class RecoveryResponseTests extends ESTestCase {
                                         RecoverySource.PeerRecoverySource.INSTANCE,
                                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
                                         ShardRouting.Role.DEFAULT,
-                                        ShardRouting.RecoveryPriority.UNASSIGNED_NEW
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                                     ).initialize(sourceNode.getId(), null, randomNonNegativeLong()),
                                     sourceNode,
                                     targetNode

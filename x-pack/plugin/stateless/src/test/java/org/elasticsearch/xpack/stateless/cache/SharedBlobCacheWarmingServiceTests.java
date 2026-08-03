@@ -1952,8 +1952,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 }
             }
             final int numBlobs = randomIntBetween(1, 3);
-            // Divide cache evenly across blobs so total warming stays within the cache.
-            final long maxWarmEndOffsetPerBlob = cacheSizeBytes / numBlobs / 2;
             final List<WarmTarget> blobSpecs = new ArrayList<>(numBlobs);
             for (int i = 0; i < numBlobs; i++) {
                 final long gen = i + 1L;

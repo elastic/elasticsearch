@@ -11,8 +11,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.LongRangeBlock;
-import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -29,8 +29,8 @@ import java.util.BitSet;
  * {@link ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class InLongRangeEvaluator implements ExpressionEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InLongRangeEvaluator.class);
+public class InDoubleRangeEvaluator implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InDoubleRangeEvaluator.class);
 
     private final Source source;
 
@@ -42,7 +42,7 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
 
     private Warnings warnings;
 
-    public InLongRangeEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator[] rhs, DriverContext driverContext) {
+    public InDoubleRangeEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator[] rhs, DriverContext driverContext) {
         this.source = source;
         this.lhs = lhs;
         this.rhs = rhs;
@@ -51,23 +51,23 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        try (LongRangeBlock lhsBlock = (LongRangeBlock) lhs.eval(page)) {
-            LongRangeBlock[] rhsBlocks = new LongRangeBlock[rhs.length];
+        try (DoubleRangeBlock lhsBlock = (DoubleRangeBlock) lhs.eval(page)) {
+            DoubleRangeBlock[] rhsBlocks = new DoubleRangeBlock[rhs.length];
             try (Releasable rhsRelease = Releasables.wrap(rhsBlocks)) {
                 for (int i = 0; i < rhsBlocks.length; i++) {
-                    rhsBlocks[i] = (LongRangeBlock) rhs[i].eval(page);
+                    rhsBlocks[i] = (DoubleRangeBlock) rhs[i].eval(page);
                 }
                 return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
             }
         }
     }
 
-    private BooleanBlock eval(int positionCount, LongRangeBlock lhsBlock, LongRangeBlock[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, DoubleRangeBlock lhsBlock, DoubleRangeBlock[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            LongRangeBlockBuilder.LongRange lhsScratch = new LongRangeBlockBuilder.LongRange();
-            LongRangeBlockBuilder.LongRange[] rhsScratch = new LongRangeBlockBuilder.LongRange[rhs.length];
+            DoubleRangeBlockBuilder.DoubleRange lhsScratch = new DoubleRangeBlockBuilder.DoubleRange();
+            DoubleRangeBlockBuilder.DoubleRange[] rhsScratch = new DoubleRangeBlockBuilder.DoubleRange[rhs.length];
             for (int i = 0; i < rhs.length; i++) {
-                rhsScratch[i] = new LongRangeBlockBuilder.LongRange();
+                rhsScratch[i] = new DoubleRangeBlockBuilder.DoubleRange();
             }
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
@@ -98,17 +98,17 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
                         continue;
                     }
                     int o = rhsBlocks[i].getFirstValueIndex(p);
-                    rhsScratch[i] = rhsBlocks[i].getLongRange(o, rhsScratch[i]);
+                    rhsScratch[i] = rhsBlocks[i].getDoubleRange(o, rhsScratch[i]);
                 }
                 if (nulls.cardinality() == rhsBlocks.length || mvs.cardinality() == rhsBlocks.length) {
                     result.appendNull();
                     continue;
                 }
-                foundMatch = In.processLongRange(
+                foundMatch = In.processDoubleRange(
                     //
                     nulls,
                     mvs,
-                    lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch),
+                    lhsBlock.getDoubleRange(lhsBlock.getFirstValueIndex(p), lhsScratch),
                     rhsScratch
                 );
                 if (foundMatch) {
@@ -127,7 +127,7 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
 
     @Override
     public String toString() {
-        return "InLongRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+        return "InDoubleRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
     }
 
     @Override
@@ -164,14 +164,14 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
         }
 
         @Override
-        public InLongRangeEvaluator get(DriverContext context) {
+        public InDoubleRangeEvaluator get(DriverContext context) {
             ExpressionEvaluator[] rhs = Arrays.stream(this.rhs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-            return new InLongRangeEvaluator(source, lhs.get(context), rhs, context);
+            return new InDoubleRangeEvaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override
         public String toString() {
-            return "InLongRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+            return "InDoubleRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
         }
     }
 }

@@ -215,7 +215,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
-    private List<String> embeddingsFields = new ArrayList<>();
+    private List<String> fetchEmbeddingsFields = new ArrayList<>();
 
     /**
      * Constructs a new search source builder.
@@ -279,7 +279,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            embeddingsFields = new ArrayList<>(in.readStringCollectionAsList());
+            fetchEmbeddingsFields = new ArrayList<>(in.readStringCollectionAsList());
         }
     }
 
@@ -290,8 +290,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false) {
-            // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format
-            embeddingsFields.forEach(this::fetchField);
+            // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
+            // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
+            fetchEmbeddingsFields.forEach(this::fetchField);
         }
 
         out.writeOptionalWriteable(aggregations);
@@ -351,7 +352,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            out.writeStringCollection(embeddingsFields);
+            out.writeStringCollection(fetchEmbeddingsFields);
         }
     }
 
@@ -1021,16 +1022,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Adds a field whose embeddings should be returned as part of the search response.
      */
-    public SearchSourceBuilder embeddingsField(String field) {
-        embeddingsFields.add(field);
+    public SearchSourceBuilder fetchEmbeddingsField(String field) {
+        fetchEmbeddingsFields.add(field);
         return this;
     }
 
     /**
      * Gets the fields whose embeddings should be returned as part of the search response.
      */
-    public List<String> embeddingsFields() {
-        return Collections.unmodifiableList(embeddingsFields);
+    public List<String> fetchEmbeddingsFields() {
+        return Collections.unmodifiableList(fetchEmbeddingsFields);
     }
 
     /**
@@ -1306,7 +1307,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
-        rewrittenBuilder.embeddingsFields = embeddingsFields;
+        rewrittenBuilder.fetchEmbeddingsFields = fetchEmbeddingsFields;
         return rewrittenBuilder;
     }
 
@@ -2194,7 +2195,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             pointInTimeBuilder,
             runtimeMappings,
             skipInnerHits,
-            embeddingsFields
+            fetchEmbeddingsFields
         );
     }
 
@@ -2241,7 +2242,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
             && Objects.equals(skipInnerHits, other.skipInnerHits)
-            && Objects.equals(embeddingsFields, other.embeddingsFields);
+            && Objects.equals(fetchEmbeddingsFields, other.fetchEmbeddingsFields);
     }
 
     @Override

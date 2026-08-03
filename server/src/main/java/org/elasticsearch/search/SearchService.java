@@ -2214,9 +2214,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             FetchFieldsContext fetchFieldsContext = new FetchFieldsContext(source.fetchFields());
             context.fetchFieldsContext(fetchFieldsContext);
         }
-        if (source.embeddingsFields().isEmpty() == false) {
+        if (source.fetchEmbeddingsFields().isEmpty() == false) {
             List<FieldAndFormat> fields = new ArrayList<>();
-            for (String field : source.embeddingsFields()) {
+            for (String field : source.fetchEmbeddingsFields()) {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 if (fieldType == null) {
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.

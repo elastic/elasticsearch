@@ -332,7 +332,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .embeddingsField(diversificationField);
+            .fetchEmbeddingsField(diversificationField);
         return super.finalizeSourceBuilder(builder);
     }
 

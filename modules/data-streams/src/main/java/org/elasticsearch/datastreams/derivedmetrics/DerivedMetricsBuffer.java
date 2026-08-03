@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 /**
  * Node-local state for derived metrics: one table per metric per interval bucket, and within a table one accumulator slot per series.
@@ -181,6 +181,72 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     private record MetricKey(ProjectId project, String sourceDataStream, String metric, long intervalMillis) {}
 
+    /**
+     * The bucket starts a metric currently holds. Small, bounded by {@code maxIntervalBuckets}, and guarded by its own monitor because
+     * admitting an observation has to decide and act atomically.
+     */
+    private static final class OpenBuckets {
+        private final long[] starts;
+        private int size;
+        /**
+         * Wall clock at the last bucket this metric opened, which is how long its cardinality is remembered for after it goes quiet. A
+         * bucket is opened at most once per interval and the memory is measured in intervals, so there is nothing finer to gain by
+         * updating it per observation, and doing so would put a shared write on the hot path.
+         */
+        private volatile long lastWrittenMillis;
+
+        OpenBuckets(int capacity) {
+            this.starts = new long[capacity];
+        }
+
+        /**
+         * @return the bucket start that had to be given up to make room, or {@link Long#MIN_VALUE} when none did
+         */
+        synchronized long admit(long bucketStart) {
+            for (int i = 0; i < size; i++) {
+                if (starts[i] == bucketStart) {
+                    return Long.MIN_VALUE;
+                }
+            }
+            if (size < starts.length) {
+                starts[size++] = bucketStart;
+                return Long.MIN_VALUE;
+            }
+            // Every slot is taken, so the oldest gives way. It is emitted rather than discarded, which is what makes an unbounded spread
+            // of timestamps cost extra documents rather than lost observations.
+            int oldest = 0;
+            for (int i = 1; i < size; i++) {
+                if (starts[i] < starts[oldest]) {
+                    oldest = i;
+                }
+            }
+            long evicted = starts[oldest];
+            starts[oldest] = bucketStart;
+            return evicted;
+        }
+
+        synchronized void release(long bucketStart) {
+            for (int i = 0; i < size; i++) {
+                if (starts[i] == bucketStart) {
+                    starts[i] = starts[--size];
+                    return;
+                }
+            }
+        }
+
+        synchronized boolean holdsAnything() {
+            return size > 0;
+        }
+
+        void touch(long nowMillis) {
+            lastWrittenMillis = nowMillis;
+        }
+
+        long lastWrittenMillis() {
+            return lastWrittenMillis;
+        }
+    }
+
     private static MetricKey metricKey(TableKey key) {
         return new MetricKey(key.project(), key.sourceDataStream(), key.metric().name(), key.intervalMillis());
     }
@@ -247,6 +313,15 @@ public class DerivedMetricsBuffer implements Releasable {
      */
     private final ConcurrentHashMap<MetricKey, DerivedMetricsDimensionCardinality> dimensionCardinality = new ConcurrentHashMap<>();
     /**
+     * Which interval buckets a metric currently has open, and when it was last written to.
+     *
+     * <p>Buckets are not anchored to this node's clock. They exist where the data is: the first observation opens a bucket at whatever
+     * moment it carries, and a metric holds up to {@code maxIntervalBuckets} of them at once, wherever they sit on the timeline. A fleet
+     * writing in real time and a single producer replaying half an hour of history occupy two slots and do not interfere; a window
+     * measured from now could not express that, because it would treat the replay as hopelessly late and refuse it.
+     */
+    private final ConcurrentHashMap<MetricKey, OpenBuckets> openBuckets = new ConcurrentHashMap<>();
+    /**
      * Series held per source data stream, scoped to the project the stream belongs to. Two projects may each have a data stream of the
      * same name, and they must not share a budget: one tenant's cardinality would then refuse another tenant's series.
      */
@@ -264,6 +339,7 @@ public class DerivedMetricsBuffer implements Releasable {
     private final LongAdder partialsExhausted = new LongAdder();
     private final LongAdder tablesRetired = new LongAdder();
     private final LongAdder bucketsReopened = new LongAdder();
+    private final LongAdder bucketsEvicted = new LongAdder();
     /** Dimensions a metric has given up breaking down by, counted once each so that degrading is visible rather than silent. */
     private final LongAdder dimensionsCollapsed = new LongAdder();
     /**
@@ -274,6 +350,7 @@ public class DerivedMetricsBuffer implements Releasable {
     private final AtomicInteger totalSeries = new AtomicInteger();
     private final int maxSeries;
     private final int maxSeriesPerStream;
+    private final int maxIntervalBuckets;
     private final int maxHistogramSeries;
     /** Histogram series held on this node, tracked apart from the general count because they cost about forty times as much each. */
     private final AtomicInteger histogramSeries = new AtomicInteger();
@@ -375,6 +452,39 @@ public class DerivedMetricsBuffer implements Releasable {
         int maxDimensionCardinality,
         int maxHistogramSeries
     ) {
+        this(
+            bigArrays,
+            maxSeries,
+            maxSeriesPerStream,
+            histogramBuckets,
+            partialSeed,
+            stripes,
+            maxDimensionCardinality,
+            maxHistogramSeries,
+            DEFAULT_MAX_INTERVAL_BUCKETS
+        );
+    }
+
+    /** How many interval buckets a metric may have open at once when nothing says otherwise. */
+    public static final int DEFAULT_MAX_INTERVAL_BUCKETS = 2;
+
+    /**
+     * @param maxIntervalBuckets how many interval buckets one metric may hold at once, wherever they sit on the timeline. Two lets a fleet
+     *                           writing in real time coexist with a single producer replaying history; more accommodates more distinct
+     *                           moments at which data is arriving.
+     */
+    public DerivedMetricsBuffer(
+        BigArrays bigArrays,
+        int maxSeries,
+        int maxSeriesPerStream,
+        int histogramBuckets,
+        int partialSeed,
+        int stripes,
+        int maxDimensionCardinality,
+        int maxHistogramSeries,
+        int maxIntervalBuckets
+    ) {
+        this.maxIntervalBuckets = maxIntervalBuckets;
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
@@ -466,12 +576,17 @@ public class DerivedMetricsBuffer implements Releasable {
      *
      * @param values one entry per dimension the metric configures, null where the document did not have it
      */
+    /** Records against the bucket the key names, with no separate notion of when the observation was seen; used by tests. */
     public Outcome record(TableKey key, String[] values, Scratch scratch, double value) {
+        return record(key, values, scratch, value, key.bucketStartMillis());
+    }
+
+    public Outcome record(TableKey key, String[] values, Scratch scratch, double value, long nowMillis) {
         AtomicInteger held = heldFor(key);
         while (true) {
             DerivedMetricsStripedTable bucket = tables.get(key);
             if (bucket == null) {
-                bucket = openTable(key);
+                bucket = openTable(key, nowMillis);
                 if (bucket == null) {
                     return Outcome.REFUSED_BREAKER;
                 }
@@ -492,6 +607,7 @@ public class DerivedMetricsBuffer implements Releasable {
                 // the bucket was drained before this thread could take a stripe in it, so its replacement is the one to record into
                 continue;
             }
+            bucket.touch(nowMillis);
             boolean created = false;
             synchronized (table) {
                 if (table.sealed()) {
@@ -648,10 +764,14 @@ public class DerivedMetricsBuffer implements Releasable {
     /**
      * Creates the bucket, or returns null when the breaker refuses it.
      */
-    private DerivedMetricsStripedTable openTable(TableKey key) {
+    private DerivedMetricsStripedTable openTable(TableKey key, long nowMillis) {
         // Resolved once per bucket rather than per observation, which is the whole reason it is handed to the bucket rather than looked
         // up on the write path.
         DerivedMetricsDimensionCardinality dimensions = dimensionCardinalityFor(key);
+        // Taking a slot belongs here, where a bucket comes into existence, and not on the observation path: an observation into a bucket
+        // that already exists is one that already holds its slot, so it has nothing to decide. That keeps the shared monitor below off the
+        // hot path entirely, where it would be the one lock every write thread for a metric convoys on.
+        takeSlot(key, nowMillis);
         try {
             return tables.computeIfAbsent(
                 key,
@@ -668,6 +788,30 @@ public class DerivedMetricsBuffer implements Releasable {
             droppedSeriesAtBreaker.increment();
             refusalsFor(key).atBreaker.increment();
             return null;
+        }
+    }
+
+    /**
+     * Claims one of the metric's interval slots for this bucket, writing out whichever bucket has to give up its own.
+     *
+     * <p>Emission is not done here, because this runs on the indexing thread. The bucket is set aside and the next flush writes it, which
+     * is the route a table retired mid-bucket already takes.
+     */
+    private void takeSlot(TableKey key, long nowMillis) {
+        OpenBuckets open = openBuckets.computeIfAbsent(metricKey(key), unused -> new OpenBuckets(maxIntervalBuckets));
+        open.touch(nowMillis);
+        long evicted = open.admit(key.bucketStartMillis());
+        if (evicted == Long.MIN_VALUE) {
+            return;
+        }
+        bucketsEvicted.increment();
+        TableKey evictedKey = new TableKey(key.project(), key.sourceDataStream(), key.metric(), evicted, key.intervalMillis());
+        DerivedMetricsStripedTable evictedTable = tables.get(evictedKey);
+        if (evictedTable != null) {
+            Drained taken = take(evictedKey, evictedTable, false);
+            if (taken != null) {
+                retired.add(taken);
+            }
         }
     }
 
@@ -731,18 +875,36 @@ public class DerivedMetricsBuffer implements Releasable {
     private void forget(long nowMillis) {
         cardinality.entrySet()
             .removeIf(entry -> entry.getValue().bucketStartMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() < nowMillis);
-        // The dimension sketches hold real memory, so forgetting them has to release it. A live bucket's start is at most one interval
-        // plus the grace period behind now, which is far inside the ten-interval window below, so nothing still referenced by a bucket
-        // can be swept here; and a stream that resumes writing at the exact moment its sketches go is covered by close() taking the same
-        // monitor observe() does.
+        // The dimension sketches hold real memory, so forgetting them has to release it — and it must not release one a live bucket is
+        // still using. Proximity to now cannot answer that any more: a bucket exists where its data is, so a metric replaying history has
+        // live buckets arbitrarily far behind this node's clock while still being written to every second. The only sound test is whether
+        // the metric is holding anything at all.
         dimensionCardinality.entrySet().removeIf(entry -> {
+            OpenBuckets open = openBuckets.get(entry.getKey());
+            if (open != null && open.holdsAnything()) {
+                return false;
+            }
             DerivedMetricsDimensionCardinality tracked = entry.getValue();
-            if (tracked.lastBucketStartMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() >= nowMillis) {
+            if (open != null && open.lastWrittenMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() >= nowMillis) {
                 return false;
             }
             tracked.close();
             return true;
         });
+        // A bucket's partial count is what keeps the ids of its results distinct, so it has to outlive the bucket itself: a late
+        // observation reopens a bucket that has already been written, and an offset starting over would collide with the result already
+        // there. It is kept for as long as the metric's own data could still reach back that far, which is the same horizon the sketches
+        // above use, measured against the metric's progression rather than this node's clock.
+        partials.keySet().removeIf(key -> {
+            OpenBuckets open = openBuckets.get(metricKey(key));
+            return open == null || key.bucketStartMillis() + CARDINALITY_MEMORY * key.intervalMillis() < open.lastWrittenMillis();
+        });
+        // and a metric holding nothing, written to by nobody, need not be remembered as open either
+        openBuckets.entrySet()
+            .removeIf(
+                entry -> entry.getValue().holdsAnything() == false
+                    && entry.getValue().lastWrittenMillis() + CARDINALITY_MEMORY * entry.getKey().intervalMillis() < nowMillis
+            );
     }
 
     /** How many intervals a metric's cardinality is remembered for after it stops producing buckets. */
@@ -755,12 +917,14 @@ public class DerivedMetricsBuffer implements Releasable {
      * <p>The caller owns the returned tables and <em>must</em> close them, or their circuit breaker accounting leaks.
      */
     public List<Drained> drainClosed(long nowMillis, long graceMillis) {
-        Predicate<TableKey> closed = key -> key.bucketStartMillis() + key.intervalMillis() + graceMillis <= nowMillis;
+        // A bucket is normally written out because newer data needed its slot, which is decided by the data rather than here. This is
+        // the backstop for the case nothing will ever push it out: a metric that has stopped being written to. Comparing this node's
+        // clock against the bucket's own start would be wrong, because a producer replaying history has buckets that are always older
+        // than now and would be written out one document at a time.
+        BiPredicate<TableKey, DerivedMetricsStripedTable> closed = (key, table) -> table.lastWrittenMillis() + key.intervalMillis()
+            + graceMillis <= nowMillis;
         List<Drained> drained = drain(closed, false);
         drainRetired(drained);
-        // A closed bucket receives nothing further, so its partial count has nothing left to keep it honest. Sweeping here rather than in
-        // drain covers buckets that were flushed early and then never saw another write.
-        partials.keySet().removeIf(key -> closed.test(key) && tables.containsKey(key) == false);
         forget(nowMillis);
         return drained;
     }
@@ -792,7 +956,7 @@ public class DerivedMetricsBuffer implements Releasable {
      * Removes everything currently buffered, including buckets that are still open. Used on shutdown so partial intervals are not lost.
      */
     public List<Drained> drainAll() {
-        List<Drained> drained = drain(key -> true, false);
+        List<Drained> drained = drain((key, table) -> true, false);
         drainRetired(drained);
         partials.clear();
         return drained;
@@ -806,14 +970,14 @@ public class DerivedMetricsBuffer implements Releasable {
         }
     }
 
-    private List<Drained> drain(Predicate<TableKey> take, boolean reopening) {
+    private List<Drained> drain(BiPredicate<TableKey, DerivedMetricsStripedTable> take, boolean reopening) {
         List<Drained> drained = new ArrayList<>();
         Iterator<Map.Entry<TableKey, DerivedMetricsStripedTable>> iterator = tables.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<TableKey, DerivedMetricsStripedTable> entry = iterator.next();
             TableKey key = entry.getKey();
             DerivedMetricsStripedTable table = entry.getValue();
-            if (take.test(key) == false) {
+            if (take.test(key, table) == false) {
                 continue;
             }
             Drained taken = take(key, table, reopening);
@@ -833,7 +997,18 @@ public class DerivedMetricsBuffer implements Releasable {
      *
      * <p>Only the thread that wins the removal seals and merges, which is what lets the stripes be folded together without a lock.
      */
+    /**
+     * Removes one bucket and gives back everything it was holding, including its slot, so a metric can open a bucket somewhere else.
+     */
     private Drained take(TableKey key, DerivedMetricsStripedTable table, boolean reopening) {
+        OpenBuckets open = openBuckets.get(metricKey(key));
+        if (open != null) {
+            open.release(key.bucketStartMillis());
+        }
+        return takeTable(key, table, reopening);
+    }
+
+    private Drained takeTable(TableKey key, DerivedMetricsStripedTable table, boolean reopening) {
         if (tables.remove(key, table) == false) {
             return null;
         }
@@ -992,6 +1167,14 @@ public class DerivedMetricsBuffer implements Releasable {
     /** Dimensions a metric has stopped breaking down by because they outgrew their budget, counted once each. */
     public long dimensionsCollapsed() {
         return dimensionsCollapsed.sum();
+    }
+
+    /**
+     * Buckets given up because a metric needed a slot for a newer one. A steady rate here means the data arrives at more distinct moments
+     * than {@code max_interval_buckets} allows for, which costs extra documents rather than accuracy.
+     */
+    public long bucketsEvicted() {
+        return bucketsEvicted.sum();
     }
 
     /** Observations that arrived for a bucket already emitted, and reopened it as a further partial. */

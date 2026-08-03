@@ -77,6 +77,25 @@ final class DerivedMetricsStripedTable implements Releasable {
      * may itself have to seal this bucket — see the ordering note on {@link #seal()}.
      */
     private volatile boolean sealed;
+    /**
+     * Wall clock at the last observation into this bucket, which is how a bucket nothing is writing to any more is noticed.
+     *
+     * <p>It has to be the bucket rather than the metric: a metric can be collecting at two moments at once, and the busy one must not keep
+     * the quiet one open. Updated at second granularity because it is shared across every write thread and the decision it feeds does not
+     * need precision.
+     */
+    private volatile long lastWrittenMillis;
+
+    void touch(long nowMillis) {
+        if (nowMillis - lastWrittenMillis > 1000L) {
+            lastWrittenMillis = nowMillis;
+        }
+    }
+
+    long lastWrittenMillis() {
+        return lastWrittenMillis;
+    }
+
     private long seriesLostMerging;
     private boolean closed;
 

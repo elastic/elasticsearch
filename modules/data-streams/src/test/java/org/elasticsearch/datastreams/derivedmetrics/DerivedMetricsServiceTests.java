@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -237,48 +238,58 @@ public class DerivedMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * With the default of zero, a document whose bucket has already closed is refused rather than being quietly counted in whichever
-     * bucket happens to be open. Refusing it is a choice, and it is reported rather than dropped in silence.
+     * The case a clock-anchored rule gets wrong. A producer permanently behind is not late in any sense worth acting on; it has its own
+     * present, and its data must be counted where it says it belongs rather than refused for disagreeing with this node's clock.
      */
-    public void testAnObservationTooLateToBucketIsRefusedAndCounted() throws Exception {
+    public void testAProducerThatIsPermanentlyBehindIsCountedNormally() throws Exception {
         try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
             CompiledDerivedMetrics eventTime = eventTimeMetric();
-            // an hour old against a ten second interval, with no lateness allowed
-            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueHours(1)), true, null);
-
-            assertEquals("nothing may be buffered for a bucket long gone", 0, service.bufferedSeries());
-            assertEquals(1L, service.skippedForLateness());
-        }
-    }
-
-    /**
-     * Raising the allowance is what lets a late document be counted where it belongs. The bound is expressed in whole intervals because
-     * that is also the number of extra buckets a metric may hold, so the cost is legible where it is configured.
-     */
-    public void testRaisingTheAllowanceLetsALateObservationCount() throws Exception {
-        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_EVENT_LATENESS_INTERVALS.getKey(), 3).build();
-        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
-            CompiledDerivedMetrics eventTime = eventTimeMetric();
-            // two intervals behind, inside an allowance of three
-            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueSeconds(20)), true, null);
-
-            assertEquals("it belongs in a bucket, so it must be held", 1, service.bufferedSeries());
-            assertEquals(0L, service.skippedForLateness());
-        }
-    }
-
-    /**
-     * The property that keeps the ordinary case unchanged: a stream with no late data holds exactly what it held before any of this,
-     * because the extra buckets are created on demand rather than reserved.
-     */
-    public void testPunctualDataHoldsNoExtraBuckets() throws Exception {
-        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_EVENT_LATENESS_INTERVALS.getKey(), 3).build();
-        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
-            CompiledDerivedMetrics eventTime = eventTimeMetric();
             for (int i = 0; i < 20; i++) {
-                service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.ZERO), true, null);
+                service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueHours(1)), true, null);
             }
-            assertEquals("one series, in one bucket, however generous the allowance", 1, service.bufferedSeries());
+
+            assertEquals("an hour behind is still one series in one bucket", 1, service.bufferedSeries());
+            assertEquals("and nothing about it is an eviction", 0L, service.buffer().bucketsEvicted());
+        }
+    }
+
+    /**
+     * The rehydration case: one producer replaying history while the rest write in real time. Both are collecting, at different moments,
+     * and holding two buckets is what lets them coexist rather than evicting each other on every document.
+     */
+    public void testRealTimeAndReplayedDataCoexist() throws Exception {
+        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_INTERVAL_BUCKETS.getKey(), 2).build();
+        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
+            CompiledDerivedMetrics eventTime = eventTimeMetric();
+            for (int i = 0; i < 10; i++) {
+                service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.ZERO), true, null);
+                service.record(
+                    ProjectId.DEFAULT,
+                    "logs-my_app-default",
+                    eventTime,
+                    agedDocument(TimeValue.timeValueMinutes(30)),
+                    true,
+                    null
+                );
+            }
+
+            assertEquals("two moments, two buckets, one series in each", 2, service.bufferedSeries());
+            assertEquals("neither should be pushing the other out", 0L, service.buffer().bucketsEvicted());
+        }
+    }
+
+    /**
+     * Data arriving at more distinct moments than there are slots costs documents, not observations: the oldest bucket is written out to
+     * make room rather than the observation being refused.
+     */
+    public void testMoreMomentsThanSlotsCostsDocumentsRatherThanData() throws Exception {
+        Settings settings = Settings.builder().put(DerivedMetricsService.MAX_INTERVAL_BUCKETS.getKey(), 1).build();
+        try (DerivedMetricsService service = service(settings, new IndexingPressure(Settings.EMPTY))) {
+            CompiledDerivedMetrics eventTime = eventTimeMetric();
+            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.ZERO), true, null);
+            service.record(ProjectId.DEFAULT, "logs-my_app-default", eventTime, agedDocument(TimeValue.timeValueMinutes(30)), true, null);
+
+            assertThat("the slot had to be given up", service.buffer().bucketsEvicted(), greaterThan(0L));
         }
     }
 
@@ -286,9 +297,7 @@ public class DerivedMetricsServiceTests extends ESTestCase {
     public void testAMetricOnTheWriteClockIgnoresAnOldTimestamp() throws Exception {
         try (DerivedMetricsService service = service(Settings.EMPTY, new IndexingPressure(Settings.EMPTY))) {
             service.record(ProjectId.DEFAULT, "logs-my_app-default", compiled, agedDocument(TimeValue.timeValueHours(1)), true, null);
-
             assertEquals("the write clock does not care when the document says it happened", 1, service.bufferedSeries());
-            assertEquals(0L, service.skippedForLateness());
         }
     }
 

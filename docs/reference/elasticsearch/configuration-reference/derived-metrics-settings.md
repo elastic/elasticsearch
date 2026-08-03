@@ -28,14 +28,14 @@ $$$derived-metrics-flush-grace-period$$$
 
 Series count is the one thing that grows with the data, because dimension values come from documents. These settings bound it. Everything refused by one of them is counted and reported by the [derived metrics stats API](/reference/elasticsearch/rest-apis/index.md).
 
-$$$derived-metrics-max-event-lateness-intervals$$$
+$$$derived-metrics-max-interval-buckets$$$
 
-`data_streams.derived_metrics.max_event_lateness_intervals`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) How many whole intervals late a document may be and still be counted in the interval its own `@timestamp` falls in. Defaults to `0`, and may be at most `3`.
+`data_streams.derived_metrics.max_interval_buckets`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) How many interval buckets one metric may collect into at the same time. Defaults to `2`, and may be at most `8`.
 
-    A metric configured with `"time_source": "event"`, which is the default for user-defined metrics, is counted in the interval its timestamp falls in rather than the interval it was written in. Once that interval has been written out, a later document belongs to an interval that has already been reported. At `0` such a document is not counted, and is reported through `es.derived_metrics.observations.skipped.too_late.total`. Raising this counts it, by writing an additional result for the earlier interval which combines with the one already written.
+    A metric configured with `"time_source": "event"`, which is the default for user-defined metrics, is counted in the interval its own `@timestamp` falls in rather than the interval it was written in. Buckets are created as data arrives, so a producer running behind collects normally in its own intervals rather than being measured against the receiving node's clock.
 
-    The limit is expressed in intervals because that is also what it costs: a metric may hold this many additional intervals at once. They are only created when late documents actually arrive, so a stream whose documents are punctual holds no more than it would at `0`.
+    This setting bounds how many such intervals a metric holds at once, which is what costs memory. Raise it when documents for a metric legitimately arrive for several intervals at once, such as a producer replaying history alongside others writing in real time. When a new interval is needed and none is free, the oldest is written out; if data for it arrives again it is written again as an additional result that combines with the first. Nothing is lost, and `es.derived_metrics.buckets.evicted.total` reports how often it happens.
 
 $$$derived-metrics-max-series-per-node$$$
 

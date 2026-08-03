@@ -152,24 +152,24 @@ public class DerivedMetricsService implements Closeable {
     );
 
     /**
-     * How many whole intervals late a document may be and still be counted in the bucket its own timestamp implies.
+     * How many interval buckets one metric may have open at once.
      *
-     * <p>Expressed in intervals rather than as a duration because that is what the cost is denominated in: this is also the number of
-     * additional buckets a metric may hold at once. The buckets are created only when late data actually arrives, so a stream with none
-     * holds exactly what it holds today.
+     * <p>Buckets are not anchored to this node's clock. They exist wherever the data is: the first observation opens a bucket at the
+     * moment it carries, and this is how many such moments a metric may be collecting for at the same time. A fleet writing in real time
+     * and one producer replaying half an hour of history occupy two of them and do not interfere.
      *
-     * <p>Zero by default, which matches Prometheus and Mimir, where out-of-order ingestion is off unless asked for. At zero the only
-     * tolerance is the grace period, which already keeps a bucket open past the end of its interval.
+     * <p>That is why it is a count rather than a distance from now. A producer permanently an hour behind is not late in any sense worth
+     * acting on; it simply has its own present, and a rule measured from this node's clock would refuse all of it forever.
      *
-     * <p>Capped at three deliberately. A late bucket is then at most four intervals old, which keeps it well inside the window
-     * {@code DerivedMetricsBuffer.forget()} uses before releasing a metric's dimension sketches, so a live bucket can never have its
-     * sketch closed underneath it.
+     * <p>When a metric needs a slot and has none free, the oldest bucket it holds is written out to make room. So the cost of data
+     * arriving at more distinct moments than this allows is extra documents, never lost observations, and the rate is reported as
+     * {@code es.derived_metrics.buckets.evicted.total}.
      */
-    public static final Setting<Integer> MAX_EVENT_LATENESS_INTERVALS = Setting.intSetting(
-        "data_streams.derived_metrics.max_event_lateness_intervals",
-        0,
-        0,
-        3,
+    public static final Setting<Integer> MAX_INTERVAL_BUCKETS = Setting.intSetting(
+        "data_streams.derived_metrics.max_interval_buckets",
+        DerivedMetricsBuffer.DEFAULT_MAX_INTERVAL_BUCKETS,
+        1,
+        8,
         Setting.Property.NodeScope
     );
 
@@ -255,7 +255,6 @@ public class DerivedMetricsService implements Closeable {
     private final int bulkSize;
     private final int maxInFlightDocuments;
     private final MemoryPressurePolicy memoryPressurePolicy;
-    private final int maxEventLatenessIntervals;
     /**
      * The node's persistent ID, which is what identifies a partial. See {@link DerivedMetricsDestination#NODE_FIELD} for why this rather
      * than the node name.
@@ -279,8 +278,6 @@ public class DerivedMetricsService implements Closeable {
     /** Documents that had to be parsed again because some configured path could not be recovered from the index. */
     private final AtomicLong documentsReadFromSource = new AtomicLong();
     private final AtomicLong skippedForMissingValue = new AtomicLong();
-    /** Observations whose timestamp was further from now than the configured lateness allows, so they were not counted at all. */
-    private final AtomicLong skippedForLateness = new AtomicLong();
     /** Documents carrying no timestamp this could read, which fell back to being bucketed by the clock at the time of the write. */
     private final AtomicLong skippedForNoTimestamp = new AtomicLong();
     /** Observations skipped because the metric needs a predicate evaluated against a {@code _source} that could not be read. */
@@ -331,14 +328,14 @@ public class DerivedMetricsService implements Closeable {
             // A low-cardinality bucket is striped once per thread that can be inside an observation, which is the size of the write pool.
             EsExecutors.allocatedProcessors(settings),
             MAX_DIMENSION_CARDINALITY.get(settings),
-            MAX_HISTOGRAM_SERIES_PER_NODE.get(settings)
+            MAX_HISTOGRAM_SERIES_PER_NODE.get(settings),
+            MAX_INTERVAL_BUCKETS.get(settings)
         );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
         this.bulkSize = BULK_SIZE.get(settings);
         this.maxInFlightDocuments = MAX_IN_FLIGHT_BULKS.get(settings) * this.bulkSize;
         this.memoryPressurePolicy = MEMORY_PRESSURE_POLICY.get(settings);
-        this.maxEventLatenessIntervals = MAX_EVENT_LATENESS_INTERVALS.get(settings);
         this.nodeId = nodeId;
         this.nodeName = nodeName;
     }
@@ -411,10 +408,10 @@ public class DerivedMetricsService implements Closeable {
             skippedForMissingValue::get
         );
         register(
-            "es.derived_metrics.observations.skipped.too_late.total",
-            "observations whose timestamp was outside the lateness this node accepts",
+            "es.derived_metrics.buckets.evicted.total",
+            "buckets written out early because a metric needed the slot for data arriving at a different moment",
             "count",
-            skippedForLateness::get
+            buffer::bucketsEvicted
         );
         register(
             "es.derived_metrics.observations.skipped.no_timestamp.total",
@@ -565,13 +562,9 @@ public class DerivedMetricsService implements Closeable {
             String[] values = scratch.dimensionValues(metric, source, haveSource);
             Interval interval = metric.interval();
             long observedAt = timeFor(metric, now, eventTime);
-            if (observedAt == TOO_LATE) {
-                skippedForLateness.incrementAndGet();
-                continue;
-            }
             long bucketStart = DerivedMetricsBuffer.bucketStart(observedAt, interval.millis());
             TableKey key = scratch.tableKey(project, sourceDataStream, metric, bucketStart, interval.millis());
-            Outcome outcome = buffer.record(key, values, scratch.encoding, value);
+            Outcome outcome = buffer.record(key, values, scratch.encoding, value, now);
             if (outcome.recorded() == false && memoryPressurePolicy == MemoryPressurePolicy.FLUSH_EARLY) {
                 // Make room by emitting what is already collected, then take this observation rather than losing it. One retry only: if
                 // the buffer still refuses after a drain the node is over its budget for reasons a second attempt will not change.
@@ -579,7 +572,7 @@ public class DerivedMetricsService implements Closeable {
                 // The buffer counts a drop on each refusal, so a retry that succeeds has already been counted as a loss and a retry that
                 // fails has been counted twice. Neither is true, so the retry's answer is used to put the count back.
                 relievePressure(outcome, key);
-                if (buffer.record(key, values, scratch.encoding, value).recorded()) {
+                if (buffer.record(key, values, scratch.encoding, value, now).recorded()) {
                     recoveredAfterRelief.incrementAndGet();
                 } else {
                     doubleCountedDrops.incrementAndGet();
@@ -873,9 +866,6 @@ public class DerivedMetricsService implements Closeable {
         }, () -> inFlightDocuments.addAndGet(-documents)));
     }
 
-    /** Returned by {@link #timeFor} for an observation whose timestamp is outside what this node will accept. */
-    private static final long TOO_LATE = Long.MIN_VALUE;
-
     /**
      * Which moment this metric should be bucketed by.
      *
@@ -883,18 +873,13 @@ public class DerivedMetricsService implements Closeable {
      * written. It falls back to the write clock when the document carries no timestamp this can read, because a metric that stops
      * counting on an unreadable timestamp would be worse than one that is slightly misplaced, and the fallback is counted.
      *
-     * <p>A timestamp further from now than the configured lateness allows is refused rather than bucketed. Accepting it would either put
-     * the observation in a bucket that no longer exists, or, without a bound, let the data decide how many buckets this node holds.
+     * <p>Nothing here consults this node's clock to decide whether a timestamp is acceptable. How many moments a metric may be collecting
+     * at once is bounded by {@code max_interval_buckets} in the buffer, which is a count of open buckets rather than a distance from now,
+     * so a producer that is permanently an hour behind behaves exactly like one that is not.
      */
     private long timeFor(CompiledMetric metric, long now, long eventTime) {
         if (metric.timeSource() == DataStreamDerivedMetrics.TimeSource.INGEST || eventTime == DerivedMetricsDocumentReader.NO_TIMESTAMP) {
             return now;
-        }
-        long allowance = (long) maxEventLatenessIntervals * metric.interval().millis();
-        // symmetric, because a timestamp far in the future is as unusable as one far in the past: it would open a bucket that will not
-        // close until the clock catches up with it
-        if (eventTime < now - allowance - metric.interval().millis() || eventTime > now + allowance + metric.interval().millis()) {
-            return TOO_LATE;
         }
         return eventTime;
     }
@@ -1081,11 +1066,6 @@ public class DerivedMetricsService implements Closeable {
     /** Documents that fell back to a second parse of {@code _source}. */
     public long documentsReadFromSource() {
         return documentsReadFromSource.get();
-    }
-
-    /** Observations refused because their timestamp was outside the accepted lateness. */
-    public long skippedForLateness() {
-        return skippedForLateness.get();
     }
 
     /** Documents with no readable timestamp, which fell back to the write clock. */

@@ -327,10 +327,10 @@ public class DerivedMetricsBufferTests extends ESTestCase {
     }
 
     /**
-     * A bucket flushed early and then never written to again would otherwise leave its partial counter behind forever, since nothing
-     * drains a table that no longer exists.
+     * The counter is what keeps the ids of a bucket's results apart, so it has to outlive the bucket. A late observation reopens a bucket
+     * already written out, and an offset starting over would give the new result the id of the one already there.
      */
-    public void testPartialCountersAreSweptOnceTheBucketCloses() {
+    public void testAPartialCounterOutlivesTheBucketItCounts() {
         try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
             TableKey key = key(Reduction.SUM, 0L);
             assertTrue(record(buffer, key, "checkout", 1.0));
@@ -338,6 +338,24 @@ public class DerivedMetricsBufferTests extends ESTestCase {
             assertEquals(1, buffer.partialsTracked());
 
             buffer.drainClosed(20_000, 0);
+            assertEquals("the bucket is gone but a late observation could still reach it", 1, buffer.partialsTracked());
+        }
+    }
+
+    /**
+     * It cannot be kept forever either. Once the metric's own data has moved far enough on that nothing could reach back to the bucket, the
+     * counter is dropped — measured against the metric's progression, since a replaying producer's data is nowhere near this node's clock.
+     */
+    public void testAPartialCounterIsDroppedOnceTheDataHasMovedOn() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10)) {
+            TableKey key = key(Reduction.SUM, 0L);
+            assertTrue(record(buffer, key, "checkout", 1.0));
+            drainForPressure(buffer, key);
+            assertEquals(1, buffer.partialsTracked());
+
+            // twenty intervals later, well past the ten this remembers for
+            assertTrue(record(buffer, key(Reduction.SUM, 200_000L), "checkout", 1.0));
+            buffer.drainClosed(200_000, 0);
             assertEquals(0, buffer.partialsTracked());
         }
     }

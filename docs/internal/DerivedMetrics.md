@@ -122,18 +122,19 @@ The timestamp is read from the keyed slot the date mapper stores it in, which ex
 A document with no timestamp this can read falls back to the write clock and is counted as
 `observations.skipped.no_timestamp`. That is not hypothetical: some failure paths carry no parsed document, and the columnar parse does not record the timestamp yet.
 
-#### How late is too late
+#### Buckets follow the data, not this node's clock
 
-`max_event_lateness_intervals` bounds how far behind a document may be, in whole intervals, default `0` and at most `3`. Zero matches Prometheus and Mimir, where out-of-order ingestion is off unless asked for.
+There is no lateness rule, because a producer that is permanently behind is not late in any sense worth acting on. It has its own present, and refusing its data for disagreeing with this node's clock would throw away a working pipeline's numbers to defend a comparison that means nothing.
 
-Beyond the bound the observation is refused and counted rather than being placed in whatever interval happens to be open, which would be worse than not counting it: the number would be wrong rather than absent, and nothing would say so.
+So a bucket exists where its data is. The first observation for a metric opens a bucket wherever its timestamp falls, and a metric holds up to `max_interval_buckets` of them at once (default `2`, at most `8`). An observation for a bucket already held is recorded into it. An observation for a moment none of the held buckets covers takes a slot, and the oldest bucket gives up its own.
 
-Within the bound, a document whose interval has already been written **reopens** it. Buckets are not held open for longer, which would delay every emission and give away the freshness guarantee; instead a fresh table is created for the earlier bucket start and the next flush emits it as a further partial, which sums with the one already written. Two consequences follow, and both are properties worth having:
+The bound is therefore on **how many moments a metric collects at once**, which is the thing that costs memory, rather than on how old a document may be, which costs nothing. Two producers can be collecting at once as far apart as they like: one replaying yesterday while the rest write in real time is two moments, not a violation.
 
-- **The ordinary case allocates nothing extra.** Tables are created on demand, so a stream with punctual documents holds exactly what it held before, whatever the allowance is set to.
-- **The bound is denominated in what it costs.** At most this many additional buckets per metric can exist, and only while late data is arriving.
+Running out of slots costs documents rather than data. The evicted bucket is written out, and if data for it arrives again it reopens and the next flush emits a further partial, which sums with the one already written. Nothing is lost; the series is just split across more documents. `buckets.evicted.total` counts it, and a metric whose data arrives at more distinct moments than it has slots will show it climbing.
 
-The cap of three is not arbitrary. It keeps a late bucket at most four intervals old, comfortably inside the ten-interval window `forget()` uses before releasing a metric's dimension sketches, so a live bucket can never have its sketch closed underneath it.
+A bucket nothing has written to for `interval + flush_grace_period` is written out. That is measured per bucket, from its own last write: a metric collecting at two moments at once must not have the quiet one held open by the busy one. This is what closes the last bucket of a stream that has stopped, which eviction alone never would.
+
+This is also why the slot count is capped. `forget()` releases a metric's dimension sketches once its data has moved ten intervals on, and holds them for as long as the metric holds any bucket at all, so a live bucket can never have its sketch closed underneath it however far behind it is.
 
 ## Predicates
 

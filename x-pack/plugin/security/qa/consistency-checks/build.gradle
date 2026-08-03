@@ -14,6 +14,9 @@ dependencies {
   testImplementation project(path: xpackModule('ccr'))
   testImplementation project(path: xpackModule('downsample'))
   testImplementation project(path: xpackModule('eql'))
+  // The EQL/ESQL plugins are loaded on a shared test classloader here; EqlPlugin.getActions() references the EQL search
+  // DTOs, which now live in the eql-action module and are only compileOnly (not bundled) in eql, so add them explicitly.
+  testImplementation project(path: xpackModule('eql-action'))
   testImplementation project(path: xpackModule('esql'))
   testImplementation project(path: xpackModule('esql-core'))
   testImplementation project(':x-pack:plugin:encryption')

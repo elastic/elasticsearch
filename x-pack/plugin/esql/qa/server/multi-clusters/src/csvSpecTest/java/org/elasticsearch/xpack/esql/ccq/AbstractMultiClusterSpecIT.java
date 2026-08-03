@@ -257,6 +257,12 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             );
         }
 
+        // The EQL source command is coordinator-local and not exercised across clusters.
+        assumeFalse(
+            "EQL source command is not exercised in CCS csv-spec",
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EQL_QUERY.capabilityName())
+        );
+
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));

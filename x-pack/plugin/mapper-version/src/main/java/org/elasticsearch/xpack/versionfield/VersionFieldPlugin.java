@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -17,7 +18,12 @@ import org.elasticsearch.search.DocValueFormat;
 import java.util.List;
 import java.util.Map;
 
-public class VersionFieldPlugin extends Plugin implements MapperPlugin {
+/**
+ * Implements {@link ExtensiblePlugin} so that other plugins (e.g. x-pack-ql and x-pack-esql-core) may declare it in
+ * their {@code extendedPlugins} and load the {@link Version} class from this module at runtime instead of bundling a
+ * duplicate copy, which would cause a jar-hell conflict when several such plugins are loaded together.
+ */
+public class VersionFieldPlugin extends Plugin implements MapperPlugin, ExtensiblePlugin {
 
     public VersionFieldPlugin(Settings settings) {}
 

@@ -356,6 +356,11 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
             testCase.datasetSources.isEmpty() == false
         );
+        assumeFalseLogging(
+            "EQL source command runs only on live-cluster QA REST suites; the EQL plugin/transport action is not wired into"
+                + " the in-JVM CsvIT cluster, so these are deferred to the QA suites",
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EQL_QUERY.capabilityName())
+        );
         assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()

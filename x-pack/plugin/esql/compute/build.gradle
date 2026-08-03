@@ -30,6 +30,8 @@ dependencies {
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
   testImplementation(project(xpackModule('esql-core')))
+  // esql-core no longer re-exports mapper-version transitively (compileOnly); compute tests reference Version directly.
+  testImplementation(project(xpackModule('mapper-version')))
   testImplementation(project(xpackModule('esql:compute:test'))) {
     /*
      * compute:test depends on this project's main code which is fine

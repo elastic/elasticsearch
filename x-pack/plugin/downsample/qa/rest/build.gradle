@@ -15,6 +15,11 @@ dependencies {
 
   clusterModules project(xpackModule('downsample'))
   clusterModules project(xpackModule('esql'))
+  // esql extends eql-action, which extends ql; ql and mapper-version are two levels deep in the extended-plugin
+  // chain (esql -> eql-action -> ql -> mapper-version, and esql -> esql-core -> mapper-version), so the rest-test
+  // tooling (which only auto-resolves one level) cannot find them. Declare both explicitly or the node won't start.
+  clusterModules project(xpackModule('ql'))
+  clusterModules project(xpackModule('mapper-version'))
   clusterModules project(xpackModule('autoscaling'))
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))

@@ -2773,6 +2773,9 @@ public class EsqlCapabilities {
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
+        /** Support for the EQL source command (delegates to the EQL search endpoint). Snapshot-only while under development. */
+        EQL_QUERY(Build.current().isSnapshot()),
+
         /**
          * Support for the EXTERNAL command (datasource access).
          */

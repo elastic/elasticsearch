@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -538,6 +539,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == AttributeSet.class) {
             // AttributeSet has a private constructor / cannot be mocked.
             return makeAttributeSet(toBuildClass);
+        } else if (argClass == EqlQueryOptions.class) {
+            // EqlQueryOptions is a record / final, cannot be mocked
+            return new EqlQueryOptions(
+                randomBoolean() ? null : randomAlphaOfLength(5),
+                randomBoolean() ? null : randomAlphaOfLength(5),
+                randomBoolean() ? null : randomAlphaOfLength(5)
+            );
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();

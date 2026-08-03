@@ -18,6 +18,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.esql.eql.EqlQueryService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
@@ -30,6 +31,7 @@ public record TransportActionServices(
     IndexNameExpressionResolver indexNameExpressionResolver,
     UsageService usageService,
     InferenceService inferenceService,
+    EqlQueryService eqlQueryService,
     UserAgentParserRegistry userAgentParserRegistry,
     IpLocationService ipLocationService,
     BlockFactoryProvider blockFactoryProvider,

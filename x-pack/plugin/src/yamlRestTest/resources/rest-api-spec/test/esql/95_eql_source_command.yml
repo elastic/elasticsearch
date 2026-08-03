@@ -1,0 +1,171 @@
+# Tests for the EQL source command (EQL <index patterns> | "<eql query>" [WITH {..}] | ...). It delegates to the EQL
+# search transport action and flattens the response into the fixed keyword/long schema _sequence, _index, _id, _source.
+# The command is snapshot-only (capability eql_query), so the whole file is skipped on release builds.
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings, headers ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ eql_query ]
+      reason: "EQL source command is snapshot-only, gated on the eql_query capability"
+
+  - do:
+      indices.create:
+        index: eql_events
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              event_type: { type: keyword }
+              event:
+                properties:
+                  category: { type: alias, path: event_type }
+              message: { type: keyword }
+
+  # Pin JSON so the stored _source bytes (asserted verbatim below) are deterministic, not the runner's random content type.
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: eql_events
+        refresh: true
+        body:
+          - { "index": { "_id": "1" } }
+          - { "@timestamp": "2024-01-01T00:00:01Z", "event_type": "process", "message": "start" }
+          - { "index": { "_id": "2" } }
+          - { "@timestamp": "2024-01-01T00:00:02Z", "event_type": "process", "message": "run" }
+          - { "index": { "_id": "3" } }
+          - { "@timestamp": "2024-01-01T00:00:03Z", "event_type": "network", "message": "connect" }
+
+  # A second index where every event shares one @timestamp, so ordering is decided purely by the WITH tiebreaker.
+  - do:
+      indices.create:
+        index: eql_ties
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              event_type: { type: keyword }
+              event:
+                properties:
+                  category: { type: alias, path: event_type }
+              seq: { type: long }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: eql_ties
+        refresh: true
+        body:
+          - { "index": { "_id": "a" } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "event_type": "process", "seq": 3 }
+          - { "index": { "_id": "b" } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "event_type": "process", "seq": 1 }
+          - { "index": { "_id": "c" } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "event_type": "process", "seq": 2 }
+
+---
+"Event query returns the fixed schema with a null _sequence":
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'EQL eql_events | "any where true" | SORT _id'
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "_sequence" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "_index" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "_id" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "_source" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 3 }
+  # Plain event queries have no sequence ordinal; _source is the stored document normalized to a JSON keyword string.
+  - match: { values.0.0: null }
+  - match: { values.0.1: "eql_events" }
+  - match: { values.0.2: "1" }
+  - match: { values.0.3: '{"@timestamp":"2024-01-01T00:00:01Z","event_type":"process","message":"start"}' }
+  - match: { values.1.0: null }
+  - match: { values.1.1: "eql_events" }
+  - match: { values.1.2: "2" }
+  - match: { values.1.3: '{"@timestamp":"2024-01-01T00:00:02Z","event_type":"process","message":"run"}' }
+  - match: { values.2.0: null }
+  - match: { values.2.1: "eql_events" }
+  - match: { values.2.2: "3" }
+  - match: { values.2.3: '{"@timestamp":"2024-01-01T00:00:03Z","event_type":"network","message":"connect"}' }
+
+---
+"Sequence query populates the 0-based _sequence ordinal":
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'EQL eql_events | "sequence [any where message == \"start\"] [any where message == \"run\"]"'
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "_sequence" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "_index" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "_id" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "_source" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 2 }
+  # Both matched events belong to the first (0-based) sequence.
+  - match: { values.0.0: 0 }
+  - match: { values.0.1: "eql_events" }
+  - match: { values.0.2: "1" }
+  - match: { values.0.3: '{"@timestamp":"2024-01-01T00:00:01Z","event_type":"process","message":"start"}' }
+  - match: { values.1.0: 0 }
+  - match: { values.1.1: "eql_events" }
+  - match: { values.1.2: "2" }
+  - match: { values.1.3: '{"@timestamp":"2024-01-01T00:00:02Z","event_type":"process","message":"run"}' }
+
+---
+"WITH tiebreaker makes ordering deterministic":
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'EQL eql_ties | "any where true" WITH {"tiebreaker_field": "seq"}'
+
+  - length: { columns: 4 }
+  - match: { columns.0.name: "_sequence" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "_index" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "_id" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "_source" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 3 }
+  # Plain event query, so no sequence ordinal; all events share one @timestamp, so the tiebreaker (seq) alone
+  # decides the order.
+  - match: { values.0.0: null }
+  - match: { values.0.1: "eql_ties" }
+  - match: { values.0.2: "b" }
+  - match: { values.0.3: '{"@timestamp":"2024-01-01T00:00:00Z","event_type":"process","seq":1}' }
+  - match: { values.1.0: null }
+  - match: { values.1.1: "eql_ties" }
+  - match: { values.1.2: "c" }
+  - match: { values.1.3: '{"@timestamp":"2024-01-01T00:00:00Z","event_type":"process","seq":2}' }
+  - match: { values.2.0: null }
+  - match: { values.2.1: "eql_ties" }
+  - match: { values.2.2: "a" }
+  - match: { values.2.3: '{"@timestamp":"2024-01-01T00:00:00Z","event_type":"process","seq":3}' }

@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -181,6 +182,7 @@ public class ApproximationSupportTests extends ESTestCase {
         MetricsInfo.class,
         ExternalRelation.class,
         TsInfo.class,
+        EqlQuery.class,
 
         // The plans are superclasses of other plans.
         LogicalPlan.class,

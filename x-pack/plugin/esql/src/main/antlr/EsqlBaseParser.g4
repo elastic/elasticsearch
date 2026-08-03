@@ -47,6 +47,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {this.isDevVersion()}? eqlCommand
     ;
 
 processingCommand
@@ -114,6 +115,13 @@ timeSeriesCommand
 
 externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+// EQL source command: `EQL <index patterns> | "<eql query>" [WITH {..options..}]`. Index patterns reuse FROM's
+// `indexPattern` rule (no METADATA/subqueries); the optional WITH map tunes the EQL search
+// (tiebreaker_field / timestamp_field / event_category_field).
+eqlCommand
+    : DEV_EQL indexPattern (COMMA indexPattern)* PIPE eqlQuery=string commandNamedParameters
     ;
 
 indexPatternAndMetadataFields

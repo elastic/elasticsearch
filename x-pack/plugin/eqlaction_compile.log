@@ -1,0 +1,468 @@
+﻿Starting a Gradle Daemon, 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
+> Task :build-conventions:compileJava UP-TO-DATE
+> Task :build-conventions:pluginDescriptors UP-TO-DATE
+> Task :build-conventions:processResources
+> Task :build-conventions:classes
+> Task :build-conventions:jar
+> Task :build-tools:reaper:compileJava UP-TO-DATE
+> Task :build-tools-internal:extractPluginRequests UP-TO-DATE
+> Task :build-tools:reaper:processResources NO-SOURCE
+> Task :build-tools:reaper:classes UP-TO-DATE
+> Task :build-tools-internal:generatePluginAdapters UP-TO-DATE
+> Task :build-tools:reaper:jar
+> Task :build-tools-internal:pluginDescriptors UP-TO-DATE
+> Task :build-tools:compileJava UP-TO-DATE
+> Task :build-tools:compileGroovy NO-SOURCE
+> Task :build-tools:generateVersionProperties UP-TO-DATE
+> Task :build-tools:pluginDescriptors UP-TO-DATE
+> Task :build-tools:processResources
+> Task :build-tools:classes
+> Task :build-tools:jar
+> Task :build-tools-internal:processResources
+> Task :build-tools-internal:compileJava UP-TO-DATE
+> Task :build-tools-internal:compileGroovy UP-TO-DATE
+> Task :build-tools-internal:compileGroovyPlugins UP-TO-DATE
+> Task :build-tools-internal:classes
+> Task :build-tools-internal:jar
+
+> Configure project :modules:reindex
+Disabling reindex-from-old tests because we can't get the pid file on windows
+
+> Configure project :x-pack:qa:repository-old-versions
+Disabling repository-old-versions tests because we can't get the pid file on windows
+=======================================
+Elasticsearch Build Hamster says Hello!
+  Gradle Version        : 9.6.1
+  OS Info               : Windows 10 10.0 (amd64)
+  JDK Version           : 21.0.4+7-LTS (Eclipse Temurin)
+  JAVA_HOME             : D:\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2
+  Random Testing Seed   : 5BAD6E6746D220
+  In FIPS 140 mode      : false
+=======================================
+
+> Task :test:framework:extractForeignApiJar UP-TO-DATE
+> Task :libs:native:extractForeignApiJar UP-TO-DATE
+> Task :libs:simdvec:extractForeignApiJar UP-TO-DATE
+> Task :server:extractForeignApiJar UP-TO-DATE
+> Task :libs:tdigest:processResources NO-SOURCE
+> Task :libs:lz4:processResources NO-SOURCE
+> Task :libs:plugin-analysis-api:processResources NO-SOURCE
+> Task :libs:entitlement:processResources NO-SOURCE
+> Task :libs:cli:processResources NO-SOURCE
+> Task :libs:exponential-histogram:processResources NO-SOURCE
+> Task :libs:foreign-library:processor:processResources UP-TO-DATE
+> Task :libs:ip-location-api:processResources NO-SOURCE
+> Task :libs:core:extractForeignApiJar UP-TO-DATE
+> Task :libs:foreign-library:extractForeignApiJar UP-TO-DATE
+> Task :libs:user-agent-api:processResources NO-SOURCE
+> Task :libs:simdvec:processResources NO-SOURCE
+> Task :libs:foreign-library:processResources NO-SOURCE
+> Task :libs:entitlement:processMain25Resources NO-SOURCE
+> Task :libs:native:processResources UP-TO-DATE
+> Task :libs:core:processResources NO-SOURCE
+> Task :libs:x-content:processResources NO-SOURCE
+> Task :libs:ssl-config:processResources NO-SOURCE
+> Task :x-pack:plugin:core:template-resources:compileJava UP-TO-DATE
+> Task :libs:logging:compileJava UP-TO-DATE
+> Task :libs:foreign-adapter:compileJava UP-TO-DATE
+> Task :libs:swisshash:processResources NO-SOURCE
+> Task :libs:entitlement:asm-provider:processResources
+> Task :libs:entitlement:processMain26Resources NO-SOURCE
+> Task :libs:x-content:impl:processResources
+> Task :libs:foreign-adapter:processResources NO-SOURCE
+> Task :libs:entitlement:bridge:compileJava UP-TO-DATE
+> Task :libs:entitlement:processMain27Resources NO-SOURCE
+> Task :libs:logging:processResources NO-SOURCE
+> Task :libs:foreign-adapter:classes UP-TO-DATE
+> Task :libs:cli-terminal:compileJava UP-TO-DATE
+> Task :libs:logging:classes UP-TO-DATE
+> Task :libs:plugin-api:compileJava UP-TO-DATE
+> Task :x-pack:plugin:esql:stringTemplates UP-TO-DATE
+> Task :libs:cli-terminal:processResources NO-SOURCE
+> Task :libs:cli-terminal:classes UP-TO-DATE
+> Task :libs:dissect:compileJava UP-TO-DATE
+> Task :libs:plugin-api:processResources NO-SOURCE
+> Task :libs:web-utils:processResources NO-SOURCE
+> Task :libs:plugin-api:classes UP-TO-DATE
+> Task :libs:dissect:processResources NO-SOURCE
+> Task :x-pack:plugin:esql:compute:ann:compileJava UP-TO-DATE
+> Task :libs:dissect:classes UP-TO-DATE
+> Task :libs:h3:compileJava UP-TO-DATE
+> Task :libs:foreign-adapter:compileMain22Java UP-TO-DATE
+> Task :libs:h3:processResources NO-SOURCE
+> Task :x-pack:plugin:esql:compute:ann:processResources NO-SOURCE
+> Task :libs:foreign-adapter:processMain22Resources NO-SOURCE
+> Task :libs:foreign-adapter:main22Classes UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:ann:classes UP-TO-DATE
+> Task :libs:h3:classes UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:gen:processResources
+> Task :libs:arrow:compileJava UP-TO-DATE
+> Task :client:rest:compileJava UP-TO-DATE
+> Task :libs:plugin-analysis-api:compileJava UP-TO-DATE
+> Task :libs:arrow:processResources NO-SOURCE
+> Task :libs:plugin-analysis-api:classes UP-TO-DATE
+> Task :libs:arrow:classes UP-TO-DATE
+> Task :libs:grok:compileJava UP-TO-DATE
+> Task :libs:geo:compileJava UP-TO-DATE
+> Task :libs:geo:processResources NO-SOURCE
+> Task :libs:geo:classes UP-TO-DATE
+> Task :libs:plugin-api:jar UP-TO-DATE
+> Task :libs:logging:jar UP-TO-DATE
+> Task :libs:foreign-adapter:jar UP-TO-DATE
+> Task :libs:dissect:jar UP-TO-DATE
+> Task :libs:core:compileJava UP-TO-DATE
+> Task :libs:h3:jar UP-TO-DATE
+> Task :libs:core:classes UP-TO-DATE
+> Task :libs:arrow:jar UP-TO-DATE
+> Task :libs:plugin-analysis-api:jar UP-TO-DATE
+> Task :libs:geo:jar UP-TO-DATE
+> Task :libs:user-agent-api:compileJava UP-TO-DATE
+> Task :libs:grok:processResources UP-TO-DATE
+> Task :libs:web-utils:compileJava UP-TO-DATE
+> Task :libs:user-agent-api:classes UP-TO-DATE
+> Task :libs:grok:classes UP-TO-DATE
+> Task :libs:web-utils:classes UP-TO-DATE
+> Task :libs:core:jar UP-TO-DATE
+> Task :libs:lz4:compileJava UP-TO-DATE
+> Task :libs:lz4:classes UP-TO-DATE
+> Task :libs:cli:compileJava UP-TO-DATE
+> Task :libs:cli:classes UP-TO-DATE
+> Task :x-pack:plugin:eql:processTestResources
+> Task :x-pack:plugin:esql:compute:ann:jar
+> Task :libs:ip-location-api:compileJava UP-TO-DATE
+> Task :libs:grok:jar UP-TO-DATE
+> Task :libs:ip-location-api:classes UP-TO-DATE
+> Task :libs:foreign-library:compileJava UP-TO-DATE
+> Task :libs:web-utils:jar UP-TO-DATE
+> Task :libs:foreign-library:classes UP-TO-DATE
+> Task :libs:user-agent-api:jar UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:gen:compileJava UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:gen:classes
+> Task :libs:cli:jar UP-TO-DATE
+> Task :libs:ip-location-api:jar UP-TO-DATE
+> Task :x-pack:plugin:core:template-resources:processResources UP-TO-DATE
+> Task :libs:foreign-library:jar UP-TO-DATE
+> Task :x-pack:plugin:core:template-resources:classes UP-TO-DATE
+> Task :libs:x-content:compileJava UP-TO-DATE
+> Task :libs:foreign-library:processor:compileJava UP-TO-DATE
+> Task :libs:foreign-library:processor:classes UP-TO-DATE
+> Task :x-pack:plugin:core:template-resources:jar UP-TO-DATE
+> Task :libs:native:compileJava UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:gen:jar
+> Task :libs:foreign-library:processor:jar UP-TO-DATE
+> Task :libs:tdigest:compileJava UP-TO-DATE
+> Task :libs:exponential-histogram:compileJava UP-TO-DATE
+> Task :libs:x-content:impl:compileJava UP-TO-DATE
+> Task :libs:native:processForeignAnnotations UP-TO-DATE
+> Task :libs:tdigest:classes UP-TO-DATE
+> Task :libs:exponential-histogram:classes UP-TO-DATE
+> Task :libs:x-content:impl:classes
+> Task :libs:native:augmentForeignModuleInfo UP-TO-DATE
+> Task :libs:native:classes UP-TO-DATE
+> Task :libs:cli-terminal:compileMain22Java UP-TO-DATE
+> Task :libs:cli-terminal:processMain22Resources NO-SOURCE
+> Task :libs:cli-terminal:main22Classes UP-TO-DATE
+> Task :libs:exponential-histogram:jar UP-TO-DATE
+> Task :libs:lz4:jar UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:stringTemplates UP-TO-DATE
+> Task :libs:native:jar UP-TO-DATE
+> Task :x-pack:plugin:esql:compute:processResources NO-SOURCE
+> Task :libs:cli-terminal:jar UP-TO-DATE
+> Task :libs:entitlement:compileJava UP-TO-DATE
+> Task :libs:simdvec:compileJava UP-TO-DATE
+> Task :libs:simdvec:classes UP-TO-DATE
+> Task :libs:tdigest:jar UP-TO-DATE
+> Task :libs:entitlement:asm-provider:compileJava UP-TO-DATE
+> Task :libs:entitlement:asm-provider:classes
+> Task :libs:x-content:impl:jar
+> Task :libs:ssl-config:compileJava UP-TO-DATE
+> Task :libs:simdvec:jar UP-TO-DATE
+> Task :libs:ssl-config:classes UP-TO-DATE
+> Task :server:generateTransportVersionManifest
+> Task :libs:ssl-config:jar UP-TO-DATE
+> Task :libs:x-content:generateImplProviderManifest
+> Task :libs:entitlement:asm-provider:jar
+> Task :libs:entitlement:generateAsm-providerProviderManifest
+> Task :libs:entitlement:generateAsm-providerProviderImpl
+> Task :libs:entitlement:classes
+> Task :libs:entitlement:compileMain25Java UP-TO-DATE
+> Task :libs:entitlement:main25Classes UP-TO-DATE
+> Task :libs:entitlement:compileMain26Java UP-TO-DATE
+> Task :libs:entitlement:main26Classes UP-TO-DATE
+> Task :libs:entitlement:compileMain27Java UP-TO-DATE
+> Task :libs:entitlement:main27Classes UP-TO-DATE
+> Task :libs:entitlement:jar
+> Task :libs:x-content:generateImplProviderImpl
+> Task :libs:x-content:classes
+> Task :libs:x-content:jar
+
+> Task :server:compileJava
+java.exe : Note: PluginProcessor: writing plugin descriptor for 13 Log4j Plugins to `META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat`.
+At C:\Users\Andrei Stefan\AppData\Local\Temp\ps-script-eab2e3ff-06e0-41e5-8f93-ccfe7a872ecd.ps1:113 char:1
++ & "C:\Java\java\bin\java.exe" -jar "D:\Eclipse_workspace_master3\elas ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Note: PluginPro...j2Plugins.dat`.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :server:generateTestBuildInfo
+> Task :server:processResources
+> Task :server:classes
+> Task :server:generateModulesList UP-TO-DATE
+> Task :server:generatePluginsList UP-TO-DATE
+> Task :modules:user-agent:compileJava
+> Task :modules:health-shards-availability:compileJava
+> Task :distribution:tools:cli-launcher:compileJava
+> Task :x-pack:plugin:encryption:spi:compileJava
+> Task :modules:lang-painless:spi:compileJava
+> Task :modules:rest-root:compileJava
+> Task :libs:swisshash:compileJava
+> Task :libs:swisshash:classes
+> Task :libs:swisshash:jar UP-TO-DATE
+
+> Task :modules:parent-join:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\modules\parent-join\src\main\java\org\elasticsearch\join\ParentJoinPlugin.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:lang-mustache:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\modules\lang-mustache\src\main\java\org\elasticsearch\script\mustache\MustacheScriptEngine.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:legacy-geo:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:mapper-extras:compileJava
+
+> Task :modules:transport-netty4:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:data-streams:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:reindex:compileJava
+Note: Some input files use or override a deprecated API.
+
+> Task :modules:ip-location:compileJava
+Note: Recompile with -Xlint:deprecation for details.
+Note: D:\Eclipse_workspace_master3\elasticsearch\modules\ip-location\src\main\java\org\elasticsearch\ingest\geoip\HttpClient.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:aggregations:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :modules:ingest-common:compileJava
+
+> Task :modules:analysis-common:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :server:jar
+
+> Task :test:framework:compileJava
+Note: PluginProcessor: writing plugin descriptor for 1 Log4j Plugins to `META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat`.
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:core:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :libs:exponential-histogram:compileTestJava
+> Task :x-pack:plugin:core:generateTestBuildInfo
+> Task :x-pack:plugin:core:pluginProperties UP-TO-DATE
+> Task :x-pack:plugin:core:processResources UP-TO-DATE
+> Task :x-pack:plugin:core:classes
+> Task :x-pack:license-tools:compileJava
+> Task :x-pack:plugin:diskbbq:compileJava
+> Task :x-pack:plugin:ml-package-loader:compileJava
+> Task :x-pack:plugin:mapper-unsigned-long:compileJava
+
+> Task :x-pack:plugin:mapper-version:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:mapper-aggregate-metric:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\mapper-aggregate-metric\src\main\java\org\elasticsearch\xpack\aggregatemetric\aggregations\support\AggregateMetricsValuesSourceType.java uses or 
+overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:kql:compileJava
+> Task :x-pack:plugin:kql:generateTestBuildInfo UP-TO-DATE
+> Task :x-pack:plugin:kql:pluginProperties UP-TO-DATE
+> Task :x-pack:plugin:kql:processResources UP-TO-DATE
+> Task :x-pack:plugin:kql:classes
+> Task :x-pack:plugin:kql:jar UP-TO-DATE
+
+> Task :x-pack:plugin:enrich:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\enrich\src\main\java\org\elasticsearch\xpack\enrich\EnrichPolicyMaintenanceService.java uses or overrides a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:autoscaling:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:esql-core:compileJava
+> Task :x-pack:plugin:esql-core:generateTestBuildInfo UP-TO-DATE
+> Task :x-pack:plugin:esql-core:pluginProperties UP-TO-DATE
+> Task :x-pack:plugin:esql-core:processResources UP-TO-DATE
+> Task :x-pack:plugin:esql-core:classes
+
+> Task :x-pack:plugin:analytics:compileJava
+
+> Task :x-pack:plugin:spatial:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:downsample:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\downsample\src\main\java\org\elasticsearch\xpack\downsample\TransportDownsampleAction.java uses or overrides a deprecated API that is marked for 
+removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:ql:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\ql\src\main\java\org\elasticsearch\xpack\ql\expression\predicate\regex\RLikePattern.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:ql:generateTestBuildInfo
+> Task :x-pack:plugin:ql:pluginProperties UP-TO-DATE
+> Task :x-pack:plugin:ql:processResources UP-TO-DATE
+> Task :x-pack:plugin:ql:classes
+
+> Task :x-pack:plugin:ql:test-fixtures:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:eql-action:compileJava
+
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\eql-action\src\main\java\org\elasticsearch\xpack\eql\action\EqlSearchResponse.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+> Task :x-pack:plugin:eql-action:generateTestBuildInfo
+> Task :x-pack:plugin:eql-action:pluginProperties
+> Task :x-pack:plugin:eql-action:processResources
+> Task :x-pack:plugin:eql-action:classes
+
+> Task :x-pack:plugin:eql:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\eql\src\main\java\org\elasticsearch\xpack\eql\parser\EqlParser.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:eql:generateTestBuildInfo
+> Task :x-pack:plugin:eql:pluginProperties
+> Task :x-pack:plugin:eql:processResources
+> Task :x-pack:plugin:eql:classes
+
+> Task :x-pack:plugin:ml:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:inference:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:inference:generateTestBuildInfo
+> Task :x-pack:plugin:inference:pluginProperties UP-TO-DATE
+> Task :x-pack:plugin:inference:processResources UP-TO-DATE
+> Task :x-pack:plugin:inference:classes
+> Task :x-pack:plugin:inference:qa:test-service-plugin:compileJava
+
+> Task :x-pack:plugin:esql:compute:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use preview features of Java SE 21.
+Note: Recompile with -Xlint:preview for details.
+
+> Task :x-pack:plugin:esql:compute:classes
+> Task :x-pack:plugin:esql:compute:jar UP-TO-DATE
+
+> Task :x-pack:plugin:esql:compute:test:compileJava
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\esql\compute\test\src\main\java\org\elasticsearch\compute\test\BlockTestUtils.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :server:compileTestJava
+
+> Task :x-pack:plugin:esql:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:esql:generateTestBuildInfo
+> Task :x-pack:plugin:esql:pluginProperties
+> Task :x-pack:plugin:esql:processResources
+> Task :x-pack:plugin:esql:classes
+> Task :x-pack:plugin:esql-datasource-compression-libs:compileJava
+> Task :x-pack:plugin:esql-datasource-gzip:compileJava
+> Task :x-pack:plugin:esql-datasource-lz4:compileJava
+> Task :x-pack:plugin:esql-datasource-brotli:compileJava
+> Task :x-pack:plugin:esql-datasource-snappy:compileJava
+> Task :x-pack:plugin:esql-datasource-bzip2:compileJava
+> Task :x-pack:plugin:esql-datasource-http:compileJava
+
+> Task :x-pack:plugin:esql-datasource-ndjson:compileJava
+
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+> Task :x-pack:plugin:esql-datasource-csv:compileJava
+> Task :x-pack:plugin:esql-datasource-zstd:compileJava
+
+> Task :server:compileTestJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:core:compileTestJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:esql-core:compileTestJava
+> Task :x-pack:plugin:ql:compileTestJava
+> Task :x-pack:plugin:eql-action:compileTestJava
+
+> Task :x-pack:plugin:esql:qa:testFixtures:compileJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :x-pack:plugin:eql:compileTestJava
+> Task :x-pack:plugin:eql:testClasses
+> Task :x-pack:plugin:eql:compileInternalClusterTestJava
+
+> Task :x-pack:plugin:inference:compileTestJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use or override a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+> Task :x-pack:plugin:esql:compileTestJava
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: D:\Eclipse_workspace_master3\elasticsearch\x-pack\plugin\esql\src\test\java\org\elasticsearch\xpack\esql\telemetry\PlanExecutorMetricsTests.java uses or overrides a deprecated API that is marked for removal.
+Note: Recompile with -Xlint:removal for details.
+
+[Incubating] Problems report is available at: file:///D:/Eclipse_workspace_master3/elasticsearch/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 3m 3s
+206 actionable tasks: 102 executed, 104 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.1/userguide/configuration_cache_enabling.html

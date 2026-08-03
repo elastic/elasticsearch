@@ -30,7 +30,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption', 'x-pack-eql-action']
 }
 
 base {
@@ -40,6 +40,13 @@ base {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ml'))
+  // The EQL source command builds EqlSearchRequest and calls EqlSearchAction; those DTOs live in the lightweight
+  // x-pack-eql-action module (extended above), so esql no longer depends on the full eql plugin at compile time.
+  compileOnly project(xpackModule('eql-action'))
+  compileOnly project(xpackModule('ql'))
+  // ql/esql-core no longer bundle mapper-version (it is a runtime module via extendedPlugins), so declare the
+  // compile-time dependency directly for the esql.core.* sources that reference Version.
+  compileOnly project(path: xpackModule('mapper-version'))
   compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
@@ -104,6 +111,11 @@ dependencies {
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  // The EQL source command delegates to the EQL search transport action; the internalClusterTest cluster needs the
+  // EQL plugin (and its ql dependency) loaded so EqlSearchAction is registered end to end, plus the eql-action DTO
+  // module on the classpath (esql extends it, but compileOnly does not reach the internalClusterTest runtime).
+  internalClusterTestImplementation project(path: xpackModule('eql-action'))
+  internalClusterTestImplementation project(path: xpackModule('eql'))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
   internalClusterTestImplementation project(xpackModule('analytics'))
   internalClusterTestImplementation project(xpackModule('spatial'))

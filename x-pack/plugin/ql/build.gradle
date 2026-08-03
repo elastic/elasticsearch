@@ -5,7 +5,7 @@ esplugin {
   name = 'x-pack-ql'
   description = 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
   classname ='org.elasticsearch.xpack.ql.plugin.QlPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'mapper-version']
 }
 
 base {
@@ -14,11 +14,15 @@ base {
 
 dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
-  api project(path: xpackModule('mapper-version'))
+  // mapper-version is provided at runtime as a standalone module (declared in extendedPlugins), not bundled,
+  // so its Version class is not duplicated on the classpath of plugins that also load it transitively (e.g. esql via eql).
+  compileOnly project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))
   testApi(project(xpackModule('ql:test-fixtures'))) {
     exclude group: 'org.elasticsearch.plugin', module: 'ql'
   }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // compileOnly deps are not visible to the test source set; ql tests reference Version directly.
+  testImplementation project(path: xpackModule('mapper-version'))
 }

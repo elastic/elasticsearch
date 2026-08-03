@@ -9842,6 +9842,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
+            null, // eqlQueryService - not needed for these tests
             null,
             null,
             null,

@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.eql.EqlQueryService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -182,6 +183,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
+    private final EqlQueryService eqlQueryService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -222,6 +224,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
+        this.eqlQueryService = transportActionServices.eqlQueryService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -1416,6 +1419,7 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
+                eqlQueryService,
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,

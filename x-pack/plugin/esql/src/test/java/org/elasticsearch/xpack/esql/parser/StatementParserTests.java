@@ -91,6 +91,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQuery;
+import org.elasticsearch.xpack.esql.plan.logical.eql.EqlQueryOptions;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -1249,6 +1251,142 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDedupNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
+    }
+
+    public void testEqlSourceCommand() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("""
+            eql "my-index" | "sequence [any where true] [any where true]"
+            """);
+        EqlQuery eql = as(plan, EqlQuery.class);
+        assertThat(eql.index(), equalTo("my-index"));
+        assertThat(eql.query(), equalTo("sequence [any where true] [any where true]"));
+        assertThat(eql.output().stream().map(a -> a.name()).toList(), equalTo(List.of("_sequence", "_index", "_id", "_source")));
+    }
+
+    public void testEqlSourceCommandFollowedByProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("""
+            eql "idx" | "any where true" | keep _id, _source | limit 5
+            """);
+        Limit limit = as(plan, Limit.class);
+        Keep keep = as(limit.child(), Keep.class);
+        EqlQuery eql = as(keep.child(), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx"));
+        assertThat(eql.query(), equalTo("any where true"));
+    }
+
+    public void testEqlSourceCommandUnquotedIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql my-index | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("my-index"));
+        assertThat(eql.query(), equalTo("any where true"));
+    }
+
+    public void testEqlSourceCommandCommaSeparatedIndexPatterns() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql idx1, idx2, logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx1,idx2,logs-*"));
+    }
+
+    public void testEqlSourceCommandWildcardIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("logs-*"));
+    }
+
+    public void testEqlSourceCommandRemoteClusterIndex() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql cluster_a:logs-* | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("cluster_a:logs-*"));
+    }
+
+    public void testEqlSourceCommandQuotedMultiIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql \"idx1,idx2\" | \"any where true\""), EqlQuery.class);
+        assertThat(eql.index(), equalTo("idx1,idx2"));
+    }
+
+    public void testEqlSourceCommandNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'eql'"), () -> query("eql \"idx\" | \"any where true\""));
+    }
+
+    public void testEqlSourceCommandRequiresQuotedQuery() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, () -> query("eql idx | any where true"));
+    }
+
+    public void testEqlSourceCommandRequiresIndexPattern() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, () -> query("eql | \"any where true\""));
+    }
+
+    public void testEqlSourceCommandDefaultOptions() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql idx | \"any where true\""), EqlQuery.class);
+        assertThat(eql.options(), equalTo(EqlQueryOptions.DEFAULTS));
+    }
+
+    public void testEqlSourceCommandEmptyOptionsMap() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql idx | \"any where true\" WITH {}"), EqlQuery.class);
+        assertThat(eql.options(), equalTo(EqlQueryOptions.DEFAULTS));
+    }
+
+    public void testEqlSourceCommandWithTiebreakerOption() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("eql idx | \"any where true\" WITH {\"tiebreaker_field\": \"serial_event_id\"}"), EqlQuery.class);
+        assertThat(eql.options().tiebreakerField(), equalTo("serial_event_id"));
+        assertThat(eql.options().timestampField(), nullValue());
+        assertThat(eql.options().eventCategoryField(), nullValue());
+    }
+
+    public void testEqlSourceCommandWithAllOptions() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        EqlQuery eql = as(query("""
+            eql idx | "any where true" WITH {\
+            "tiebreaker_field": "serial_event_id", "timestamp_field": "event_time", "event_category_field": "event_type"}\
+            """), EqlQuery.class);
+        assertThat(eql.options().tiebreakerField(), equalTo("serial_event_id"));
+        assertThat(eql.options().timestampField(), equalTo("event_time"));
+        assertThat(eql.options().eventCategoryField(), equalTo("event_type"));
+    }
+
+    public void testEqlSourceCommandUnknownOptionRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid option [bogus] in EQL"),
+            () -> query("eql idx | \"any where true\" WITH {\"bogus\": \"x\"}")
+        );
+    }
+
+    public void testEqlSourceCommandNonStringOptionRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            containsString("EQL option [tiebreaker_field] must be a non-empty string field name"),
+            () -> query("eql idx | \"any where true\" WITH {\"tiebreaker_field\": 5}")
+        );
+    }
+
+    public void testEqlSourceCommandNullOptionRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            containsString("EQL option [tiebreaker_field] must be a non-empty string field name"),
+            () -> query("eql idx | \"any where true\" WITH {\"tiebreaker_field\": null}")
+        );
+    }
+
+    public void testEqlSourceCommandBlankOptionRejected() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            containsString("EQL option [tiebreaker_field] cannot be an empty string"),
+            () -> query("eql idx | \"any where true\" WITH {\"tiebreaker_field\": \"  \"}")
+        );
     }
 
     public void testHighlightOnFields() {

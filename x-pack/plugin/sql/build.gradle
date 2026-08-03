@@ -39,6 +39,10 @@ dependencies {
   api project('sql-action')
   api project(':modules:aggregations')
   compileOnly project(path: xpackModule('ql'))
+  // mapper-version reaches this plugin transitively via sql-action, but is provided at runtime as a standalone
+  // module through the extended x-pack-ql plugin. Declaring it compileOnly keeps it out of the x-pack-sql bundle
+  // (runtimeClasspath minus resolveableCompileOnly), avoiding a duplicate Version codebase / jar hell at boot.
+  compileOnly project(path: xpackModule('mapper-version'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('ql'))))

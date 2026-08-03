@@ -1045,6 +1045,52 @@ public class DerivedMetricsBufferTests extends ESTestCase {
         return new TableKey(ProjectId.DEFAULT, "logs-my_app-default", metric, 0L, TEN_SECONDS.millis());
     }
 
+    /**
+     * A histogram series costs about forty times a scalar one, so the general series budget cannot protect a small node from
+     * distributions: ten thousand of them would ask for more memory than the whole circuit breaker allows on a node with a small heap.
+     * They therefore have a budget of their own, and spend both.
+     */
+    public void testHistogramSeriesHaveTheirOwnBudget() {
+        // a generous general budget, so that anything refused here was refused by the histogram budget and nothing else
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0, 3)) {
+            TableKey histogram = key("logs-histogram-default", Reduction.HISTOGRAM, 0L);
+            for (int i = 0; i < 3; i++) {
+                assertTrue(record(buffer, histogram, "service-" + i, 1.0));
+            }
+            assertFalse("the fourth distribution is past the histogram budget", record(buffer, histogram, "service-3", 1.0));
+            assertEquals(1L, buffer.droppedSeriesAtHistogramCap());
+            assertEquals(0L, buffer.droppedSeriesAtNodeCap());
+            assertEquals(3, buffer.histogramSeries());
+
+            // scalar series are unaffected: they are cheap, and the budget they share is nowhere near spent
+            TableKey scalar = key("logs-scalar-default", Reduction.SUM, 0L);
+            for (int i = 0; i < 50; i++) {
+                assertTrue("a scalar series must not be refused by the histogram budget", record(buffer, scalar, "service-" + i, 1.0));
+            }
+            assertEquals("scalar series are not distributions", 3, buffer.histogramSeries());
+        }
+    }
+
+    /**
+     * The histogram budget has to be given back when the distributions holding it are emitted, or a node would stop accepting them after
+     * one interval's worth however little it was actually holding.
+     */
+    public void testDrainingDistributionsReturnsTheirBudget() {
+        try (DerivedMetricsBuffer buffer = new DerivedMetricsBuffer(bigArrays, 10_000, 10_000, 8, 0, 1, 0, 3)) {
+            TableKey histogram = key(Reduction.HISTOGRAM, 0L);
+            for (int i = 0; i < 3; i++) {
+                assertTrue(record(buffer, histogram, "service-" + i, 1.0));
+            }
+            assertEquals(3, buffer.histogramSeries());
+
+            buffer.drainAll().forEach(d -> d.table().close());
+            assertEquals("draining must return the histogram budget exactly", 0, buffer.histogramSeries());
+
+            // and the node accepts distributions again
+            assertTrue(record(buffer, key(Reduction.HISTOGRAM, 10_000L), "service-0", 1.0));
+        }
+    }
+
     private static boolean record(DerivedMetricsBuffer buffer, TableKey key, String service, double value) {
         return buffer.record(key, new String[] { service }, new Scratch(), value).recorded();
     }

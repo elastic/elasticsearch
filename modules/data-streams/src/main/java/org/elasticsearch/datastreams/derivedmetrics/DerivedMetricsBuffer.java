@@ -82,6 +82,7 @@ public class DerivedMetricsBuffer implements Releasable {
         RECORDED,
         REFUSED_NODE_CAP,
         REFUSED_STREAM_CAP,
+        REFUSED_HISTOGRAM_CAP,
         REFUSED_BREAKER;
 
         public boolean recorded() {
@@ -186,6 +187,10 @@ public class DerivedMetricsBuffer implements Releasable {
     private final AtomicInteger totalSeries = new AtomicInteger();
     private final int maxSeries;
     private final int maxSeriesPerStream;
+    private final int maxHistogramSeries;
+    /** Histogram series held on this node, tracked apart from the general count because they cost about forty times as much each. */
+    private final AtomicInteger histogramSeries = new AtomicInteger();
+    private final LongAdder droppedSeriesAtHistogramCap = new LongAdder();
     private final int histogramBuckets;
     private final ExponentialHistogramCircuitBreaker histogramBreaker;
     private final CircuitBreaker breaker;
@@ -222,13 +227,19 @@ public class DerivedMetricsBuffer implements Releasable {
         int partialSeed,
         int stripes
     ) {
-        this(bigArrays, maxSeries, maxSeriesPerStream, histogramBuckets, partialSeed, stripes, DEFAULT_MAX_DIMENSION_CARDINALITY);
+        this(
+            bigArrays,
+            maxSeries,
+            maxSeriesPerStream,
+            histogramBuckets,
+            partialSeed,
+            stripes,
+            DEFAULT_MAX_DIMENSION_CARDINALITY,
+            DEFAULT_MAX_HISTOGRAM_SERIES
+        );
     }
 
-    /**
-     * @param maxDimensionCardinality how many distinct values one dimension of one metric may take before the metric stops breaking down
-     *                                by it, or zero to only count and never collapse
-     */
+    /** A buffer whose histogram budget is the default; used by tests that are not about that budget. */
     public DerivedMetricsBuffer(
         BigArrays bigArrays,
         int maxSeries,
@@ -238,9 +249,49 @@ public class DerivedMetricsBuffer implements Releasable {
         int stripes,
         int maxDimensionCardinality
     ) {
+        this(
+            bigArrays,
+            maxSeries,
+            maxSeriesPerStream,
+            histogramBuckets,
+            partialSeed,
+            stripes,
+            maxDimensionCardinality,
+            DEFAULT_MAX_HISTOGRAM_SERIES
+        );
+    }
+
+    /**
+     * What the general series budget is worth in histogram series, if nothing else bounded them. A histogram series is measured at about
+     * 5,264 bytes against a scalar series' 120, so ten thousand of them would ask for 52 MB — nearly double the whole circuit breaker on a
+     * node with a 512 MB heap, where the breaker is 5% of it. The general cap therefore cannot protect a small node from histograms, and
+     * weighting it would be the wrong fix, because a histogram series costs exactly one tsid in the destination like any other.
+     *
+     * <p>Two thousand is 39% of that small node's breaker, which leaves room for the scalar series alongside it, and is what the
+     * OpenTelemetry specification uses for its own {@code aggregation_cardinality_limit}.
+     */
+    public static final int DEFAULT_MAX_HISTOGRAM_SERIES = 2000;
+
+    /**
+     * @param maxDimensionCardinality how many distinct values one dimension of one metric may take before the metric stops breaking down
+     *                                by it, or zero to only count and never collapse
+     * @param maxHistogramSeries      how many histogram series this node may hold, counted against this <em>and</em> the general budget,
+     *                                the way a nested field counts against both {@code nested_fields.limit} and {@code total_fields.limit}
+     */
+    public DerivedMetricsBuffer(
+        BigArrays bigArrays,
+        int maxSeries,
+        int maxSeriesPerStream,
+        int histogramBuckets,
+        int partialSeed,
+        int stripes,
+        int maxDimensionCardinality,
+        int maxHistogramSeries
+    ) {
         this.bigArrays = bigArrays;
         this.maxSeries = maxSeries;
         this.maxSeriesPerStream = maxSeriesPerStream;
+        this.maxHistogramSeries = maxHistogramSeries;
         this.histogramBuckets = histogramBuckets;
         this.histogramBreaker = histogramBreaker(bigArrays);
         this.breaker = breaker(bigArrays);
@@ -363,10 +414,18 @@ public class DerivedMetricsBuffer implements Releasable {
                 // Probing the table is the expensive part of this critical section, so the common path does it once: record and let
                 // the returned sign say whether a series was created. Only when a cap is already reached does it cost a second probe,
                 // because there we must know before interning — the table has no way to remove a series it should not have taken.
+                boolean histogram = key.metric().reduction().isHistogram();
                 boolean atNodeCap = totalSeries.get() >= maxSeries;
                 boolean atStreamCap = held.get() >= maxSeriesPerStream;
-                if (atNodeCap || atStreamCap) {
+                boolean atHistogramCap = histogram && histogramSeries.get() >= maxHistogramSeries;
+                if (atNodeCap || atStreamCap || atHistogramCap) {
                     if (table.contains(encoded) == false) {
+                        if (atHistogramCap) {
+                            // Named separately because the answer is different: this one says the node is full of distributions, not that
+                            // it is full, and the two are raised by different settings.
+                            droppedSeriesAtHistogramCap.increment();
+                            return Outcome.REFUSED_HISTOGRAM_CAP;
+                        }
                         // Which cap refused is the first thing an operator needs to know: one says raise the node budget, the other says
                         // go and find the stream. Counted separately rather than conflated into a single "dropped" number.
                         if (atNodeCap) {
@@ -383,6 +442,9 @@ public class DerivedMetricsBuffer implements Releasable {
                         // budget bound the memory rather than the distinct series count, and what makes striping have to be bounded.
                         totalSeries.incrementAndGet();
                         held.incrementAndGet();
+                        if (histogram) {
+                            histogramSeries.incrementAndGet();
+                        }
                         created = true;
                     }
                 } catch (CircuitBreakingException e) {
@@ -418,12 +480,23 @@ public class DerivedMetricsBuffer implements Releasable {
      * @return the drained bucket, or null when there was nothing worth taking
      */
     public Drained drainLargest(@Nullable StreamKey within) {
+        return drainLargest(within, false);
+    }
+
+    /**
+     * @param histogramsOnly consider only buckets holding distributions. Freeing a scalar bucket does nothing for a node that has run out
+     *                       of histogram budget, so a refusal at that cap has to give up one of the buckets actually holding it.
+     */
+    public Drained drainLargest(@Nullable StreamKey within, boolean histogramsOnly) {
         TableKey largestKey = null;
         DerivedMetricsStripedTable largest = null;
         long mostBytes = -1;
         for (Map.Entry<TableKey, DerivedMetricsStripedTable> entry : tables.entrySet()) {
             TableKey key = entry.getKey();
             if (within != null && sameStream(within, key) == false) {
+                continue;
+            }
+            if (histogramsOnly && key.metric().reduction().isHistogram() == false) {
                 continue;
             }
             if (partialsLeft(key) == false) {
@@ -675,6 +748,9 @@ public class DerivedMetricsBuffer implements Releasable {
         droppedSeriesAtBreaker.add(table.seriesLostMerging());
         remember(key, merged.size());
         totalSeries.addAndGet(-(int) released);
+        if (key.metric().reduction().isHistogram()) {
+            histogramSeries.addAndGet(-(int) released);
+        }
         releaseStreamBudget(key, released);
         AtomicInteger counter = partials.get(key);
         int partial = counter == null ? partialSeed : counter.get();
@@ -715,6 +791,16 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     /** Series refused because the circuit breaker would not give the memory they needed. */
+    /** Series refused because this node already holds as many distributions as it is allowed to. */
+    public long droppedSeriesAtHistogramCap() {
+        return droppedSeriesAtHistogramCap.sum();
+    }
+
+    /** Histogram series currently held on this node. */
+    public int histogramSeries() {
+        return histogramSeries.get();
+    }
+
     public long droppedSeriesAtBreaker() {
         return droppedSeriesAtBreaker.sum();
     }
@@ -762,7 +848,8 @@ public class DerivedMetricsBuffer implements Releasable {
     }
 
     public long droppedSeries() {
-        return droppedSeriesAtNodeCap.sum() + droppedSeriesAtStreamCap.sum() + droppedSeriesAtBreaker.sum();
+        return droppedSeriesAtNodeCap.sum() + droppedSeriesAtStreamCap.sum() + droppedSeriesAtBreaker.sum() + droppedSeriesAtHistogramCap
+            .sum();
     }
 
     // visible for testing

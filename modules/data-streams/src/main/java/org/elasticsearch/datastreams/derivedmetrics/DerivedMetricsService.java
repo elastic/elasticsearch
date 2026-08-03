@@ -139,6 +139,18 @@ public class DerivedMetricsService implements Closeable {
      * The bucket capacity of each histogram series. This is the knob that trades a histogram series' precision against its size, and a
      * histogram series is by far the most expensive kind: hundreds of buckets against the handful of primitives a scalar series needs.
      */
+    /**
+     * How many histogram series this node may hold, counted against this <em>and</em> {@link #MAX_SERIES_PER_NODE} — the way a nested
+     * field counts against both {@code nested_fields.limit} and {@code total_fields.limit}. It exists because the general budget cannot
+     * protect a small node from distributions: see {@link DerivedMetricsBuffer#DEFAULT_MAX_HISTOGRAM_SERIES}.
+     */
+    public static final Setting<Integer> MAX_HISTOGRAM_SERIES_PER_NODE = Setting.intSetting(
+        "data_streams.derived_metrics.max_histogram_series_per_node",
+        DerivedMetricsBuffer.DEFAULT_MAX_HISTOGRAM_SERIES,
+        1,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Integer> HISTOGRAM_BUCKETS = Setting.intSetting(
         "data_streams.derived_metrics.histogram_buckets",
         DerivedMetricsBuffer.DEFAULT_HISTOGRAM_BUCKETS,
@@ -291,7 +303,8 @@ public class DerivedMetricsService implements Closeable {
             Math.floorMod(threadPool.absoluteTimeInMillis(), PARTIAL_SEED_RANGE),
             // A low-cardinality bucket is striped once per thread that can be inside an observation, which is the size of the write pool.
             EsExecutors.allocatedProcessors(settings),
-            MAX_DIMENSION_CARDINALITY.get(settings)
+            MAX_DIMENSION_CARDINALITY.get(settings),
+            MAX_HISTOGRAM_SERIES_PER_NODE.get(settings)
         );
         this.flushInterval = FLUSH_INTERVAL.get(settings);
         this.graceMillis = FLUSH_GRACE_PERIOD.get(settings).millis();
@@ -338,6 +351,18 @@ public class DerivedMetricsService implements Closeable {
             "series refused because one source data stream had already taken its share",
             "count",
             buffer::droppedSeriesAtStreamCap
+        );
+        register(
+            "es.derived_metrics.series.dropped.histogram_cap.total",
+            "series refused because this node already holds as many distributions as it is allowed to",
+            "count",
+            buffer::droppedSeriesAtHistogramCap
+        );
+        register(
+            "es.derived_metrics.series.histogram.current",
+            "histogram series currently buffered on this node",
+            "count",
+            () -> (long) buffer.histogramSeries()
         );
         register(
             "es.derived_metrics.series.dropped.breaker.total",
@@ -522,6 +547,9 @@ public class DerivedMetricsService implements Closeable {
         Drained largest = switch (outcome) {
             case REFUSED_STREAM_CAP -> buffer.drainLargest(buffer.streamOf(key));
             case REFUSED_NODE_CAP, REFUSED_BREAKER -> buffer.drainLargest(null);
+            // Only a bucket holding distributions can give histogram budget back, so this one does not take the largest bucket on the
+            // node, which would very likely be a scalar one and would free nothing that the refused observation needs.
+            case REFUSED_HISTOGRAM_CAP -> buffer.drainLargest(null, true);
             case RECORDED -> throw new AssertionError("relieving pressure for an observation that was recorded");
         };
         // nothing could be given up, so fall back to the bucket that refused: it may still have room for another partial

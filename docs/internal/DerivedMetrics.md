@@ -673,10 +673,18 @@ asymmetry belongs to the breaker and to what gets shed first. This matches how t
 cardinality through `aggregation_cardinality_limit` and memory through `MaxSize`, and Mimir caps `max_global_series_per_user` and
 `max_native_histogram_buckets` independently. Nobody weights a cardinality limit by per-series cost.
 
-**Which cap binds first is heap-dependent, and that is worth stating rather than assuming.** At the default cap of 10,000, a full
-complement of *busy* histogram series is about 52 MB. The breaker is 5% of heap, so the cap binds first only above roughly a 1 GB heap.
-Below that — small deployments, development clusters — the breaker binds first, and the refusal is reported as
-`series.dropped.breaker` rather than `series.dropped.node_cap`, which sends an operator looking in the wrong place.
+**Distributions have a budget of their own**, because the general one cannot protect a small node from them. A busy histogram series is
+about 5,264 bytes against a scalar series' 120 — a factor of forty — so ten thousand of them would ask for 52 MB, nearly double the entire
+circuit breaker on a node with a 512 MB heap, where the breaker is 5% of it. The general cap would never fire; the breaker would, and the
+refusal would be reported as `series.dropped.breaker`, sending an operator to the wrong setting.
+
+`max_histogram_series_per_node` therefore bounds them separately, and a histogram series spends both budgets — the same relationship
+`index.mapping.nested_fields.limit` has with `total_fields.limit`. The default of 2,000 is 39% of that small node's breaker, leaving room
+for the scalar series alongside, and is what the OpenTelemetry specification uses for its own `aggregation_cardinality_limit`.
+
+Note that weighting the general cap would have been the wrong fix. A histogram series costs exactly one tsid in the destination, like any
+other, so the cardinality budget should count it as one. It is the *memory* that differs, and memory is what this second budget and the
+breaker are for.
 
 Note also that the product of `max_series_per_node` and `histogram_buckets` is not validated against the breaker limit. Both settings are
 independently in range at, say, 10,000 series and 640 buckets, and together they ask for more than a 4 GB node's breaker allows.
@@ -759,6 +767,7 @@ lifecycle edited by hand on a destination is left alone. See `docs/internal/Deri
 | `data_streams.derived_metrics.flush_interval` | `1s` | how often closed buckets are emitted |
 | `data_streams.derived_metrics.flush_grace_period` | `5s` | how long a bucket stays open past the end of its interval |
 | `data_streams.derived_metrics.max_series_per_node` | `10000` | per-node series cap |
+| `data_streams.derived_metrics.max_histogram_series_per_node` | `2000` | histogram series this node may hold, spent against this and the node cap both |
 | `data_streams.derived_metrics.max_series_per_stream` | the node cap | per-source-stream cap, so one stream cannot spend the whole node budget |
 | `data_streams.derived_metrics.bulk_size` | `1000` | documents per bulk request to the destination |
 | `data_streams.derived_metrics.max_in_flight_bulks` | `8` | ceiling on emission outstanding at once, counted as this many `bulk_size` documents |

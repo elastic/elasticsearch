@@ -609,9 +609,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
 
         if (modelSettingsSetOnFieldType) {
-            if (modelSettings == null) {
-                throw new AssertionError("modelSettings must be provided to check model settings on the field type");
-            }
+            assertNotNull("modelSettings must be provided to check model settings on the field type", modelSettings);
             assertModelSettingsOnFieldType(semanticFieldType, modelSettings);
         } else {
             assertNull(semanticFieldType.getModelSettings());

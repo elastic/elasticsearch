@@ -14,6 +14,7 @@ import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
@@ -87,7 +88,21 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
                 // called more than once for the same document and every emitted field is retained in
                 // the caller's list, so a single reused field object would collapse all values to the
                 // last one. cursor.value() already returns a fresh BytesRef per element.
-                out.add(new Field(name(), cursor.value(), fieldType()));
+                //
+                // Lucene's Field(String, BytesRef, FieldType) constructor rejects tokenized+indexed
+                // field types ("cannot set a BytesRef value on a tokenized field"). Indexed tokenized
+                // fields require a String so Lucene can run an analyzer over them.
+                //
+                // However, Lucene's Field(String, CharSequence, FieldType) constructor rejects fields
+                // that are neither stored nor indexed — it has no doc-values check. If a field is
+                // tokenized but not indexed (doc-values-only), the BytesRef constructor is used instead;
+                // its tokenized check only fires when indexOptions != NONE, so doc-values-only tokenized
+                // fields are accepted there.
+                if (fieldType().tokenized() && fieldType().indexOptions() != IndexOptions.NONE) {
+                    out.add(new Field(name(), cursor.value().utf8ToString(), fieldType()));
+                } else {
+                    out.add(new Field(name(), cursor.value(), fieldType()));
+                }
             }
         };
     }

@@ -26,8 +26,9 @@ public class Arg {
 
     private static final String SPACE = " ";
     private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-    private static int VINT_MAX_BYTES = 5;
+    static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
+    /** Maximum bytes a single vint can occupy. */
+    static final int VINT_MAX_BYTES = 5;
 
     public enum Type {
         GENERIC(0);
@@ -95,6 +96,43 @@ public class Arg {
         int size = dataInput.getPosition();
         byte[] data = Arrays.copyOfRange(buffer, 0, size);
         return ENCODER.encodeToString(data);
+    }
+
+    /**
+     * Byte-level variant of {@link #encodeInfo(List)} for the columnar batch path.
+     * Writes the base64url encoding of {@code count} arg offsets into {@code dest} and returns the
+     * number of bytes written. All arg types are assumed to be {@link Type#GENERIC}.
+     *
+     * @param offsets     UTF-16 template offsets for each arg (indices 0..count-1 are used)
+     * @param count       number of args to encode (may be zero)
+     * @param rawScratch  scratch buffer for the binary vint step; length must be ≥
+     *                    {@code VINT_MAX_BYTES + count * 2 * VINT_MAX_BYTES}
+     * @param dest        destination for base64url bytes; length must be ≥
+     *                    {@link #argsInfoMaxBase64Bytes(int)} with this {@code count}
+     * @return number of bytes written to {@code dest}
+     */
+    static int encodeInfoBytes(int[] offsets, int count, byte[] rawScratch, byte[] dest) throws IOException {
+        var out = new ByteArrayDataOutput(rawScratch);
+        out.writeVInt(count);
+        int prev = 0;
+        for (int i = 0; i < count; i++) {
+            out.writeVInt(Type.GENERIC.toCode()); // always 0
+            out.writeVInt(offsets[i] - prev);
+            prev = offsets[i];
+        }
+        int rawLen = out.getPosition();
+        // Encode only the written prefix [0, rawLen). Arrays.copyOfRange allocates a small
+        // (<100 bytes for typical log lines) intermediate array — the larger allocation savings
+        // come from the caller avoiding String, Pattern.split, ArrayList, and StringBuilder.
+        return ENCODER.encode(Arrays.copyOfRange(rawScratch, 0, rawLen), dest);
+    }
+
+    /**
+     * Maximum number of base64url bytes that {@link #encodeInfoBytes} can write for {@code count} args.
+     */
+    static int argsInfoMaxBase64Bytes(int count) {
+        int rawMax = VINT_MAX_BYTES + count * 2 * VINT_MAX_BYTES;
+        return ((rawMax + 2) / 3) * 4;
     }
 
     static List<Info> decodeInfo(String encoded) throws IOException {

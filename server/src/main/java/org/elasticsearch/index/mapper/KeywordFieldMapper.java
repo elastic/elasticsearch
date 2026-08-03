@@ -2033,6 +2033,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new KeywordField(fieldType().name(), binaryValue, fieldType);
     }
 
+    /**
+     * Returns the Lucene {@link FieldType} carried by the fields this mapper emits.
+     * Needed by mappers that delegate part of their columnar output to keyword sub-fields
+     * and must produce a byte-identical field type for the {@code _template_id} column.
+     */
+    public FieldType luceneFieldType() {
+        return fieldType;
+    }
+
     @Override
     public void doValidate(MappingLookup lookup) {
         if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {

@@ -104,7 +104,13 @@ public class InLongRangeEvaluator implements ExpressionEvaluator {
                     result.appendNull();
                     continue;
                 }
-                foundMatch = In.processLongRange(nulls, mvs, lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsScratch);
+                foundMatch = In.processLongRange(
+                    //
+                    nulls,
+                    mvs,
+                    lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch),
+                    rhsScratch
+                );
                 if (foundMatch) {
                     result.appendBoolean(true);
                 } else {

@@ -10,7 +10,6 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator}.
@@ -42,7 +41,7 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator
   @Override
   public DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = driverContext.createWarnings(warningsSource);
     return new DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAggregatorFunction(warnings, channels, driverContext);
   }
 

@@ -113,13 +113,15 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             switch (newState) {
                 // Keep the existing recovery priority iff it is inconsistent with the newState and newHasRelocatingNodeId, else randomize:
                 case INITIALIZING -> (instance.recoveryPriority() != null
-                    && instance.recoveryPriority().isRelocation() == newHasRelocatingNodeId)
-                        ? instance.recoveryPriority()
-                        : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
-                case UNASSIGNED -> (instance.recoveryPriority() != null && !instance.recoveryPriority().isRelocation())
+                    && (newHasRelocatingNodeId
+                        ? instance.recoveryPriority().isValidForRelocation()
+                        : instance.recoveryPriority().isValidForUnassigned()))
+                            ? instance.recoveryPriority()
+                            : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
+                case UNASSIGNED -> (instance.recoveryPriority() != null && instance.recoveryPriority().isValidForUnassigned())
                     ? instance.recoveryPriority()
                     : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
-                case RELOCATING -> (instance.recoveryPriority() != null && instance.recoveryPriority().isRelocation())
+                case RELOCATING -> (instance.recoveryPriority() != null && instance.recoveryPriority().isValidForRelocation())
                     ? instance.recoveryPriority()
                     : TestShardRouting.buildRecoveryPriority(newState, newHasRelocatingNodeId);
                 case STARTED -> null;

@@ -235,6 +235,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      */
     public static RecoverySource.Type initializingShardRecoverySourceType(ShardRouting shardRouting, String currentNodeId) {
         final ShardRouting initializingShard;
+        // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be
+        // added to the cluster state:
+        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.initializing()) {
@@ -243,17 +246,14 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // unassigned shards must have unassignedInfo (initializing shards might not)
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "fake");
             }
-            initializingShard = shardRouting.moveToUnassigned(unassignedInfo)
+            initializingShard = shardRouting.moveToUnassigned(unassignedInfo, recoveryPriority)
                 .initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.relocating()) {
             initializingShard = shardRouting.cancelRelocation()
-                .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, shardRouting.recoveryPriority())
+                .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority)
                 .getTargetRelocatingShard();
         } else {
             assert shardRouting.started();
-            // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be
-            // added to the cluster state:
-            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
             initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority)
                 .getTargetRelocatingShard();
         }

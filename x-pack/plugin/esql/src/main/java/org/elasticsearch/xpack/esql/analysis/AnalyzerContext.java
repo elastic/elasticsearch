@@ -150,7 +150,7 @@ public class AnalyzerContext {
     }
 
     /** Merged field-caps retained for EQL source patterns (empty for non-EQL queries). */
-    public Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps() {
+    Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps() {
         return eqlFieldCaps;
     }
 

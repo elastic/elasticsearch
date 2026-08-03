@@ -34,11 +34,11 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class EqlSessionTests extends ESTestCase {
 
@@ -52,18 +52,19 @@ public class EqlSessionTests extends ESTestCase {
             LogicalPlan plan = new EqlParser().createStatement("process where true");
             FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(new String[] { "idx" }, Map.of());
 
-            IndexResolver resolver = mock(IndexResolver.class);
-            // caps + runtime mappings -> self-resolve (the caps-reuse overload is never called)
-            session(threadPool, resolver, configuration(caps, singletonMap("rt", Map.of("type", "keyword")))).analyzedPlan(
+            // caps + no runtime mappings -> reuse: the mapping is built from the response via the static merge handler,
+            // so the resolver instance (which would issue _field_caps) is never touched at all.
+            IndexResolver reuseResolver = mock(IndexResolver.class);
+            session(threadPool, reuseResolver, configuration(caps, emptyMap())).analyzedPlan(plan, ActionListener.noop());
+            verifyNoInteractions(reuseResolver);
+
+            // caps + runtime mappings -> the engine self-defends and self-resolves through the resolver instead.
+            IndexResolver selfResolver = mock(IndexResolver.class);
+            session(threadPool, selfResolver, configuration(caps, singletonMap("rt", Map.of("type", "keyword")))).analyzedPlan(
                 plan,
                 ActionListener.noop()
             );
-            verify(resolver, never()).resolveAsMergedMapping(any(FieldCapabilitiesResponse.class), anyString(), any());
-
-            // caps + no runtime mappings -> reuse (the caps-reuse overload is taken)
-            reset(resolver);
-            session(threadPool, resolver, configuration(caps, emptyMap())).analyzedPlan(plan, ActionListener.noop());
-            verify(resolver).resolveAsMergedMapping(any(FieldCapabilitiesResponse.class), anyString(), any());
+            verify(selfResolver).resolveAsMergedMapping(anyString(), any(), any(), any(), anyBoolean(), any(), any());
         }
     }
 

@@ -143,7 +143,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     /** The caller-supplied merged field-caps for these indices, or {@code null} if the engine should self-resolve. */
     @Nullable
-    public FieldCapabilitiesResponse preResolvedFieldCaps() {
+    FieldCapabilitiesResponse preResolvedFieldCaps() {
         return preResolvedFieldCaps;
     }
 

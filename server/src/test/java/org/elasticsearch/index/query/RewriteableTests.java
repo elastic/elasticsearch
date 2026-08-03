@@ -78,7 +78,7 @@ public class RewriteableTests extends ESTestCase {
 
         Throwable failure = expectThrows(ExecutionException.class, future::get).getCause();
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertEquals("The request is too deeply nested to rewrite", failure.getMessage());.
+        assertEquals("The request is too deeply nested to rewrite", failure.getMessage());
         assertTrue("no Error may be reachable from the failure", ExceptionsHelper.maybeError(failure).isEmpty());
     }
 

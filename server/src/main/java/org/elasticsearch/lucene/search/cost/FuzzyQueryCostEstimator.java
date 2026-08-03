@@ -32,7 +32,15 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
     /** Multiplier applied when the alphabet is wider than {@link #WIDE_ALPHABET_THRESHOLD}. */
     public static final long WIDE_ALPHABET_FACTOR = 2L;
 
-    /** Per-expanded-term add-on, charged once per {@code maxExpansions} to cover each expansion's retained RAM. */
+    /**
+     * Per-expanded-term add-on, charged once per {@code maxExpansions} to cover each expansion's
+     * retained RAM, dominated by {@link org.apache.lucene.index.TermStates} (whose size grows with
+     * the number of index segments a term appears in). Tuned against
+     * {@code FuzzyQueryCostEstimatorBenchmark}, which measures actual rewrite RAM across term
+     * lengths, alphabets, {@code maxExpansions} and index segment counts (1-16 segments); together
+     * with {@link #BASE_BYTES} and the automaton term below, this value keeps {@link #estimate()}
+     * a ceiling over every combination measured by that benchmark.
+     */
     public static final long EXPANSION_BYTES_PER_TERM = 2500L;
 
     /** Maximum number of expansions charged per clause */

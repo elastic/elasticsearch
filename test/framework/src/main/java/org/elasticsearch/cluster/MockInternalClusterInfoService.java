@@ -57,6 +57,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             threadPool,
             client,
             EstimatedHeapUsageCollector.EMPTY,
+            CacheSizesAndCommitmentCollector.EMPTY,
+            PartitionSizeCollector.EMPTY,
             NodeUsageStatsForThreadPoolsCollector.EMPTY
         );
     }

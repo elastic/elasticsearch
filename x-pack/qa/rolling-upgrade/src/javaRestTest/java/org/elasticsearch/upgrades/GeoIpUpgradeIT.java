@@ -16,7 +16,7 @@ import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
 
-public class GeoIpUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
+public class GeoIpUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     public GeoIpUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

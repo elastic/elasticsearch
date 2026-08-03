@@ -44,6 +44,8 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     // Character classes stop at literal delimiters so matching is linear. RFC 2397 ";param=value" pairs get absorbed into the {subtype}
     // class.
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
+    private static final String DATA_URI_PREFIX = "data:";
+    private static final String BASE64_MARKER = ";base64";
 
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
@@ -106,18 +108,39 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateDataURIFormat() {
-        if (dataFormat == DataFormat.BASE64) {
-            var endOfURIPart = value.indexOf(',');
-            // Fast-fail on missing or oversized URI part before the regex.
-            if (endOfURIPart < 0
-                || endOfURIPart >= MAX_DATA_URI_PREFIX_LENGTH
-                || DATA_URI_PATTERN.matcher(value).region(0, endOfURIPart + 1).matches() == false) {
-                throw new IllegalArgumentException(
-                    "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
-                );
-            }
+        if (dataFormat == DataFormat.BASE64 && tryParseDataUri(value) == null) {
+            throw new IllegalArgumentException(
+                "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+            );
         }
     }
+
+    /**
+     * Parses {@code value} as a base64 data URI ({@code data:<media-type>;base64,<data>}) — the format every
+     * {@link DataFormat#BASE64} input is required to use, since consumers need the declared media type. Returns the media type
+     * exactly as declared (including any RFC 2397 parameters, e.g. {@code text/plain;charset=utf-8}) together with the base64
+     * payload, or {@code null} when the value is not a valid base64 data URI, leaving it to callers to decide whether that is
+     * an error.
+     */
+    @Nullable
+    public static DataUri tryParseDataUri(String value) {
+        var endOfURIPart = value.indexOf(',');
+        // Fast-fail on missing or oversized URI part before the regex.
+        if (endOfURIPart < 0
+            || endOfURIPart >= MAX_DATA_URI_PREFIX_LENGTH
+            || DATA_URI_PATTERN.matcher(value).region(0, endOfURIPart + 1).matches() == false) {
+            return null;
+        }
+        return new DataUri(
+            value.substring(DATA_URI_PREFIX.length(), endOfURIPart - BASE64_MARKER.length()),
+            value.substring(endOfURIPart + 1)
+        );
+    }
+
+    /**
+     * The declared media type and base64 payload of a base64 data URI, as returned by {@link #tryParseDataUri(String)}.
+     */
+    public record DataUri(String mediaType, String base64Data) {}
 
     public InferenceString(StreamInput in) throws IOException {
         this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());

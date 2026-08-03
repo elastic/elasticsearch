@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
@@ -34,6 +35,9 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -44,7 +48,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -132,7 +135,7 @@ public class Verifier {
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
-        var planCheckers = planCheckers(plan);
+        var planCheckers = planCheckers(plan, context.analysisRegistry());
         planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
@@ -152,9 +155,10 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkUnsupportedAttributeRenaming(p, failures);
-            checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
+            checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
+            checkBucketIncludeEmptyBucketsNotInInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -229,9 +233,9 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // UnsupportedAttribute can pass through a Project unchanged.
                     // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
-                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                    if (p instanceof Project && ae instanceof UnsupportedAttribute) {
                         return;
                     }
 
@@ -293,11 +297,11 @@ public class Verifier {
     /**
      * Build a list of checkers based on the components in the plan.
      */
-    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan, AnalysisRegistry analysisRegistry) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification());
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
             }
         };
         plan.forEachDown(p -> {
@@ -307,7 +311,7 @@ public class Verifier {
             if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
-                        va.postAnalysisVerification(failures);
+                        va.postAnalysisVerification(analysisRegistry, failures);
                     }
                 });
             }
@@ -330,6 +334,67 @@ public class Verifier {
         });
     }
 
+    /**
+     * {@code include_empty_buckets} can only be honored when the bucketing grouping function is a top-level grouping key: the operator
+     * fills gaps by enumerating the bucket boundaries and reading the raw bucket column off the grouping. Nested inside another
+     * expression (e.g. {@code STATS ... BY SIN(BUCKET(..., {"include_empty_buckets": true}))}) that column is not available as a
+     * grouping, and non-injective wrappers make "one row per empty bucket" ambiguous. So it's rejected here.
+     * <p>
+     * This covers both {@code BUCKET} and the not-yet-rewritten {@code TBUCKET} (surrogated to {@code BUCKET} later, in the optimizer):
+     * the Verifier runs at analysis time, so both forms can still carry the option here and must be checked.
+     */
+    private static void checkBucketIncludeEmptyBucketsIsGrouping(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate aggregate) {
+            Set<GroupingFunction> topLevelGroupingFunctions = new HashSet<>();
+            for (Expression grouping : aggregate.groupings()) {
+                if (Alias.unwrap(grouping) instanceof GroupingFunction groupingFunction) {
+                    topLevelGroupingFunctions.add(groupingFunction);
+                }
+            }
+            aggregate.forEachExpression(GroupingFunction.class, groupingFunction -> {
+                if (topLevelGroupingFunctions.contains(groupingFunction)) {
+                    return;
+                }
+                if (groupingFunction instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [BUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+                if (groupingFunction instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [TBUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * {@code include_empty_buckets} fills missing histogram rows after aggregation. That does not fit {@link InlineStats},
+     * which left-joins aggregate results back onto the input rows: synthesizing empty buckets would invent join keys that
+     * have no matching input rows (or change join cardinality in surprising ways). Reject the option on INLINE STATS.
+     */
+    private static void checkBucketIncludeEmptyBucketsNotInInlineStats(LogicalPlan p, Failures failures) {
+        if (p instanceof InlineStats inlineStats) {
+            inlineStats.aggregate().forEachExpression(e -> {
+                if (e instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(fail(bucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+                if (e instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(fail(tBucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+            });
+        }
+    }
+
     private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
         p.forEachExpression(BinaryComparison.class, bc -> {
             Failure f = validateBinaryComparison(bc);
@@ -339,23 +404,14 @@ public class Verifier {
         });
     }
 
-    private static void checkInsist(LogicalPlan p, Failures failures) {
-        if (p instanceof Insist i) {
-            LogicalPlan child = i.child();
-            if ((child instanceof EsRelation || child instanceof Insist) == false) {
-                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
-            }
-        }
-    }
-
     /**
-     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
-     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * Check that UnsupportedAttribute is not renamed via Alias in a Project.
+     * UnsupportedAttribute can pass through a Project unchanged, but renaming is not allowed.
      * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
      * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
      */
     private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
-        if (p instanceof Project || p instanceof Insist) {
+        if (p instanceof Project) {
             p.forEachExpression(Alias.class, alias -> {
                 if (alias.child() instanceof UnsupportedAttribute ua) {
                     failures.add(fail(alias, ua.unresolvedMessage()));

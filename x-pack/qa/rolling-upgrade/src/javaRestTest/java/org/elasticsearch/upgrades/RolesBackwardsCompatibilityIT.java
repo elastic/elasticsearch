@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,7 +32,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTestCase {
+public class RolesBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     public RolesBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -51,7 +50,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             updateRole("my-old-role", randomValueOtherThan(initialRole, RolesBackwardsCompatibilityIT::randomRoleDescriptorSerialized));
 
             // and fail if we include description
-            Exception createException = expectThrows(
+            var createException = expectThrows(
                 Exception.class,
                 () -> createRole(client(), "my-invalid-old-role", randomRoleDescriptorWithDescriptionSerialized())
             );
@@ -61,7 +60,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             );
 
             RestClient client = client();
-            Exception updateException = expectThrows(
+            var updateException = expectThrows(
                 Exception.class,
                 () -> updateRole(client, "my-old-role", randomRoleDescriptorWithDescriptionSerialized())
             );
@@ -159,7 +158,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             updateRole("my-old-role", randomValueOtherThan(initialRole, RolesBackwardsCompatibilityIT::randomRoleDescriptorSerialized));
 
             // and fail if we include manage roles
-            Exception createException = expectThrows(
+            var createException = expectThrows(
                 Exception.class,
                 () -> createRole(client(), "my-invalid-old-role", randomRoleDescriptorWithManageRolesSerialized())
             );
@@ -169,7 +168,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             );
 
             RestClient client = client();
-            Exception updateException = expectThrows(
+            var updateException = expectThrows(
                 Exception.class,
                 () -> updateRole(client, "my-old-role", randomRoleDescriptorWithManageRolesSerialized())
             );
@@ -216,7 +215,6 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
                         Exception.class,
                         () -> createRole(newVersionClient, "my-invalid-mixed-role", randomRoleDescriptorWithManageRolesSerialized())
                     );
-
                     assertThat(
                         e.getMessage(),
                         containsString(
@@ -261,7 +259,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     private void createRole(RestClient client, String roleName, String role) throws IOException {
         final Request createRoleRequest = new Request("POST", "_security/role/" + roleName);
         createRoleRequest.setJsonEntity(role);
-        Response createRoleResponse = client.performRequest(createRoleRequest);
+        var createRoleResponse = client.performRequest(createRoleRequest);
         assertOK(createRoleResponse);
     }
 
@@ -299,11 +297,11 @@ public class RolesBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
         }
     }
 
-    private boolean nodeSupportTransportVersion(TestNodeInfo testNodeInfo, TransportVersion transportVersion) {
+    private boolean nodeSupportTransportVersion(NodeInfo testNodeInfo, TransportVersion transportVersion) {
         if (testNodeInfo.transportVersion().equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            boolean nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
+            var nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
             assertTrue(nodeIsCurrent);
             return true;
         }

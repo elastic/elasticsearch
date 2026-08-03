@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTestCase {
+public class ApiKeyBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     private static final String CERTIFICATE_IDENTITY_FIELD_FEATURE = "certificate_identity_field";
 
@@ -34,10 +35,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeT
     }
 
     public void testCertificateIdentityBackwardsCompatibility() throws Exception {
-        final Set<TestNodeInfo> nodes = collectNodeInfos(adminClient());
+        final List<NodeInfo> nodes = NodeInfo.getAll(adminClient());
 
-        final Set<TestNodeInfo> newVersionNodes = nodes.stream().filter(TestNodeInfo::isUpgradedVersionCluster).collect(toSet());
-        final Set<TestNodeInfo> oldVersionNodes = nodes.stream().filter(TestNodeInfo::isOriginalVersionCluster).collect(toSet());
+        final Set<NodeInfo> newVersionNodes = nodes.stream().filter(NodeInfo::isUpgradedVersionCluster).collect(toSet());
+        final Set<NodeInfo> oldVersionNodes = nodes.stream().filter(NodeInfo::isOriginalVersionCluster).collect(toSet());
 
         assumeTrue(
             "Old version nodes must not support certificate identity feature",
@@ -49,7 +50,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeT
         );
 
         if (isOldCluster()) {
-            Exception exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+            var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
             assertThat(
                 exception.getMessage(),
                 anyOf(containsString("unknown field [certificate_identity]"), containsString("certificate_identity not supported"))
@@ -95,7 +96,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeT
         }
     }
 
-    private boolean nodeSupportsCertificateIdentity(TestNodeInfo nodeDetails) {
+    private boolean nodeSupportsCertificateIdentity(NodeInfo nodeDetails) {
         return nodeDetails.supportsFeature(CERTIFICATE_IDENTITY_FIELD_FEATURE);
     }
 
@@ -129,5 +130,4 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeT
         assertThat(key, notNullValue());
         return Tuple.tuple(id, key);
     }
-
 }

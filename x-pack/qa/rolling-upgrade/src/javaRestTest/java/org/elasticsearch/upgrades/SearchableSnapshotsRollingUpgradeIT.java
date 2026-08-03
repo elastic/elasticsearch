@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
@@ -17,25 +16,22 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
+public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     public SearchableSnapshotsRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -48,12 +44,12 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
 
         private final String storageName;
 
-        public String storageName() {
-            return storageName;
+        Storage(String storageName) {
+            this.storageName = storageName;
         }
 
-        Storage(final String storageName) {
-            this.storageName = storageName;
+        public String storageName() {
+            return storageName;
         }
     }
 
@@ -62,19 +58,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.SHARED_CACHE;
-
-        if (isUpgradedCluster()) {
-            assertBusy(() -> {
-                Map<String, Object> settings = getIndexSettingsAsMap("mounted_index_shared_cache");
-                assertThat(
-                    settings,
-                    hasEntry(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP)
-                );
-            });
-        }
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 5678L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.SHARED_CACHE, 5678L);
     }
 
     /**
@@ -84,15 +68,15 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
         final String suffix = storage.storageName().toLowerCase(Locale.ROOT);
         final String repository = "repository_" + suffix;
         final String snapshot = "snapshot_" + suffix;
+        final String originalIndex = "logs_" + suffix;
         final String index = "mounted_index_" + suffix;
 
         if (isOldCluster()) {
             registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
-            final String originalIndex = "logs_" + suffix;
             createIndex(originalIndex, indexSettings(randomIntBetween(1, 3), 0).build());
             indexDocs(originalIndex, numberOfDocs);
-            createSnapshot(repository, snapshot, originalIndex);
+            createSnapshotOfIndex(repository, snapshot, originalIndex);
             deleteIndex(originalIndex);
 
             logger.info(
@@ -107,12 +91,21 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             mountSnapshot(repository, snapshot, originalIndex, index, storage, Settings.EMPTY);
         }
 
+        if (isUpgradedCluster() && storage == Storage.SHARED_CACHE) {
+            // After a full upgrade, partial-copy (shared_cache) mounts are moved to the frozen tier,
+            // which is reflected via index.shard_limit.group=frozen.
+            assertBusy(() -> {
+                Map<String, Object> settings = getIndexSettingsAsMap(index);
+                assertThat(settings, hasEntry("index.shard_limit.group", "frozen"));
+            });
+        }
+
         ensureGreen(index);
         assertHitCount(index, equalTo(numberOfDocs));
 
         if (isUpgradedCluster()) {
             deleteIndex(index);
-            deleteSnapshot(repository, snapshot);
+            deleteSnapshot(repository, snapshot, false);
             deleteRepository(repository);
         }
     }
@@ -122,9 +115,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.SHARED_CACHE;
-
-        executeBlobCacheCreationTestCase(storage, 8765L);
+        executeBlobCacheCreationTestCase(Storage.SHARED_CACHE, 8765L);
     }
 
     /**
@@ -152,51 +143,36 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             for (int i = 0; i < numberOfSnapshots; i++) {
                 createIndex(indices[i], indexSettings(randomIntBetween(1, 3), 0).build());
                 indexDocs(indices[i], numberOfDocs * (i + 1L));
-
-                createSnapshot(repository, snapshots[i], indices[i]);
+                createSnapshotOfIndex(repository, snapshots[i], indices[i]);
                 deleteIndex(indices[i]);
             }
+        }
 
-        } else if (isMixedCluster()) {
-            final int numberOfNodes = NODE_NUM;
-            waitForNodes(numberOfNodes);
+        if (isMixedCluster()) {
+            final List<NodeInfo> nodeInfos = NodeInfo.getAll(client());
 
-            final Map<String, String> nodesIdsAndVersions = nodesVersions();
-            assertThat("Cluster should have 3 nodes", nodesIdsAndVersions.size(), equalTo(numberOfNodes));
+            final List<String> oldVersionNodeIds = nodeInfos.stream()
+                .filter(n -> isOldClusterVersion(n.version(), n.buildHash()))
+                .map(NodeInfo::nodeId)
+                .toList();
 
-            final Set<String> newVersionNodes = nodesIdsAndVersions.entrySet()
-                .stream()
-                .filter(node -> isOriginalCluster(node.getValue()) == false)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
+            final List<String> upgradedVersionNodeIds = nodeInfos.stream()
+                .filter(n -> isOldClusterVersion(n.version(), n.buildHash()) == false)
+                .map(NodeInfo::nodeId)
+                .toList();
 
-            final Set<String> originalVersionNodes = nodesIdsAndVersions.entrySet()
-                .stream()
-                .filter(node -> isOriginalCluster(node.getValue()))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-
-            final String nodeIdWithOriginalVersion = randomFrom(originalVersionNodes);
+            final String oldVersionNodeId = randomFrom(oldVersionNodeIds);
 
             // We may not have upgraded nodes, if we are running these test on the same version (original == current)
-            final Set<String> upgradedVersionNodes = newVersionNodes.isEmpty() ? originalVersionNodes : newVersionNodes;
-            final String nodeIdWithUpgradedVersion = randomValueOtherThan(
-                nodeIdWithOriginalVersion,
-                () -> randomFrom(upgradedVersionNodes)
-            );
+            final List<String> effectiveUpgradedNodeIds = upgradedVersionNodeIds.isEmpty() ? oldVersionNodeIds : upgradedVersionNodeIds;
+            final String upgradedVersionNodeId = randomValueOtherThan(oldVersionNodeId, () -> randomFrom(effectiveUpgradedNodeIds));
 
             // The snapshot is mounted on the node with the min. version in order to force the node to populate the blob store cache index.
             // Then the snapshot is mounted again on a different node with a higher version in order to verify that the docs in the cache
             // index can be used.
 
             String index = "first_mount_" + indices[0];
-            logger.info(
-                "mounting snapshot as index [{}] with storage [{}] on node [{}] with min. version [{}]",
-                index,
-                storage,
-                nodeIdWithOriginalVersion,
-                getOldClusterVersion()
-            );
+            logger.info("mounting snapshot as [{}] with storage [{}] on old-version node [{}]", index, storage, oldVersionNodeId);
             mountSnapshot(
                 repository,
                 snapshots[0],
@@ -205,7 +181,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
                 storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
-                    .put("index.routing.allocation.include._id", nodeIdWithOriginalVersion)
+                    .put("index.routing.allocation.include._id", oldVersionNodeId)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -215,13 +191,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             deleteIndex(index);
 
             index = "second_mount_" + indices[0];
-            logger.info(
-                "mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with higher version [{}]",
-                index,
-                storage,
-                nodeIdWithUpgradedVersion,
-                nodesIdsAndVersions.get(nodeIdWithUpgradedVersion)
-            );
+            logger.info("mounting same snapshot as [{}] with storage [{}] on new-version node [{}]", index, storage, upgradedVersionNodeId);
             mountSnapshot(
                 repository,
                 snapshots[0],
@@ -230,8 +200,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
                 storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
-                    .put("index.routing.allocation.include._id", nodeIdWithUpgradedVersion)
-                    .put("index.routing.allocation.exclude._id", nodeIdWithOriginalVersion)
+                    .put("index.routing.allocation.include._id", upgradedVersionNodeId)
+                    .put("index.routing.allocation.exclude._id", oldVersionNodeId)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -244,13 +214,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             // time on the node with the minimum version.
 
             index = "first_mount_" + indices[1];
-            logger.info(
-                "mounting snapshot as index [{}] with storage [{}] on node [{}] with max. version [{}]",
-                index,
-                storage,
-                nodeIdWithUpgradedVersion,
-                nodesIdsAndVersions.get(nodeIdWithUpgradedVersion)
-            );
+            logger.info("mounting snapshot as [{}] with storage [{}] on new-version node [{}]", index, storage, upgradedVersionNodeId);
             mountSnapshot(
                 repository,
                 snapshots[1],
@@ -259,7 +223,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
                 storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
-                    .put("index.routing.allocation.include._id", nodeIdWithUpgradedVersion)
+                    .put("index.routing.allocation.include._id", upgradedVersionNodeId)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -269,13 +233,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             deleteIndex(index);
 
             index = "second_mount_" + indices[1];
-            logger.info(
-                "mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with lower version [{}]",
-                index,
-                storage,
-                nodeIdWithOriginalVersion,
-                getOldClusterVersion()
-            );
+            logger.info("mounting same snapshot as [{}] with storage [{}] on old-version node [{}]", index, storage, oldVersionNodeId);
             mountSnapshot(
                 repository,
                 snapshots[1],
@@ -284,8 +242,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
                 storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
-                    .put("index.routing.allocation.include._id", nodeIdWithOriginalVersion)
-                    .put("index.routing.allocation.exclude._id", nodeIdWithUpgradedVersion)
+                    .put("index.routing.allocation.include._id", oldVersionNodeId)
+                    .put("index.routing.allocation.exclude._id", upgradedVersionNodeId)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -313,7 +271,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
 
         } else if (isUpgradedCluster()) {
             for (String snapshot : snapshots) {
-                deleteSnapshot(repository, snapshot);
+                deleteSnapshot(repository, snapshot, false);
             }
             deleteRepository(repository);
         }
@@ -329,42 +287,15 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(builder.toString());
         final Response response = client().performRequest(bulk);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertOK(response);
         assertFalse((Boolean) XContentMapValues.extractValue("errors", responseAsMap(response)));
     }
 
-    private static void createSnapshot(String repositoryName, String snapshotName, String indexName) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName);
+    private static void createSnapshotOfIndex(String repository, String snapshot, String indexName) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity("{ \"indices\" : \"" + indexName + "\", \"include_global_state\": false}");
-        final Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-    }
-
-    private static void waitForNodes(int numberOfNodes) throws IOException {
-        final Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/health");
-        request.addParameter("wait_for_nodes", String.valueOf(numberOfNodes));
-        final Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, String> nodesVersions() throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes/_all"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
-        assertNotNull("Nodes info is null", nodes);
-        final Map<String, String> nodesVersions = Maps.newMapWithExpectedSize(nodes.size());
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            nodesVersions.put(node.getKey(), (String) extractValue((Map<?, ?>) node.getValue(), "version"));
-        }
-        return nodesVersions;
-    }
-
-    private static void deleteSnapshot(String repositoryName, String snapshotName) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName);
-        final Response response = client().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        request.setJsonEntity("{\"indices\":\"" + indexName + "\",\"include_global_state\":false}");
+        assertOK(client().performRequest(request));
     }
 
     private static void mountSnapshot(
@@ -383,27 +314,20 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
               "renamed_index": "%s",
               "index_settings": %s
             }""", indexName, renamedIndex, Strings.toString(indexSettings)));
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to mount snapshot [" + snapshotName + "] from repository [" + repositoryName + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
+        assertOK(client().performRequest(request));
     }
 
     private static void assertHitCount(String indexName, Matcher<Long> countMatcher) throws IOException {
         final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + indexName + "/_count"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         final Map<String, Object> responseAsMap = responseAsMap(response);
-        final Number responseCount = (Number) extractValue("count", responseAsMap);
-        assertThat(responseAsMap + "", responseCount, notNullValue());
-        assertThat(((Number) extractValue("count", responseAsMap)).longValue(), countMatcher);
+        final Number count = (Number) extractValue("count", responseAsMap);
+        assertThat(responseAsMap + "", count, notNullValue());
+        assertThat(count.longValue(), countMatcher);
         assertThat(((Number) extractValue("_shards.failed", responseAsMap)).intValue(), equalTo(0));
     }
 
     private static Settings repositorySettings(String repository) {
-        final String pathRepo = System.getProperty("tests.path.searchable.snapshots.repo");
-        assertThat("Searchable snapshots repository path is null", pathRepo, notNullValue());
-        return Settings.builder().put("location", pathRepo + '/' + repository).build();
+        return Settings.builder().put("location", "./" + repository).build();
     }
 }

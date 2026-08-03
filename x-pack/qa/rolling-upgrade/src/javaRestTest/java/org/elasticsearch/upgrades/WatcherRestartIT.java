@@ -4,6 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class WatcherRestartIT extends AbstractXPackRollingUpgradeTestCase {
+public class WatcherRestartIT extends AbstractXpackRollingUpgradeTestCase {
 
     public WatcherRestartIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

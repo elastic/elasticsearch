@@ -4,6 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
@@ -19,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class ILMHistoryManagedTemplateUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
+public class ILMHistoryManagedTemplateUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     public ILMHistoryManagedTemplateUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

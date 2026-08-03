@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -147,8 +148,6 @@ public final class AstKeywordFieldRewriter {
         MATCH_OPERATOR_LHS,
         /** Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. */
         LOOKUP_JOIN_ON,
-        /** Body of an {@code INSIST_🐔 <field>[, <field>]*} developer-only command. */
-        INSIST_BODY,
         /** Identifier inside an ES|QL qualified-name reference of the form {@code [<index>].[<field>]}. */
         QUALIFIED_NAME_BRACKETS
     }
@@ -198,6 +197,19 @@ public final class AstKeywordFieldRewriter {
                 return "TO_INTEGER";
             }
             return name;
+        }
+
+        // DeferredRegexExpression is a parse-time placeholder for LIKE/RLIKE with a
+        // non-literal constant-expression pattern (e.g. WHERE field LIKE CONCAT(...)). It is
+        // not a Function and is not in CLASS_NAME_TO_OPERATOR_NAME (only the resolved
+        // WildcardLike/RLike classes are). Without this case the tracking context from the
+        // enclosing Not would leak through and the field at position 0 would be recorded as
+        // "NOT:0 is covered" instead of the correct "LIKE:0" / "RLIKE:0".
+        if (expression instanceof DeferredRegexExpression ure) {
+            return switch (ure.variant()) {
+                case LIKE -> "LIKE";
+                case RLIKE -> "RLIKE";
+            };
         }
 
         String opName = CLASS_NAME_TO_OPERATOR_NAME.get(expression.getClass().getName());
@@ -522,10 +534,6 @@ public final class AstKeywordFieldRewriter {
             }
             if (node instanceof Fork fork) {
                 return processFork(fork, scope);
-            }
-            if (isInsist(node)) {
-                recordSkips(node.expressions(), scope, SkipSite.INSIST_BODY);
-                return scope;
             }
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
@@ -1040,10 +1048,6 @@ public final class AstKeywordFieldRewriter {
 
         private static Set<String> attributeNames(List<? extends NamedExpression> attributes) {
             return namedExpressionNames(attributes);
-        }
-
-        private static boolean isInsist(LogicalPlan node) {
-            return node.getClass().getSimpleName().toLowerCase(Locale.ROOT).startsWith("insist");
         }
     }
 }

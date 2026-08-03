@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -97,7 +97,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -177,7 +176,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1856,11 +1854,34 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    /**
+     * A non-string field must be rejected at analysis for a constant-expression pattern exactly as it is
+     * for a literal pattern (see {@link #testRegexOnInt}); the field type is known at analysis even when
+     * the pattern is not yet foldable.
+     */
+    public void testRegexConstantExpressionOnInt() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        for (String op : new String[] { "like", "rlike" }) {
+            basic().error(
+                """
+                    from test
+                    | where emp_no COMPARISON concat("1", "*")
+                    """.replace("COMPARISON", op),
+                containsString(
+                    "argument of [emp_no COMPARISON concat(\"1\", \"*\")] must be [string], found value [emp_no] type [integer]".replace(
+                        "COMPARISON",
+                        op
+                    )
+                )
+            );
+        }
+    }
+
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or flattened or geo_point "
+                + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -3318,111 +3339,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
-    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 emp_no");
-
-        Attribute last = plan.output().getLast();
-        assertThat(last.name(), is("emp_no"));
-        assertThat(last.dataType(), is(INTEGER));
-        assertThat(
-            plan.output()
-                .stream()
-                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
-                .toList(),
-            is(empty())
-        );
-    }
-
-    public void testInsist_afterRowThrowsException() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        basic().error(
-            "ROW x = 1 | INSIST_🐔 x",
-            containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
-        );
-    }
-
-    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = basic().query("FROM test | INSIST_🐔 foo");
-
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        assertThat(insist.output(), hasSize(basic().query("FROM test").output().size() + 1));
-        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.insistedAttributes(), equalToIgnoringIds(List.of(expectedAttribute)));
-        assertThat(insist.output().getLast(), equalToIgnoringIds(expectedAttribute));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("bar", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-
-        String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyzer().addIndex(resolution).query(query);
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("qux", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps, true);
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
-
-        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
-        assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
     public void testResolveDenseVector() {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
@@ -4729,6 +4645,28 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(oneYear, literal);
     }
 
+    public void testBucketInvalidNumberOfArguments() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, {"include_empty_buckets": true})
+            """, containsString("expects between two and four positional arguments"));
+    }
+
+    public void testBucketInvalidOption() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+        basic().error("""
+            FROM test | STATS c = COUNT(*)
+                        BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"invalid_option": 42})
+            """, containsString("Invalid option [invalid_option]"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_twoPositionalArgs() {
+        basic().error("""
+            FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
+            """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
+    }
+
     public void testProjectionForUnionTypeResolution() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));
@@ -4941,6 +4879,25 @@ public class AnalyzerTests extends ESTestCase {
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("index*", esRelation.indexPattern());
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+        IndexResolution index = indexWithDateDateNanosUnionType();
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::double",
+                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
+            );
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::ip",
+                containsString(
+                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
+                )
+            );
     }
 
     public void testGroupingOverridesInStats() {
@@ -5261,6 +5218,78 @@ public class AnalyzerTests extends ESTestCase {
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
             assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
         }
+    }
+
+    /**
+     * After analysis (before optimization), a constant-expression LIKE pattern remains as
+     * DeferredRegexExpression. The optimizer's ConstantFolding + ReplaceDeferredRegex rule
+     * converts it to a concrete WildcardLike; see OptimizerVerificationTests.
+     */
+    public void testLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like concat(\"Anna\", \"*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.LIKE, expr.variant());
+    }
+
+    /**
+     * Same as {@link #testLikeConstantExpressionRemainsUnresolvedAfterAnalysis} for RLIKE.
+     */
+    public void testRLikeConstantExpressionRemainsUnresolvedAfterAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike concat(\"Anna\", \".*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        DeferredRegexExpression expr = as(filter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.RLIKE, expr.variant());
+    }
+
+    /**
+     * A non-foldable pattern (field reference) passes analysis; the "must be a constant" error
+     * is raised by post-optimization verification. See OptimizerVerificationTests.
+     */
+    public void testLikeNonFoldableExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * Same as {@link #testLikeNonFoldableExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeNonFoldableExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike last_name");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * A foldable integer pattern passes analysis; the type error is raised at post-optimization
+     * verification. See OptimizerVerificationTests.
+     */
+    public void testLikeWrongTypeConstantExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name like to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
+    }
+
+    /**
+     * Same as {@link #testLikeWrongTypeConstantExpressionPassesAnalysis} for RLIKE.
+     */
+    public void testRLikeWrongTypeConstantExpressionPassesAnalysis() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        var plan = basic().query("from test | where first_name rlike to_integer(\"42\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), DeferredRegexExpression.class);
     }
 
     public void testConfigurationAwareResolved() {

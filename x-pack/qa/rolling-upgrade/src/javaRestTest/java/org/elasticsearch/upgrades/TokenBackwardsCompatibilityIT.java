@@ -10,7 +10,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -39,16 +38,16 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNot.not;
 
-public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTestCase {
-
-    private Collection<RestClient> twoClients = null;
+public class TokenBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     public TokenBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
+    private Collection<RestClient> twoClients = null;
+
     @Before
-    private void collectClientsByVersion() throws IOException {
+    public void collectClientsByVersion() throws IOException {
         Map<String, RestClient> clientsByVersion = getRestClientByVersion();
         if (clientsByVersion.size() == 2) {
             // usual case, clients have different versions
@@ -64,18 +63,20 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     }
 
     @After
-    protected void cleanUpClients() throws IOException {
-        for (RestClient client : twoClients) {
-            client.close();
+    public void cleanUpClients() throws IOException {
+        if (twoClients != null) {
+            for (RestClient client : twoClients) {
+                client.close();
+            }
+            twoClients = null;
         }
-        twoClients = null;
     }
 
     public void testGeneratingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
-        Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Map<String, Object> responseMap = createTokens(client(), USER, PASS);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
@@ -84,7 +85,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
 
         storeTokens(client(), 1, accessToken, refreshToken);
 
-        responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        responseMap = createTokens(client(), USER, PASS);
         accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
@@ -97,7 +98,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     public void testRefreshingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
-        Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Map<String, Object> responseMap = createTokens(client(), USER, PASS);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
@@ -123,7 +124,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     public void testInvalidatingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates access and refresh tokens and tries to use the access tokens several times
-        Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Map<String, Object> responseMap = createTokens(client(), USER, PASS);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
@@ -164,7 +165,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
         // mixed/upgraded clusters
         int generatedTokenIdxDuringMixed = 10;
         for (RestClient client : twoClients) {
-            Map<String, Object> responseMap = createTokens(client, "test_user", "x-pack-test-password");
+            Map<String, Object> responseMap = createTokens(client, USER, PASS);
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
@@ -173,7 +174,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
 
             storeTokens(client(), generatedTokenIdxDuringMixed++, accessToken, refreshToken);
 
-            responseMap = createTokens(client, "test_user", "x-pack-test-password");
+            responseMap = createTokens(client, USER, PASS);
             accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
@@ -188,7 +189,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
         // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         for (RestClient client1 : twoClients) {
-            Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");
+            Map<String, Object> responseMap = createTokens(client1, USER, PASS);
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
@@ -240,7 +241,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
 
     public void testGeneratingTokensInUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
-        Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
+        Map<String, Object> responseMap = createTokens(client(), USER, PASS);
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
         assertAccessTokenWorks(accessToken);
@@ -284,7 +285,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             request.setOptions(options);
             Response authenticateResponse = client.performRequest(request);
             assertOK(authenticateResponse);
-            assertEquals("test_user", entityAsMap(authenticateResponse).get("username"));
+            assertEquals(USER, entityAsMap(authenticateResponse).get("username"));
         }
     }
 
@@ -297,9 +298,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals("""
-                Bearer realm="security", error="invalid_token", error_description="The access token expired"\
-                """, response.getHeader("WWW-Authenticate"));
+            assertEquals(
+                "Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
+                response.getHeader("WWW-Authenticate")
+            );
         }
     }
 
@@ -368,7 +370,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     @SuppressWarnings("unchecked")
     private Map<String, Object> retrieveStoredTokens(RestClient client, int tokenIdx) throws IOException {
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token" + tokenIdx);
-        Response getResponse = client().performRequest(getRequest);
+        Response getResponse = client.performRequest(getRequest);
         assertOK(getResponse);
         return (Map<String, Object>) entityAsMap(getResponse).get("_source");
     }
@@ -412,7 +414,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
      */
     private void extendExpirationTimeForAllTokens() throws Exception {
         final List<String> tokensIds = getAllTokenIds();
-        final Request bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
+        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
         bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> Strings.format("""
@@ -427,7 +429,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
 
     private void refreshSecurityTokensIndex() throws IOException {
         // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
-        final Request refreshRequest = new Request("POST", "/.security-tokens/_refresh");
+        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
         refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(refreshRequest));
     }
@@ -435,7 +437,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     private List<String> getAllTokenIds() throws IOException {
         refreshSecurityTokensIndex();
         final long searchSize = 100L;
-        final Request searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
+        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
         searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         searchRequest.setJsonEntity("""
             {
@@ -447,7 +449,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        SearchResponse response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+        var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
         try {
             final SearchHits searchHits = response.getHits();
             assertThat(

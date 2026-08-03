@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class QueryableBuiltInRolesUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
+public class QueryableBuiltInRolesUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     private static final String QUERYABLE_BUILT_IN_ROLES_NODE_FEATURE = "security.queryable_built_in_roles";
     public static final String INDEX_METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST = "queryable_built_in_roles_digest";
@@ -48,14 +49,14 @@ public class QueryableBuiltInRolesUpgradeIT extends AbstractXPackRollingUpgradeT
      * Test upgrades from an older cluster versions that do not support queryable built-in roles feature.
      */
     public void testBuiltInRolesSyncedOnClusterUpgrade() throws Exception {
-        final int numberOfNodes = NODE_NUM;
+        final int numberOfNodes = 3;
         waitForNodes(numberOfNodes);
 
-        final Set<TestNodeInfo> nodes = collectNodeInfos(adminClient());
+        final List<NodeInfo> nodes = NodeInfo.getAll(adminClient());
         assertThat("cluster should have " + numberOfNodes + " nodes", nodes.size(), equalTo(numberOfNodes));
 
-        final Set<TestNodeInfo> newVersionNodes = nodes.stream().filter(TestNodeInfo::isUpgradedVersionCluster).collect(toSet());
-        final Set<TestNodeInfo> oldVersionNodes = nodes.stream().filter(TestNodeInfo::isOriginalVersionCluster).collect(toSet());
+        final Set<NodeInfo> newVersionNodes = nodes.stream().filter(NodeInfo::isUpgradedVersionCluster).collect(toSet());
+        final Set<NodeInfo> oldVersionNodes = nodes.stream().filter(NodeInfo::isOriginalVersionCluster).collect(toSet());
 
         assumeTrue(
             "Old version nodes must not support queryable feature",

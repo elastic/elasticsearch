@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -257,6 +258,38 @@ public abstract class FieldMapper extends Mapper {
      */
     public boolean supportsBatchIndexing() {
         return false;
+    }
+
+    /**
+     * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
+     * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
+     * than once per document. Defaults to {@code false}; supported mappers override once they
+     * implement the columnar mapping entry point.
+     *
+     * @param indexSettings the settings of the index being mapped, for mappers whose columnar
+     *                       support depends on index-level configuration
+     */
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return false;
+    }
+
+    /**
+     * Maps all documents in a batch for this field from the supplied ESCF source column. Called by
+     * the columnar bulk batch driver once per field per batch, only for mappers whose
+     * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
+     * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
+     *
+     * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
+     * @param source the Escf column holding the field's source values for the batch
+     */
+    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
+    // This should be straightforward. We would reject array columns for multi-value and force
+    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
+    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        throw new UnsupportedOperationException(
+            "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
+        );
     }
 
     /**
@@ -1604,7 +1637,10 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values DISABLED_LOW_CARDINALITY = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values DISABLED_HIGH_CARDINALITY = new Values(false, Cardinality.HIGH, true, true, OnFailure.FAIL);
+            public static final Values ENABLED_LOW_CARDINALITY = new Values(true, Cardinality.LOW, true, true, OnFailure.FAIL);
+            public static final Values ENABLED_HIGH_CARDINALITY = new Values(true, Cardinality.HIGH, true, true, OnFailure.FAIL);
         }
 
         public final Parameter<Boolean> multiValueParameter;
@@ -1741,7 +1777,7 @@ public abstract class FieldMapper extends Mapper {
                         )
                     );
                 } else {
-                    setValue(Values.DISABLED);
+                    setValue(Values.DISABLED_LOW_CARDINALITY);
                 }
             }
         }

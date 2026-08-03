@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -79,6 +81,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
@@ -2065,6 +2068,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         unhollowOnIngestion(IngestionType.Index);
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits.HollowShardsService:DEBUG", reason = """
+        We have seen this test time out waiting for the ingestion latch (see
+        https://github.com/elastic/elasticsearch/issues/151100). It does not reproduce locally and the CI logs before and
+        after the timeout do not look slow, which points to a discrete stall in the unhollow-on-first-ingestion path rather
+        than gradual slowness. HollowShardsService logs each step of unhollowing at DEBUG (start, engine reset, flush,
+        "unhollowed shard with gen ..."), so enabling it should show how far each shard's unhollow progressed when we next
+        catch a failure.
+        """)
     public void testUnhollowOnUpdates() throws Exception {
         unhollowOnIngestion(IngestionType.Update);
     }
@@ -2191,10 +2202,27 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 };
                 ingestExecutor.submit(ingestRunnable);
             }
-            // Each thread may issue up to ~128 sequential blocking updates, and the first write to each hollow shard blocks on
-            // that shard's unhollow (an object-store read + engine reset + local flush on the shared generic pool). On a loaded
-            // CI runner that can push the slowest thread well past 30s, so allow a generous budget for this heavy ingestion.
-            safeAwait(ingestLatch, TimeValue.timeValueMinutes(2));
+            // If an ingesting thread blocks (most likely on a shard's unhollow-on-first-ingestion), the latch never reaches
+            // zero. Rather than mask that by simply extending the timeout, capture diagnostics on the (rare, CI-only) timeout:
+            // which shards are still hollow, plus a hot-threads dump identifying the stuck operation. See #151100.
+            if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
+                for (int i = 0; i < numberOfShards; i++) {
+                    var shardId = new ShardId(index, i);
+                    logger.error(
+                        "--> ingest latch timed out; shard {} still hollow on {}: {}",
+                        shardId,
+                        indexNodeB,
+                        hollowShardsServiceB.isHollowShard(shardId)
+                    );
+                }
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "ingest latch timed out waiting for unhollow-on-ingestion",
+                    ReferenceDocs.LOGGING
+                );
+                fail("ingestLatch did not reach zero within 30s; see still-hollow shards and hot threads logged above");
+            }
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(

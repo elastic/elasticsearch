@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -144,6 +146,81 @@ class LateMaterializationPlanner {
 
         // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
         // preplan in advance, including all the necessary field extractions!
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+    }
+
+    /**
+     * Analogous to {@link #planReduceDriverTopN}, but for {@link TopNBy}.
+     *
+     * <p>For a query like:
+     * <pre>
+     * FROM index | WHERE x > 10 | SORT foo | LIMIT 10 BY grp | KEEP bar
+     * </pre>
+     * we defer reading {@code bar} until after the node-reduce driver has finished its own {@link TopNByExec}, so that
+     * {@code bar} is only fetched for the surviving rows (at most {@code 10 * distinct(grp)} rows rather than all rows).
+     * The grouping fields are included in the data-side output so the reduce-side {@link TopNByExec} can partition correctly.
+     */
+    public static Optional<ReductionPlan> planReduceDriverTopNBy(
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
+        ExchangeSinkExec originalPlan
+    ) {
+        FragmentExec fragmentExec = originalPlan.child() instanceof FragmentExec fe ? fe : null;
+        if (fragmentExec == null) {
+            return Optional.empty();
+        }
+
+        Project topLevelProject = fragmentExec.fragment() instanceof Project p ? p : null;
+        if (topLevelProject == null) {
+            return Optional.empty();
+        }
+
+        TopNBy topNBy = topLevelProject.child() instanceof TopNBy tn ? tn : null;
+        if (topNBy == null) {
+            return Optional.empty();
+        }
+
+        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
+
+        List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(topNBy, context).output();
+        Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        if (doc == null) {
+            return Optional.empty();
+        }
+
+        LogicalPlan withAddedDocToRelation = topNBy.transformUp(EsRelation.class, r -> {
+            if (r.indexMode() == IndexMode.LOOKUP) {
+                return r;
+            }
+            List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
+            return r.withAttributes(attributes);
+        });
+        if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
+            return Optional.empty();
+        }
+
+        AttributeSet orderRefsSet = AttributeSet.of(topNBy.order().stream().flatMap(o -> o.references().stream()).toList());
+        AttributeSet groupingRefsSet = AttributeSet.of(topNBy.groupings().stream().flatMap(g -> g.references().stream()).toList());
+        List<Attribute> expectedDataOutput = new ArrayList<>();
+        for (Attribute a : physicalPlanOutput) {
+            if (topLevelProject.outputSet().contains(a)
+                || orderRefsSet.contains(a)
+                || groupingRefsSet.contains(a)
+                || EsQueryExec.isDocAttribute(a)) {
+                expectedDataOutput.add(a);
+            }
+        }
+        var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
+        FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
+
+        PhysicalPlan reductionPlan = toNonOptimizedPhysicalDataPlan(fragmentExec.fragment(), context).transformDown(TopNByExec.class, t -> {
+            PhysicalPlan exchangeExec = new ExchangeSourceExec(topNBy.source(), expectedDataOutput, false);
+            // The reduce-side TopNByExec always produces sorted output (it is the final step seen by the coordinator).
+            return t.replaceChild(exchangeExec).withSortedOutput();
+        });
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
+        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(sizedReductionPlan);
+
         return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
     }
 

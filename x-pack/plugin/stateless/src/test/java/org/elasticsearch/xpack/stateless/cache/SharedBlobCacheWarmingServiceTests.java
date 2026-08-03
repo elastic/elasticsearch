@@ -1102,7 +1102,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize, blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize, blobSize)),
+                Map.of(
+                    blobFileA,
+                    WarmTarget.withUnknownTimestamp(blobSize, blobSize),
+                    blobFileB,
+                    WarmTarget.withUnknownTimestamp(blobSize, blobSize)
+                ),
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1860,6 +1865,194 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 "every offline-warmed region should carry the provided per-blob timestamp",
                 captured,
                 everyItem(equalTo(knownTimestamp))
+            );
+        }
+    }
+
+    /**
+     * Verifies that {@link SharedBlobCacheWarmingService#BLOB_CACHE_WARMING_RATIO_METRIC} is recorded with the correct value and
+     * BCC size bucket attribute after a successful {@code warmBlobOffsets} call. Uses asymmetric {@code endOffset} and {@code blobSize}
+     * to detect argument swaps: if the two were swapped inside the metric-recording code the ratio would be 2.0, not 0.5.
+     */
+    public void testOfflineWarmingRecordsRatioMetric() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            FakeStatelessNode fakeNode = createCacheCapturingFakeNode(
+                primaryTerm,
+                regionSizeInBytes,
+                new TimestampCapturingEvictionPolicy(),
+                recordingMeterRegistry
+            )
+        ) {
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            do {
+                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes) {
+                    break;
+                }
+                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            } while (true);
+            vbcc.freeze();
+
+            final long totalSizeInBytes = vbcc.getTotalSizeInBytes();
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                fakeNode.getShardContainer()
+                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, totalSizeInBytes, true);
+            }
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            final var blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
+            // blobSizeForMetric is intentionally 2× the actual blob content so the expected ratio is 0.5.
+            // If endOffset and blobSize were swapped inside the recording code the ratio would be 2.0 and the assertion would fail.
+            final long blobSizeForMetric = totalSizeInBytes * 2;
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(
+                indexShard,
+                fakeNode.searchDirectory,
+                Map.of(blobFile, WarmTarget.withUnknownTimestamp(totalSizeInBytes, blobSizeForMetric)),
+                warmListener
+            );
+            safeGet(warmListener);
+
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_RATIO_METRIC);
+            assertThat(measurements, hasSize(1));
+            Measurement measurement = measurements.get(0);
+            assertThat(measurement.getDouble(), equalTo((double) totalSizeInBytes / blobSizeForMetric));
+            assertThat(
+                measurement.attributes(),
+                equalTo(Map.of(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(blobSizeForMetric)))
+            );
+        }
+    }
+
+    /**
+     * Verifies that the {@link SharedBlobCacheWarmingService#BLOB_CACHE_WARMING_RATIO_METRIC} recorded after a full
+     * {@code warmCache(SEARCH)} invocation with offline warming enabled uses the actual BCC blob size (computed by
+     * {@code bccBlobSizeConsumer} inside {@link ObjectStoreService#readReferencedCompoundCommitsUsingCache}) as the denominator.
+     * With {@code warmingRatio=1.0} the entire blob is warmed, so the expected ratio is exactly 1.0; any incorrect denominator
+     * (e.g. a file-offset instead of the blob end) would yield a ratio &gt; 1.0 and fail the assertion.
+     */
+    public void testWarmCacheOfflineWarmingRecordsBccSizeViaRatioMetric() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                recordingMeterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+                        .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0)
+                        .build();
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    );
+                }
+            }
+        ) {
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            do {
+                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes) {
+                    break;
+                }
+                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(1, 10), false);
+            } while (true);
+            vbcc.freeze();
+
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                fakeNode.getShardContainer()
+                    .writeBlobAtomic(OperationPurpose.INDICES, vbcc.getBlobName(), vbccInputStream, vbcc.getTotalSizeInBytes(), true);
+            }
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+
+            var indexShard = mockIndexShard(fakeNode);
+            var lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
+            fakeNode.searchDirectory.updateCommit(lastCommit);
+
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
+            safeGet(warmListener);
+
+            // With warmingRatio=1.0 every CC is warmed to its end, so endOffset == blobSize and the ratio should be exactly 1.0.
+            // If the bccBlobSizeConsumer provided a wrong (e.g. smaller) blobSize, the ratio would exceed 1.0 and the assertion fails.
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_RATIO_METRIC);
+            assertThat("warmCache should record exactly one ratio measurement per BCC blob warmed", measurements, hasSize(1));
+            Measurement measurement = measurements.get(0);
+            assertThat(
+                "offline warming with ratio=1.0 should warm the full blob, yielding a ratio of 1.0",
+                measurement.getDouble(),
+                equalTo(1.0)
+            );
+            assertThat(
+                "ratio metric attribute should use the actual BCC blob size as the bucket key",
+                measurement.attributes(),
+                equalTo(
+                    Map.of(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(vbcc.getTotalSizeInBytes()))
+                )
             );
         }
     }

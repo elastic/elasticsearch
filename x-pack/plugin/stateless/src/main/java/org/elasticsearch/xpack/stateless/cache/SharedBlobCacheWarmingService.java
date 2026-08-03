@@ -79,7 +79,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -864,10 +863,7 @@ public class SharedBlobCacheWarmingService {
                                             // internal files replicated content for search shards to be enabled. However, the current
                                             // branch is taken only when replicated content feature is disabled, so we can safely avoid
                                             // calculating the timestamp and use an unknown timestamp here.
-                                            WarmTarget.withUnknownTimestamp(
-                                                offsetsToWarmPerBlobFile.get(blobFile),
-                                                blobSizes.get(blobFile)
-                                            )
+                                            WarmTarget.withUnknownTimestamp(offsetsToWarmPerBlobFile.get(blobFile), blobSizes.get(blobFile))
                                         );
                                     }
                                     return targetsToWarm;

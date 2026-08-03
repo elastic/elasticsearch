@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -120,9 +121,50 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
 
         // Must not throw; the unresolved sort should be left untouched for the Verifier to report.
         TimeSeriesAggregate result = as(rule.rule(plan), TimeSeriesAggregate.class);
+        assertThat(result, sameInstance(plan));
         Alias resultAlias = as(result.aggregates().getFirst(), Alias.class);
         Last resultLast = as(resultAlias.child(), Last.class);
+        assertThat(resultLast.field(), sameInstance(field));
         assertThat(resultLast.sort(), sameInstance(unresolvedSort));
+    }
+
+    /**
+     * Sister test to {@link #testLastWithUnresolvedSortIsLeftUntouched} covering the symmetric {@code FIRST}
+     * path: an unresolved sort argument must leave the plan untouched rather than crashing in
+     * {@code wrapSortedAgg}.
+     */
+    public void testFirstWithUnresolvedSortIsLeftUntouched() {
+        FieldAttribute timestamp = new FieldAttribute(
+            Source.EMPTY,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "network.bytes_in",
+            new EsField("network.bytes_in", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        UnresolvedAttribute unresolvedSort = new UnresolvedAttribute(Source.EMPTY, "@timestamp");
+        NamedExpression aggregate = new Alias(Source.EMPTY, "first", new First(Source.EMPTY, field, unresolvedSort));
+
+        EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(timestamp, field));
+        TimeSeriesAggregate plan = new TimeSeriesAggregate(
+            Source.EMPTY,
+            relation,
+            List.of(),
+            List.of(aggregate),
+            null,
+            timestamp,
+            TimeSeriesAggregate.Origin.TS_COMMAND
+        );
+
+        // Must not throw; the unresolved sort should be left untouched for the Verifier to report.
+        TimeSeriesAggregate result = as(rule.rule(plan), TimeSeriesAggregate.class);
+        assertThat(result, sameInstance(plan));
+        Alias resultAlias = as(result.aggregates().getFirst(), Alias.class);
+        First resultFirst = as(resultAlias.child(), First.class);
+        assertThat(resultFirst.field(), sameInstance(field));
+        assertThat(resultFirst.sort(), sameInstance(unresolvedSort));
     }
 
     private void assertStatsEqual(String stats1, String stats2) {

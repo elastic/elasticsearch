@@ -127,7 +127,6 @@ import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
-import org.elasticsearch.xpack.inference.mapper.SemanticInferenceEmbeddingsMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
@@ -858,12 +857,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(
-            SemanticInferenceMetadataFieldsMapper.NAME,
-            SemanticInferenceMetadataFieldsMapper.PARSER,
-            SemanticInferenceEmbeddingsMetadataFieldsMapper.NAME,
-            SemanticInferenceEmbeddingsMetadataFieldsMapper.PARSER
-        );
+        return Map.of(SemanticInferenceMetadataFieldsMapper.NAME, SemanticInferenceMetadataFieldsMapper.PARSER);
     }
 
     // Overridable for tests

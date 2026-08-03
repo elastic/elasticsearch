@@ -11,7 +11,8 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
-import org.elasticsearch.foreign.processor.model.StructVariants;
+import org.elasticsearch.foreign.processor.model.StructLayoutModel;
+import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -70,12 +71,12 @@ final class StructPackWriter {
     }
 
     /** Generates and writes the {@code $Pack} class for a record struct. */
-    void generate(LibraryModel model, StructVariants variants, TypeElement sourceElement) throws Exception {
-        String packQualifiedName = qualified(model, variants.simpleName()) + "$Pack";
+    void generate(LibraryModel model, StructModel struct, TypeElement sourceElement) throws Exception {
+        String packQualifiedName = qualified(model, struct.simpleName()) + "$Pack";
         ClassDesc packDesc = ClassDesc.of(packQualifiedName);
-        ClassDesc recordDesc = ClassDesc.of(qualified(model, variants.simpleName()));
-        List<StructFieldModel> fields = variants.any().fields();
-        List<PerPlatformClinit.Group> groups = PerPlatformClinit.group(variants.byPlatform());
+        ClassDesc recordDesc = ClassDesc.of(qualified(model, struct.simpleName()));
+        List<StructFieldModel> fields = struct.fields();
+        List<StructLayoutModel> layouts = struct.layouts();
 
         byte[] classBytes = ClassFile.of().build(packDesc, cb -> {
             cb.withVersion(classFileVersion, 0);
@@ -83,7 +84,7 @@ final class StructPackWriter {
             cb.withSuperclass(CD_Object);
 
             declareFields(cb, fields);
-            emitClinit(cb, packDesc, fields, groups);
+            emitClinit(cb, packDesc, fields, layouts);
             emitPrivateConstructor(cb);
             emitPackMethod(cb, packDesc, recordDesc, fields);
         });
@@ -105,14 +106,9 @@ final class StructPackWriter {
     }
 
     /** Emits {@code <clinit>}: initialize LAYOUT (single or per-platform), all offsets, and all VarHandles. */
-    private static void emitClinit(
-        ClassBuilder cb,
-        ClassDesc packDesc,
-        List<StructFieldModel> fields,
-        List<PerPlatformClinit.Group> groups
-    ) {
+    private static void emitClinit(ClassBuilder cb, ClassDesc packDesc, List<StructFieldModel> fields, List<StructLayoutModel> layouts) {
         cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
-            PerPlatformClinit.emitLayoutInit(clinit, packDesc, groups);
+            PerPlatformClinit.emitLayoutInit(clinit, packDesc, layouts, fields);
 
             for (StructFieldModel field : fields) {
                 emitOffsetInit(clinit, packDesc, field);

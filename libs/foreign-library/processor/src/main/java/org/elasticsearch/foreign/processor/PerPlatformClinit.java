@@ -10,7 +10,8 @@
 package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.Platform;
-import org.elasticsearch.foreign.processor.model.StructModel;
+import org.elasticsearch.foreign.processor.model.StructFieldModel;
+import org.elasticsearch.foreign.processor.model.StructLayoutModel;
 
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Label;
@@ -27,16 +28,14 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayou
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_structLayout;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.deriveLayout;
 import static org.elasticsearch.foreign.processor.StructLayoutUtil.emitStructLayoutArray;
-import static org.elasticsearch.foreign.processor.StructLayoutUtil.trailingPadding;
 
 /**
  * Shared generation of the {@code LAYOUT} static field for a struct's {@code $Impl}/{@code $Pack}
- * class. When a struct's layout is identical across every supported platform, a single
- * {@code MemoryLayout.structLayout(...)} is emitted. When it differs, a {@code <clinit>} switch on
- * {@code Platform.current().ordinal()} selects the layout for the running platform, with platforms
- * sharing an identical layout collapsed into one case block.
+ * class. When the struct resolves to a single layout across every supported platform (the common
+ * case), a single {@code MemoryLayout.structLayout(...)} is stored. When it resolves to several, a
+ * {@code <clinit>} switch on {@code Platform.current().ordinal()} selects the running platform's
+ * layout; the distinct layouts are already grouped in the model as {@link StructLayoutModel}s.
  */
 final class PerPlatformClinit {
 
@@ -48,40 +47,25 @@ final class PerPlatformClinit {
 
     private PerPlatformClinit() {}
 
-    /** A distinct concrete layout and the platforms that resolve to it. */
-    record Group(StructModel model, List<String> platforms) {}
-
-    /**
-     * Groups a struct's per-platform models by layout equality, preserving first-seen platform order.
-     * Two platforms share a group when their {@link StructModel} instances are {@code equals} — i.e.
-     * identical field shape and offsets and total size.
-     */
-    static List<Group> group(Map<String, StructModel> byPlatform) {
-        Map<StructModel, List<String>> byModel = new LinkedHashMap<>();
-        for (var entry : byPlatform.entrySet()) {
-            byModel.computeIfAbsent(entry.getValue(), k -> new ArrayList<>()).add(entry.getKey());
-        }
-        List<Group> groups = new ArrayList<>();
-        for (var entry : byModel.entrySet()) {
-            groups.add(new Group(entry.getKey(), entry.getValue()));
-        }
-        return groups;
-    }
-
-    /** {@code true} when the struct has more than one distinct layout across platforms. */
-    static boolean isPerPlatform(List<Group> groups) {
-        return groups.size() > 1;
+    /** {@code true} when the struct resolves to more than one distinct layout across platforms. */
+    static boolean isPerPlatform(List<StructLayoutModel> layouts) {
+        return layouts.size() > 1;
     }
 
     /**
-     * Emits the code that initializes the {@code LAYOUT} field. For a single group this is a straight
-     * {@code structLayout(...)} store; for multiple groups it is a {@code Platform.current().ordinal()}
-     * switch. On return, {@code LAYOUT} is initialized and control continues in normal flow (the
-     * per-platform switch has re-joined). Uses local slot 0 (a {@code <clinit>} has no {@code this}).
+     * Emits the code that initializes the {@code LAYOUT} field. For a single layout this is a straight
+     * {@code structLayout(...)} store; for several it is a {@code Platform.current().ordinal()} switch,
+     * one arm per {@link StructLayoutModel}. On return, {@code LAYOUT} is initialized and control
+     * continues in normal flow (the switch has re-joined). Uses local slot 0 (a {@code <clinit>} has
+     * no {@code this}).
      */
-    static void emitLayoutInit(CodeBuilder clinit, ClassDesc structDesc, List<Group> groups) {
-        if (groups.size() == 1) {
-            emitStoreLayout(clinit, structDesc, groups.get(0).model());
+    static void emitLayoutInit(CodeBuilder clinit, ClassDesc structDesc, List<StructLayoutModel> layouts, List<StructFieldModel> fields) {
+        Map<String, StructFieldModel> fieldsByName = new LinkedHashMap<>();
+        for (StructFieldModel field : fields) {
+            fieldsByName.put(field.name(), field);
+        }
+        if (layouts.size() == 1) {
+            emitStoreLayout(clinit, structDesc, layouts.get(0), fieldsByName);
             return;
         }
 
@@ -94,20 +78,20 @@ final class PerPlatformClinit {
         var defaultLabel = clinit.newLabel();
 
         List<SwitchCase> cases = new ArrayList<>();
-        List<Label> groupLabels = new ArrayList<>();
-        for (Group g : groups) {
+        List<Label> layoutLabels = new ArrayList<>();
+        for (StructLayoutModel layout : layouts) {
             var label = clinit.newLabel();
-            groupLabels.add(label);
-            for (String platform : g.platforms()) {
+            layoutLabels.add(label);
+            for (String platform : layout.platforms()) {
                 cases.add(SwitchCase.of(Platform.valueOf(platform).ordinal(), label));
             }
         }
         cases.sort(Comparator.comparingInt(SwitchCase::caseValue));
         clinit.lookupswitch(defaultLabel, cases);
 
-        for (int i = 0; i < groups.size(); i++) {
-            clinit.labelBinding(groupLabels.get(i));
-            emitStoreLayout(clinit, structDesc, groups.get(i).model());
+        for (int i = 0; i < layouts.size(); i++) {
+            clinit.labelBinding(layoutLabels.get(i));
+            emitStoreLayout(clinit, structDesc, layouts.get(i), fieldsByName);
             clinit.goto_(afterSwitch);
         }
 
@@ -122,8 +106,13 @@ final class PerPlatformClinit {
         clinit.labelBinding(afterSwitch);
     }
 
-    private static void emitStoreLayout(CodeBuilder clinit, ClassDesc structDesc, StructModel model) {
-        emitStructLayoutArray(clinit, deriveLayout(model.fields()), trailingPadding(model));
+    private static void emitStoreLayout(
+        CodeBuilder clinit,
+        ClassDesc structDesc,
+        StructLayoutModel layout,
+        Map<String, StructFieldModel> fieldsByName
+    ) {
+        emitStructLayoutArray(clinit, layout.layout(), fieldsByName);
         clinit.invokestatic(CD_MemoryLayout, "structLayout", MTD_structLayout, true);
         clinit.putstatic(structDesc, "LAYOUT", CD_StructLayout);
     }

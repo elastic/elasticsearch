@@ -9,8 +9,10 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import java.lang.foreign.MemoryLayout;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,10 +31,11 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic.Kind;
 
 /**
- * Parses {@code @StructSpecification}-annotated types into {@link StructVariants} instances. A single
- * walk over the type's members produces the fully-resolved layout — each field placed at its absolute
- * byte offset — for every supported platform at once. Field <em>shape</em> (name, type, getter/setter)
- * is computed once; only the offset arithmetic is repeated per platform.
+ * Parses {@code @StructSpecification}-annotated types into {@link StructModel} instances. A single
+ * walk over the type's members produces the field <em>shape</em> (name, type, getter/setter) once,
+ * plus the resolved absolute byte offset of every field for every supported platform. Those offsets
+ * are turned into one {@link MemoryLayout} per platform, and platforms sharing an identical layout
+ * are collapsed into a single {@link StructLayoutModel}.
  *
  * <p>All annotation-processing API usage for struct building is concentrated here, keeping the model
  * types themselves as plain data records.
@@ -49,12 +52,12 @@ class StructSpecParser {
     private static final String STRUCT_SIZE_LIST_FQN = "org.elasticsearch.foreign.StructSize.List";
 
     /**
-     * Builds the per-platform layout variants of a {@code @StructSpecification} record. Record
-     * components are scalar getters laid out in declaration order; {@code @Offset}/{@code @Padding} on
-     * a component and {@code @StructSize} on the record are honoured exactly as for interfaces. Emits
-     * errors for unsupported component types and returns {@code null} if any error was emitted.
+     * Builds the {@link StructModel} for a {@code @StructSpecification} record. Record components are
+     * scalar getters laid out in declaration order; {@code @Offset}/{@code @Padding} on a component
+     * and {@code @StructSize} on the record are honoured exactly as for interfaces. Emits errors for
+     * unsupported component types and returns {@code null} if any error was emitted.
      */
-    static StructVariants fromRecord(TypeElement typeElement, Set<String> supportedPlatforms, Messager messager) {
+    static StructModel fromRecord(TypeElement typeElement, Set<String> supportedPlatforms, Messager messager) {
         String typeSimpleName = typeElement.getSimpleName().toString();
         boolean isSparse = readSparseFlag(typeElement);
 
@@ -88,13 +91,12 @@ class StructSpecParser {
                 continue;
             }
             String name = component.getSimpleName().toString();
-            ScalarFieldModel shape = new ScalarFieldModel(name, fieldType, true, false, 0);
+            StructFieldModel field = new ScalarFieldModel(name, fieldType, true, false);
             List<AnnotationMirror> offsetMirrors = ModelUtil.collectRepeatableAnnotations(component, OFFSET_FQN, OFFSET_LIST_FQN);
             List<AnnotationMirror> paddingMirrors = ModelUtil.collectRepeatableAnnotations(component, PADDING_FQN, PADDING_LIST_FQN);
             error |= placeNewField(
                 layout,
-                shape,
-                name,
+                field,
                 isSparse,
                 offsetMirrors,
                 paddingMirrors,
@@ -121,16 +123,16 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildVariants(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true);
     }
 
     /**
-     * Builds the per-platform layout variants of a {@code @StructSpecification} interface. Walks the
-     * abstract methods once, merging a getter/setter pair (which must be declared adjacently) into a
-     * single field, validating {@code @ArrayField} length references, and placing every field at its
-     * resolved absolute offset for each supported platform. Returns {@code null} on any error.
+     * Builds the {@link StructModel} for a {@code @StructSpecification} interface. Walks the abstract
+     * methods once, merging a getter/setter pair (which must be declared adjacently) into a single
+     * field, validating {@code @ArrayField} length references, and placing every field at its resolved
+     * absolute offset for each supported platform. Returns {@code null} on any error.
      */
-    static StructVariants fromInterface(
+    static StructModel fromInterface(
         TypeElement typeElement,
         List<String> priorStructNames,
         Set<String> supportedPlatforms,
@@ -150,6 +152,9 @@ class StructSpecParser {
         LayoutBuilder layout = new LayoutBuilder(supportedPlatforms);
         List<String> scalarFieldNames = new ArrayList<>();
 
+        // Abstract instance methods in declaration order; a field is one such method (a getter or
+        // setter) or two adjacent ones sharing a name (a getter/setter pair).
+        List<ExecutableElement> methods = new ArrayList<>();
         for (var enclosedMember : typeElement.getEnclosedElements()) {
             if (enclosedMember.getKind() != ElementKind.METHOD) {
                 continue;
@@ -159,69 +164,71 @@ class StructSpecParser {
             if (mods.contains(Modifier.DEFAULT) || mods.contains(Modifier.STATIC)) {
                 continue;
             }
+            methods.add(method);
+        }
 
-            StructFieldModel shape = buildInterfaceStructField(method, typeSimpleName, priorStructNames, env, messager);
-            if (shape == null) {
-                error = true;
-                continue;
-            }
-            String name = method.getSimpleName().toString();
-            List<AnnotationMirror> offsetMirrors = ModelUtil.collectRepeatableAnnotations(method, OFFSET_FQN, OFFSET_LIST_FQN);
-            List<AnnotationMirror> paddingMirrors = ModelUtil.collectRepeatableAnnotations(method, PADDING_FQN, PADDING_LIST_FQN);
+        for (int i = 0; i < methods.size();) {
+            ExecutableElement first = methods.get(i);
+            String name = first.getSimpleName().toString();
 
-            if (layout.lastName() != null && layout.lastName().equals(name)) {
-                // Complement accessor of the field we just placed: merge into the last entry.
-                // Layout annotations are only permitted on the first-declared accessor.
-                if (offsetMirrors.isEmpty() == false || paddingMirrors.isEmpty() == false) {
-                    messager.printMessage(
-                        Kind.ERROR,
-                        "@Offset/@Padding on '"
-                            + name
-                            + "' in '"
-                            + typeSimpleName
-                            + "' must be on the first-declared accessor of the field",
-                        method
-                    );
-                    error = true;
-                }
-                StructFieldModel merged = mergeShapes(layout.lastShape(), shape, typeSimpleName, method, messager);
-                if (merged == null) {
-                    error = true;
-                } else {
-                    layout.mergeLast(merged);
-                }
-                continue;
-            }
+            // A field's complement accessor, if any, is the immediately following same-named method.
+            ExecutableElement second = (i + 1 < methods.size() && methods.get(i + 1).getSimpleName().contentEquals(name))
+                ? methods.get(i + 1)
+                : null;
+            int consumed = second == null ? 1 : 2;
+            i += consumed;
 
+            // A same-named field placed earlier (non-adjacent accessors) would reorder the layout.
             if (layout.seen(name)) {
                 messager.printMessage(
                     Kind.ERROR,
                     "getter and setter for '" + name + "' on '" + typeSimpleName + "' must be declared adjacent",
-                    method
+                    first
                 );
                 error = true;
                 continue;
             }
 
+            // Parse the whole field (both accessors) before placing it.
+            StructFieldModel field = parseField(first, second, typeSimpleName, priorStructNames, env, messager);
+            if (field == null) {
+                error = true;
+                continue;
+            }
+            layout.markSeen(name);
+            if (field instanceof ScalarFieldModel) {
+                scalarFieldNames.add(name);
+            }
+
+            // Layout annotations are only permitted on the first-declared accessor.
+            List<AnnotationMirror> offsetMirrors = ModelUtil.collectRepeatableAnnotations(first, OFFSET_FQN, OFFSET_LIST_FQN);
+            List<AnnotationMirror> paddingMirrors = ModelUtil.collectRepeatableAnnotations(first, PADDING_FQN, PADDING_LIST_FQN);
+            if (second != null
+                && (ModelUtil.collectRepeatableAnnotations(second, OFFSET_FQN, OFFSET_LIST_FQN).isEmpty() == false
+                    || ModelUtil.collectRepeatableAnnotations(second, PADDING_FQN, PADDING_LIST_FQN).isEmpty() == false)) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@Offset/@Padding on '" + name + "' in '" + typeSimpleName + "' must be on the first-declared accessor of the field",
+                    second
+                );
+                error = true;
+            }
+
             error |= placeNewField(
                 layout,
-                shape,
-                name,
+                field,
                 isSparse,
                 offsetMirrors,
                 paddingMirrors,
                 supportedPlatforms,
                 typeSimpleName,
-                method,
+                first,
                 messager
             );
-            if (shape instanceof ScalarFieldModel) {
-                scalarFieldNames.add(name);
-            }
         }
 
         // Every @ArrayField's lengthField must name a real scalar field on this same struct.
-        for (StructFieldModel fm : layout.shapeFields()) {
+        for (StructFieldModel fm : layout.fields()) {
             if (fm instanceof ArrayFieldModel array && scalarFieldNames.contains(array.lengthFieldName()) == false) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -254,93 +261,71 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildVariants(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false);
     }
 
     // --- Layout accumulation ---
 
     /**
-     * Accumulates the per-platform field lists and running offset cursors during the single member
-     * walk. All platforms share identical field <em>shape</em>; only the offset carried by each field
-     * (and the cursor) varies per platform.
+     * Accumulates the field shapes (identical across platforms, recorded once) and each field's
+     * resolved absolute offset per platform (parallel to the field list) while fields are placed.
      */
     private static final class LayoutBuilder {
-        private final Set<String> platforms;
+        private final List<StructFieldModel> fields = new ArrayList<>();
+        private final Map<String, List<Long>> offsets = new LinkedHashMap<>();
         private final Map<String, Long> cursor = new LinkedHashMap<>();
-        private final Map<String, List<StructFieldModel>> fields = new LinkedHashMap<>();
-        private final Set<String> seenNames = new java.util.LinkedHashSet<>();
-        private String lastName;
-        private StructFieldModel lastShape;
+        private final Set<String> seenNames = new LinkedHashSet<>();
 
         LayoutBuilder(Set<String> platforms) {
-            this.platforms = platforms;
             for (String p : platforms) {
                 cursor.put(p, 0L);
-                fields.put(p, new ArrayList<>());
+                offsets.put(p, new ArrayList<>());
             }
-        }
-
-        String lastName() {
-            return lastName;
-        }
-
-        StructFieldModel lastShape() {
-            return lastShape;
         }
 
         boolean seen(String name) {
             return seenNames.contains(name);
         }
 
-        /** Shape (offset-0) field list from any platform — layout is identical across platforms in shape. */
-        List<StructFieldModel> shapeFields() {
-            List<StructFieldModel> any = fields.get(platforms.iterator().next());
-            List<StructFieldModel> shapes = new ArrayList<>(any.size());
-            for (StructFieldModel f : any) {
-                shapes.add(f.withOffset(0));
-            }
-            return shapes;
+        void markSeen(String name) {
+            seenNames.add(name);
         }
 
         long cursor(String platform) {
             return cursor.get(platform);
         }
 
-        void append(String platform, StructFieldModel field, long newCursor) {
-            fields.get(platform).add(field);
+        /** Records a field's shape once (shared across platforms). */
+        void addField(StructFieldModel field) {
+            fields.add(field);
+        }
+
+        /** Records the just-added field's resolved offset on one platform and advances that cursor. */
+        void placeOffset(String platform, long offset, long newCursor) {
+            offsets.get(platform).add(offset);
             cursor.put(platform, newCursor);
         }
 
-        void recordNew(String name, StructFieldModel shape) {
-            seenNames.add(name);
-            lastName = name;
-            lastShape = shape;
+        /** Field shapes in declaration order — identical across platforms. */
+        List<StructFieldModel> fields() {
+            return fields;
         }
 
-        /** Replaces the last entry on every platform with {@code merged}, preserving each platform's offset. */
-        void mergeLast(StructFieldModel merged) {
-            for (String p : platforms) {
-                List<StructFieldModel> list = fields.get(p);
-                long off = list.getLast().offset();
-                list.set(list.size() - 1, merged.withOffset(off));
-            }
-            lastShape = merged;
-        }
-
-        List<StructFieldModel> fieldsFor(String platform) {
-            return fields.get(platform);
+        /** Absolute offsets for one platform, index-aligned with {@link #fields()}. */
+        List<Long> offsetsFor(String platform) {
+            return offsets.get(platform);
         }
     }
 
     /**
-     * Places a new field at its resolved offset on every platform. Validates the field's layout
-     * annotations against the struct mode (dense vs sparse) and, for sparse, that the offset does not
-     * overlap the previous field. Returns {@code true} if any error was emitted.
+     * Places a field on every platform: records its shape once and resolves its absolute offset per
+     * platform. Validates the field's layout annotations against the struct mode (dense vs sparse)
+     * and, for sparse, that the offset does not overlap the previous field. Returns {@code true} if
+     * any error was emitted.
      */
     private static boolean placeNewField(
         LayoutBuilder layout,
-        StructFieldModel shape,
-        String name,
+        StructFieldModel field,
         boolean isSparse,
         List<AnnotationMirror> offsetMirrors,
         List<AnnotationMirror> paddingMirrors,
@@ -349,7 +334,10 @@ class StructSpecParser {
         Element reportElement,
         Messager messager
     ) {
+        String name = field.name();
+        long size = FieldLayouts.byteSize(field);
         boolean error = false;
+        layout.addField(field);
 
         if (isSparse) {
             if (paddingMirrors.isEmpty() == false) {
@@ -372,22 +360,22 @@ class StructSpecParser {
                 ? null
                 : resolvePerPlatform(offsetMirrors, supportedPlatforms, "Offset", reportElement, messager);
             if (offsets == null) {
-                // Missing @Offset or a resolution error was already reported; record shape so
-                // adjacency tracking and later validation still work, but skip placement.
-                layout.recordNew(name, shape);
+                // Missing @Offset or a resolution error was already reported; place at the current
+                // cursor so later fields still validate, but report the failure.
                 for (String p : supportedPlatforms) {
-                    layout.append(p, shape.withOffset(layout.cursor(p)), layout.cursor(p) + shape.byteSize());
+                    long cursor = layout.cursor(p);
+                    layout.placeOffset(p, cursor, cursor + size);
                 }
                 return true;
             }
             for (String p : supportedPlatforms) {
-                long off = offsets.get(p);
+                long offset = offsets.get(p);
                 long cursor = layout.cursor(p);
-                if (off < cursor) {
+                if (offset < cursor) {
                     messager.printMessage(
                         Kind.ERROR,
                         "@Offset "
-                            + off
+                            + offset
                             + " for field '"
                             + name
                             + "' in '"
@@ -398,7 +386,7 @@ class StructSpecParser {
                     );
                     error = true;
                 }
-                layout.append(p, shape.withOffset(off), off + shape.byteSize());
+                layout.placeOffset(p, offset, offset + size);
             }
         } else {
             if (offsetMirrors.isEmpty() == false) {
@@ -419,21 +407,20 @@ class StructSpecParser {
             if (paddings == null && paddingMirrors.isEmpty() == false) {
                 error = true; // resolution error already reported
             }
+            long align = FieldLayouts.alignment(field);
             for (String p : supportedPlatforms) {
                 long cursor = layout.cursor(p);
                 long pad;
                 if (paddings != null) {
                     pad = paddings.get(p);
                 } else {
-                    long align = shape.alignment();
                     pad = (cursor % align == 0) ? 0 : (align - cursor % align);
                 }
-                long off = cursor + pad;
-                layout.append(p, shape.withOffset(off), off + shape.byteSize());
+                long offset = cursor + pad;
+                layout.placeOffset(p, offset, offset + size);
             }
         }
 
-        layout.recordNew(name, shape);
         return error;
     }
 
@@ -483,23 +470,32 @@ class StructSpecParser {
         return error ? null : byteSizes;
     }
 
-    private static StructVariants buildVariants(
+    /**
+     * Builds one {@link MemoryLayout} per platform from the shared field shapes and that platform's
+     * resolved offsets, then collapses platforms with an identical layout into a single
+     * {@link StructLayoutModel}. Groups (and the platforms within them) come out in {@code Platform}
+     * ordinal order because {@code supportedPlatforms} is iterated in that order.
+     */
+    private static StructModel buildStructModel(
         String typeSimpleName,
         LayoutBuilder layout,
         Map<String, Long> byteSizes,
         Set<String> supportedPlatforms,
         boolean isRecord
     ) {
-        Map<String, StructModel> byPlatform = new LinkedHashMap<>();
+        List<StructFieldModel> fields = List.copyOf(layout.fields());
+        Map<MemoryLayout, List<String>> platformsByLayout = new LinkedHashMap<>();
         for (String p : supportedPlatforms) {
-            List<StructFieldModel> fields = List.copyOf(layout.fieldsFor(p));
-            long byteSize = byteSizes.get(p);
-            StructModel model = isRecord
-                ? new StructRecordModel(typeSimpleName, fields, byteSize)
-                : new StructInterfaceModel(typeSimpleName, fields, byteSize);
-            byPlatform.put(p, model);
+            MemoryLayout memoryLayout = FieldLayouts.structLayout(fields, layout.offsetsFor(p), byteSizes.get(p));
+            platformsByLayout.computeIfAbsent(memoryLayout, k -> new ArrayList<>()).add(p);
         }
-        return new StructVariants(typeSimpleName, byPlatform);
+        List<StructLayoutModel> layouts = new ArrayList<>();
+        for (var entry : platformsByLayout.entrySet()) {
+            layouts.add(new StructLayoutModel(List.copyOf(entry.getValue()), entry.getKey()));
+        }
+        return isRecord
+            ? new StructRecordModel(typeSimpleName, fields, layouts)
+            : new StructInterfaceModel(typeSimpleName, fields, layouts);
     }
 
     // --- Mode validation ---
@@ -626,154 +622,180 @@ class StructSpecParser {
         return false;
     }
 
-    // --- Getter/setter merging ---
+    // --- Field parsing ---
 
     /**
-     * Merges two adjacent single-sided field shapes with the same name into a combined getter+setter
-     * shape (offset unresolved; the caller restamps it per platform). The two shapes must be of the
-     * same concrete type. Returns {@code null} (with an error already emitted) on any conflict.
+     * Parses a whole interface field from its accessor(s): a single method, or a getter/setter pair
+     * (in either order) sharing a name. Each accessor is parsed independently and, when both are
+     * present, merged into one combined {@link StructFieldModel}. Returns {@code null} (with an error
+     * already emitted) on any conflict.
      */
-    private static StructFieldModel mergeShapes(
-        StructFieldModel existing,
-        StructFieldModel incoming,
+    private static StructFieldModel parseField(
+        ExecutableElement first,
+        ExecutableElement second,
+        String structName,
+        List<String> priorStructNames,
+        ProcessingEnvironment env,
+        Messager messager
+    ) {
+        StructFieldModel a = parseAccessor(first, structName, priorStructNames, env, messager);
+        StructFieldModel b = second == null ? null : parseAccessor(second, structName, priorStructNames, env, messager);
+        if (a == null || (second != null && b == null)) {
+            return null;
+        }
+        return b == null ? a : merge(a, b, structName, second, messager);
+    }
+
+    /**
+     * Merges two same-named accessors (a getter and a setter) into one combined field. The two must
+     * be the same kind of field and agree on type and length. Returns {@code null} (with an error
+     * already emitted) on any conflict.
+     */
+    private static StructFieldModel merge(
+        StructFieldModel a,
+        StructFieldModel b,
         String structName,
         Element reportElement,
         Messager messager
     ) {
-        if (existing.getClass() != incoming.getClass()) {
+        if (a.getClass() != b.getClass()) {
             messager.printMessage(
                 Kind.ERROR,
-                "Field '" + incoming.name() + "' on '" + structName + "' has adjacent methods with different annotation types",
+                "Field '" + a.name() + "' on '" + structName + "' has adjacent methods with different annotation types",
                 reportElement
             );
             return null;
         }
-        return switch (existing) {
-            case ScalarFieldModel e -> {
-                ScalarFieldModel i = (ScalarFieldModel) incoming;
-                if (e.hasSetter() && i.hasSetter()) {
+        return switch (a) {
+            case ScalarFieldModel sa -> {
+                ScalarFieldModel sb = (ScalarFieldModel) b;
+                if (sa.hasSetter() && sb.hasSetter()) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Duplicate setter for field '" + e.name() + "' on '" + structName + "'",
+                        "Duplicate setter for field '" + sa.name() + "' on '" + structName + "'",
                         reportElement
                     );
                     yield null;
                 }
-                if (e.type() != i.type()) {
+                if (sa.type() != sb.type()) {
                     messager.printMessage(
                         Kind.ERROR,
                         "Getter and setter for field '"
-                            + e.name()
+                            + sa.name()
                             + "' on '"
                             + structName
                             + "' have mismatched types: "
-                            + (e.hasGetter() ? "getter" : "setter")
+                            + (sa.hasGetter() ? "getter" : "setter")
                             + " has '"
-                            + e.type()
+                            + sa.type()
                             + "', "
-                            + (i.hasGetter() ? "getter" : "setter")
+                            + (sb.hasGetter() ? "getter" : "setter")
                             + " has '"
-                            + i.type()
+                            + sb.type()
                             + "'",
                         reportElement
                     );
                     yield null;
                 }
-                yield new ScalarFieldModel(e.name(), e.type(), e.hasGetter() || i.hasGetter(), e.hasSetter() || i.hasSetter(), 0);
+                yield new ScalarFieldModel(sa.name(), sa.type(), sa.hasGetter() || sb.hasGetter(), sa.hasSetter() || sb.hasSetter());
             }
-            case InlineArrayFieldModel e -> {
-                InlineArrayFieldModel i = (InlineArrayFieldModel) incoming;
-                if (e.hasSetter() && i.hasSetter()) {
+            case InlineArrayFieldModel ia -> {
+                InlineArrayFieldModel ib = (InlineArrayFieldModel) b;
+                if (ia.hasSetter() && ib.hasSetter()) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Duplicate @InlineArrayField setter for field '" + e.name() + "' on '" + structName + "'",
+                        "Duplicate @InlineArrayField setter for field '" + ia.name() + "' on '" + structName + "'",
                         reportElement
                     );
                     yield null;
                 }
-                if (e.elementType() != i.elementType()) {
+                if (ia.elementType() != ib.elementType()) {
                     messager.printMessage(
                         Kind.ERROR,
                         "@InlineArrayField getter and setter for field '"
-                            + e.name()
+                            + ia.name()
                             + "' on '"
                             + structName
                             + "' have mismatched element types: '"
-                            + e.elementType()
+                            + ia.elementType()
                             + "' vs '"
-                            + i.elementType()
+                            + ib.elementType()
                             + "'",
                         reportElement
                     );
                     yield null;
                 }
-                if (e.length() != i.length()) {
+                if (ia.length() != ib.length()) {
                     messager.printMessage(
                         Kind.ERROR,
                         "@InlineArrayField getter and setter for field '"
-                            + e.name()
+                            + ia.name()
                             + "' on '"
                             + structName
                             + "' have mismatched lengths: "
-                            + e.length()
+                            + ia.length()
                             + " vs "
-                            + i.length(),
+                            + ib.length(),
                         reportElement
                     );
                     yield null;
                 }
                 yield new InlineArrayFieldModel(
-                    e.name(),
-                    e.elementType(),
-                    e.length(),
-                    e.hasGetter() || i.hasGetter(),
-                    e.hasSetter() || i.hasSetter(),
-                    0
+                    ia.name(),
+                    ia.elementType(),
+                    ia.length(),
+                    ia.hasGetter() || ib.hasGetter(),
+                    ia.hasSetter() || ib.hasSetter()
                 );
             }
-            case InlineStringFieldModel e -> {
-                InlineStringFieldModel i = (InlineStringFieldModel) incoming;
-                if (e.hasSetter() && i.hasSetter()) {
+            case InlineStringFieldModel is -> {
+                InlineStringFieldModel isb = (InlineStringFieldModel) b;
+                if (is.hasSetter() && isb.hasSetter()) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Duplicate @InlineStringField setter for field '" + e.name() + "' on '" + structName + "'",
+                        "Duplicate @InlineStringField setter for field '" + is.name() + "' on '" + structName + "'",
                         reportElement
                     );
                     yield null;
                 }
-                if (e.length() != i.length()) {
+                if (is.length() != isb.length()) {
                     messager.printMessage(
                         Kind.ERROR,
                         "@InlineStringField getter and setter for field '"
-                            + e.name()
+                            + is.name()
                             + "' on '"
                             + structName
                             + "' have mismatched lengths: "
-                            + e.length()
+                            + is.length()
                             + " vs "
-                            + i.length(),
+                            + isb.length(),
                         reportElement
                     );
                     yield null;
                 }
-                yield new InlineStringFieldModel(e.name(), e.length(), e.hasGetter() || i.hasGetter(), e.hasSetter() || i.hasSetter(), 0);
+                yield new InlineStringFieldModel(
+                    is.name(),
+                    is.length(),
+                    is.hasGetter() || isb.hasGetter(),
+                    is.hasSetter() || isb.hasSetter()
+                );
             }
-            default -> {
-                messager.printMessage(Kind.ERROR, "Duplicate field name '" + existing.name() + "' on '" + structName + "'", reportElement);
+            case ArrayFieldModel arr -> {
+                messager.printMessage(Kind.ERROR, "Duplicate field name '" + arr.name() + "' on '" + structName + "'", reportElement);
                 yield null;
             }
         };
     }
 
-    // --- Interface member shape building ---
+    // --- Interface accessor parsing ---
 
     /**
-     * Turns a single abstract method on a {@code @StructSpecification} interface into a single-sided
-     * {@link StructFieldModel} shape (offset 0; placed by the caller). Recognises {@code @ArrayField}
-     * indexed accessors, {@code @InlineArrayField}/{@code @InlineStringField} fixed-size accessors, and
-     * plain scalar getters/setters. Returns {@code null} on any error.
+     * Parses a single abstract method on a {@code @StructSpecification} interface into a single-sided
+     * {@link StructFieldModel} shape. Recognises {@code @ArrayField} indexed accessors,
+     * {@code @InlineArrayField}/{@code @InlineStringField} fixed-size accessors, and plain scalar
+     * getters/setters. Returns {@code null} on any error.
      */
-    private static StructFieldModel buildInterfaceStructField(
+    private static StructFieldModel parseAccessor(
         ExecutableElement method,
         String enclosingStructSimpleName,
         List<String> priorStructNames,
@@ -835,7 +857,7 @@ class StructSpecParser {
                 messager.printMessage(Kind.ERROR, "@ArrayField on '" + methodName + "' requires lengthField", method, arrayFieldMirror);
                 return null;
             }
-            return new ArrayFieldModel(methodName, elementSimpleName, lengthField, 0);
+            return new ArrayFieldModel(methodName, elementSimpleName, lengthField);
         }
 
         if (inlineArrayMirror != null) {
@@ -879,7 +901,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new ScalarFieldModel(methodName, paramType, false, true, 0);
+            return new ScalarFieldModel(methodName, paramType, false, true);
         }
 
         if (returnType == null || returnType == NativeType.STRING || returnType == NativeType.ADDRESSABLE) {
@@ -900,10 +922,10 @@ class StructSpecParser {
             messager.printMessage(Kind.ERROR, "Scalar field getter '" + methodName + "' must take no parameters", method);
             return null;
         }
-        return new ScalarFieldModel(methodName, returnType, true, false, 0);
+        return new ScalarFieldModel(methodName, returnType, true, false);
     }
 
-    private static InlineArrayFieldModel buildInlineArrayField(
+    private static StructFieldModel buildInlineArrayField(
         ExecutableElement method,
         String methodName,
         String enclosingStructSimpleName,
@@ -957,7 +979,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineArrayFieldModel(methodName, valueType, length, false, true, 0);
+            return new InlineArrayFieldModel(methodName, valueType, length, false, true);
         } else {
             if (paramCount != 1 || method.getParameters().get(0).asType().getKind() != TypeKind.INT) {
                 messager.printMessage(
@@ -990,11 +1012,11 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineArrayFieldModel(methodName, elementType, length, true, false, 0);
+            return new InlineArrayFieldModel(methodName, elementType, length, true, false);
         }
     }
 
-    private static InlineStringFieldModel buildInlineStringField(
+    private static StructFieldModel buildInlineStringField(
         ExecutableElement method,
         String methodName,
         String enclosingStructSimpleName,
@@ -1040,7 +1062,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, false, true, 0);
+            return new InlineStringFieldModel(methodName, length, false, true);
         } else {
             NativeType returnType = ModelUtil.classifyType(returnMirror);
             if (returnType != NativeType.STRING) {
@@ -1065,7 +1087,7 @@ class StructSpecParser {
                 );
                 return null;
             }
-            return new InlineStringFieldModel(methodName, length, true, false, 0);
+            return new InlineStringFieldModel(methodName, length, true, false);
         }
     }
 }

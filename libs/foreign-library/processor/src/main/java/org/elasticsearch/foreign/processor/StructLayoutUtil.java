@@ -13,12 +13,13 @@ import org.elasticsearch.foreign.processor.model.InlineArrayFieldModel;
 import org.elasticsearch.foreign.processor.model.InlineStringFieldModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
-import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.lang.classfile.CodeBuilder;
 import java.lang.constant.MethodTypeDesc;
-import java.util.ArrayList;
+import java.lang.foreign.GroupLayout;
+import java.lang.foreign.MemoryLayout;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_PaddingLayout;
@@ -28,9 +29,10 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceLa
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 
 /**
- * Derives the emit-time {@code MemoryLayout.structLayout(...)} shape (named field layouts plus the
- * padding gaps between them) from a struct model whose fields already carry their resolved absolute
- * offsets, and emits that argument array as bytecode. Offset computation itself lives in the parser.
+ * Emits the {@code MemoryLayout[]} argument array for {@code MemoryLayout.structLayout(...)} that
+ * reconstructs, at runtime, a struct's resolved {@link MemoryLayout} (already built by the parser).
+ * The model layout is walked member-by-member: a named member is a field (re-emitted from its shape
+ * plus {@code withName}), an unnamed member is a {@code paddingLayout} gap.
  */
 final class StructLayoutUtil {
 
@@ -40,82 +42,30 @@ final class StructLayoutUtil {
 
     private StructLayoutUtil() {}
 
-    /** A field along with the padding (in bytes) that precedes it in the struct layout. */
-    record LayoutField(StructFieldModel field, long paddingBefore) {}
-
     /**
-     * Derives the per-field layout entries (each with the padding gap that precedes it) from a
-     * model whose fields carry absolute offsets. The gap before field {@code i} is
-     * {@code offset(i) - end(i-1)}.
+     * Emits bytecode constructing the {@code MemoryLayout[]} array whose elements are, in order, the
+     * member layouts of {@code layout} — each named member re-emitted from its field shape (looked up
+     * in {@code fieldsByName}) with {@code withName}, each unnamed member as a {@code paddingLayout}.
+     * The array is left on the operand stack for a following {@code structLayout(...)} call.
      */
-    static List<LayoutField> deriveLayout(List<StructFieldModel> fields) {
-        List<LayoutField> result = new ArrayList<>();
-        long cursor = 0;
-        for (StructFieldModel field : fields) {
-            result.add(new LayoutField(field, field.offset() - cursor));
-            cursor = field.offset() + field.byteSize();
-        }
-        return result;
-    }
-
-    /** Trailing padding between the end of the last field and {@code model.byteSize()}. */
-    static long trailingPadding(StructModel model) {
-        long end = 0;
-        for (StructFieldModel field : model.fields()) {
-            end = field.offset() + field.byteSize();
-        }
-        return model.byteSize() - end;
-    }
-
-    /**
-     * Emits bytecode that constructs the {@code MemoryLayout[]} array for
-     * {@code MemoryLayout.structLayout(...)}, including named field layouts and any inline
-     * padding layouts. The array is left on the operand stack.
-     */
-    static void emitStructLayoutArray(CodeBuilder cb, List<LayoutField> layout) {
-        emitStructLayoutArray(cb, layout, 0);
-    }
-
-    /**
-     * Emits bytecode that constructs the {@code MemoryLayout[]} array for
-     * {@code MemoryLayout.structLayout(...)}, including named field layouts, any inline padding
-     * layouts before fields, and optional trailing padding. The array is left on the operand stack.
-     *
-     * @param trailingPadding bytes of padding to emit after the last named field (0 = none)
-     */
-    static void emitStructLayoutArray(CodeBuilder cb, List<LayoutField> layout, long trailingPadding) {
-        int arraySize = layout.size();
-        for (LayoutField lf : layout) {
-            if (lf.paddingBefore() > 0) {
-                arraySize++;
-            }
-        }
-        if (trailingPadding > 0) {
-            arraySize++;
-        }
-        cb.loadConstant(arraySize);
+    static void emitStructLayoutArray(CodeBuilder cb, MemoryLayout layout, Map<String, StructFieldModel> fieldsByName) {
+        // structLayout(...) produces a GroupLayout; walk its members (named fields + padding gaps).
+        List<MemoryLayout> members = ((GroupLayout) layout).memberLayouts();
+        cb.loadConstant(members.size());
         cb.anewarray(CD_MemoryLayout);
         int arrayIndex = 0;
-        for (LayoutField lf : layout) {
-            if (lf.paddingBefore() > 0) {
-                cb.dup();
-                cb.loadConstant(arrayIndex++);
-                cb.loadConstant(lf.paddingBefore());
-                cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
-                cb.aastore();
-            }
+        for (MemoryLayout member : members) {
             cb.dup();
             cb.loadConstant(arrayIndex++);
-            emitFieldLayout(cb, lf.field());
-            cb.ldc(lf.field().name());
-            cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
-            cb.aastore();
-        }
-        if (trailingPadding > 0) {
-            cb.dup();
-            cb.loadConstant(arrayIndex);
-            cb.loadConstant(trailingPadding);
-            cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
+            if (member.name().isPresent()) {
+                StructFieldModel field = fieldsByName.get(member.name().get());
+                emitFieldLayout(cb, field);
+                cb.ldc(field.name());
+                cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
+            } else {
+                cb.loadConstant(member.byteSize());
+                cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
+            }
             cb.aastore();
         }
     }

@@ -13,11 +13,4 @@ package org.elasticsearch.foreign.processor.model;
  * A scalar {@link StructFieldModel} — one primitive or address value at a field position within a
  * struct. A field may have a getter, a setter, or both.
  */
-public record ScalarFieldModel(String name, NativeType type, boolean hasGetter, boolean hasSetter, long offset)
-    implements
-        StructFieldModel {
-    @Override
-    public ScalarFieldModel withOffset(long offset) {
-        return new ScalarFieldModel(name, type, hasGetter, hasSetter, offset);
-    }
-}
+public record ScalarFieldModel(String name, NativeType type, boolean hasGetter, boolean hasSetter) implements StructFieldModel {}

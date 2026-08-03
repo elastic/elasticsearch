@@ -50,7 +50,7 @@ import javax.tools.Diagnostic.Kind;
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param structs per-platform layout variants of every {@code @StructSpecification} type enclosed in this interface, in declaration order
+ * @param structs every {@code @StructSpecification} type enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  * @param methodHandleResolverClassName fully-qualified name of the {@link MethodHandleResolver} implementation
@@ -64,7 +64,7 @@ public record LibraryModel(
     String libraryName,
     List<MethodModel> methods,
     List<String> unavailableOn,
-    List<StructVariants> structs,
+    List<StructModel> structs,
     String symbolResolverClassName,
     String methodHandleResolverClassName,
     boolean isAbstractClass
@@ -157,7 +157,7 @@ public record LibraryModel(
         supportedPlatforms.removeAll(unavailableOn);
 
         // First pass: collect struct specifications in declaration order
-        List<StructVariants> structs = new ArrayList<>();
+        List<StructModel> structs = new ArrayList<>();
         List<String> structSimpleNames = new ArrayList<>();
         for (var enclosed : element.getEnclosedElements()) {
             ElementKind kind = enclosed.getKind();
@@ -185,14 +185,14 @@ public record LibraryModel(
                 continue;
             }
 
-            StructVariants structVariants = kind == ElementKind.RECORD
+            StructModel structModel = kind == ElementKind.RECORD
                 ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
                 : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, env, messager);
-            if (structVariants == null) {
+            if (structModel == null) {
                 hasError = true;
             } else {
-                structs.add(structVariants);
-                structSimpleNames.add(structVariants.simpleName());
+                structs.add(structModel);
+                structSimpleNames.add(structModel.simpleName());
             }
         }
 

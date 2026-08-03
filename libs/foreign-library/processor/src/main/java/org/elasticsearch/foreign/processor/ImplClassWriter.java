@@ -20,7 +20,6 @@ import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 import org.elasticsearch.foreign.processor.model.StructRecordModel;
-import org.elasticsearch.foreign.processor.model.StructVariants;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -147,8 +146,8 @@ class ImplClassWriter {
     /** Generates and writes the {@code $Impl} class for the given library model, plus struct companion classes. */
     void generate(LibraryModel model, TypeElement sourceElement) throws Exception {
         // Generate $Pack for record structs and $Impl for interface structs
-        for (StructVariants struct : model.structs()) {
-            switch (struct.any()) {
+        for (StructModel struct : model.structs()) {
+            switch (struct) {
                 case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
                 case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
@@ -865,13 +864,12 @@ class ImplClassWriter {
             return;
         }
 
-        // Resolve the target struct and its array field from the model. Field shape (used below) is
-        // platform-independent, so any platform variant serves.
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))
             .findFirst()
-            .map(StructVariants::any)
             .orElseThrow(() -> new AssertionError("Cannot find struct model for " + nm.structReturnSimpleName()));
         ArrayFieldModel arrayField = targetStruct.fields().stream().<ArrayFieldModel>mapMulti((f, sink) -> {
             if (f instanceof ArrayFieldModel a) {

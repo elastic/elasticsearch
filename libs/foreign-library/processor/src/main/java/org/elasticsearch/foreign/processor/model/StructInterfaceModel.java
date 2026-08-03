@@ -16,9 +16,9 @@ import java.util.List;
  * implementation wrap a native {@link java.lang.foreign.MemorySegment} and expose VarHandle-backed
  * field access.
  *
- * <p>Layout is fully resolved: every field carries its absolute {@link StructFieldModel#offset()}
- * and {@code byteSize} is the total struct size. A single {@code StructInterfaceModel} describes the
- * layout for one platform; per-platform variation is represented by distinct instances (see
- * {@link StructVariants}).
+ * <p>Field shape is platform-independent; the resolved per-platform memory layouts live in
+ * {@link #layouts()}.
  */
-public record StructInterfaceModel(String simpleName, List<StructFieldModel> fields, long byteSize) implements StructModel {}
+public record StructInterfaceModel(String simpleName, List<StructFieldModel> fields, List<StructLayoutModel> layouts)
+    implements
+        StructModel {}

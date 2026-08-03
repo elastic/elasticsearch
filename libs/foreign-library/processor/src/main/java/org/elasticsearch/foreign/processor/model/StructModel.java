@@ -23,9 +23,13 @@ public sealed interface StructModel permits StructRecordModel, StructInterfaceMo
     /** The simple name of the struct type. */
     String simpleName();
 
-    /** Field models in declaration order, each carrying its resolved absolute byte offset. */
+    /** Field shape in declaration order — names, types, getter/setter — identical across platforms. */
     List<StructFieldModel> fields();
 
-    /** Total struct size in bytes (computed from fields in dense mode, or {@code @StructSize} in sparse mode). */
-    long byteSize();
+    /**
+     * The distinct memory layouts this struct resolves to, each paired with the platforms that share
+     * it. A struct with no per-platform layout annotations has a single entry covering every supported
+     * platform; per-platform annotations may split it into several.
+     */
+    List<StructLayoutModel> layouts();
 }

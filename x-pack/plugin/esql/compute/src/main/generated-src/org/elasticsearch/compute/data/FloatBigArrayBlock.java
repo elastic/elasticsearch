@@ -44,7 +44,10 @@ public final class FloatBigArrayBlock extends AbstractArrayBlock implements Floa
         );
     }
 
-    private FloatBigArrayBlock(
+    /**
+     * Takes ownership of {@code vector}.
+     */
+    FloatBigArrayBlock(
         FloatBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

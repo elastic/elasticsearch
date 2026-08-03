@@ -274,35 +274,75 @@ $if(BytesRef)$
 
 $else$
     private $Type$Block buildBigArraysBlock() {
-        final $Type$Block theBlock;
-    $if(boolean)$
-        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
-        for (int i = 0; i < valueCount; i++) {
-            if (values[i]) {
-                array.set(i);
-            }
-        }
-    $else$
-        final $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-    $endif$
-        if (isDense() && singleValued()) {
-            theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * If adjustBreaker throws after the BigArray is wrapped, release the incomplete
+         * block/vector here. BigArrayBlock.closeInternal debits block overhead, so that
+         * overhead is credited before wrapping when needed so failure cleanup stays balanced.
+         */
+    $if(boolean)$
+        BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+    $else$
+        $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
+    $endif$
+        try {
+    $if(boolean)$
+            for (int i = 0; i < valueCount; i++) {
+                if (values[i]) {
+                    array.set(i);
+                }
+            }
+    $else$
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+    $endif$
+            final long arrayBytes = array.ramBytesUsed();
+            final int vectorPositions = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+            $Type$BigArrayVector vector = new $Type$BigArrayVector(array, vectorPositions, blockFactory);
+            array = null; // ownership transferred to vector
+            try {
+                final $Type$Block theBlock;
+                if (isDense() && singleValued()) {
+                    theBlock = vector.asBlock();
+                    vector = null; // ownership transferred to theBlock
+                    /*
+                     * Update the breaker with the actual bytes used.
+                     * We pass false below even though we've used the bytes. That's weird,
+                     * but if we break here we will throw away the used memory, letting
+                     * it be deallocated. The exception will bubble up and the builder will
+                     * still technically be open, meaning the calling code should close it
+                     * which will return all used memory to the breaker.
+                     */
+                    try {
+                        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - arrayBytes);
+                    } catch (CircuitBreakingException e) {
+                        // VectorBlock.close releases the BigArray without debiting block overhead.
+                        Releasables.closeExpectNoException(theBlock);
+                        throw e;
+                    }
+                    return theBlock;
+                } else {
+                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(
+                        nullsMask
+                    );
+                    blockFactory.adjustBreaker(overhead);
+                    theBlock = new $Type$BigArrayBlock(vector, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                    vector = null; // ownership transferred to theBlock
+                    try {
+                        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - arrayBytes - overhead);
+                    } catch (CircuitBreakingException e) {
+                        // closeInternal debits {@code overhead} which we credited above.
+                        Releasables.closeExpectNoException(theBlock);
+                        throw e;
+                    }
+                    return theBlock;
+                }
+            } finally {
+                Releasables.close(vector);
+            }
+        } finally {
+            Releasables.close(array);
+        }
     }
 $endif$
 

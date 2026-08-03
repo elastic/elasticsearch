@@ -44,7 +44,10 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
         );
     }
 
-    private BooleanBigArrayBlock(
+    /**
+     * Takes ownership of {@code vector}.
+     */
+    BooleanBigArrayBlock(
         BooleanBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

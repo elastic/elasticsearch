@@ -44,7 +44,10 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
         );
     }
 
-    private DoubleBigArrayBlock(
+    /**
+     * Takes ownership of {@code vector}.
+     */
+    DoubleBigArrayBlock(
         DoubleBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

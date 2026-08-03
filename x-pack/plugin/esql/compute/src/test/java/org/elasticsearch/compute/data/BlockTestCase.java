@@ -705,7 +705,19 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             for (V value : values) {
                 assertTrue(positionHasValue(block, p, value));
             }
-            assertFalse(positionHasValue(block, p, randomValueOtherThanMany(v -> values.contains(v), this::randomValue)));
+            // Skip the absent-value check when the position already contains every value the
+            // generator can produce (e.g. a boolean position with both true and false).
+            V absent = null;
+            for (int attempt = 0; attempt < 100; attempt++) {
+                V candidate = randomValue();
+                if (values.contains(candidate) == false) {
+                    absent = candidate;
+                    break;
+                }
+            }
+            if (absent != null) {
+                assertFalse(positionHasValue(block, p, absent));
+            }
         }
     }
 

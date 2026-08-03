@@ -164,28 +164,65 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
     }
 
     private BooleanBlock buildBigArraysBlock() {
-        final BooleanBlock theBlock;
-        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
-        for (int i = 0; i < valueCount; i++) {
-            if (values[i]) {
-                array.set(i);
-            }
-        }
-        if (isDense() && singleValued()) {
-            theBlock = new BooleanBigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new BooleanBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * If adjustBreaker throws after the BigArray is wrapped, release the incomplete
+         * block/vector here. BigArrayBlock.closeInternal debits block overhead, so that
+         * overhead is credited before wrapping when needed so failure cleanup stays balanced.
+         */
+        BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+        try {
+            for (int i = 0; i < valueCount; i++) {
+                if (values[i]) {
+                    array.set(i);
+                }
+            }
+            final long arrayBytes = array.ramBytesUsed();
+            final int vectorPositions = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(array, vectorPositions, blockFactory);
+            array = null; // ownership transferred to vector
+            try {
+                final BooleanBlock theBlock;
+                if (isDense() && singleValued()) {
+                    theBlock = vector.asBlock();
+                    vector = null; // ownership transferred to theBlock
+                    /*
+                     * Update the breaker with the actual bytes used.
+                     * We pass false below even though we've used the bytes. That's weird,
+                     * but if we break here we will throw away the used memory, letting
+                     * it be deallocated. The exception will bubble up and the builder will
+                     * still technically be open, meaning the calling code should close it
+                     * which will return all used memory to the breaker.
+                     */
+                    try {
+                        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - arrayBytes);
+                    } catch (CircuitBreakingException e) {
+                        // VectorBlock.close releases the BigArray without debiting block overhead.
+                        Releasables.closeExpectNoException(theBlock);
+                        throw e;
+                    }
+                    return theBlock;
+                } else {
+                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(
+                        nullsMask
+                    );
+                    blockFactory.adjustBreaker(overhead);
+                    theBlock = new BooleanBigArrayBlock(vector, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                    vector = null; // ownership transferred to theBlock
+                    try {
+                        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - arrayBytes - overhead);
+                    } catch (CircuitBreakingException e) {
+                        // closeInternal debits {@code overhead} which we credited above.
+                        Releasables.closeExpectNoException(theBlock);
+                        throw e;
+                    }
+                    return theBlock;
+                }
+            } finally {
+                Releasables.close(vector);
+            }
+        } finally {
+            Releasables.close(array);
+        }
     }
 
     @Override

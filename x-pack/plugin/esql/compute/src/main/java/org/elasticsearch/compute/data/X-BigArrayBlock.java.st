@@ -44,7 +44,10 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         );
     }
 
-    private $Type$BigArrayBlock(
+    /**
+     * Takes ownership of {@code vector}.
+     */
+    $Type$BigArrayBlock(
         $Type$BigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

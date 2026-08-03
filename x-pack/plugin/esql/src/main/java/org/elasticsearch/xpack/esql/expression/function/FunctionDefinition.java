@@ -304,13 +304,29 @@ public class FunctionDefinition {
         /**
          * Build a {@linkplain FunctionDefinition} for a quinary function.
          */
-        public Builder<T> quinary(FunctionDefinition.QuinaryBuilder<T> ctorRef, int numOptionalParams) {
+        public Builder<T> quinary(FunctionDefinition.QuinaryBuilder<T> ctorRef) {
             if (TimestampAware.class.isAssignableFrom(function)) {
-                validate = FunctionArgumentValidation.quinaryTs(function, numOptionalParams);
+                validate = FunctionArgumentValidation.quaternary(function);
                 builder = FunctionCtors.quinaryTs(ctorRef);
             } else {
-                validate = FunctionArgumentValidation.quinary(function, numOptionalParams);
+                validate = FunctionArgumentValidation.quinary(function);
                 builder = FunctionCtors.quinary(ctorRef);
+            }
+            return this;
+        }
+
+        /**
+         * Build a {@linkplain FunctionDefinition} for a quinary function that needs {@link Configuration},
+         * and accepts four (potentially optional) positional arguments plus an optional trailing options map
+         * (a {@link org.elasticsearch.xpack.esql.core.expression.MapExpression}).
+         */
+        public Builder<T> quinaryConfigWithOptions(FunctionDefinition.QuinaryConfigurationAwareBuilder<T> ctorRef) {
+            if (TimestampAware.class.isAssignableFrom(function)) {
+                validate = FunctionArgumentValidation.quaternary(function);
+                builder = FunctionCtors.quinaryTsConfigWithOptions(ctorRef);
+            } else {
+                validate = FunctionArgumentValidation.quinary(function);
+                builder = FunctionCtors.quinaryConfigWithOptions(ctorRef);
             }
             return this;
         }
@@ -371,6 +387,10 @@ public class FunctionDefinition {
 
     public interface QuinaryBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Expression four, Expression five);
+    }
+
+    public interface QuinaryConfigurationAwareBuilder<T> {
+        T build(Source source, Expression e1, Expression e2, Expression e3, Expression e4, Expression e5, Configuration configuration);
     }
 
     public interface NaryBuilder<T> {

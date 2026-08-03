@@ -775,9 +775,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:mv_union.testMvUnionNullReturnedWhenFirstArgIsNull}
   issue: https://github.com/elastic/elasticsearch/issues/155707
-- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
-  method: testIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/155708
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/155541

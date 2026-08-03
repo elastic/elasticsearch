@@ -227,7 +227,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             }
         }
 
-        private boolean hasSubscriber(){
+        private boolean hasSubscriber() {
             return downstream != null;
         }
 

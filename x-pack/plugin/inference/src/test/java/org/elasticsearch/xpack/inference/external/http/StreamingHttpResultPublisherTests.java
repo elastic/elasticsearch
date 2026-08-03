@@ -899,22 +899,14 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         var exception = new NullPointerException("test");
         publisher.failed(exception);
 
-        assertThat(
-            "circuitBreaker should be 0 after an error with no subscriber",
-            circuitBreaker.getTracked(),
-            equalTo(0L)
-        );
+        assertThat("circuitBreaker should be 0 after an error with no subscriber", circuitBreaker.getTracked(), equalTo(0L));
 
         var ioControl = mock(IOControl.class);
         publisher.consumeContent(contentDecoder(message), ioControl);
         publisher.consumeContent(contentDecoder(message), ioControl);
 
         verify(ioControl, times(2)).shutdown();
-        assertThat(
-            "circuitBreaker must remain at 0 — no bytes may be charged after the error",
-            circuitBreaker.getTracked(),
-            equalTo(0L)
-        );
+        assertThat("circuitBreaker must remain at 0 — no bytes may be charged after the error", circuitBreaker.getTracked(), equalTo(0L));
     }
 
     public void testLateSubscriberAfterErrorStillReceivesError() throws IOException {
@@ -949,11 +941,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         testPublisher().subscribe(subscriber);
         subscriber.requestData();
 
-        assertThat(
-            "late subscriber must receive the abort error",
-            subscriber.throwable,
-            instanceOf(IllegalStateException.class)
-        );
+        assertThat("late subscriber must receive the abort error", subscriber.throwable, instanceOf(IllegalStateException.class));
         assertThat("circuitBreaker must stay at 0 after abort error delivery", circuitBreaker.getTracked(), equalTo(0L));
     }
 

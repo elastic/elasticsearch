@@ -603,10 +603,7 @@ public class RequestExecutorService implements RequestExecutor {
         } catch (Exception e) {
             // Task releases bytes on its own, so we do not need to release manually
             task.onRejection(
-                new EsRejectedExecutionException(
-                    format("Failed to enqueue request task for inference id [%s]", inferenceEntityId),
-                    false
-                )
+                new EsRejectedExecutionException(format("Failed to enqueue request task for inference id [%s]", inferenceEntityId), false)
             );
         }
     }

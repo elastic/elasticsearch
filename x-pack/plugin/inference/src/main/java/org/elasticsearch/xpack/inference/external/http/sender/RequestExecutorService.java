@@ -577,7 +577,14 @@ public class RequestExecutorService implements RequestExecutor {
                 ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()),
                 releaseTrackedBytesOnce
             );
+        } catch (Exception e) {
+            // The task wasn't set up correctly, so we need to release the tracked bytes here
+            releaseTrackedBytesOnce.close();
+            listener.onFailure(e);
+            return;
+        }
 
+        try {
             // Rate limited execution path
             if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
                 submitTaskToRateLimitedExecutionPath(task);
@@ -594,19 +601,13 @@ public class RequestExecutorService implements RequestExecutor {
                 }
             }
         } catch (Exception e) {
-            if (task == null) {
-                // The task wasn't setup correctly, so we need to release the tracked bytes here
-                releaseTrackedBytesOnce.close();
-                listener.onFailure(e);
-            } else {
-                // Task releases bytes on its own, so we do not need to release manually
-                task.onRejection(
-                    new EsRejectedExecutionException(
-                        format("Failed to enqueue request task for inference id [%s]", inferenceEntityId),
-                        false
-                    )
-                );
-            }
+            // Task releases bytes on its own, so we do not need to release manually
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format("Failed to enqueue request task for inference id [%s]", inferenceEntityId),
+                    false
+                )
+            );
         }
     }
 

@@ -53,7 +53,7 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), fieldVector);
     }
   }
 
@@ -80,18 +80,28 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
               continue position;
         }
         BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
-        result.appendBytesRef(FromBase64.process(field, this.oScratch));
+        try {
+          result.appendBytesRef(FromBase64.process(field, this.oScratch));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector fieldVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector fieldVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
-        result.appendBytesRef(FromBase64.process(field, this.oScratch));
+        try {
+          result.appendBytesRef(FromBase64.process(field, this.oScratch));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

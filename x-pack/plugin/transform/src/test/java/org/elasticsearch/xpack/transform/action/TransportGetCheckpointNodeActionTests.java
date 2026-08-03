@@ -19,7 +19,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -116,13 +115,13 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
 
     private void mockIndexServiceResponse() {
         IndexShard indexShardA0 = mock(IndexShard.class);
-        when(indexShardA0.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 3_000));
+        when(indexShardA0.getLastKnownGlobalCheckpoint()).thenReturn(3_000L);
         IndexShard indexShardA1 = mock(IndexShard.class);
-        when(indexShardA1.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 3_001));
+        when(indexShardA1.getLastKnownGlobalCheckpoint()).thenReturn(3_001L);
         IndexShard indexShardB0 = mock(IndexShard.class);
-        when(indexShardB0.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 4_000));
+        when(indexShardB0.getLastKnownGlobalCheckpoint()).thenReturn(4_000L);
         IndexShard indexShardB1 = mock(IndexShard.class);
-        when(indexShardB1.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 4_001));
+        when(indexShardB1.getLastKnownGlobalCheckpoint()).thenReturn(4_001L);
         Settings commonIndexSettings = Settings.builder()
             .put(SETTING_VERSION_CREATED, 1_000_000)
             .put(SETTING_NUMBER_OF_SHARDS, 2)

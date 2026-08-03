@@ -17,7 +17,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -232,5 +234,57 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
+    }
+
+    /**
+     * Verifies the read primitive that the ES|QL {@code unmapped_fields="load"} path uses: the sink's field type implements
+     * {@link DynamicFieldType}, and {@code getChildFieldType(fullDottedKey)} returns a {@link FlattenedFieldMapper.KeyedFlattenedFieldType}
+     * whose name is {@code _unmapped._keyed} (the physical doc-values field) and whose {@code key()} is the verbatim stored key.
+     * This is the inverse of {@code FlattenedFieldParser.indexValueAtPath}'s empty-ContentPath write path, so the read/write formats
+     * cannot diverge as long as this test passes.
+     */
+    public void testGetChildFieldTypeResolvesAbsorbedKey() throws IOException {
+        MapperService mapperService = columnarService(b -> {});
+        FlattenedFieldMapper sink = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        assertTrue(sink.isUnmappedSink());
+        MappedFieldType childFt = ((DynamicFieldType) sink.fieldType()).getChildFieldType("outer.inner.leaf");
+        assertNotNull(childFt);
+        assertTrue(childFt instanceof FlattenedFieldMapper.KeyedFlattenedFieldType);
+        assertEquals(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX, childFt.name());
+        assertTrue("keyed flattened DV field must have doc values for the block loader path", childFt.hasDocValues());
+        assertEquals("outer.inner.leaf", ((FlattenedFieldMapper.KeyedFlattenedFieldType) childFt).key());
+    }
+
+    /**
+     * Guards the choice to keep sink-key resolution ES|QL-local rather than adding it to {@code FieldTypeLookup.getDynamicField}.
+     * {@code MappingLookup.getFieldType} must return {@code null} for absorbed keys, because {@code DocumentParser.getLeafMapper}
+     * treats any non-null field type as proof of a runtime field and returns a no-op mapper — which would silently drop the value on the
+     * second document. Failing this test means a server-side fallback was inadvertently added.
+     */
+    public void testMappingLookupDoesNotResolveAbsorbedKey() throws IOException {
+        MapperService mapperService = columnarService(b -> {});
+        assertNull(
+            "FieldTypeLookup must not resolve absorbed keys; resolution is ES|QL-local only",
+            mapperService.mappingLookup().getFieldType("outer.inner.leaf")
+        );
+    }
+
+    /**
+     * Guards against a regression where adding a server-side sink-key resolution would cause {@code DocumentParser.getLeafMapper}
+     * to treat the second document's absorbed key as a runtime field and return a no-op mapper, silently dropping the value.
+     * Both documents must absorb the value, emit no dynamic mapping update, and leave no trace in {@code _ignored_source}.
+     */
+    public void testSecondDocumentWithAbsorbedKeyIsAlsoAbsorbed() throws IOException {
+        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        String value = randomAlphanumericOfLength(6);
+
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("repeat.field", value)));
+        assertNull("first document must produce no mapping update", doc1.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(doc1, "repeat.field\0" + value));
+
+        ParsedDocument doc2 = mapper.parse(source(b -> b.field("repeat.field", value)));
+        assertNull("second document with the same absorbed key must also produce no mapping update", doc2.dynamicMappingsUpdate());
+        assertTrue("second document value must be absorbed, not dropped by a no-op mapper", hasKeyedSlot(doc2, "repeat.field\0" + value));
+        assertTrue(doc2.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty());
     }
 }

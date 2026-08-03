@@ -517,6 +517,10 @@ public class Verifier {
      * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
      * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
      * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     * <p>
+     * The implicit {@code _unmapped} sink is deliberately out of scope for this check: it is hidden from field caps and therefore
+     * never present in {@code esRelation.output()}, so its absorbed keys (e.g. {@code foo.bar}) have no user-visible flattened parent
+     * and are correctly handled by the {@code DefaultShardContextForUnmappedField} resolution path.
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
         plan.forEachDown(EsRelation.class, esRelation -> {

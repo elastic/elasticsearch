@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -509,6 +510,15 @@ public class EsqlCapabilities {
          * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
+
+        /**
+         * Keys absorbed into the implicit {@code _unmapped} flattened sink on strict-columnar indices (enabled by
+         * {@code index.mapping.flattened_unmapped_fields.enabled}) are loadable via {@code SET unmapped_fields="load"}.
+         * Snapshot-only; tied to the server-side {@link FlattenedFieldMapper#UNMAPPED_FIELDS_FEATURE_FLAG}.
+         * Known limitations: keys are always keyword-typed; multi-values are sorted and deduplicated by the doc-values reader;
+         * wildcard enumeration ({@code foo.*}) is not supported; only explicitly-named keys load.
+         */
+        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.

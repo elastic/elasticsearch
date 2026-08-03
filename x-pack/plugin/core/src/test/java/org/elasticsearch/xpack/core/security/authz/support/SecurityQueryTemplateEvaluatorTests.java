@@ -92,7 +92,14 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     public void testTemplatingExposesApplicationResources() throws Exception {
         User user = new User("_username", new String[] { "role1" }, "_full_name", "_email", Map.of("key", "value"), true);
         Map<String, List<String>> applicationResources = Map.of("kibana-.kibana", List.of("*", "space:default", "space:marketing"));
-        Map<String, List<String>> applicationPrivileges = Map.of("kibana-.kibana", List.of("space:marketing|saved_object:dashboard/get"));
+        Map<String, List<String>> applicationPrivileges = Map.of(
+            "kibana-.kibana",
+            List.of(
+                "*|saved_object:dashboard/get",
+                "space:default|saved_object:dashboard/get",
+                "space:marketing|saved_object:dashboard/get"
+            )
+        );
 
         TemplateScript.Factory compiledTemplate = templateParams -> new TemplateScript(templateParams) {
             @Override
@@ -120,8 +127,18 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         assertThat(userModel.get("applications"), equalTo(applicationResources));
         // flattened union across applications, deterministically ordered
         assertThat(userModel.get("application_resources"), equalTo(List.of("*", "space:default", "space:marketing")));
-        // flattened resource-scoped <resource>|<action> grants
-        assertThat(userModel.get("application_privileges"), equalTo(List.of("space:marketing|saved_object:dashboard/get")));
+        // flattened, deterministically-ordered resource-scoped <resource>|<action> grants (the cross-product
+        // of each granted privilege's actions with the resources it was granted on)
+        assertThat(
+            userModel.get("application_privileges"),
+            equalTo(
+                List.of(
+                    "*|saved_object:dashboard/get",
+                    "space:default|saved_object:dashboard/get",
+                    "space:marketing|saved_object:dashboard/get"
+                )
+            )
+        );
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {

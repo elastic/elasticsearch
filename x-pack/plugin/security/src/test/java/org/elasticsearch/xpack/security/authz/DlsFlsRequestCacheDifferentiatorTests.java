@@ -187,9 +187,9 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         final DocumentPermissions templatedDls = DocumentPermissions.filteredBy(
             Set.of(
                 new BytesArray(
-                    """
-                                    {"template":{"source":"{\\"bool\\":{\\"must\\":[{\\"terms\\":{\\"space_resources\\":{{#toJson}}_user.application_resources{{/toJson}}}},\
-                        {\\"terms\\":{\\"space_perms\\":{{#toJson}}_user.application_privileges{{/toJson}}}}]}}"}}"""
+                    "{\"template\":{\"source\":\"{\\\"bool\\\":{\\\"must\\\":["
+                        + "{\\\"terms\\\":{\\\"space_resources\\\":{{#toJson}}_user.application_resources{{/toJson}}}},"
+                        + "{\\\"terms\\\":{\\\"space_perms\\\":{{#toJson}}_user.application_privileges{{/toJson}}}}]}}\"}}"
                 )
             )
         );

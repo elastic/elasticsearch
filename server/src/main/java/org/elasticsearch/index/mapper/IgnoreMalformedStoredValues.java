@@ -38,7 +38,7 @@ public abstract class IgnoreMalformedStoredValues {
 
     /**
      * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
-     * Use {@link FallbackPostMapper#write(DocumentParserContext, String, FallbackPostMapper.Reason)} from outside this package.
+     * Use {@link FallbackPostMapper#capture(DocumentParserContext, String, FallbackPostMapper.Reason)} from outside this package.
      */
     static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentParser parser)
         throws IOException {
@@ -53,7 +53,7 @@ public abstract class IgnoreMalformedStoredValues {
 
     /**
      * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
-     * Use {@link FallbackPostMapper#write(DocumentParserContext, String, FallbackPostMapper.Reason,
+     * Use {@link FallbackPostMapper#capture(DocumentParserContext, String, FallbackPostMapper.Reason,
      * org.elasticsearch.xcontent.XContentBuilder)}
      * from outside this package.
      */

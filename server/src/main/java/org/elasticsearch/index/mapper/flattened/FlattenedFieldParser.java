@@ -163,9 +163,7 @@ class FlattenedFieldParser {
         // and are not part of the flattened field's root/keyed representation.
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
-            DocumentParserContext dpc = context.documentParserContext();
-            DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(dpc, mappedSubField);
-            FallbackPostMapper.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
             return;
         }
 
@@ -281,9 +279,7 @@ class FlattenedFieldParser {
         }
         FieldMapper mappedSubField = mappedSubFields.get(key);
         if (mappedSubField != null) {
-            DocumentParserContext dpc = context.documentParserContext();
-            DocumentParserContext parseCtx = FallbackPostMapper.preCaptureIfNeeded(dpc, mappedSubField);
-            FallbackPostMapper.postParse(dpc, mappedSubField.parse(parseCtx), mappedSubField);
+            FallbackPostMapper.parseField(context.documentParserContext(), mappedSubField);
         } else if (nullValue != null) {
             addField(context, path, currentName, nullValue);
         } else if (usesArrayOrderBinaryDocValues) {

@@ -779,7 +779,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     /**
      * {@link GeoPointFieldMapper} uses a pre-built {@code XContentBuilder} when writing malformed values, exercising the
-     * builder-argument overload of {@link FallbackPostMapper#write}. Verify malformed geo values also land in
+     * builder-argument overload of {@link FallbackPostMapper#capture}. Verify malformed geo values also land in
      * {@code ._ignore_malformed}, not {@code _ignored_source}.
      */
     public void testIgnoreMalformedGeoPointWritesToIgnoreMalformedColumn() throws Exception {

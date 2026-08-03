@@ -26,7 +26,7 @@ public final class FallbackPostMapper {
     private FallbackPostMapper() {}
 
     /** The storage destination for a field value that cannot be indexed normally. */
-    public enum Destination {
+    enum Destination {
         /** {@code _ignored_source} metadata field; used for synthetic source reconstruction. */
         IGNORED_SOURCE,
         /** Per-field {@code ._ignore_malformed} column; used with {@code ignore_malformed: true}. */
@@ -70,7 +70,7 @@ public final class FallbackPostMapper {
      * Plain-data snapshot used by {@link #resolvePrecaptureReason} to decide whether pre-capture is needed.
      * Build with {@link #forField} or {@link #forArrayElements}.
      */
-    public record FieldContext(
+    record FieldContext(
         boolean canAddIgnoredField,
         /** True when the mapper reconstructs arrays from its own doc values (sidecar offsets or ordered BDV). */
         boolean storesArraysNatively,
@@ -171,10 +171,17 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Sets up pre-capture in {@code _ignored_source} if needed and returns the context to pass to {@link FieldMapper#parse}.
-     * Must be followed by {@link #postParse} after the parse call.
+     * The single entry point for parsing a mapped leaf field.
+     * Handles pre-capture, delegates to {@link FieldMapper#parse}, then commits or discards
+     * the pre-capture and routes any {@link FieldMapper.ParseResult.MultiValueViolation}.
      */
-    public static DocumentParserContext preCaptureIfNeeded(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
+    public static void parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
+        DocumentParserContext parseCtx = preCaptureIfNeeded(context, fieldMapper);
+        FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
+        postParse(context, result, fieldMapper);
+    }
+
+    private static DocumentParserContext preCaptureIfNeeded(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         FieldContext fc = FieldContext.forField(context, fieldMapper);
         if (resolvePrecaptureReason(fc).isPresent()) {
             return context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
@@ -182,11 +189,7 @@ public final class FallbackPostMapper {
         return context;
     }
 
-    /**
-     * Commits or discards the pending pre-capture based on {@code result}, and routes
-     * {@link FieldMapper.ParseResult.MultiValueViolation} to {@code ._on_failure}. Call after {@link FieldMapper#parse}.
-     */
-    public static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper)
+    private static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper)
         throws IOException {
         String fieldPath = fieldMapper.fullPath();
         boolean precaptured = context.hasPendingPreCapture(fieldPath);
@@ -213,10 +216,10 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Like {@link #write(DocumentParserContext, String, Reason)} but uses a pre-built {@link XContentBuilder}
+     * Like {@link #capture(DocumentParserContext, String, Reason)} but uses a pre-built {@link XContentBuilder}
      * instead of the current parser token (e.g. when the mapper captured via {@code CopyingXContentParser}).
      */
-    public static boolean write(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
+    public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
         throws IOException {
         return switch (route(reason)) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
@@ -239,7 +242,7 @@ public final class FallbackPostMapper {
      * Only returns {@code false} for {@link Destination#IGNORED_SOURCE} when
      * {@link DocumentParserContext#canAddIgnoredField()} is false; {@code true} otherwise.
      */
-    public static boolean write(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
+    public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
         return switch (route(reason)) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
             case IGNORE_MALFORMED -> {
@@ -256,61 +259,62 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Like {@link #write(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
+     * Like {@link #capture(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
      * (i.e. routing to {@link Destination#IGNORED_SOURCE} with {@link DocumentParserContext#canAddIgnoredField()} false).
      */
-    static void writeOrSkip(DocumentParserContext context, String fieldPath, Reason reason, CheckedRunnable<IOException> ifNotWritten)
+    static void captureOrSkip(DocumentParserContext context, String fieldPath, Reason reason, CheckedRunnable<IOException> ifNotWritten)
         throws IOException {
-        if (write(context, fieldPath, reason) == false) {
+        if (capture(context, fieldPath, reason) == false) {
             ifNotWritten.run();
         }
     }
 
     /**
-     * Like {@link #writeParent(DocumentParserContext, Reason)} but invokes {@code ifNotWritten} when the write is skipped.
+     * Like {@link #captureParent(DocumentParserContext, Reason)} but invokes {@code ifNotWritten} when the write is skipped.
      */
-    static void writeParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
+    static void captureParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
         throws IOException {
-        if (writeParent(context, reason) == false) {
+        if (captureParent(context, reason) == false) {
             ifNotWritten.run();
         }
     }
 
     /**
-     * Like {@link #write(DocumentParserContext, String, Reason)} but stores {@code context.parent()}
+     * Like {@link #capture(DocumentParserContext, String, Reason)} but stores {@code context.parent()}
      * as the captured entity (e.g. a disabled object), not a child field.
      */
-    private static boolean writeParent(DocumentParserContext context, Reason reason) throws IOException {
+    private static boolean captureParent(DocumentParserContext context, Reason reason) throws IOException {
         if (route(reason) == Destination.IGNORED_SOURCE) {
             return writeParentToIgnoredSource(context);
         }
-        return write(context, context.parent().fullPath(), reason);
+        return capture(context, context.parent().fullPath(), reason);
     }
 
     /**
-     * Pre-captures the current parser position for {@code fieldPath} so it can be reconstructed in
+     * Pre-captures the current parser position for {@code fullPath} so it can be reconstructed in
      * {@code _ignored_source}. Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
+     * Use when no {@link Mapper} is available for the target (e.g. unmapped dynamic fields).
      */
-    static DocumentParserContext preCapture(DocumentParserContext context, String fieldPath) throws IOException {
+    static DocumentParserContext captureScope(DocumentParserContext context, String fullPath, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
-        return context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null));
+        return context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
     }
 
     /**
-     * Like {@link #preCapture(DocumentParserContext, String)} but captures {@code context.parent()}
-     * as the entity (e.g. a disabled object), not a child field.
+     * Pre-captures the current parser position for {@code target} so it can be reconstructed in
+     * {@code _ignored_source}. The router derives the path offset from {@code target.leafName()},
+     * so callers need not perform that arithmetic.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    static DocumentParserContext preCaptureParent(DocumentParserContext context) throws IOException {
+    static DocumentParserContext captureScope(DocumentParserContext context, Mapper target, Reason reason) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
-        ObjectMapper parent = context.parent();
-        String parentPath = parent.fullPath();
-        int parentOffset = parentPath.lastIndexOf(parent.leafName());
-        return context.addIgnoredFieldFromContext(new IgnoredSourceFieldMapper.NameValue(parentPath, parentOffset, null, context.doc()));
+        String path = target.fullPath();
+        int offset = path.lastIndexOf(target.leafName());
+        return context.addIgnoredFieldFromContext(new IgnoredSourceFieldMapper.NameValue(path, offset, null, context.doc()));
     }
 
     private static boolean writeToIgnoredSource(DocumentParserContext context, String fieldPath) throws IOException {

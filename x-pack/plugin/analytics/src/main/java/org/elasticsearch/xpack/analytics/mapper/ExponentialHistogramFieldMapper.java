@@ -632,7 +632,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                FallbackPostMapper.write(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
+                FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());

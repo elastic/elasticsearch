@@ -2918,7 +2918,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackPostMapper.write(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                 }
                 return;
             } else {

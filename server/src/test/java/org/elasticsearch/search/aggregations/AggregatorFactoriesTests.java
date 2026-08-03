@@ -218,6 +218,83 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(e.toString(), containsString("Unknown aggregation type [term] did you mean [terms]?"));
     }
 
+    public void testMaxNestedDepth() throws Exception {
+        int maxDepth = defaultMaxNestedDepth();
+        assertNestedDepthAccepted(maxDepth);
+        ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+                    + maxDepth
+                    + "] set in ["
+                    + AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey()
+                    + "]"
+            )
+        );
+    }
+
+    public void testMaxNestedDepthCustomLimit() throws Exception {
+        int maxDepth = randomIntBetween(1, 5);
+        AggregatorFactories.setMaxNestedDepth(maxDepth);
+        try {
+            assertNestedDepthAccepted(maxDepth);
+            ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
+            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+        } finally {
+            AggregatorFactories.setMaxNestedDepth(defaultMaxNestedDepth());
+        }
+    }
+
+    public void testMaxNestedDepthFromNodeSettings() throws Exception {
+        int maxDepth = randomIntBetween(1, 5);
+        Settings settings = Settings.builder()
+            .put("node.name", AbstractQueryTestCase.class.toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey(), maxDepth)
+            .build();
+        try {
+            new SearchModule(settings, emptyList());
+            assertNestedDepthAccepted(maxDepth);
+            ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
+            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+        } finally {
+            AggregatorFactories.setMaxNestedDepth(defaultMaxNestedDepth());
+        }
+    }
+
+    private static int defaultMaxNestedDepth() {
+        return AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+    }
+
+    private void assertNestedDepthAccepted(int depth) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, nestedTermsAggs(depth, false))) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertThat(AggregatorFactories.parseAggregators(parser).count(), equalTo(1));
+        }
+    }
+
+    private ParsingException expectMaxNestedDepthExceeded(int depth) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, nestedTermsAggs(depth, false))) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            return expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
+        }
+    }
+
+    private static String nestedTermsAggs(int depth, boolean trailingEmptyAggs) {
+        StringBuilder aggs = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            if (i > 0) {
+                aggs.append(",\"aggs\":");
+            }
+            aggs.append("{\"a").append(i).append("\":{\"terms\":{\"field\":\"f\"}");
+        }
+        if (trailingEmptyAggs) {
+            aggs.append(",\"aggs\":{}");
+        }
+        return aggs.append("}}".repeat(depth)).toString();
+    }
+
     public void testRewriteAggregation() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference;

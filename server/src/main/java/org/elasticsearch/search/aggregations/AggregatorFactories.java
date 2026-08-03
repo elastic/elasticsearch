@@ -14,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -58,11 +60,36 @@ public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
+     * The maximum number of levels of aggregations that may be nested within one another.
+     */
+    public static final Setting<Integer> MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
+        "search.aggs.max_nested_depth",
+        50,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope
+    );
+
+    private static int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+
+    /**
      * Parses the aggregation request recursively generating aggregator
      * factories in turn.
      */
     public static AggregatorFactories.Builder parseAggregators(XContentParser parser) throws IOException {
         return parseAggregators(parser, 0);
+    }
+
+    /**
+     * Set the maximum number of levels of aggregations that may be nested within one another. Called once per node from
+     * {@link org.elasticsearch.search.SearchModule}; {@link #parseAggregators(XContentParser)} is static, so the limit
+     * has to live in a static too.
+     */
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
+        }
+        AggregatorFactories.maxNestedDepth = maxNestedDepth;
     }
 
     private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
@@ -84,6 +111,17 @@ public class AggregatorFactories {
                     "Invalid aggregation name ["
                         + aggregationName
                         + "]. Aggregation names can contain any character except '[', ']', and '>'"
+                );
+            }
+
+            if (level >= maxNestedDepth) {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+                        + maxNestedDepth
+                        + "] set in ["
+                        + MAX_NESTED_DEPTH_SETTING.getKey()
+                        + "]"
                 );
             }
 

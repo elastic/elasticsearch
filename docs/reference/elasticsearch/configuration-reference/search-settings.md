@@ -63,6 +63,14 @@ $$$indices-query-bool-max-nested-depth$$$
 
     This setting limits the nesting depth of queries. Deep nesting of queries may lead to stack overflow errors.
 
+
+$$$search-aggs-max-nested-depth$$$
+
+`search.aggs.max_nested_depth`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) Maximum number of levels of [aggregations](/reference/aggregations/index.md) that can be nested within one another in a single request. Defaults to `50`.
+
+    Requests with more deeply nested aggregations are rejected with an error. Deep nesting of aggregations may lead to stack overflow errors.
+
 The following search settings are supported:
 
 * `search.aggs.rewrite_to_filter_by_filter`

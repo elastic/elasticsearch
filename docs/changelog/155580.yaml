@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 155580
+summary: Add a limit on the nesting depth of aggregations
+type: bug

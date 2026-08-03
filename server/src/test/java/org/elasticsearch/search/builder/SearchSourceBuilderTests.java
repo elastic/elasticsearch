@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -31,10 +32,12 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
@@ -196,6 +199,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
+        }
+    }
+
+    public void testAggsMaxNestedDepthIsNotRewrapped() throws IOException {
+        int tooDeep = AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY) + 1;
+        StringBuilder restContent = new StringBuilder("{\"aggs\":");
+        for (int i = 0; i < tooDeep; i++) {
+            if (i > 0) {
+                restContent.append(",\"aggs\":");
+            }
+            restContent.append("{\"a").append(i).append("\":{\"terms\":{\"field\":\"f\"}");
+        }
+        restContent.append("}}".repeat(tooDeep)).append("}");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent.toString())) {
+            ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+            );
+            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations"));
+            assertNull("the depth error must reach the REST layer unwrapped", e.getCause());
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         }
     }
 

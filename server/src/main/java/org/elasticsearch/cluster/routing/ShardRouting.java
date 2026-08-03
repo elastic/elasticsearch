@@ -41,7 +41,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         /*
          * TODO:
-         *  - Review all usages of UNASSIGNED_UNEXPECTED and fix anything incorrect
+         *  - Review all usages of moveToUnassigned and make sure priorities make sense for all callers
          */
 
         /// A primary shard which is unassigned because it is newly created.
@@ -496,8 +496,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     private static RecoveryPriority highestAllowedRecoveryPriority(ShardRoutingState state, boolean isRelocation) {
         return switch (state) {
-            case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
-            case INITIALIZING -> isRelocation ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+            case UNASSIGNED -> RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
+            case INITIALIZING -> isRelocation ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO : RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
             case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
             case STARTED -> null;
         };

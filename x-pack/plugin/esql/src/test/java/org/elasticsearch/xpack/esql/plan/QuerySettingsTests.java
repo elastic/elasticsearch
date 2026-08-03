@@ -195,6 +195,21 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    /**
+     * Parsing happens before the snapshot-only validator runs, so the parse error is what a production build shows for a typo: it must
+     * list only the values that build accepts. Tests always run on a snapshot build, hence the direct call with both flags.
+     */
+    public void testUnmappedFieldsParseErrorHidesSnapshotOnlyValue() {
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", false),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]")
+        );
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", true),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD, LOAD_ALL]")
+        );
+    }
+
     public void testValidate_ColumnMetadata() {
         var setting = QuerySettings.COLUMN_METADATA;
 

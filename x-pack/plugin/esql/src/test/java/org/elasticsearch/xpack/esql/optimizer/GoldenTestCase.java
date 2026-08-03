@@ -680,7 +680,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution);
-            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
+            boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );

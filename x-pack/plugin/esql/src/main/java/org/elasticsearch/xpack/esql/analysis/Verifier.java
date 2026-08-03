@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -129,12 +130,12 @@ public class Verifier {
             return failures.failures();
         }
 
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkLoadModeDisallowedCommands(plan, failures);
-            checkFlattenedSubFieldLoad(plan, failures);
+        if (unmappedResolution.loadsUnmappedFields()) {
+            checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
+            checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
         }
 
-        if (unmappedResolution == UnmappedResolution.LOAD_ALL) {
+        if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
         }
 
@@ -447,12 +448,14 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support PROMQL
+     * Neither loading mode yet supports PROMQL. This is checked separately from
+     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
+     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart.
      */
-    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
+    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
         plan.forEachDown(p -> {
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
-                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
             }
         });
     }
@@ -481,6 +484,7 @@ public class Verifier {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
         return plan instanceof EsRelation
             || plan instanceof Project
+            || plan instanceof Keep
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
@@ -490,11 +494,11 @@ public class Verifier {
     }
 
     /**
-     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
+     * Reject loading sub-fields of flattened fields in either loading mode, by checking if any
      * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
-     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     * flattened subfields resolution may eventually differ from what happens when unmapped fields are loaded from {@code _source}.
      */
-    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
         plan.forEachDown(EsRelation.class, esRelation -> {
             Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
 
@@ -515,9 +519,10 @@ public class Verifier {
                         Failure failure = fail(
                             fa,
                             "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
-                                + "unmapped_fields=\"load\"",
+                                + "unmapped_fields=\"{}\"",
                             name,
-                            parent
+                            parent,
+                            unmappedResolution.settingValue()
                         );
                         failures.add(failure);
                         break;

@@ -11,7 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +70,47 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     public static UnmappedFieldsPattern includes(List<String> includes) {
         return includes.isEmpty() ? NONE : new UnmappedFieldsPattern(List.of(includes), List.of());
+    }
+
+    /**
+     * The pattern of a {@code KEEP} command, computed from the projection list it was written with.
+     *
+     * <p>All projection terms from this single {@code KEEP} form one OR group: a source field survives if it
+     * matches any listed term. An explicitly named term is included just like a wildcard is; a name that turns
+     * out to be an already-visible column is filtered out downstream anyway, because
+     * {@code DetermineUnmappedFieldsToKeep} excludes every {@code EsRelation.output()} name — which covers both
+     * mapped columns and the fields {@code ResolveUnmapped} demand-loads for explicit references.
+     *
+     * <p>An empty include list — a {@code KEEP} listing nothing at all — keeps no unmapped source field.
+     */
+    public static UnmappedFieldsPattern forKeep(List<? extends NamedExpression> projections) {
+        List<String> includes = new ArrayList<>();
+        for (NamedExpression proj : projections) {
+            switch (proj) {
+                case UnresolvedStar ignored -> {
+                    return ALL;
+                }
+                case UnresolvedNamePattern unp -> includes.add(unp.pattern());
+                case UnresolvedAttribute ua -> includes.add(ua.name());
+                default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
+            }
+        }
+        return includes(includes);
+    }
+
+    /**
+     * The pattern of a {@code DROP} command, computed from the removal list it was written with.
+     *
+     * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
+     * will match, so the pattern has to be applied during the {@code _unmapped_fields} expansion. An explicitly
+     * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
+     * {@code EsRelation.output()} name — which covers both mapped columns and the fields
+     * {@code ResolveUnmapped} demand-loads for explicit references.
+     */
+    public static UnmappedFieldsPattern forDrop(List<? extends NamedExpression> removals) {
+        return excludes(
+            removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).pattern()).toList()
+        );
     }
 
     private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> excludes) {

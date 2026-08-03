@@ -552,7 +552,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         var rawResult = versionedResult.inner();
         // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e., unmapped_fields="LOAD_ALL").
         // expand() preserves completionInfo/executionInfo, so the partial-marking below applies to the expanded result.
-        var result = ExpandUnmappedFieldsPostProcessor.expand(rawResult, services.blockFactoryProvider().blockFactory());
+        var result = ExpandUnmappedFieldsPostProcessor.expand(
+            rawResult,
+            services.blockFactoryProvider().blockFactory(),
+            services.plannerSettings().get()
+        );
         // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path

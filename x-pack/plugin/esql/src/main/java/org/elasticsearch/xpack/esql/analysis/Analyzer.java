@@ -172,7 +172,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -2161,14 +2160,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             if (unmappedResolution != UnmappedResolution.DEFAULT) {
-                UnmatchedPatterns unmatchedPatterns = unmappedResolution == UnmappedResolution.LOAD_ALL
+                UnmatchedPatterns unmatchedPatterns = unmappedResolution.loadsAllUnmappedFields()
                     ? UnmatchedPatterns.IGNORE
                     : UnmatchedPatterns.FAIL;
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
                     inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns),
-                    unmappedResolution == UnmappedResolution.LOAD_ALL ? patternForKeep(keep.projections()) : UnmappedFieldsPattern.ALL
+                    ResolvingProject.Kind.KEEP,
+                    keep.projections()
                 );
             }
             List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
@@ -2190,32 +2190,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return keptVirtual ? new Keep(keep.source(), keep.child(), resolved) : new Project(keep.source(), keep.child(), resolved);
-        }
-
-        /**
-         * Computes the {@link UnmappedFieldsPattern} for a {@code KEEP} command from its projection list.
-         *
-         * <p>All projection terms from this single {@code KEEP} form one OR group: a source field survives if it
-         * matches any listed term. An explicitly named term is included just like a wildcard is; a name that turns
-         * out to be an already-visible column is filtered out downstream anyway, because
-         * {@code DetermineUnmappedFieldsToKeep} excludes every {@code EsRelation.output()} name — which covers both
-         * mapped columns and the fields {@code ResolveUnmapped} demand-loads for explicit references.
-         *
-         * <p>An empty include list — a {@code KEEP} listing nothing at all — keeps no unmapped source field.
-         */
-        private static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections) {
-            List<String> includes = new ArrayList<>();
-            for (NamedExpression proj : projections) {
-                switch (proj) {
-                    case UnresolvedStar ignored -> {
-                        return UnmappedFieldsPattern.ALL;
-                    }
-                    case UnresolvedNamePattern unp -> includes.add(unp.pattern());
-                    case UnresolvedAttribute ua -> includes.add(ua.name());
-                    default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
-                }
-            }
-            return UnmappedFieldsPattern.includes(includes);
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -2307,24 +2281,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     drop.source(),
                     drop.child(),
                     inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE),
-                    unmappedResolution == UnmappedResolution.LOAD_ALL ? patternForDrop(drop.removals()) : UnmappedFieldsPattern.ALL
+                    ResolvingProject.Kind.DROP,
+                    drop.removals()
                 )
                 : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
-        }
-
-        /**
-         * Computes the {@link UnmappedFieldsPattern} for a {@code DROP} command from its removal list.
-         *
-         * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
-         * will match, so the pattern has to be applied during the {@code _unmapped_fields} expansion. An explicitly
-         * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
-         * {@code EsRelation.output()} name — which covers both mapped columns and the fields
-         * {@code ResolveUnmapped} demand-loads for explicit references.
-         */
-        private static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
-            return UnmappedFieldsPattern.excludes(
-                removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).pattern()).toList()
-            );
         }
 
         private static List<NamedExpression> dropResolver(
@@ -2374,15 +2334,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveRename(Rename rename, UnmappedResolution unmappedResolution) {
-            // No pattern to capture: each alias target name shadows the source field with that name, and
-            // DetermineUnmappedFieldsToKeep derives that from the projection's output on its own.
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
                     inputAttributes -> projectionsForRename(rename, inputAttributes, log),
-                    UnmappedFieldsPattern.ALL
+                    ResolvingProject.Kind.RENAME,
+                    rename.renamings()
                 );
         }
 
@@ -3245,7 +3204,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
-                    boolean loadUnmappedFields = context.unmappedResolution() == UnmappedResolution.LOAD;
+                    boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
                     }
@@ -3444,7 +3403,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
 
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
+            if (context.unmappedResolution().loadsUnmappedFields() && cleanPlan.resolved()) {
                 // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
                 // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
                 // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
@@ -3599,7 +3558,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
             // so that it can be resolved via the union types / UnionTypeEsField mechanism instead.
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && tcf.isPotentiallyUnmapped()) {
+            if (context.unmappedResolution().loadsUnmappedFields() && tcf.isPotentiallyUnmapped()) {
                 return false;
             }
             return true;
@@ -3621,7 +3580,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+            if (context.unmappedResolution().loadsUnmappedFields() == false) {
                 return plan;
             }
 

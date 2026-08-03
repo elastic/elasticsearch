@@ -1376,7 +1376,7 @@ public class EsqlSession {
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
             parsed,
             preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution == UnmappedResolution.LOAD
+            unmappedResolution.loadsUnmappedFields()
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
@@ -1416,8 +1416,7 @@ public class EsqlSession {
         executionInfo.queryProfile().indicesResolutionMarker().start();
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
-            || unmappedResolution == UnmappedResolution.LOAD_ALL;
+        boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)

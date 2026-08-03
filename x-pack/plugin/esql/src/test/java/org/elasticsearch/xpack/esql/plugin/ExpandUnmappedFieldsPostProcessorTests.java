@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -17,7 +16,6 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -25,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -52,7 +51,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             )
         );
 
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        Result expanded = expand(result, bf);
         try {
             assertThat(expanded, not(sameInstance(result)));
             assertThat(names(expanded), equalTo(List.of(INT_ATTR, "city", "pet", "zip")));
@@ -75,7 +74,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = result(List.of(intAttr()), List.of(page(bf, List.of(row(1)))));
 
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        Result expanded = expand(result, bf);
         try {
             assertThat(expanded, sameInstance(result));
         } finally {
@@ -90,7 +89,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             List.of(page(bf, List.of(row(1, null), row(2, jsonObject("{}")), row(3, jsonObject("{'a':'x'}")))))
         );
 
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        Result expanded = expand(result, bf);
         try {
             assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a")));
             assertThat(
@@ -106,7 +105,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, null), row(2, null)))));
 
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        Result expanded = expand(result, bf);
         try {
             // _unmapped_fields is dropped and nothing replaces it.
             assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
@@ -123,7 +122,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
             List.of(page(bf, List.of(row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}")))))
         );
 
-        Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
+        Result expanded = expand(result, bf);
         try {
             assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested")));
             assertThat(
@@ -155,12 +154,9 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
                 rows.add(row(row, json.toString()));
             }
             Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, rows)));
-            try {
-                Result expanded = ExpandUnmappedFieldsPostProcessor.expand(result, bf);
-                Releasables.close(expanded.pages());
-            } catch (CircuitBreakingException e) {
-                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-            }
+            // testWithCrankyBlockFactory catches the CircuitBreakingException and asserts its message; ComputeTestCase then
+            // asserts every breaker is back to zero, which is what this test is about.
+            Releasables.close(expand(result, bf).pages());
         });
     }
 
@@ -170,11 +166,15 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         Result result = result(List.of(keywordAttr("a"), unmappedAttr()), List.of(page(bf, List.of(row("v", jsonObject("{'a':'x'}"))))));
         assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
 
-        var e = expectThrows(IllegalStateException.class, () -> ExpandUnmappedFieldsPostProcessor.expand(result, bf));
+        var e = expectThrows(IllegalStateException.class, () -> expand(result, bf));
         assertThat(e.getMessage(), containsString("Conflict in unmapped field name"));
 
         // No manual release here: the point is that expand must have released the input pages on its failure path.
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static Result expand(Result result, BlockFactory blockFactory) {
+        return ExpandUnmappedFieldsPostProcessor.expand(result, blockFactory, PlannerSettings.DEFAULTS);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {

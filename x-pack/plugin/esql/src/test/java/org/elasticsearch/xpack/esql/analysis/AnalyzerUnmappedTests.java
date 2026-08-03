@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1464,6 +1465,56 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             "PROMQL index=test start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T01:00:00Z\" buckets=10 avg(network.bytes_in)",
             allOf(containsString("Found 1 problem"), containsString("line 1:114: PROMQL is not supported with unmapped_fields=\"load\""))
         );
+    }
+
+    /**
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     */
+    public void testLoadAllModeRejectsUnsupportedCommands() {
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| STATS COUNT(*) BY languages", "STATS"),
+            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
+            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
+            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
+            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
+            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+        )) {
+            test().addLanguagesLookup()
+                .statementError(
+                    setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                    containsString(
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                            + commandAndLabel.v2()
+                            + "] is not supported yet"
+                    )
+                );
+        }
+    }
+
+    public void testLoadAllModeAllowsSupportedCommands() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | WHERE emp_no > 1
+            | EVAL x = salary + 1
+            | RENAME first_name AS name
+            | KEEP name, x, salary
+            | DROP salary
+            | SORT name
+            | LIMIT 10
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    /**
+     * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
+     * the mode the user asked for - as well as via the allow-list.
+     */
+    public void testLoadAllModeRejectsPromQl() {
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
+                containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
+            );
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.

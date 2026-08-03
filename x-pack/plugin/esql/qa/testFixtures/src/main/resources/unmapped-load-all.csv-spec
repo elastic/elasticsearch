@@ -297,13 +297,15 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// Synthetic source keeps unmapped fields alive, since dynamic: false stores them in _ignored_source.
+// Synthetic source keeps unmapped fields alive, since dynamic: false stores them in _ignored_source. The wildcard matches no
+// mapped field, so only the expansion can produce the column - naming it outright would just re-test LOAD, which
+// syntheticSourceLoadsScalarUnmappedField in unmapped-load.csv-spec does.
 syntheticSourceKeepScalarUnmappedField
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM synthetic_source_partial_mapping
-| KEEP @timestamp, unmapped_message
+| KEEP @timestamp, unmapped_messag*
 | SORT @timestamp
 | LIMIT 3
 ;

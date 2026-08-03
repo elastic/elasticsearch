@@ -38,6 +38,10 @@ import static org.hamcrest.Matchers.nullValue;
  * analyzer adds to the pattern's excludes) and any key that does not match the includes.
  */
 public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
+
+    /** Any value above one exercises the scaling; production reads it from {@code PlannerSettings.SOURCE_RESERVATION_FACTOR}. */
+    private static final double RESERVATION_FACTOR = 4;
+
     public void testFiltersOutMappedFieldsKeepingUnmappedSourceKeys() throws IOException {
         Map<String, Object> filtered = load(
             UnmappedFieldsPattern.excludes(List.of("emp_no", "first_name")),
@@ -94,23 +98,16 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertMap(filtered, matchesMap().entry("address", Map.of("city", "Berlin", "zip", "10115")).entry("tags", List.of("a", "b")));
     }
 
-    public void testNonePatternKeepsNoSourceKeys() throws IOException {
-        Map<String, Object> filtered = load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2"));
-        assertMap(filtered, matchesMap());
+    public void testNonePatternEmitsNull() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.NONE, Map.of("a", "1", "b", "2")), nullValue());
     }
 
-    public void testActivePatternMatchingNothingKeepsNoSourceKeys() throws IOException {
-        // A non-NONE include pattern that matches no source key yields an empty object (distinct from the NONE sentinel).
-        Map<String, Object> filtered = load(
-            UnmappedFieldsPattern.includes(List.of("nomatch*")),
-            Map.of("first_name", "John", "hobby", "chess")
-        );
-        assertMap(filtered, matchesMap());
+    public void testActivePatternMatchingNothingEmitsNull() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.includes(List.of("nomatch*")), Map.of("first_name", "John", "hobby", "chess")), nullValue());
     }
 
-    public void testEmptySourceKeepsNoSourceKeys() throws IOException {
-        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Map.of());
-        assertMap(filtered, matchesMap());
+    public void testEmptySourceEmitsNull() throws IOException {
+        assertThat(load(UnmappedFieldsPattern.ALL, Map.of()), nullValue());
     }
 
     public void testNullSourceValueIsKeptNotDropped() throws IOException {
@@ -122,7 +119,7 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testReaderToStringIsDistinctFromLoader() throws IOException {
-        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
         assertThat(loader.toString(), equalTo("UnmappedFieldsBlockLoader"));
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
             assertThat(reader.toString(), equalTo("UnmappedFieldsBlockLoader.UnmappedFields"));
@@ -131,9 +128,9 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
 
     public void testPerDocumentSourceParsingReservesAndReleasesBreakerBytes() throws IOException {
         Source source = Source.fromMap(Map.of("payload", "x".repeat(4096)), XContentType.JSON);
-        long sourceBytes = source.internalSourceRef().length();
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(BlockSourceReader.ESTIMATED_SIZE + sourceBytes));
-        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        long reservation = (long) (source.internalSourceRef().length() * RESERVATION_FACTOR);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(BlockSourceReader.ESTIMATED_SIZE + reservation));
+        UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
             long readerReservation = breaker.getUsed();
             assertThat(readerReservation, equalTo(BlockSourceReader.ESTIMATED_SIZE));
@@ -146,11 +143,12 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testPerDocumentSourceParsingAccountsAgainstCircuitBreaker() throws IOException {
+    public void testSourceReservationIsScaledByReservationFactor() throws IOException {
         Source source = Source.fromMap(Map.of("payload", "x".repeat(4096)), XContentType.JSON);
-        long sourceBytes = source.internalSourceRef().length();
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(BlockSourceReader.ESTIMATED_SIZE + sourceBytes - 1));
-        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        // Room for the raw source but not for the far larger map it parses into, so only a scaled reservation trips this.
+        long limit = BlockSourceReader.ESTIMATED_SIZE + source.internalSourceRef().length();
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+        UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
             expectThrows(CircuitBreakingException.class, () -> reader.read(0, storedFields(source), builder));
@@ -159,7 +157,7 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
     }
 
     public void testReaderUnderCrankyBreakerDoesNotLeak() throws IOException {
-        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(UnmappedFieldsPattern.ALL);
+        UnmappedFieldsBlockLoader loader = loader(UnmappedFieldsPattern.ALL);
         Source source = Source.fromMap(Map.of("a", "b", "c", "d"), XContentType.JSON);
         var cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
         for (int attempt = 0; attempt < 2000; attempt++) {
@@ -173,16 +171,24 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         }
     }
 
+    private static UnmappedFieldsBlockLoader loader(UnmappedFieldsPattern pattern) {
+        return new UnmappedFieldsBlockLoader(pattern, RESERVATION_FACTOR);
+    }
+
     /**
      * Runs the block loader over a single document whose {@code _source} is {@code sourceMap} and returns the emitted
-     * JSON parsed back into a map. {@code convertToMap} returns a (content-type, map) tuple, so {@code v2()} is the map.
+     * JSON parsed back into a map, or {@code null} if the loader emitted a null because no key matched the pattern.
+     * {@code convertToMap} returns a (content-type, map) tuple, so {@code v2()} is the map.
      */
     private static Map<String, Object> load(UnmappedFieldsPattern pattern, Map<String, Object> sourceMap) throws IOException {
-        UnmappedFieldsBlockLoader loader = new UnmappedFieldsBlockLoader(pattern);
+        UnmappedFieldsBlockLoader loader = loader(pattern);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
             reader.read(0, storedFields(Source.fromMap(sourceMap, XContentType.JSON)), builder);
             BytesRef json = (BytesRef) ((TestBlock) builder.build()).get(0);
+            if (json == null) {
+                return null;
+            }
             return XContentHelper.convertToMap(new BytesArray(json.bytes, json.offset, json.length), false, XContentType.JSON).v2();
         }
     }

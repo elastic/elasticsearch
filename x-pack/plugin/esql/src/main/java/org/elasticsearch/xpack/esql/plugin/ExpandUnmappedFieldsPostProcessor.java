@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -52,23 +54,26 @@ class ExpandUnmappedFieldsPostProcessor {
      * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
      * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
      */
-    static Result expand(Result result, BlockFactory blockFactory) {
+    static Result expand(Result result, BlockFactory blockFactory, PlannerSettings plannerSettings) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = CollectionUtils.findIndex(schema, e -> e instanceof UnmappedFieldsAttribute);
         if (unmappedIdx == -1) {
             return result;
         }
+        double reservationFactor = plannerSettings.sourceReservationFactor();
 
         // From here on we own the input pages: on success rewritePage drains them one by one, on any failure we release whatever
         // is left below. Page#releaseBlocks is idempotent, so re-releasing pages rewritePage already drained is a no-op.
         boolean success = false;
         try {
-            List<String> sortedFieldNames = new ArrayList<>(collectFieldNames(result, unmappedIdx));
+            // Converting the SortedSet to an ArrayList for faster iteration.
+            var fieldNames = collectFieldNames(result, unmappedIdx, blockFactory.breaker(), reservationFactor);
+            List<String> sortedFieldNames = new ArrayList<>(fieldNames);
             // TODO account for newSchema's field names against the circuit breaker. A wide _source turns into a wide schema, and
             // unlike the pages, the response schema has no breaker-tracked lifetime to release it against today.
             List<Attribute> newSchema = buildSchema(schema, unmappedIdx, sortedFieldNames);
-            List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory);
+            List<Page> newPages = rewritePages(result, unmappedIdx, newSchema.size(), sortedFieldNames, blockFactory, reservationFactor);
 
             Result expanded = new Result(
                 newSchema,
@@ -92,8 +97,11 @@ class ExpandUnmappedFieldsPostProcessor {
      * <p>
      * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
      *  heterogeneous index can blow the response up into thousands of columns.
+     * <p>
+     * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to read its {@code keySet()}. That would
+     *  also make the reservation below unnecessary.
      */
-    private static SortedSet<String> collectFieldNames(Result result, int unmappedIdx) {
+    private static SortedSet<String> collectFieldNames(Result result, int unmappedIdx, CircuitBreaker breaker, double reservationFactor) {
         TreeSet<String> fieldNames = new TreeSet<>();
         BytesRef scratch = new BytesRef();
         for (Page page : result.pages()) {
@@ -102,13 +110,32 @@ class ExpandUnmappedFieldsPostProcessor {
                 if (unmappedBlock.isNull(row)) {
                     continue;
                 }
-                fieldNames.addAll(parseJson(getBytesRef(unmappedBlock, row, scratch)).keySet());
+                BytesRef json = getBytesRef(unmappedBlock, row, scratch);
+                long reservation = reserveForParse(json, breaker, reservationFactor);
+                try {
+                    fieldNames.addAll(parseJson(json).keySet());
+                } finally {
+                    breaker.addWithoutBreaking(-reservation);
+                }
             }
         }
         return fieldNames;
     }
 
-    /** Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per field name. */
+    /**
+     * Reserves memory for one {@link #parseJson} call, which allocates a {@code Map} nothing else accounts for. The multiplier is
+     * {@link PlannerSettings#SOURCE_RESERVATION_FACTOR}, whose javadoc records the measured ~8x blow-up of parsing {@code _source}
+     * into a map - the very same parse this column goes through a second time here.
+     *
+     * @return the number of reserved bytes, to be handed back with {@link CircuitBreaker#addWithoutBreaking} once the map is gone
+     */
+    private static long reserveForParse(BytesRef json, CircuitBreaker breaker, double reservationFactor) {
+        long reservation = (long) (json.length * reservationFactor);
+        breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields expansion");
+        return reservation;
+    }
+
+    /** Builds the expanded schema: every column except {@code _unmapped_fields}, then one keyword column per unmapped field name. */
     private static List<Attribute> buildSchema(List<Attribute> schema, int unmappedIdx, List<String> fieldNames) {
         List<Attribute> newSchema = new ArrayList<>(schema.size() - 1 + fieldNames.size());
         Set<String> existingNames = new HashSet<>();
@@ -121,6 +148,9 @@ class ExpandUnmappedFieldsPostProcessor {
         }
         for (String name : fieldNames) {
             if (existingNames.contains(name)) {
+                // Unreachable: the pattern excludes every name in the plan's output, so a key that made it into this column cannot
+                // collide with a query column. This is an internal error rather than a user error, hence the 500 - it is an
+                // AssertionError that does not take the node down in production.
                 throw new IllegalStateException(
                     Strings.format(
                         "Conflict in unmapped field name: field '%s' appears both in the query schema and in the _unmapped_fields JSON",
@@ -134,13 +164,20 @@ class ExpandUnmappedFieldsPostProcessor {
     }
 
     /** Rewrite each page, replacing the {@code _unmapped_fields} block with one block per expanded field name. */
-    private static List<Page> rewritePages(Result result, int unmappedIdx, int blockCount, List<String> fieldNames, BlockFactory factory) {
+    private static List<Page> rewritePages(
+        Result result,
+        int unmappedIdx,
+        int blockCount,
+        List<String> fieldNames,
+        BlockFactory factory,
+        double reservationFactor
+    ) {
         int originalColumnCount = result.schema().size();
         var newPages = new ArrayList<Page>(result.pages().size());
         var success = false;
         try {
             for (Page p : result.pages()) {
-                newPages.add(rewritePage(unmappedIdx, blockCount, fieldNames, factory, p, originalColumnCount));
+                newPages.add(rewritePage(unmappedIdx, blockCount, fieldNames, factory, p, originalColumnCount, reservationFactor));
             }
             success = true;
             return newPages;
@@ -157,7 +194,8 @@ class ExpandUnmappedFieldsPostProcessor {
         List<String> fieldNames,
         BlockFactory blockFactory,
         Page page,
-        int originalColumnCount
+        int originalColumnCount,
+        double reservationFactor
     ) {
 
         // Collect blocks from original page, skipping the _unmapped_fields block.
@@ -180,24 +218,18 @@ class ExpandUnmappedFieldsPostProcessor {
             // Both grow to the largest value seen in this page, so they are per-page rather than per-result.
             var jsonScratch = new BytesRef();
             var scratch = new BytesRefBuilder();
+            CircuitBreaker breaker = blockFactory.breaker();
             for (int row = 0; row < page.getPositionCount(); row++) {
-                var rowMap = unmappedBlock.isNull(row) ? Map.of() : parseJson(getBytesRef(unmappedBlock, row, jsonScratch));
-                if (rowMap.isEmpty()) {
-                    for (BytesRefBlock.Builder builder : builders) {
-                        builder.appendNull();
-                    }
+                if (unmappedBlock.isNull(row)) {
+                    appendRow(Map.of(), fieldNames, builders, scratch);
                     continue;
                 }
-                int builderIndex = 0;
-                for (String fieldName : fieldNames) {
-                    var builder = builders[builderIndex++];
-                    Object val = rowMap.get(fieldName);
-                    if (val == null) {
-                        builder.appendNull();
-                    } else {
-                        scratch.copyChars(String.valueOf(val));
-                        builder.appendBytesRef(scratch.get());
-                    }
+                BytesRef json = getBytesRef(unmappedBlock, row, jsonScratch);
+                long reservation = reserveForParse(json, breaker, reservationFactor);
+                try {
+                    appendRow(parseJson(json), fieldNames, builders, scratch);
+                } finally {
+                    breaker.addWithoutBreaking(-reservation);
                 }
             }
             for (int i = 0; i < builders.length; i++) {
@@ -211,6 +243,29 @@ class ExpandUnmappedFieldsPostProcessor {
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(allBlocks);
+            }
+        }
+    }
+
+    /**
+     * Appends one value per expanded field name, {@code null} where this row's JSON did not carry the field.
+     * <p>
+     * TODO every non-null value is copied three times: {@code String.valueOf} renders it, {@code copyChars} encodes that to UTF-8 and
+     *  the builder copies the bytes again. Values that are already {@code String}s could go straight into the builder's byte array.
+     */
+    private static void appendRow(
+        Map<String, Object> rowMap,
+        List<String> fieldNames,
+        BytesRefBlock.Builder[] builders,
+        BytesRefBuilder scratch
+    ) {
+        for (int i = 0; i < builders.length; i++) {
+            Object value = rowMap.get(fieldNames.get(i));
+            if (value == null) {
+                builders[i].appendNull();
+            } else {
+                scratch.copyChars(String.valueOf(value));
+                builders[i].appendBytesRef(scratch.get());
             }
         }
     }

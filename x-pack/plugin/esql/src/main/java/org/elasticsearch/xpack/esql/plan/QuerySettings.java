@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -240,10 +241,19 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
-            );
+            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
         }
+    }
+
+    /**
+     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
+     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
+     */
+    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
+        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
+            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
+            .toList();
+        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**

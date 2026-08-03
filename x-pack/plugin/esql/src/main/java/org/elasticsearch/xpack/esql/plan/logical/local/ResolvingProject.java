@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -30,16 +32,26 @@ import java.util.function.Function;
  * attribute because the pattern {@code foo*} matches it. But if the pattern was {@code foo_baz}, it would be incorrect to do so.
  */
 public class ResolvingProject extends Project {
+
+    /** The command this node was built from, i.e. how {@link #originalProjections} translate into an {@link UnmappedFieldsPattern}. */
+    public enum Kind {
+        KEEP,
+        DROP,
+        RENAME
+    }
+
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
-    private final UnmappedFieldsPattern unmappedFieldsPattern;
+    private final Kind kind;
+    private final List<? extends NamedExpression> originalProjections;
 
     public ResolvingProject(
         Source source,
         LogicalPlan child,
         Function<List<Attribute>, List<? extends NamedExpression>> resolver,
-        UnmappedFieldsPattern unmappedFieldsPattern
+        Kind kind,
+        List<? extends NamedExpression> originalProjections
     ) {
-        this(source, child, computeProjections(child.output(), resolver), resolver, unmappedFieldsPattern);
+        this(source, child, computeProjections(child.output(), resolver), resolver, kind, originalProjections);
     }
 
     /**
@@ -67,11 +79,13 @@ public class ResolvingProject extends Project {
         LogicalPlan child,
         List<? extends NamedExpression> projections,
         Function<List<Attribute>, List<? extends NamedExpression>> resolver,
-        UnmappedFieldsPattern unmappedFieldsPattern
+        Kind kind,
+        List<? extends NamedExpression> originalProjections
     ) {
         super(source, child, projections);
         this.resolver = resolver;
-        this.unmappedFieldsPattern = unmappedFieldsPattern;
+        this.kind = kind;
+        this.originalProjections = originalProjections;
     }
 
     @Override
@@ -84,32 +98,50 @@ public class ResolvingProject extends Project {
     }
 
     /**
-     * The KEEP/DROP/RENAME pattern captured when this node was created, before {@code ResolveRefs}
-     * discards the original wildcard expressions. The analyzer's {@code DetermineUnmappedFieldsToKeep}
-     * rule combines it with the child's pattern.
+     * Which unmapped source fields this command lets through, derived from the projections it was written with — by the time
+     * {@link #projections()} is computed, {@code ResolveRefs} has replaced the original wildcard expressions with the attributes
+     * they matched. Only {@code DetermineUnmappedFieldsToKeep} reads this, so it is only ever derived under
+     * {@code unmapped_fields="LOAD_ALL"}.
      */
     public UnmappedFieldsPattern unmappedFieldsPattern() {
-        return unmappedFieldsPattern;
+        return switch (kind) {
+            case KEEP -> UnmappedFieldsPattern.forKeep(originalProjections);
+            case DROP -> UnmappedFieldsPattern.forDrop(originalProjections);
+            // A RENAME keeps every column, so it restricts nothing; its target names shadow the source fields of the same name, which
+            // DetermineUnmappedFieldsToKeep excludes from this node's output on its own.
+            case RENAME -> UnmappedFieldsPattern.ALL;
+        };
     }
 
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(this, ResolvingProject::new, child(), projections(), resolver, unmappedFieldsPattern);
+        return NodeInfo.create(this, ResolvingProject::new, child(), projections(), resolver, kind, originalProjections);
+    }
+
+    /**
+     * The default implementation harvests every expression reachable from the node's properties, which would pull the pre-resolution
+     * {@link #originalProjections} into {@link #expressions()} and hence into {@link #references()}. A {@code DROP}'s removals would then
+     * look like references, and FORK's alignment (which materializes an unmapped field dropped in one branch in its siblings) skips
+     * referenced fields. Only the resolved projections describe this node, exactly as in {@link Project}.
+     */
+    @Override
+    protected List<Expression> computeExpressions() {
+        return new ArrayList<>(projections());
     }
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, resolver, unmappedFieldsPattern);
+        return new ResolvingProject(source(), newChild, resolver, kind, originalProjections);
     }
 
     @Override
     public Project withProjections(List<? extends NamedExpression> projections) {
-        return new ResolvingProject(source(), child(), projections, resolver, unmappedFieldsPattern);
+        return new ResolvingProject(source(), child(), projections, resolver, kind, originalProjections);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), resolver, unmappedFieldsPattern);
+        return Objects.hash(super.hashCode(), resolver, kind, originalProjections);
     }
 
     @Override
@@ -124,7 +156,8 @@ public class ResolvingProject extends Project {
         ResolvingProject other = (ResolvingProject) obj;
         return super.equals(obj)
             && Objects.equals(resolver, other.resolver)
-            && Objects.equals(unmappedFieldsPattern, other.unmappedFieldsPattern);
+            && kind == other.kind
+            && Objects.equals(originalProjections, other.originalProjections);
     }
 
     public Project asProject() {

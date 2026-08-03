@@ -32,17 +32,20 @@ import java.util.Set;
  * <p>For each document it reads {@code _source}, retains only top-level keys
  * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
  * group and not matching any exclude pattern), and re-serialises the surviving key/value
- * pairs as a JSON object.
+ * pairs as a JSON object. Documents where nothing survives get a null.
  *
- * <p>TODO: apply field-level security to {@code _source} keys before exposing them.
+ * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
+ * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
  * <p>TODO: share a cached {@code _source} parse with other field-extraction operators.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     private final UnmappedFieldsPattern pattern;
+    private final double sourceReservationFactor;
 
-    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern) {
+    UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern, double sourceReservationFactor) {
         this.pattern = pattern;
+        this.sourceReservationFactor = sourceReservationFactor;
     }
 
     @Override
@@ -57,7 +60,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new UnmappedFields(breaker, pattern);
+        return new UnmappedFields(breaker, pattern, sourceReservationFactor);
     }
 
     @Override
@@ -83,33 +86,43 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
     private static class UnmappedFields extends BlockStoredFieldsReader {
         private final CircuitBreaker breaker;
         private final UnmappedFieldsPattern pattern;
+        private final double sourceReservationFactor;
 
-        UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern) {
+        UnmappedFields(CircuitBreaker breaker, UnmappedFieldsPattern pattern, double sourceReservationFactor) {
             super(breaker);
             this.breaker = breaker;
             this.pattern = pattern;
+            this.sourceReservationFactor = sourceReservationFactor;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
-            // Covers the parsed map and the JSON we build from it, both of which are proportional to _source.
+            // Covers the parsed map and the JSON we build from it, both of which are proportional to _source. The factor is what
+            // PlannerSettings.SOURCE_RESERVATION_FACTOR measured for this very parse: a map costs several times the bytes it came from.
             // TODO the _source read itself is still charged a flat BlockSourceReader.ESTIMATED_SIZE by
             // BlockStoredFieldsReader, so an unusually large _source is under-accounted. Engine-wide, pre-existing.
-            long reservation = source.internalSourceRef().length();
+            long reservation = (long) (source.internalSourceRef().length() * sourceReservationFactor);
             breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
             try {
                 Map<String, Object> sourceMap = XContentHelper.convertToMap(source.internalSourceRef(), false, source.sourceContentType())
                     .v2();
                 try (XContentBuilder json = XContentFactory.jsonBuilder()) {
                     json.startObject();
+                    boolean anyMatch = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
                         if (pattern.matches(entry.getKey())) {
+                            anyMatch = true;
                             json.field(entry.getKey(), entry.getValue());
                         }
                     }
                     json.endObject();
-                    ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
+                    // An empty object would carry no more information than a null, and the coordinator treats the two the same.
+                    if (anyMatch) {
+                        ((BytesRefBuilder) builder).appendBytesRef(BytesReference.bytes(json).toBytesRef());
+                    } else {
+                        builder.appendNull();
+                    }
                 }
             } finally {
                 breaker.addWithoutBreaking(-reservation);

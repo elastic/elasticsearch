@@ -30,6 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents the cache configuration for a chat completion request.
  */
+// TODO: implement Accountable
 public final class CacheControl implements ToXContentObject, Writeable {
 
     /**

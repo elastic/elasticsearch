@@ -50,11 +50,15 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
@@ -1065,5 +1069,95 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata withFilters = IndexMetadata.builder("test").settings(withFilterSettings).build();
 
         assertThat(withFilters.ramBytesUsed(), greaterThan(withoutFilters.ramBytesUsed()));
+    }
+
+    // Reference fields whose heap cost is added explicitly in IndexMetadataRamUsageEstimator#estimate.
+    private static final Set<String> FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR = Set.of(
+        "index",
+        "settings",
+        "mapping",
+        "primaryTerms",
+        "inSyncAllocationIds",
+        "aliases",
+        "customData",
+        "inferenceFields",
+        "rolloverInfos",
+        "transportVersion",
+        "state",
+        "routingPaths",
+        "timeSeriesDimensions",
+        "requireFilters",
+        "includeFilters",
+        "excludeFilters",
+        "initialRecoveryFilters",
+        "indexCreatedVersion",
+        "mappingsUpdatedVersion",
+        "indexCompatibilityVersion",
+        "waitForActiveShards",
+        "timestampRange",
+        "eventIngestedRange",
+        "tierPreference",
+        "lifecyclePolicyName",
+        "lifecycleExecutionState",
+        "autoExpandReplicas",
+        "indexMode",
+        "timeSeriesStart",
+        "timeSeriesEnd",
+        "stats",
+        "writeLoadForecast",
+        "shardSizeInBytesForecast",
+        "reshardingMetadata"
+    );
+
+    // Primitives/enums already covered by RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class),
+    // plus the ramBytesUsed memoization field itself.
+    private static final Set<String> FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR = Set.of(
+        "routingNumShards",
+        "routingFactor",
+        "routingPartitionSize",
+        "numberOfShards",
+        "numberOfReplicas",
+        "version",
+        "mappingVersion",
+        "settingsVersion",
+        "aliasesVersion",
+        "totalNumberOfShards",
+        "isSystem",
+        "isHidden",
+        "priority",
+        "creationDate",
+        "ignoreDiskWatermarks",
+        "shardsPerNodeLimit",
+        "isSearchableSnapshot",
+        "isPartialSearchableSnapshot",
+        "useTimeSeriesSyntheticId",
+        "sequenceNumbersDisabled",
+        "ramBytesUsed"
+    );
+
+    /**
+     * Every non-static field declared on {@link IndexMetadata} must appear in exactly one of the two sets above.
+     * {@link #FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR} are reference fields whose heap cost is added explicitly in
+     * {@link IndexMetadataRamUsageEstimator#estimate}; {@link #FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR} are
+     * primitives/enums already covered by the shallow instance size, or internal bookkeeping fields.
+     * <p>
+     * If this test fails after adding a field to {@code IndexMetadata}, either add heap accounting for it in
+     * {@code IndexMetadataRamUsageEstimator#estimate} and add its name to {@code FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR},
+     * or add its name to {@code FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR} with a comment explaining why it needs no
+     * accounting (e.g. it's a primitive).
+     */
+    @SuppressForbidden(reason = "need access to all fields, they are mostly private")
+    public void testRamBytesUsedAccountsForAllFields() {
+        Set<String> declaredFields = Arrays.stream(IndexMetadata.class.getDeclaredFields())
+            .filter(f -> Modifier.isStatic(f.getModifiers()) == false)
+            .map(Field::getName)
+            .collect(Collectors.toSet());
+
+        Set<String> known = Sets.union(FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR, FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR);
+        assertThat(
+            "New/removed field(s) on IndexMetadata not reflected in this test - see testRamBytesUsedAccountsForAllFields javadoc",
+            declaredFields,
+            equalTo(known)
+        );
     }
 }

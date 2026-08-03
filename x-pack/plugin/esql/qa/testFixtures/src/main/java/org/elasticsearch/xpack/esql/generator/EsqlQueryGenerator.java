@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.IpLocationGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
@@ -118,6 +119,7 @@ public class EsqlQueryGenerator {
         EvalGenerator.INSTANCE,
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
+        HighlightGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         InlineStatsGenerator.INSTANCE,
         LimitByGenerator.INSTANCE,

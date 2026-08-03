@@ -537,7 +537,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[_slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
+            assertEquals("[slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")

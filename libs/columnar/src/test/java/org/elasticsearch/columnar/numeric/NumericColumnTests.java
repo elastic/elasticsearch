@@ -124,6 +124,7 @@ public class NumericColumnTests extends ESTestCase {
                     numDocsWithField,
                     numValues,
                     () -> cursor(docValues),
+                    NumericPipeline.defaultPipeline(NumericColumnWriter.BLOCK_SIZE),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,

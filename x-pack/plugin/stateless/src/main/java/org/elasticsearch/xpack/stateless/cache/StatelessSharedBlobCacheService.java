@@ -88,19 +88,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     );
 
     /**
-     * Whether time-based search shards should stamp metadata-read cache regions with
-     * {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and run completion backfill.
-     */
-    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
-        "stateless.cache_boost_preference.timestamp_backfill.enabled",
-        settings -> Boolean.toString(
-            StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings) == StatelessCacheEvictionPolicyType.PINNED_WINDOW
-        ),
-        Setting.Property.OperatorDynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * On search nodes, an explicit value takes precedence even when boost preference is disabled. When unset, defaults to
      * {@link StatelessCacheEvictionPolicyType#ALWAYS} when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled,
      * and to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} when enabled.
@@ -115,6 +102,20 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             Setting.Property.OperatorDynamic,
             Setting.Property.NodeScope
         );
+
+    /**
+     * Whether time-based search shards should stamp metadata-read cache regions with
+     * {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and run completion backfill.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.timestamp_backfill.enabled",
+        settings -> Boolean.toString(
+            STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings)
+                == StatelessCacheEvictionPolicyType.PINNED_WINDOW
+        ),
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction

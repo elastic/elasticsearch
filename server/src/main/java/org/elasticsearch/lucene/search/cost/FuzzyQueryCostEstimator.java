@@ -33,7 +33,7 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
     public static final long WIDE_ALPHABET_FACTOR = 2L;
 
     /** Per-expanded-term add-on, charged once per {@code maxExpansions} to cover each expansion's retained RAM. */
-    public static final long EXPANSION_BYTES_PER_TERM = 1024;
+    public static final long EXPANSION_BYTES_PER_TERM = 2500;
 
     /** Maximum number of expansions charged per clause */
     public static final int MAX_CHARGED_EXPANSIONS = 1024;

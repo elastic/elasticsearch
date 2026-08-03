@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
@@ -839,7 +840,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
             assertFalse(
                 "Transition should have completed for [" + candidateIndex + "]",
-                transitionService.getTransitionExecutor().transitionSubmitted(candidateIndex)
+                transitionService.getTransitionExecutor().transitionSubmitted(ProjectId.DEFAULT, candidateIndex)
             );
         }, 60, TimeUnit.SECONDS);
     }

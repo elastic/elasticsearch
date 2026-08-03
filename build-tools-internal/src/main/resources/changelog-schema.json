@@ -33,6 +33,7 @@
             "Client",
             "Cluster Coordination",
             "Codec",
+            "Columnar",
             "Data streams",
             "DLM",
             "Discovery-Plugins",

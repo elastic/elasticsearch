@@ -390,6 +390,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return initializeEmpty(
                 indexMetadata,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
                 ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
                 null
             );
@@ -399,9 +400,11 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
          * Initializes an existing index.
          */
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
             return initializeEmpty(
                 indexMetadata,
-                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null),
+                unassignedInfo,
+                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
                 ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
                 null
             );
@@ -415,6 +418,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 indexMetadata,
                 new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null),
                 ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
                 null
             );
         }
@@ -427,6 +431,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 indexMetadata,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null),
                 ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
                 indexRoutingTable
             );
         }
@@ -438,6 +443,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return initializeEmpty(
                 indexMetadata,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null),
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
                 ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
                 indexRoutingTable
             );
@@ -534,12 +540,13 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         /**
-         * Initializes a new empty index, with an option to control if its from an API or not.
+         * Initializes a new empty index.
          */
         private Builder initializeEmpty(
             IndexMetadata indexMetadata,
             UnassignedInfo unassignedInfo,
-            ShardRouting.RecoveryPriority recoveryPriority,
+            ShardRouting.RecoveryPriority primaryRecoveryPriority,
+            ShardRouting.RecoveryPriority replicaRecoveryPriority,
             @Nullable IndexRoutingTable previousIndexRoutingTable
         ) {
             assert indexMetadata.getIndex().equals(index);
@@ -579,7 +586,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                             primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE,
                             withLastAllocatedNodeId(shardUnassignedInfo, previousNodes, i),
                             shardRoutingRoleStrategy.newEmptyRole(i),
-                            recoveryPriority
+                            primary ? primaryRecoveryPriority : replicaRecoveryPriority
                         )
                     );
                 }

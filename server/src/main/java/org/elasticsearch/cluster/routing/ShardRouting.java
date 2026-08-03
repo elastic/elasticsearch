@@ -41,7 +41,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         /*
          * TODO:
-         *  - Review all usages of all three and fix anything incorrect
+         *  - Review all usages of UNASSIGNED_UNEXPECTED and fix anything incorrect
          */
 
         /// A primary shard which is unassigned because it is newly created.

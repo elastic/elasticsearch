@@ -150,6 +150,9 @@ public record Message(
         return accountable == null ? 0L : accountable.ramBytesUsed();
     }
 
+    // sizeOfCollection uses one NUM_BYTES_ARRAY_HEADER, but the actual JVM layout of immutable collections
+    // (List.of) has enough overhead that sizeOfCollection under-counts by ~8 bytes per list. The extra
+    // NUM_BYTES_ARRAY_HEADER keeps the estimate >= actual as required by the circuit-breaker contract.
     private static <T extends Accountable> long listRamBytesUsed(@Nullable List<T> list) {
         if (list == null) {
             return 0L;

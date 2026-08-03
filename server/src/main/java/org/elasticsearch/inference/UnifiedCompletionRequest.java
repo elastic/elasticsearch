@@ -327,6 +327,9 @@ public record UnifiedCompletionRequest(
 
     @Override
     public long ramBytesUsed() {
+        // sizeOfCollection uses one NUM_BYTES_ARRAY_HEADER, but the actual JVM layout of immutable collections
+        // (List.of) has enough overhead that sizeOfCollection under-counts by ~8 bytes per list. The extra
+        // NUM_BYTES_ARRAY_HEADER keeps the estimate >= actual as required by the circuit-breaker contract.
         var messagesRamBytesUsed = RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.shallowSizeOf(messages()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) messages().size()
                 * RamUsageEstimator.NUM_BYTES_OBJECT_REF

@@ -124,6 +124,8 @@ public record Tool(String type, FunctionField function) implements Accountable, 
         public long ramBytesUsed() {
             var descriptionRamBytesUsed = RamUsageEstimator.sizeOf(description());
             var nameRamBytesUsed = RamUsageEstimator.sizeOf(name());
+            // sizeOfMap alone under-counts by ~8 bytes for immutable Map.of instances; the extra terms keep the
+            // estimate >= actual as required by the circuit-breaker contract.
             var parametersRamBytesUsed = parameters() == null
                 ? 0L
                 : RamUsageEstimator.sizeOfMap(parameters()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) parameters().size()

@@ -183,7 +183,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             if (downstream == null) {
                 if (pendingError != null) {
                     stopUpstream();
-                } else if(completed){
+                } else if (completed) {
                     backpressure.releaseTrackedBytes();
                 }
                 return;
@@ -234,8 +234,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             });
         }
 
-        private void stopUpstream(){
-            if(subscriptionCanceled.compareAndSet(false, true)){
+        private void stopUpstream() {
+            if (subscriptionCanceled.compareAndSet(false, true)) {
                 backpressure.releaseTrackedBytes();
                 backpressure.shutdownProducer();
             }

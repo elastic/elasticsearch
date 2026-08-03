@@ -14,7 +14,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -24,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.inference.InferenceIndexMappingManager;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
@@ -32,6 +32,8 @@ import org.junit.BeforeClass;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.mockito.Mockito.mock;
 
 public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
     private static TestThreadPool threadPool;
@@ -52,7 +54,7 @@ public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
     public static void startModelRegistry() {
         threadPool = new TestThreadPool(SemanticMultiMatchQueryBuilderTests.class.getName());
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of()));
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), mock(InferenceIndexMappingManager.class));
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

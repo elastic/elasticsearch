@@ -1020,8 +1020,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private void storeModelDirectlyInIndexWithoutRegistry(Model model) {
         var listener = new PlainActionFuture<BulkResponse>();
-        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        var featureService = getInstanceFromNode(FeatureService.class);
 
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1031,8 +1029,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceIndex.INDEX_NAME,
                     model.getConfigurations(),
                     false,
-                    clusterState,
-                    featureService,
                     client()
                 )
             )
@@ -1042,8 +1038,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     InferenceSecretsIndex.INDEX_NAME,
                     model.getSecrets(),
                     false,
-                    clusterState,
-                    featureService,
                     client()
                 )
             )
@@ -1264,8 +1258,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private void storeCorruptedModel(Model model, boolean storeSecrets) {
         var listener = new PlainActionFuture<BulkResponse>();
-        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        var featureService = getInstanceFromNode(FeatureService.class);
 
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1275,8 +1267,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                     storeSecrets ? InferenceSecretsIndex.INDEX_NAME : InferenceIndex.INDEX_NAME,
                     storeSecrets ? model.getSecrets() : model.getConfigurations(),
                     false,
-                    clusterState,
-                    featureService,
                     client()
                 )
             )

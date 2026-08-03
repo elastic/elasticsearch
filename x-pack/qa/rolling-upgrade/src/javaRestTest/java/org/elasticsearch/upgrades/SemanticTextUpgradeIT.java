@@ -7,6 +7,7 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.join.ScoreMode;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +52,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
+public class SemanticTextUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
     private static final String SPARSE_FIELD = "sparse_field";
     private static final String DENSE_FIELD = "dense_field";
@@ -76,31 +78,38 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         DENSE_MODEL = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
     }
 
-    public SemanticTextUpgradeIT(boolean useLegacyFormat) {
+    public SemanticTextUpgradeIT(@Name("upgradedNodes") int upgradedNodes, @Name("useLegacyFormat") boolean useLegacyFormat) {
+        super(upgradedNodes);
         this.useLegacyFormat = useLegacyFormat;
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { true }, new Object[] { false });
+        List<Object[]> params = new ArrayList<>();
+        for (int upgradedNodes = 0; upgradedNodes <= NODE_NUM; upgradedNodes++) {
+            params.add(new Object[] { upgradedNodes, true });
+            params.add(new Object[] { upgradedNodes, false });
+        }
+        return params;
     }
 
     public void testSemanticTextOperations() throws Exception {
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                assumeFalse(
-                    "Legacy format index creation is not supported on clusters with index version ["
-                        + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
-                        + "] or later",
-                    useLegacyFormat && minimumIndexVersion().onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
-                );
-                createAndPopulateIndex();
-            }
-            case MIXED, UPGRADED -> {
-                assumeTrue("Skipping because index was not created in the old cluster phase", indexExists(getIndexName()));
-                performIndexQueryHighlightOps();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            assumeFalse(
+                "Legacy format index creation is not supported on clusters with index version ["
+                    + IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN
+                    + "] or later",
+                useLegacyFormat && minimumIndexVersion().onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            );
+            createAndPopulateIndex();
+        } else if (isMixedCluster() || isUpgradedCluster()) {
+            assumeTrue(
+                "Skipping because legacy format index was not created in the old cluster phase",
+                useLegacyFormat == false || indexExists(getIndexName())
+            );
+            performIndexQueryHighlightOps();
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 

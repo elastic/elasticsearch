@@ -46,6 +46,7 @@ import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.FrozenTransitionInfoProvider;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
@@ -85,6 +86,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -153,6 +155,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
     private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
+    private FrozenTransitionInfoProvider frozenTransitionInfoProvider = FrozenTransitionInfoProvider.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
@@ -160,15 +163,26 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        downsamplingOperations = loadSingleExtension(loader, DownsamplingOperations.class, downsamplingOperations);
+        frozenTransitionInfoProvider = loadSingleExtension(loader, FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider);
+    }
+
+    /**
+     * Loads at most one implementation of the given extension point, falling back to {@code fallback} if none is
+     * registered. Throws if more than one implementation is found, since these extension points are meant to be
+     * implemented by a single optional plugin.
+     */
+    private static <T> T loadSingleExtension(ExtensionLoader loader, Class<T> type, T fallback) {
+        List<T> extensions = loader.loadExtensions(type);
         if (extensions.size() > 1) {
             throw new IllegalStateException(
-                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+                "Expected at most one "
+                    + type.getSimpleName()
+                    + " implementation, found: "
+                    + extensions.stream().map(Object::getClass).toList()
             );
         }
-        if (extensions.isEmpty() == false) {
-            downsamplingOperations = extensions.get(0);
-        }
+        return extensions.isEmpty() ? fallback : extensions.get(0);
     }
 
     protected Clock getClock() {
@@ -246,6 +260,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+        components.add(new PluginComponentBinding<>(FrozenTransitionInfoProvider.class, frozenTransitionInfoProvider));
         return components;
     }
 

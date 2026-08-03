@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -369,8 +368,8 @@ public class GlobExpanderTests extends ESTestCase {
         }
         StubProvider provider = new StubProvider(listing);
 
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, true, 10, Integer.MAX_VALUE)
         );
         assertThat(e.getMessage(), containsString("Glob pattern discovered too many files"));
@@ -412,8 +411,8 @@ public class GlobExpanderTests extends ESTestCase {
         provider.existingPaths.add("s3://bucket/extra2.parquet");
         provider.existingPaths.add("s3://bucket/extra3.parquet");
 
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> GlobExpander.expandCommaSeparated(
                 "s3://bucket/data/*.parquet, s3://bucket/extra1.parquet, s3://bucket/extra2.parquet, s3://bucket/extra3.parquet",
                 provider,
@@ -776,7 +775,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
         var e = expectThrows(
-            QlIllegalArgumentException.class,
+            IllegalArgumentException.class,
             () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, 2, MAX)
         );
         assertThat(e.getMessage(), containsString("discovered too many files"));

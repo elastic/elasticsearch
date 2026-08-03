@@ -115,7 +115,7 @@ public final class ExpectedRecall {
 
     /**
      * Computes the probability that a rank, drawn from a distribution of ranks with added noise,
-     * is less than the specified rank threshold given a set of rank distances and an error standard deviation.
+     * is lower than the specified rank threshold given a set of rank distances and an error standard deviation.
      * <p>
      * Each rank distance is treated as the mean of a
      * <a href="https://en.wikipedia.org/wiki/Normal_distribution">Gaussian</a> perturbation; the
@@ -126,7 +126,7 @@ public final class ExpectedRecall {
      * @param errorStd the standard deviation of the error or noise added to the rank distances
      * @param rankThreshold the rank threshold to compare against
      * @param x the value at which to calculate the cumulative distribution function for individual ranks
-     * @return the cumulative probability that the rank is less than the rank threshold
+     * @return the cumulative probability that the rank is lower than the rank threshold
      */
     static double probabilityRankLessThanN(double[] rankDistances, double errorStd, int rankThreshold, double x) {
         double mu = 0, stddevSq = 0;

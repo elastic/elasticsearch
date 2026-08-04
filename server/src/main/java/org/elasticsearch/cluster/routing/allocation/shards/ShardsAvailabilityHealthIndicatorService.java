@@ -467,6 +467,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         if (unassignedInfo == null) {
             return false;
         }
+        // TODO: Decide whether RECOVERY_CANCELLED should skip the inactive grace window. Direct recovery cancellation is still disabled by
+        // default via indices.recovery.enable_direct_cancellations.
         if (unassignedInfo.failedAllocations() > 0
             || unassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
             return false;

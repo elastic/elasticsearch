@@ -1220,9 +1220,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     /// A primary shard that became inactive only moments ago is usually given a short grace period before the
-    /// health indicator turns red. That grace period does not apply when allocation has already failed, such as
-    /// when the last allocation status is DECIDERS_NO or the shard has failed allocation attempts. In those cases the
-    /// indicator reports red immediately.
+    /// health indicator turns red. That grace period does not apply when the last allocation status is DECIDERS_NO.
+    /// In that case the indicator reports red immediately.
     public void testShouldBeRedWhenPrimaryAllocationFailureBlocksGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
         final var indexName = randomIndexName();
@@ -1235,7 +1234,15 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of(
                 index(
                     indexName,
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, allocationFailureUnassignedInfo(unassignedTimeWithinGracePeriod))
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        unassignedInfo(
+                            randomUnassignedInfoReason(true),
+                            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                            unassignedTimeWithinGracePeriod
+                        )
+                    )
                 )
             ),
             List.of()
@@ -1269,9 +1276,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     /// A replica shard that became inactive only moments ago is usually given a short grace period before the
-    /// health indicator turns yellow. That grace period does not apply when allocation has already failed, such
-    /// as when the last allocation status is DECIDERS_NO or the shard has failed allocation attempts. In those cases
-    /// the indicator reports yellow immediately.
+    /// health indicator turns yellow. That grace period does not apply when the last allocation status is DECIDERS_NO.
+    /// In that case the indicator reports yellow immediately.
     public void testShouldBeYellowWhenReplicaAllocationFailureBlocksGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
         final var indexName = randomIndexName();
@@ -1285,7 +1291,15 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 index(
                     indexName,
                     new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, allocationFailureUnassignedInfo(unassignedTimeWithinGracePeriod))
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        unassignedInfo(
+                            randomUnassignedInfoReason(true),
+                            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                            unassignedTimeWithinGracePeriod
+                        )
+                    )
                 )
             ),
             List.of()
@@ -1316,6 +1330,175 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 )
             )
         );
+    }
+
+    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}).
+    /// Direct cancellation is still disabled by default.
+    public void testRecoveryCancelledPrimaryGracePeriodBehavior() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
+        final var unassignedTimeWithinGracePeriod = new TimeValue(
+            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
+            TimeUnit.MILLISECONDS
+        );
+        final var failedAllocations = randomBoolean() ? 0 : randomIntBetween(1, 5);
+        final var clusterState = createClusterStateWith(
+            projectId,
+            List.of(
+                index(
+                    indexName,
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        new UnassignedInfo(
+                            UnassignedInfo.Reason.RECOVERY_CANCELLED,
+                            null,
+                            null,
+                            failedAllocations,
+                            unassignedTimeWithinGracePeriod.nanos(),
+                            unassignedTimeWithinGracePeriod.millis(),
+                            false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                            Collections.emptySet(),
+                            null
+                        )
+                    )
+                )
+            ),
+            List.of()
+        );
+        final var service = createShardsAvailabilityIndicatorService(
+            projectId,
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
+            clusterState,
+            Collections.emptyMap()
+        );
+        if (failedAllocations > 0) {
+            // Today failedAllocations > 0 short-circuits the grace window, so RECOVERY_CANCELLED goes red immediately.
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        RED,
+                        "This cluster has 1 unavailable primary shard.",
+                        Map.of("unassigned_primaries", 1),
+                        List.of(
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                                1,
+                                "Cannot add data to 1 index [" + indexName + "]. Searches might return incomplete results.",
+                                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                            )
+                        ),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        } else {
+            // With no prior failures, RECOVERY_CANCELLED is transient and still receives the grace window.
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        GREEN,
+                        "This cluster has 1 creating primary shard.",
+                        Map.of("creating_primaries", 1),
+                        emptyList(),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    /// Documents current behavior for master directly cancelled recoveries ({@link UnassignedInfo.Reason#RECOVERY_CANCELLED}).
+    /// Direct cancellation is still disabled by default.
+    public void testRecoveryCancelledReplicaGracePeriodBehavior() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
+        final var unassignedTimeWithinGracePeriod = new TimeValue(
+            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
+            TimeUnit.MILLISECONDS
+        );
+        final var failedAllocations = randomBoolean() ? 0 : randomIntBetween(1, 5);
+        final var clusterState = createClusterStateWith(
+            projectId,
+            List.of(
+                index(
+                    indexName,
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        new UnassignedInfo(
+                            UnassignedInfo.Reason.RECOVERY_CANCELLED,
+                            null,
+                            null,
+                            failedAllocations,
+                            unassignedTimeWithinGracePeriod.nanos(),
+                            unassignedTimeWithinGracePeriod.millis(),
+                            false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                            Collections.emptySet(),
+                            null
+                        )
+                    )
+                )
+            ),
+            List.of()
+        );
+        final var service = createShardsAvailabilityIndicatorService(
+            projectId,
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "20s").build(),
+            clusterState,
+            Collections.emptyMap()
+        );
+        if (failedAllocations > 0) {
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        YELLOW,
+                        "This cluster has 1 unavailable replica shard.",
+                        Map.of("started_primaries", 1, "unassigned_replicas", 1),
+                        List.of(
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
+                                2,
+                                "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index ["
+                                    + indexName
+                                    + "].",
+                                List.of(ImpactArea.SEARCH)
+                            )
+                        ),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        } else {
+            assertThat(
+                service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+                equalTo(
+                    createExpectedResult(
+                        GREEN,
+                        "This cluster has 1 creating replica shard.",
+                        Map.of("started_primaries", 1, "creating_replicas", 1),
+                        emptyList(),
+                        List.of(
+                            new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName))))
+                        )
+                    )
+                )
+            );
+        }
     }
 
     /// An inactive shard with no unassigned info cannot use the grace period, because the indicator has no way to
@@ -3265,30 +3448,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     private static UnassignedInfo decidersNo(TimeValue unassignedTime) {
         return unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, UnassignedInfo.AllocationStatus.DECIDERS_NO, unassignedTime);
-    }
-
-    /**
-     * Builds unassigned info that would otherwise be eligible for the inactive grace window (transient reason and
-     * recent unassigned time), except that allocation has failed via either DECIDERS_NO or failedAllocations > 0.
-     * RECOVERY_CANCELLED is used for the failedAllocations path because it is the only transient reason that may carry
-     * a non-zero failure count.
-     */
-    private static UnassignedInfo allocationFailureUnassignedInfo(TimeValue unassignedTime) {
-        if (randomBoolean()) {
-            return unassignedInfo(randomUnassignedInfoReason(true), UnassignedInfo.AllocationStatus.DECIDERS_NO, unassignedTime);
-        }
-        return new UnassignedInfo(
-            UnassignedInfo.Reason.RECOVERY_CANCELLED,
-            null,
-            null,
-            randomIntBetween(1, 5),
-            unassignedTime.nanos(),
-            unassignedTime.millis(),
-            false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
-            null
-        );
     }
 
     private static UnassignedInfo unassignedInfo(UnassignedInfo.Reason reason, TimeValue unassignedTime) {

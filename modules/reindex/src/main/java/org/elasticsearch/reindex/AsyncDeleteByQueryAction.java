@@ -23,7 +23,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * Implementation of delete-by-query using scrolling and bulk.
+ * Implementation of delete-by-query using paginated search and bulk requests.
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearchAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 

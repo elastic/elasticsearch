@@ -1,13 +1,10 @@
 ---
 applies_to:
-  stack:
+  stack: preview 9.3, ga 9.4
 navigation_title: "GPU vector indexing"
 ---
 
 # GPU accelerated vector indexing
-```{applies_to}
-stack: preview 9.3, ga 9.4
-```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
 dense vectors. GPU indexing is based on the

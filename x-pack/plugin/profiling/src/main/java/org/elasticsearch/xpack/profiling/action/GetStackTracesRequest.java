@@ -438,6 +438,14 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
         return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField, schema);
     }
 
+    /**
+     * Returns a stable key used to seed random samplers and shard preference routing. Intentionally excludes {@code schema}
+     * so that the same query produces identical sampling behaviour regardless of which schema is being searched.
+     */
+    public int samplingKey() {
+        return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);
+    }
+
     @Override
     public String[] indices() {
         Set<String> indices = new HashSet<>();

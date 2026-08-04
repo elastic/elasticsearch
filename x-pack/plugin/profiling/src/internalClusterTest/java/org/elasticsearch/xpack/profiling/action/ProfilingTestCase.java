@@ -60,6 +60,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .put(XPackSettings.PROFILING_ENABLED.getKey(), true)
             .put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), false)
+            .put(ProfilingPlugin.PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.getKey(), true)
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)

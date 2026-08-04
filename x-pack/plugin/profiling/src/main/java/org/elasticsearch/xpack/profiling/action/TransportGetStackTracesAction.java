@@ -236,7 +236,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setSize(0)
             .setTrackTotalHits(true)
             .setRequestCache(true)
-            .setPreference(String.valueOf(request.hashCode()))
+            .setPreference(String.valueOf(request.samplingKey()))
             .setQuery(request.getQuery())
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value();
@@ -274,7 +274,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
         SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
-        RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
+        RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.samplingKey())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
         // shard seed is only set in tests and ensures consistent results
@@ -286,7 +286,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setSize(0)
             // take advantage of request cache and keep a consistent order for the same request
             .setRequestCache(true)
-            .setPreference(String.valueOf(request.hashCode()))
+            .setPreference(String.valueOf(request.samplingKey()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
@@ -340,7 +340,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setSize(0)
             .setTrackTotalHits(true)
             .setRequestCache(true)
-            .setPreference(String.valueOf(request.hashCode()))
+            .setPreference(String.valueOf(request.samplingKey()))
             .setQuery(request.getQuery())
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value();
@@ -376,7 +376,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         EventsIndex eventsIndex
     ) {
         // The seed makes sure that we get the same result for the same request, as long as the underlying data does not change.
-        int rngSeed = request.hashCode();
+        int rngSeed = request.samplingKey();
         String[] aggregationFields = request.getAggregationFields();
 
         ArrayList<TermsValuesSourceBuilder> groupBy = new ArrayList<>(
@@ -399,7 +399,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setSize(0)
             // take advantage of request cache and keep a consistent order for the same request
             .setRequestCache(true)
-            .setPreference(String.valueOf(request.hashCode()))
+            .setPreference(String.valueOf(request.samplingKey()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))

@@ -60,6 +60,7 @@ fi
 
 echo --- install qemu for aarch64 docker image builds
 docker run --privileged --rm tonistiigi/binfmt:qemu-v9.2.2 --install all
+docker buildx create --driver docker-container --use --bootstrap
 
 echo --- Building release artifacts
 

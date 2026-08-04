@@ -583,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/155754
-- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
-  method: testSlicing
-  issue: https://github.com/elastic/elasticsearch/issues/155761
 - class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
   method: testIncludeEmptyBuckets_timeSeriesAndDimension
   issue: https://github.com/elastic/elasticsearch/issues/155779
@@ -598,3 +595,18 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/155833
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardReplicasSetToZero
+  issue: https://github.com/elastic/elasticsearch/issues/155567
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testTransformLifecycleInALoop
+  issue: https://github.com/elastic/elasticsearch/issues/155844
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_earliest_latest.retrieve earliest long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155850
+- class: org.elasticsearch.reindex.ReindexFailureTests
+  method: testResponseOnSearchFailure
+  issue: https://github.com/elastic/elasticsearch/issues/151064
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerInSubqueryGoldenTests
+  method: testTsRateWithNotInSubquery
+  issue: https://github.com/elastic/elasticsearch/issues/155867

@@ -1009,6 +1009,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     public void testReplicaInactiveWithinGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1019,7 +1020,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(randomNodeId(), AVAILABLE),
                     new ShardAllocation(
                         randomNodeId(),
@@ -1060,7 +1061,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 List.of(
                     new Diagnosis(
                         replicaInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                        List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))
                     )
                 )
             )
@@ -1069,6 +1070,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     public void testShouldBeYellowWhenReplicaGracePeriodExpires() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var expiredUnassignedTime = new TimeValue(
             System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1078,7 +1080,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(randomNodeId(), AVAILABLE),
                     new ShardAllocation(
                         randomNodeId(),
@@ -1105,7 +1107,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 List.of(
                     new Diagnosis(
                         replicaInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                        List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))
                     )
                 )
             )
@@ -1114,6 +1116,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     public void testPrimaryInactiveWithinGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1124,7 +1127,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(
                         randomNodeId(),
                         primaryInitializing ? INITIALIZING : UNAVAILABLE,
@@ -1164,7 +1167,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 List.of(
                     new Diagnosis(
                         primaryInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                        List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))
                     )
                 )
             )
@@ -1173,6 +1176,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     public void testShouldBeRedWhenPrimaryGracePeriodExpires() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var expiredUnassignedTime = new TimeValue(
             System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1182,7 +1186,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(
                         randomNodeId(),
                         primaryInitializing ? INITIALIZING : UNAVAILABLE,
@@ -1208,7 +1212,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 List.of(
                     new Diagnosis(
                         primaryInitializing ? DIAGNOSIS_WAIT_FOR_INITIALIZATION : ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                        List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))
+                        List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))
                     )
                 )
             )
@@ -1221,6 +1225,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     /// indicator reports red immediately.
     public void testShouldBeRedWhenPrimaryAllocationFailureBlocksGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1229,7 +1234,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(randomNodeId(), UNAVAILABLE, allocationFailureUnassignedInfo(unassignedTimeWithinGracePeriod))
                 )
             ),
@@ -1253,6 +1258,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     /// the indicator reports yellow immediately.
     public void testShouldBeYellowWhenReplicaAllocationFailureBlocksGracePeriod() {
         final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
@@ -1261,7 +1267,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             projectId,
             List.of(
                 index(
-                    "test-index",
+                    indexName,
                     new ShardAllocation(randomNodeId(), AVAILABLE),
                     new ShardAllocation(randomNodeId(), UNAVAILABLE, allocationFailureUnassignedInfo(unassignedTimeWithinGracePeriod))
                 )
@@ -1288,7 +1294,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     /// state. Even with a non-zero grace buffer, the indicator reports yellow immediately for such a replica.
     public void testShouldBeYellowWhenReplicaMissingUnassignedInfo() {
         final var projectId = randomProjectIdOrDefault();
-        final var indexMetadata = IndexMetadata.builder("test-index")
+        final var indexName = randomIndexName();
+        final var indexMetadata = IndexMetadata.builder(indexName)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -1332,11 +1339,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                             NAME,
                             ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                             2,
-                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [test-index].",
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [" + indexName + "].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, List.of("test-index")))))
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))))
                 )
             )
         );

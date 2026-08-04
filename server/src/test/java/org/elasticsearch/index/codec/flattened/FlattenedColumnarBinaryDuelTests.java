@@ -31,7 +31,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MAX_DOCS_PER_BLOCK_DEFAULT;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MAX_BUFFERED_BYTES_DEFAULT;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MIN_COMPRESS_BYTES_DEFAULT;
 
 /**
  * Duel test between the row format (default Lucene binary DV) and the columnar flattened format.
@@ -100,8 +101,13 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
     }
 
     public void testMultipleBlocks() throws IOException {
-        // Enough docs to exceed MAX_DOCS_PER_BLOCK_DEFAULT and create multiple blocks.
-        duelRoundTrip(generateBlobs(MAX_DOCS_PER_BLOCK_DEFAULT * 3 + 7, 8, false, false));
+        // Use explicit small thresholds so multi-block coverage is pinned to intent and is not
+        // silently affected by changes to the production defaults.
+        final int tinyBlockDocs = 16;
+        duelRoundTripWithFormat(
+            new FlattenedDocValuesFormat(256, tinyBlockDocs, MIN_COMPRESS_BYTES_DEFAULT, MAX_BUFFERED_BYTES_DEFAULT),
+            generateBlobs(tinyBlockDocs * 3 + 7, 8, false, false)
+        );
     }
 
     public void testCanonicalOrder() throws IOException {
@@ -129,7 +135,7 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
         final List<BytesRef> rowBlobs = indexAndReadRow(blobs);
 
         try (Directory dir = newDirectory()) {
-            indexBlobs(dir, blobs, true /* columnar */);
+            indexBlobs(dir, blobs, new FlattenedDocValuesFormat());
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 for (final LeafReaderContext ctx : reader.leaves()) {
                     final LeafReader leaf = ctx.reader();
@@ -171,8 +177,12 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
     // ---------------------------------------------------------------------------------
 
     private void duelRoundTrip(List<byte[]> blobs) throws IOException {
+        duelRoundTripWithFormat(new FlattenedDocValuesFormat(), blobs);
+    }
+
+    private void duelRoundTripWithFormat(FlattenedDocValuesFormat fmt, List<byte[]> blobs) throws IOException {
         final List<BytesRef> rowValues = indexAndReadRow(blobs);
-        final List<BytesRef> colValues = indexAndReadColumnar(blobs);
+        final List<BytesRef> colValues = indexAndReadColumnar(blobs, fmt);
 
         assertEquals("doc count mismatch", rowValues.size(), colValues.size());
         for (int i = 0; i < rowValues.size(); i++) {
@@ -187,24 +197,28 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
 
     private List<BytesRef> indexAndReadRow(List<byte[]> blobs) throws IOException {
         try (Directory dir = newDirectory()) {
-            indexBlobs(dir, blobs, false);
+            indexBlobs(dir, blobs, null);
             return readAllBinaryValues(dir);
         }
     }
 
     private List<BytesRef> indexAndReadColumnar(List<byte[]> blobs) throws IOException {
+        return indexAndReadColumnar(blobs, new FlattenedDocValuesFormat());
+    }
+
+    private List<BytesRef> indexAndReadColumnar(List<byte[]> blobs, FlattenedDocValuesFormat fmt) throws IOException {
         try (Directory dir = newDirectory()) {
-            indexBlobs(dir, blobs, true);
+            indexBlobs(dir, blobs, fmt);
             return readAllBinaryValues(dir);
         }
     }
 
-    private void indexBlobs(Directory dir, List<byte[]> blobs, boolean columnar) throws IOException {
+    private void indexBlobs(Directory dir, List<byte[]> blobs, FlattenedDocValuesFormat fmt) throws IOException {
         final IndexWriterConfig config = new IndexWriterConfig();
-        if (columnar) {
+        if (fmt != null) {
             // Route ALL binary DV through FlattenedDocValuesFormat. No numeric/sorted DV is added
             // to these documents, so the format's UnsupportedOperationException is never hit.
-            config.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
+            config.setCodec(TestUtil.alwaysDocValuesFormat(fmt));
         }
         try (IndexWriter writer = new IndexWriter(dir, config)) {
             for (final byte[] blob : blobs) {

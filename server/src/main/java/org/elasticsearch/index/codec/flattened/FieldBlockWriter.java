@@ -51,10 +51,11 @@ final class FieldBlockWriter implements Closeable {
     /** The externally-owned output this column is being written into. */
     private final IndexOutput currentOut;
 
-    // Current block accumulation.
-    private int[] blockDocIds = new int[32];
-    private int[] blockSlotCounts = new int[32];
-    private byte[] blockPayload = new byte[4096];
+    // Current block accumulation. Pre-sized to the configured thresholds so that typical blocks
+    // require no grows; ArrayUtil.grow handles the overshoot case (one doc's payload past the limit).
+    private int[] blockDocIds;
+    private int[] blockSlotCounts;
+    private byte[] blockPayload;
     private int numDocsInBlock = 0;
     private int blockPayloadLen = 0;
 
@@ -82,6 +83,9 @@ final class FieldBlockWriter implements Closeable {
         this.minCompressBytes = minCompressBytes;
         this.columnStartOffset = out.getFilePointer();
         this.currentOut = out;
+        this.blockDocIds = new int[maxDocsPerBlock];
+        this.blockSlotCounts = new int[maxDocsPerBlock];
+        this.blockPayload = new byte[targetBlockBytes];
     }
 
     /**

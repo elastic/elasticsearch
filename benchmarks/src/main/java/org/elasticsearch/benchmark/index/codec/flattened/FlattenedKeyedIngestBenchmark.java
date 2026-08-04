@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MAX_BUFFERED_BYTES_DEFAULT;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MAX_DOCS_PER_BLOCK_DEFAULT;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.MIN_COMPRESS_BYTES_DEFAULT;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT;
+
 /**
  * Ingest cost and on-disk footprint of the flattened {@code ._keyed} column under two layouts.
  *
@@ -77,10 +82,21 @@ public class FlattenedKeyedIngestBenchmark {
         ROW,
         COLUMNAR;
 
-        Codec codec() {
+        /**
+         * Builds a codec that routes {@link FlattenedKeyedIngestBenchmark#KEYED_FIELD} through
+         * the appropriate doc-values format.  For {@code COLUMNAR}, {@code targetBlockBytes} and
+         * {@code maxDocsPerBlock} are forwarded to {@link FlattenedDocValuesFormat}; for {@code ROW}
+         * they are ignored (the TSDB format has its own fixed thresholds).
+         */
+        Codec codec(int targetBlockBytes, int maxDocsPerBlock) {
             final DocValuesFormat dvFormat = switch (this) {
                 case ROW -> new ES95TSDBDocValuesFormat();
-                case COLUMNAR -> new FlattenedDocValuesFormat();
+                case COLUMNAR -> new FlattenedDocValuesFormat(
+                    targetBlockBytes,
+                    maxDocsPerBlock,
+                    MIN_COMPRESS_BYTES_DEFAULT,
+                    MAX_BUFFERED_BYTES_DEFAULT
+                );
             };
             return new Elasticsearch93Lucene104Codec() {
                 @Override
@@ -109,13 +125,21 @@ public class FlattenedKeyedIngestBenchmark {
     @Param("200000")
     private int docCount;
 
+    /** Target uncompressed bytes per block (COLUMNAR only). Default matches the production default. */
+    @Param("" + TARGET_BLOCK_BYTES_DEFAULT)
+    private int targetBlockBytes;
+
+    /** Maximum documents per block (COLUMNAR only). Default matches the production default. */
+    @Param("" + MAX_DOCS_PER_BLOCK_DEFAULT)
+    private int maxDocsPerBlock;
+
     private List<List<BytesRef>> data;
     private Codec codec;
 
     @Setup(Level.Trial)
     public void setup() {
         data = FlattenedKeyedData.generate(workload, docCount);
-        codec = layout.codec();
+        codec = layout.codec(targetBlockBytes, maxDocsPerBlock);
     }
 
     /** Secondary metrics: bytes on disk at the end, and total bytes written across all segments. */

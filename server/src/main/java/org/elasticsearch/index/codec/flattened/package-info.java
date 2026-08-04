@@ -97,7 +97,7 @@
  * {@code [vint valueLen+1][value bytes]}, where prefix 0 means null (no bytes follow).
  *
  * <p>Flush triggers: a new block is started when {@code numDocs >= MAX_DOCS_PER_BLOCK} (default
- * 1024) or {@code blockPayloadLen >= TARGET_BLOCK_BYTES} (default 8 KiB). The check fires at the
+ * 8192) or {@code blockPayloadLen >= TARGET_BLOCK_BYTES} (default 64 KiB). The check fires at the
  * start of each new document so a single document's slots are never split across blocks.
  *
  * <h2>Key dictionary</h2>

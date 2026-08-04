@@ -406,7 +406,7 @@ public class KeyedFlattenedTermQueryTests extends ESTestCase {
         // "target" (6 bytes) so the prefix vint is distinguishably different.
         final String TRAILER = "aaaaaaaaaa"; // 10 bytes — prefix vint differs from "target" (prefix 7)
         try (Directory dir = newDirectory(); RandomIndexWriter writer = newColumnarWriter(dir)) {
-            // All five docs in one segment (and one block, since 5 << MAX_DOCS_PER_BLOCK=1024).
+            // All five docs in one segment (and one block, since 5 << MAX_DOCS_PER_BLOCK_DEFAULT).
             addColumnarDoc(writer, "k", "x", "target");      // doc 0
             addColumnarDoc(writer, "k", "target");            // doc 1
             addColumnarDoc(writer, "k", "y", "target");      // doc 2

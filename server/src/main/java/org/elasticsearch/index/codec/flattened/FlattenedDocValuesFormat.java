@@ -131,19 +131,19 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
      * Flush a new block when the uncompressed payload reaches this size.
      * Balances I/O granularity against per-block-index overhead.
      */
-    static final int TARGET_BLOCK_BYTES_DEFAULT = 8 * 1024;
+    public static final int TARGET_BLOCK_BYTES_DEFAULT = 64 * 1024;
     /** Flush a new block when it contains this many documents. */
-    static final int MAX_DOCS_PER_BLOCK_DEFAULT = 1024;
+    public static final int MAX_DOCS_PER_BLOCK_DEFAULT = 8192;
     /**
      * Minimum uncompressed payload length to bother applying ZSTD compression.
      * Below this threshold the frame overhead exceeds the savings.
      */
-    static final int MIN_COMPRESS_BYTES_DEFAULT = 64;
+    public static final int MIN_COMPRESS_BYTES_DEFAULT = 64;
     /**
      * Maximum bytes buffered in the {@link SortedSlotAccumulator} before spilling to an external
      * merge sort. Larger values reduce I/O at the cost of heap.
      */
-    static final int MAX_BUFFERED_BYTES_DEFAULT = 32 * 1024 * 1024;
+    public static final int MAX_BUFFERED_BYTES_DEFAULT = 32 * 1024 * 1024;
 
     /** Fixed byte size of one entry in the column address table. */
     static final int COLUMN_ADDRESS_ENTRY_BYTES = 16; // long + int + int
@@ -167,9 +167,13 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
         this(TARGET_BLOCK_BYTES_DEFAULT, MAX_DOCS_PER_BLOCK_DEFAULT, MIN_COMPRESS_BYTES_DEFAULT, MAX_BUFFERED_BYTES_DEFAULT);
     }
 
-    /** Package-private constructor with configurable thresholds for testing and benchmarking. */
-    FlattenedDocValuesFormat(int targetBlockBytes, int maxDocsPerBlock, int minCompressBytes, int maxBufferedBytes) {
+    /** Public constructor with configurable thresholds for testing and benchmarking. */
+    public FlattenedDocValuesFormat(int targetBlockBytes, int maxDocsPerBlock, int minCompressBytes, int maxBufferedBytes) {
         super(CODEC_NAME);
+        if (targetBlockBytes < 1) throw new IllegalArgumentException("targetBlockBytes must be >= 1, got " + targetBlockBytes);
+        if (maxDocsPerBlock < 1) throw new IllegalArgumentException("maxDocsPerBlock must be >= 1, got " + maxDocsPerBlock);
+        if (minCompressBytes < 0) throw new IllegalArgumentException("minCompressBytes must be >= 0, got " + minCompressBytes);
+        if (maxBufferedBytes < 1) throw new IllegalArgumentException("maxBufferedBytes must be >= 1, got " + maxBufferedBytes);
         this.targetBlockBytes = targetBlockBytes;
         this.maxDocsPerBlock = maxDocsPerBlock;
         this.minCompressBytes = minCompressBytes;

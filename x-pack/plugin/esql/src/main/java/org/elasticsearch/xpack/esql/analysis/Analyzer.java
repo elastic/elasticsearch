@@ -2165,9 +2165,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
-                    inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns),
-                    ResolvingProject.Kind.KEEP,
-                    keep.projections()
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.KEEP,
+                        keep.projections(),
+                        inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                    )
                 );
             }
             List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
@@ -2279,9 +2281,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 ? new ResolvingProject(
                     drop.source(),
                     drop.child(),
-                    inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE),
-                    ResolvingProject.Kind.DROP,
-                    drop.removals()
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.DROP,
+                        drop.removals(),
+                        inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE)
+                    )
                 )
                 : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
         }
@@ -2338,9 +2342,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
-                    inputAttributes -> projectionsForRename(rename, inputAttributes, log),
-                    ResolvingProject.Kind.RENAME,
-                    rename.renamings()
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.RENAME,
+                        rename.renamings(),
+                        inputAttributes -> projectionsForRename(rename, inputAttributes, log)
+                    )
                 );
         }
 

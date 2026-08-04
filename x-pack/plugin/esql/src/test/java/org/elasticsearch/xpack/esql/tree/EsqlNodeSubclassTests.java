@@ -207,6 +207,18 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedNamedExpression.class
     );
 
+    /**
+     * A {@link ResolvingProject} takes its auxiliary state as a record holding a resolver, so it cannot be mocked; the resolver returns
+     * its input so that the projections it derives describe the child. One shared instance means {@code randomValueOtherThanMaxTries}
+     * can never produce a different value, which keeps {@link #testTransform} honest: the command is not a node property, so no
+     * transform can reach it.
+     */
+    private static final ResolvingProject.Command RESOLVING_PROJECT_COMMAND = new ResolvingProject.Command(
+        ResolvingProject.Kind.KEEP,
+        List.of(),
+        inputAttributes -> inputAttributes
+    );
+
     private final Class<T> subclass;
 
     public EsqlNodeSubclassTests(Class<T> subclass) {
@@ -227,15 +239,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
-
-        if (subclass == ResolvingProject.class) {
-            /*
-             * ResolvingProject.info() deliberately includes projections() beyond the
-             * longest-public-ctor parameters so that NodeInfo.transform can visit
-             * expressions inside the projections (needed by ResolveRefs).
-             */
-            expectedCount += 1;
-        }
 
         assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
@@ -462,9 +465,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                     }
                 };
             }
-            if (toBuildClass == ResolvingProject.class && pt.getRawType() == java.util.function.Function.class) {
-                return java.util.function.Function.identity();
-            }
 
             throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "], for " + toBuildClass.getSimpleName());
         }
@@ -545,6 +545,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             ElementType type = randomFrom(ElementType.LONG, ElementType.INT, ElementType.DOUBLE, ElementType.FLOAT);
             Object value = type == ElementType.LONG && randomBoolean() ? randomLong() : null;
             return new DefaultValue(type, value);
+        } else if (argClass == ResolvingProject.Command.class) {
+            return RESOLVING_PROJECT_COMMAND;
         } else if (argClass == AttributeSet.class) {
             // AttributeSet has a private constructor / cannot be mocked.
             return makeAttributeSet(toBuildClass);

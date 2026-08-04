@@ -10,26 +10,28 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class InternalIndexingStatsTests extends ESTestCase {
 
     public void testPollUtilizationTracksSuccessfulIndexingTime() {
+        AtomicLong currentTime = new AtomicLong(0);
+        final int numThreads = randomIntBetween(1, 8);
         InternalIndexingStats internalIndexingStats = new InternalIndexingStats(
-            System::nanoTime,
+            () -> currentTime.get(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            2 /* number of WRITE thread pool threads, specific number does not matter much */
+            numThreads
         );
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
@@ -40,17 +42,18 @@ public class InternalIndexingStatsTests extends ESTestCase {
         when(result.getTook()).thenReturn(operationTimeNanos);
 
         // Verify that utilization is zero before any writes are done.
+        currentTime.set(1000L);
         assertThat(internalIndexingStats.pollUtilization(), equalTo(0.0d));
 
         internalIndexingStats.preIndex(null /* unused */, index);
         internalIndexingStats.postIndex(null /* unused */, index, result);
+        currentTime.set(operationTimeNanos + 1000L);  // Advance time by the operation time to simulate the passage of time.
         final double utilization = internalIndexingStats.pollUtilization();
-
-        // Sleep briefly so that the polling period is greater than the operation time.
-        safeSleep(TimeValue.timeValueNanos(2 * operationTimeNanos));
 
         // Verify that utilization is no longer zero now that a write operation has occurred.
         assertThat(utilization, greaterThan(0.0d));
-        assertThat(utilization, lessThanOrEqualTo(1.0d));
+
+        // One operation ran the duration of the time window polled. So the utilization is relative to the number of threads available.
+        assertEquals(1.0 / numThreads, utilization, 0.0001);
     }
 }

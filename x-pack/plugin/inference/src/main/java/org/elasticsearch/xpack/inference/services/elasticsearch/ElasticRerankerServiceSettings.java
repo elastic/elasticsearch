@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.EnumParser.parseFromStringInObjectParserContext;
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
@@ -32,9 +38,23 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
     public static final String LONG_DOCUMENT_STRATEGY = "long_document_strategy";
     public static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createRerankerParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createRerankerParser(true);
+
     private static final TransportVersion ELASTIC_RERANKER_CHUNKING_CONFIGURATION = TransportVersion.fromName(
         "elastic_reranker_chunking_configuration"
     );
+
+    private static ObjectParser<Builder, ConfigurationParseContext> createRerankerParser(boolean ignoreUnknownFields) {
+        var parser = ElasticsearchInternalServiceSettings.createParser(ignoreUnknownFields, Builder::new);
+        parser.declareString(Builder::setLongDocumentStrategy, new ParseField(LONG_DOCUMENT_STRATEGY));
+        parser.declareField(Builder::setMaxChunksPerDoc, p -> {
+            int value = p.intValue();
+            validatePositiveInteger(value, MAX_CHUNKS_PER_DOC);
+            return value;
+        }, new ParseField(MAX_CHUNKS_PER_DOC), ObjectParser.ValueType.INT);
+        return parser;
+    }
 
     private final LongDocumentStrategy longDocumentStrategy;
     private final Integer maxChunksPerDoc;
@@ -96,37 +116,70 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
      * {@link ValidationException} is thrown.
      *
      * @param map Source map containing the config
+     * @param context The parser context, whether it is from an HTTP request or from persistent storage
      * @return Parsed and validated service settings
      */
-    public static ElasticRerankerServiceSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-        var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
+    public static ElasticRerankerServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
 
-        LongDocumentStrategy longDocumentStrategy = extractOptionalEnum(
-            map,
-            LONG_DOCUMENT_STRATEGY,
-            ModelConfigurations.SERVICE_SETTINGS,
-            LongDocumentStrategy::fromString,
-            EnumSet.allOf(LongDocumentStrategy.class),
-            validationException
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            var builder = parser.apply(xParser, context);
+            // TODO: remove once all elasticsearch internal service settings are parser-based and ElasticsearchInternalService no
+            // longer checks for unconsumed map entries. The object parser reads the map through an XContent view without consuming
+            // its entries, so the parsed fields must be removed explicitly to satisfy the caller's check that no unknown settings
+            // remain in the map.
+            map.remove(NUM_ALLOCATIONS);
+            map.remove(NUM_THREADS);
+            map.remove(MODEL_ID);
+            map.remove(DEPLOYMENT_ID);
+            map.remove(ADAPTIVE_ALLOCATIONS);
+            map.remove(LONG_DOCUMENT_STRATEGY);
+            map.remove(MAX_CHUNKS_PER_DOC);
 
-        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
-            map,
-            MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+            ElasticsearchInternalServiceSettings.validateRequiredFields(builder);
+            validateChunkingRule(builder);
+            return builder.build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
+    }
 
-        if (maxChunksPerDoc != null && (longDocumentStrategy == null || longDocumentStrategy == LongDocumentStrategy.TRUNCATE)) {
+    private static void validateChunkingRule(Builder builder) {
+        if (builder.maxChunksPerDoc != null
+            && (builder.longDocumentStrategy == null || builder.longDocumentStrategy == LongDocumentStrategy.TRUNCATE)) {
+            ValidationException validationException = new ValidationException();
             validationException.addValidationError(
                 "The [" + MAX_CHUNKS_PER_DOC + "] setting requires [" + LONG_DOCUMENT_STRATEGY + "] to be set to [chunk]"
             );
+            throw validationException;
+        }
+    }
+
+    /**
+     * Builder for the reranker settings: extends the base builder with the chunking configuration fields declared by
+     * {@link #createRerankerParser}.
+     */
+    public static class Builder extends ElasticsearchInternalServiceSettings.Builder {
+        private LongDocumentStrategy longDocumentStrategy;
+        private Integer maxChunksPerDoc;
+
+        public void setLongDocumentStrategy(String longDocumentStrategy) {
+            this.longDocumentStrategy = parseFromStringInObjectParserContext(
+                longDocumentStrategy,
+                LongDocumentStrategy::fromString,
+                EnumSet.allOf(LongDocumentStrategy.class),
+                EnumSet.noneOf(LongDocumentStrategy.class)
+            );
         }
 
-        validationException.throwIfValidationErrorsExist();
+        public void setMaxChunksPerDoc(Integer maxChunksPerDoc) {
+            this.maxChunksPerDoc = maxChunksPerDoc;
+        }
 
-        return new ElasticRerankerServiceSettings(baseSettings.build(), longDocumentStrategy, maxChunksPerDoc);
+        @Override
+        public ElasticRerankerServiceSettings build() {
+            return new ElasticRerankerServiceSettings(super.build(), longDocumentStrategy, maxChunksPerDoc);
+        }
     }
 
     public LongDocumentStrategy getLongDocumentStrategy() {

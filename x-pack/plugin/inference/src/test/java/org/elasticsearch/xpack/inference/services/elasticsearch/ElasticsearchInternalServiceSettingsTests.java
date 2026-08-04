@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -133,14 +134,56 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticse
         );
     }
 
-    public void testFromMapInvalidSettings() {
+    public void testFromMapInvalidNumAllocations() {
         var settingsMap = new HashMap<String, Object>(
-            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 0, ElasticsearchInternalServiceSettings.NUM_THREADS, -1)
+            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 0, ElasticsearchInternalServiceSettings.NUM_THREADS, 1)
         );
-        var e = expectThrows(ValidationException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
+        var e = expectThrows(XContentParseException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
 
-        assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
-        assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
+        assertThat(e.getCause().getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
+    }
+
+    public void testFromMapInvalidNumThreads() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, -1)
+        );
+        var e = expectThrows(XContentParseException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
+
+        assertThat(e.getCause().getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
+    }
+
+    public void testFromMapUnknownFieldInRequestContext() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(
+                ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                1,
+                ElasticsearchInternalServiceSettings.NUM_THREADS,
+                1,
+                "unknown_field",
+                "value"
+            )
+        );
+        var e = expectThrows(XContentParseException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
+
+        assertThat(e.getMessage(), containsString("unknown field [unknown_field]"));
+    }
+
+    public void testFromPersistedMapIgnoresUnknownFields() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(
+                ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                1,
+                ElasticsearchInternalServiceSettings.NUM_THREADS,
+                4,
+                ElasticsearchInternalServiceSettings.MODEL_ID,
+                ".elser_model_1",
+                "unknown_field",
+                "value"
+            )
+        );
+        var serviceSettings = ElasticsearchInternalServiceSettings.fromPersistedMap(settingsMap);
+
+        assertEquals(new ElasticsearchInternalServiceSettings(1, 4, ".elser_model_1", null, null), serviceSettings);
     }
 
     @Override

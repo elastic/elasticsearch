@@ -790,7 +790,7 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testResolveEmptyWithoutDatasets() {
         // No datasets registered: an explicit name resolves to no authorized datasets and no non-dataset targets.
         DatasetRewriter.DatasetResolution r = resolve("logs", projectWith(Map.of(), Map.of()), Set.of());
-        assertThat(r.authorizedDatasets(), equalTo(Set.of()));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of()));
         assertTrue(r.nonDatasetNames().isEmpty());
     }
 
@@ -801,13 +801,16 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
         // Explicit single dataset.
-        assertThat(resolve("logs_a", project, Set.of("logs_a")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_a", project, Set.of("logs_a")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // Wildcard, all authorized.
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
         // Wildcard with exclusion, applied within the relation.
-        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_a")));
+        assertThat(resolve("logs_*,-logs_b", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_a")));
         // No pattern can match a dataset name → empty.
-        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of()));
+        assertThat(resolve("metrics", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of()));
     }
 
     public void testResolveExclusionStaysPerRelation() {
@@ -818,8 +821,11 @@ public class DatasetRewriterTests extends ESTestCase {
         Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        assertThat(resolve("logs_*", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), containsInAnyOrder("logs_a", "logs_b"));
-        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).authorizedDatasets(), equalTo(Set.of("logs_b")));
+        assertThat(
+            resolve("logs_*", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(),
+            containsInAnyOrder("logs_a", "logs_b")
+        );
+        assertThat(resolve("logs_*,-logs_a", project, Set.of("logs_a", "logs_b")).resolvedExternalDatasets(), equalTo(Set.of("logs_b")));
     }
 
     public void testResolveFlagsNonDatasetTargets() {
@@ -829,7 +835,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("logs_dataset", ds), Set.of("logs_index"));
 
         DatasetRewriter.DatasetResolution r = resolve("logs_*", project, Set.of("logs_dataset"));
-        assertThat(r.authorizedDatasets(), equalTo(Set.of("logs_dataset")));
+        assertThat(r.resolvedExternalDatasets(), equalTo(Set.of("logs_dataset")));
         assertFalse(r.nonDatasetNames().isEmpty());
     }
 

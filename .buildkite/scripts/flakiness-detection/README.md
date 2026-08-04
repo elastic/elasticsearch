@@ -25,7 +25,7 @@ Use when you want to run flakiness detection against a hand-picked list of class
 Build environment variables:
 
 | Variable            | Required | Description                                                                                                                                                                                                                                                 |
-| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|---------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `FLAKINESS_CLASSES` | yes      | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
 | `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
 
@@ -45,7 +45,7 @@ Arguments are passed through `classifyExplicitList` (same parser as `FLAKINESS_C
 
 Tips:
 - `--iters 5` gives a quick sanity loop. The defaults (100 unit iters / 20 integ iters / 10 REST loops / 1 hour suite timeout) are CI-scale.
-- The analyzer filters by file mtime, so it only counts XML written during *this* run — stale reports from prior local runs are ignored.
+- The analyzer filters by file mtime, so it only counts XML written during *this* run — stale reports from prior local runs (including under `flakiness-iters/`, see below) are ignored.
 
 ## How it works
 
@@ -66,7 +66,7 @@ Four modules form a one-way pipeline. Each module owns a single responsibility a
 Each detector takes an input shape specific to its trigger and emits `ClassifiedTest[]` plus an optional list of unresolvable inputs. All three are pure functions of their inputs (no I/O); the calling entrypoint reads files / runs git and passes strings in.
 
 | File                         | Input                                                      | Used by                                         |
-| ---------------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
+|------------------------------|------------------------------------------------------------|-------------------------------------------------|
 | `detectors/changed-files.ts` | List of file paths (typically from `git diff --name-only`) | `entrypoints/pr.ts`                             |
 | `detectors/unmutes.ts`       | Old + new `muted-tests.yml` text + tracked repo files      | `entrypoints/pr.ts`                             |
 | `detectors/explicit-list.ts` | Array of spec strings                                      | `entrypoints/manual.ts`, `entrypoints/local.ts` |
@@ -93,14 +93,16 @@ Two implementations, one contract — both consume `RunnableCommand[]`:
 - `runners/buildkite.ts` — `toBuildkitePipeline` (pure) produces a Buildkite pipeline structure; `uploadBuildkitePipeline` (impure) serializes to YAML and shells out to `buildkite-agent pipeline upload`. The function appends a final `flakiness-detection:analyze` step that depends on every batch step with `allow_failure: true`, so the report runs even when batches fail.
 - `runners/local.ts` — `runLocally` executes each command sequentially via `execSync` with inherited stdio. Returns the worst exit code seen (does **not** stop on first failure — the developer sees all batch results).
 
+REST kinds (`javaRestTest` / `yamlRestTestRunner` / `yamlRestTestSuite` / `yamlRestTestCase`) re-run by looping a Gradle invocation `restIters` times inside `runners/repeat-rest-test.sh`, rather than via `-Dtests.iters` (unit / integ). Each Gradle run overwrites the same `build/test-results/**/TEST-*.xml` in place, so the loop relocates every iteration's XML into `flakiness-iters/iter-<i>/<original path>` after it runs. This keeps the `build/test-results/` path segment intact — so the artifact glob and the analyzer walker still match — while ensuring the analyzer sees *all* re-runs, not just the last. Consequently `Iterations attempted` counts case-executions across every re-run (cases × iterations) for these kinds. (Batch jobs run on fresh agents; local runs rely on the analyzer's mtime filter to ignore snapshots from earlier runs.)
+
 ### Module 4: analyzer
 
 Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build/test-results/*/TEST-*.xml`), classifies each failure entry, and aggregates per `(class, method)` summaries.
 
-| File                  | Responsibility                                                                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File                  | Responsibility                                                                                                                                                                                                                                                                                                                                             |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `analyzer/analyze.ts` | Walk the workspace for JUnit XML, stream-parse via `sax`, classify failures, produce `FlakinessReport`. Streaming keeps peak memory bounded by test count (not file size), so the analyze step survives K8s agents even when a report grows into the hundreds of MiB. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
-| `analyzer/render.ts`  | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style.                                                                                                                |
+| `analyzer/render.ts`  | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style.                                                                                                                                                                                                                                                                         |
 
 Failure classification (`classifyFailure`):
 
@@ -206,6 +208,7 @@ flakiness-detection/
   runners/
     buildkite.ts         RunnableCommand[] → BK YAML + upload (wraps + writes per-job status file)
     local.ts             RunnableCommand[] → sequential execSync
+    repeat-rest-test.sh  REST-loop wrapper: repeats a Gradle run restIters times, preserves each iteration's XML
   analyzer/
     analyze.ts           JUnit XML → FlakinessReport
     render.ts            FlakinessReport → markdown + severity

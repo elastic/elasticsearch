@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -213,7 +214,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
@@ -1478,13 +1478,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
+                boolean hasRemoteIndices = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                var newLookupJoinMode = newLookupJoinMode(join.executesOn(), hasRemoteIndices);
+                return new LookupJoin(join.source(), join.left(), join.right(), config, newLookupJoinMode);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
+            }
+        }
+
+        private static ExecuteLocation newLookupJoinMode(ExecuteLocation mode, boolean hasRemoteIndices) {
+            if (mode == ExecuteLocation.COORDINATOR) {
+                return ExecuteLocation.COORDINATOR;
+            } else if (mode == ExecuteLocation.REMOTE || hasRemoteIndices) {
+                return ExecuteLocation.REMOTE;
+            } else {
+                return ExecuteLocation.ANY;
             }
         }
 
@@ -1930,12 +1941,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
+            String name = attribute.name();
+            int lastDot = name.lastIndexOf('.');
+            String parentName = lastDot < 0 ? null : name.substring(0, lastDot);
+            String leafName = lastDot < 0 ? name : name.substring(lastDot + 1);
             return new FieldAttribute(
                 attribute.source(),
-                null,
+                parentName,
                 attribute.qualifier(),
-                attribute.name(),
-                new PotentiallyUnmappedKeywordEsField(attribute.name())
+                name,
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 
@@ -2266,7 +2281,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
-                resolvedProjections.removeIf(resolved::contains);
+                Set<? extends NamedExpression> resolvedSet = new HashSet<>(resolved);
+                resolvedProjections.removeIf(resolvedSet::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
                     if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {
@@ -3107,7 +3123,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <ol>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
          *   per-type conversions.</li>
-         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast.</li>
+         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
+         *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
          * </ol>
          *
@@ -3175,37 +3192,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (areMappedTypesSupported(unionTypeEsField, supportedTypes)) {
-                        Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
-                        // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
-                        // to data nodes, and SurrogateExpressions cannot be serialized.
-                        Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
-                        UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
-
-                        if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
-                            if (supportedTypes.contains(KEYWORD)) {
-                                Expression keywordField = existingConvert.field();
-                                Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
-                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
-                            } else {
-                                // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
-                                // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
-                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
-                            }
-                        } else if (unmappedExpr != null) {
-                            throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
-                        }
-
-                        return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
-                    } else if (unionTypeEsField.getUnmappedConversionExpression() != null) {
-                        String msg = supportedTypes.contains(KEYWORD)
-                            ? "One or more mapped types of partially unmapped field [%s] cannot be accepted in [%s]"
-                            : "[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]";
-
-                        msg = String.format(Locale.ROOT, msg, fa.name(), convertExpression.sourceText());
-
-                        return new UnresolvedAttribute(fa.source(), fa.name(), msg);
+                    if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
+                        return new UnresolvedAttribute(
+                            fa.source(),
+                            fa.name(),
+                            unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
+                        );
                     }
+
+                    Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
+                    // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
+                    // to data nodes, and SurrogateExpressions cannot be serialized.
+                    Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
+                    UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
+
+                    if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
+                        if (supportedTypes.contains(KEYWORD)) {
+                            Expression keywordField = existingConvert.field();
+                            Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
+                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                        } else {
+                            // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
+                            // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
+                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
+                        }
+                    } else if (unmappedExpr != null) {
+                        throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
+                    }
+
+                    return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
                         singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
@@ -3293,6 +3308,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     e -> e instanceof AbstractConvertFunction convertFunction
                         && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
                 );
+        }
+
+        private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+            return unionTypeEsField.getConversionExpressions().stream().<String>mapMulti((e, consumer) -> {
+                if (e instanceof AbstractConvertFunction cf) {
+                    DataType dataType = cf.field().dataType();
+                    if (supportedTypes.contains(dataType.widenSmallNumeric()) == false) consumer.accept(dataType.typeName());
+                }
+            }).distinct().sorted().collect(Collectors.joining(", "));
+        }
+
+        private static String unsupportedExplicitCastMessage(
+            UnionTypeEsField unionTypeEsField,
+            Set<DataType> supportedTypes,
+            String fieldName,
+            String sourceText
+        ) {
+            if (unionTypeEsField.getUnmappedConversionExpression() == null) {
+                // A null unmapped conversion means this isn't a two-legged PUNK (ResolveTwoLeggedPunksInEsRelation always sets one). The
+                // only other non-synthetic union producer is DateMillisToNanosInEsRelation, so this is an all-dates union.
+                if (unionTypeEsField.getConversionExpressions()
+                    .stream()
+                    .allMatch(e -> e instanceof AbstractConvertFunction cf && cf.field().dataType().isDate()) == false) {
+                    throw new IllegalStateException("Expected a date/date_nanos union for [" + fieldName + "]");
+                }
+                return Strings.format(
+                    "Mapped types [%s] of [%s] cannot be accepted in [%s]",
+                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    fieldName,
+                    sourceText
+                );
+            }
+            return supportedTypes.contains(KEYWORD)
+                ? Strings.format(
+                    "Mapped types [%s] of partially unmapped field [%s] cannot be accepted in [%s]",
+                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    fieldName,
+                    sourceText
+                )
+                : Strings.format("[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]", fieldName, sourceText);
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
@@ -3544,7 +3599,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return fa;
                         }
 
-                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
+                        // Look up the converter by the widened type so a partially unmapped short is auto-cast to integer, matching a
+                        // fully mapped short. The mapped leg keeps its original type below (see typeResolutions).
+                        DataType widenedType = mappedType.widenSmallNumeric();
+                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(widenedType);
                         ConvertFunction convert = convertFactory == null
                             ? null
                             : convertFactory.apply(fa.source(), fa, context.configuration());

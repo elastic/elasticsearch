@@ -14,12 +14,6 @@
     "Team:Delivery",
     "auto-merge-without-approval"
   ],
-  "baseBranches": [
-    "main",
-    "9.4",
-    "9.3",
-    "8.19"
-  ],
   "ignorePaths": [
     "x-pack/qa/repository-old-versions-compatibility/src/javaRestTest/resources/README.md",
     "docs/**",
@@ -57,7 +51,7 @@
       "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
     }
   ],
-  "baseBranches": [
+  "baseBranchPatterns": [
     "main",
     "9.5",
     "9.4",

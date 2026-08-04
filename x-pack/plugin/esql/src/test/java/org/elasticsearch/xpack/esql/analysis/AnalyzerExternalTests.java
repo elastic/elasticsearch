@@ -53,12 +53,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for analysis of external datasets reached via {@code FROM <dataset>}. All such analyzer tests belong
@@ -165,30 +163,16 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * MATCH_PHRASE can operate on external (non-index) keyword fields via runtime search (snapshot-only for now).
-     * In release builds it is rejected, and the message names the federated-source limitation.
+     * MATCH_PHRASE can operate on external (non-index) keyword fields via runtime search.
      */
     public void testWithMatchPhraseFunction() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
-        String query = "FROM " + DATASET_NAME + " | WHERE MATCH_PHRASE(first_name, \"foo\")";
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            var plan = analyzeDataset(external(), S3_PATH, query);
-            Limit limit = as(plan, Limit.class);
-            Filter filter = as(limit.child(), Filter.class);
-            assertThat(filter.condition(), instanceOf(MatchPhrase.class));
-            assertThat(filter.child(), instanceOf(ExternalRelation.class));
-        } else {
-            datasetError(
-                external(),
-                S3_PATH,
-                query,
-                containsString(
-                    "function cannot operate on [first_name], which is not a field from an index mapping "
-                        + "(the source is a federated data source, not an index)"
-                )
-            );
-        }
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " | WHERE MATCH_PHRASE(first_name, \"foo\")");
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(MatchPhrase.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
     }
 
     /**
@@ -252,56 +236,29 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * MATCH_PHRASE runtime search also accepts a renamed external field (snapshot-only for now). In release builds
-     * the error still names the federated-source limitation - the federated-clause detection must follow the rename
-     * (by attribute identity) back to the {@link ExternalRelation}, not just compare the field's current name
-     * against its output.
+     * MATCH_PHRASE runtime search also accepts a renamed external field.
      */
     public void testWithMatchPhraseFunctionAfterRename() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
-        String query = "FROM " + DATASET_NAME + " | RENAME first_name AS fname | WHERE MATCH_PHRASE(fname, \"foo\")";
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            analyzeDataset(external(), S3_PATH, query);
-        } else {
-            datasetError(
-                external(),
-                S3_PATH,
-                query,
-                containsString(
-                    "function cannot operate on [fname], which is not a field from an index mapping "
-                        + "(the source is a federated data source, not an index)"
-                )
-            );
-        }
+        analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " | RENAME first_name AS fname | WHERE MATCH_PHRASE(fname, \"foo\")");
     }
 
     /**
-     * MATCH_PHRASE runtime search accepts EVAL-derived keyword fields (snapshot-only for now). In release builds,
-     * where it is rejected, a genuinely computed field - even one built from a federated field, and even after a
-     * subsequent rename - must not gain the federated-source clause: the value is no longer a direct reference to
-     * the federated field, so the plain "not a field from an index mapping" message applies.
+     * MATCH_PHRASE runtime search accepts EVAL-derived keyword fields, even ones built from a federated field and
+     * renamed afterwards.
      */
     public void testWithMatchPhraseFunctionOnEvalDerivedField() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
-        String query = "FROM "
-            + DATASET_NAME
-            + " | EVAL full_name = CONCAT(first_name, last_name) | RENAME full_name AS content "
-            + "| WHERE MATCH_PHRASE(content, \"foo\")";
-        if (MatchPhrase.runtimeSearchEnabled()) {
-            analyzeDataset(external(), S3_PATH, query);
-        } else {
-            datasetError(
-                external(),
-                S3_PATH,
-                query,
-                allOf(
-                    containsString("function cannot operate on [content], which is not a field from an index mapping"),
-                    not(containsString("federated"))
-                )
-            );
-        }
+        analyzeDataset(
+            external(),
+            S3_PATH,
+            "FROM "
+                + DATASET_NAME
+                + " | EVAL full_name = CONCAT(first_name, last_name) | RENAME full_name AS content "
+                + "| WHERE MATCH_PHRASE(content, \"foo\")"
+        );
     }
 
     /**

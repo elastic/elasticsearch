@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -104,6 +105,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -456,7 +458,27 @@ public class EsqlSession {
                         EsqlPlugin.externalBlobStorePool()
                     );
 
-                    LogicalPlan plan = analyzedPlan.inner();
+                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
+                    // Apply the out-of-band request filter to external-source (dataset) leaves, translated
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
+                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // The rewrite is fail-closed: an unsupported construct throws IllegalArgumentException (a 400).
+                    // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
+                    // would not be routed to the listener — catch it and fail the query explicitly.
+                    final LogicalPlan plan;
+                    try {
+                        plan = RequestFilterRewriter.rewrite(
+                            analyzedPlan.inner(),
+                            request.filter(),
+                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
@@ -465,7 +487,6 @@ public class EsqlSession {
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
                     }
-                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
@@ -1495,7 +1516,7 @@ public class EsqlSession {
      * Perform a field caps request for each lookup index. Does not update the minimum transport version.
      */
     private void preAnalyzeLookupIndices(
-        Iterator<IndexPattern> lookupIndices,
+        Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
@@ -1510,13 +1531,13 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(
-        IndexPattern lookupIndexPattern,
+        PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = lookupIndexPattern.indexPattern();
+        String localPattern = lookupIndexPattern.indexPattern().indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
         assert ThreadPool.assertCurrentThreadPool(
@@ -1528,10 +1549,31 @@ public class EsqlSession {
             // indices) the resolver's continuation reaches this on the external blob-store pool.
             EsqlPlugin.externalBlobStorePool()
         );
-        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
-            executionInfo,
-            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
-        );
+
+        String qualifiedPattern;
+        Set<String> lookupIndexScope;
+
+        if (lookupIndexPattern.mode() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+            // "_coordinator" is our reserved alias for the local coordinator node.
+            // If a remote cluster is registered under the same name, reject the query to avoid ambiguity.
+            if (remoteClusterService.getRegisteredRemoteClusterNames().contains("_coordinator")) {
+                listener.onFailure(
+                    new VerificationException(
+                        "coordinator LOOKUP JOIN is not supported with a remote cluster [_coordinator]. Please rename it."
+                    )
+                );
+                return;
+            }
+            lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            qualifiedPattern = RemoteClusterAware.splitIndexName(localPattern).indexExpression();
+        } else {
+            lookupIndexScope = EsqlCCSUtils.onlyRunning(
+                executionInfo,
+                computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
+            );
+            qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern);
+        }
+
         if (lookupIndexScope.isEmpty()) {
             // The source index returned no contributing clusters (all shards were pruned by the
             // request-level filter). Skip the lookup field-caps call — sending an empty index
@@ -1542,11 +1584,12 @@ public class EsqlSession {
             listener.onResponse(result.addLookupIndexResolution(localPattern, IndexResolution.notFound(localPattern)));
             return;
         }
+
+        executionInfo.queryProfile().incFieldCapsCalls();
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
+            qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
@@ -1893,8 +1936,8 @@ public class EsqlSession {
                 index,
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
-                Map.of(),
-                Map.of()
+                lookupIndexResolution.get().originalIndices(),
+                lookupIndexResolution.get().concreteIndices()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 154793
+summary: Adding check against self referencing filters
+type: bug

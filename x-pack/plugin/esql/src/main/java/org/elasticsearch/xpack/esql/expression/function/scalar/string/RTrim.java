@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Removes trailing whitespaces from a string.
  */
-public class RTrim extends UnaryScalarFunction {
+public class RTrim extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RTrim", RTrim::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RTrim.class).unary(RTrim::new).name("rtrim");
 

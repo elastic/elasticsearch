@@ -26,6 +26,7 @@ import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansNeighbors;
@@ -38,8 +39,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.IntUnaryOperator;
 
@@ -118,13 +117,14 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     public CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        ClusteringVectorValues<?> vectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
+        FloatVectorValues floatVectorValues = (FloatVectorValues) vectorValues;
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
@@ -219,7 +219,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     public CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
-        FloatVectorValues floatVectorValues,
+        ClusteringVectorValues<?> vectorValues,
         IndexOutput postingsOutput,
         long fileOffset,
         MergeState mergeState,
@@ -227,6 +227,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
+        FloatVectorValues floatVectorValues = (FloatVectorValues) vectorValues;
         // first, quantize all the vectors into a temporary file
         String quantizedVectorsTempName = null;
         try (
@@ -469,22 +470,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(
-        Preconditioner Preconditioner,
-        FloatVectorValues vectors,
-        IvfSegmentConfig ivfSegmentConfig
-    ) {
-        // no-op
-        return vectors;
-    }
-
-    @Override
-    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner, IvfSegmentConfig ivfSegmentConfig) {
-        // no-op
-        return (vectors) -> {};
-    }
-
-    @Override
     protected void writePreconditioner(Preconditioner Preconditioner, IndexOutput out) {
         // no-op
     }
@@ -534,7 +519,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         long preconditionerLength,
         int numberOfSlices,
         int maxSliceSize,
-        IvfSegmentConfig ivfSegmentConfig
+        IvfSegmentConfig ivfSegmentConfig,
+        boolean byteCentroids
     ) {
         // Do Nothing Extra
     }
@@ -656,22 +642,27 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     }
 
     @Override
-    public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
-        throws IOException {
+    public CentroidInformation<float[]> calculateCentroids(
+        FieldInfo fieldInfo,
+        ClusteringVectorValues<?> vectorValues,
+        MergeState mergeState
+    ) throws IOException {
         // 9.2 indices intentionally do not participate in the tiered merge strategy: the on-disk
         // layout would require a bespoke streaming centroid reader to surface priors, and the
         // payoff (a transitional format that ages out) does not justify the added complexity.
         // Fall back to the standard hierarchical rebuild so the 9.2 path stays minimal.
-        return calculateCentroids(fieldInfo, floatVectorValues);
+        return calculateCentroids(fieldInfo, vectorValues);
     }
 
     @Override
-    public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidInformation<float[]> calculateCentroids(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues) throws IOException {
+        // Byte fields are gated by supportsByteNative() in addField/mergeOneField and never reach here
+        KMeansFloatVectorValues floatVectorValues = (KMeansFloatVectorValues) vectorValues;
         HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
         return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
     }
 
-    private CentroidInformation calculateCentroids(
+    private CentroidInformation<float[]> calculateCentroids(
         HierarchicalKMeans<float[]> hierarchicalKMeans,
         KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo
@@ -683,7 +674,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             logger.debug("final centroid count: {}", centroids.length);
         }
         int[] assignments = kMeansResult.assignments();
-        return new CentroidInformation(fieldInfo.getVectorDimension(), centroids, assignments, soarOverspill);
+        return CentroidInformation.ofFloat(fieldInfo.getVectorDimension(), centroids, assignments, soarOverspill);
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

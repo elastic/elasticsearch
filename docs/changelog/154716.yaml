@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 154716
+summary: Remove `O(n^2)` from `DROP foo*`
+type: bug

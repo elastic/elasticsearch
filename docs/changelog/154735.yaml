@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 154710
+pr: 154735
+summary: "[Inference API] Delete default endpoints using master node action only"
+type: bug

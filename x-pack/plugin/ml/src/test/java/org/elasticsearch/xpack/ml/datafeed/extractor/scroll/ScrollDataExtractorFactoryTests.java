@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,7 +34,9 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -142,6 +148,41 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
                 .anyMatch(o -> o.scrollId().equals("scroll-" + ScrollDataExtractorFactory.MAX_ORPHAN_QUEUE_SIZE)),
             is(true)
         );
+    }
+
+    public void testExcludeProjectShouldAppendNegativeIndexExpression() {
+        when(datafeedConfig.getIndices()).thenReturn(List.of("logs-*"));
+        when(datafeedConfig.getProjectRouting()).thenReturn("_alias:*");
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.excludeProject("prod-eu");
+        assertThat(factory.effectiveIndices(), contains("logs-*", "-prod-eu:*"));
+        factory.includeProject("prod-eu");
+        assertThat(factory.effectiveIndices(), contains("logs-*"));
+    }
+
+    public void testExcludeProjectWithNullProjectRoutingShouldAppendNegativeIndexExpression() {
+        when(datafeedConfig.getIndices()).thenReturn(List.of("logs-*"));
+        when(datafeedConfig.getProjectRouting()).thenReturn(null);
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.excludeProject("prod-eu");
+        assertThat(factory.effectiveIndices(), contains("logs-*", "-prod-eu:*"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFieldCapabilitiesRecheckShouldUseSynchronousHelper() {
+        when(datafeedConfig.getIndices()).thenReturn(List.of("logs-*"));
+        when(datafeedConfig.getIndicesOptions()).thenReturn(IndicesOptions.LENIENT_EXPAND_OPEN);
+        when(datafeedConfig.getRuntimeMappings()).thenReturn(Collections.emptyMap());
+        when(job.allInputFields()).thenReturn(List.of("time", "field_1"));
+
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] { "logs-*" }, Map.of());
+        ActionFuture<FieldCapabilitiesResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.execute(same(TransportFieldCapabilitiesAction.TYPE), any(FieldCapabilitiesRequest.class))).thenReturn(future);
+
+        ScrollDataExtractorFactory factory = newFactory();
+        assertThat(factory.fetchFieldCapabilities(), is(response));
+        verify(client).execute(same(TransportFieldCapabilitiesAction.TYPE), any(FieldCapabilitiesRequest.class));
     }
 
     @SuppressWarnings("unchecked")

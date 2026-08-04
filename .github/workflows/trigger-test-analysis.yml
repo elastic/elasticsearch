@@ -1,0 +1,89 @@
+name: Trigger test analysis
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trigger-test-analysis:
+    name: Trigger Buildkite test analysis pipeline
+    if: |
+      github.repository == 'elastic/elasticsearch' &&
+      contains(github.event.issue.labels.*.name, 'needs:risk') &&
+      contains(github.event.issue.labels.*.name, '>test-failure') &&
+      (
+        github.event.label.name == 'needs:risk' ||
+        github.event.label.name == '>test-failure' ||
+        github.event.label.name == 'Team:Delivery' ||
+        github.event.label.name == 'Team:Core/Infra'
+      )
+    concurrency:
+      group: test-analysis-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Buildkite pipeline
+        env:
+          BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
+          ISSUE_URL:    ${{ github.event.issue.html_url }}
+          ISSUE_TITLE:  ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPORT_TO_PR: ${{ contains(github.event.issue.labels.*.name, 'Team:Delivery') || contains(github.event.issue.labels.*.name, 'Team:Core/Infra') }}
+        run: |
+          set -euo pipefail
+
+          DRY_RUN=$(jq -n --argjson report "$REPORT_TO_PR" '$report | not')
+
+          BODY=$(jq -n \
+            --arg url   "$ISSUE_URL" \
+            --arg title "$ISSUE_TITLE" \
+            --arg num   "$ISSUE_NUMBER" \
+            --argjson report "$REPORT_TO_PR" \
+            --argjson dryRun "$DRY_RUN" \
+            '{
+              branch:  "main",
+              commit:  "HEAD",
+              message: ("Risk analysis for #" + $num + ": " + $title),
+              env: {
+                ISSUE_URL: $url,
+                WORKFLOW: "test-analysis",
+                REPORT_TO_PR: ($report | tostring),
+                DRY_RUN: ($dryRun | tostring),
+                UPDATE_NEEDS_RISK_LABEL: ($report | tostring)
+              }
+            }')
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --url "https://api.buildkite.com/v2/organizations/elastic/pipelines/elasticsearch-agentic-workflow/builds" \
+            --header "Authorization: Bearer ${BUILDKITE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$BODY"
+
+      - name: Mark issue as processed (:eyes:)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const marker = ':eyes:';
+            const body = issue.body || '';
+
+            if (body.includes(marker)) {
+              core.info(`Issue #${issue.number} already marked with ${marker}`);
+              return;
+            }
+
+            const updated = body.length > 0 ? `${body}\n\n${marker}` : marker;
+
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: updated,
+            });
+
+            core.info(`Marked issue #${issue.number} with ${marker}`);

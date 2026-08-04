@@ -234,17 +234,23 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a format reader configured with the schema attributes.
+     * Returns a format reader configured with the schema attributes, letting the reader skip
+     * re-reading/inferring the schema from the file header on every read — especially important for
+     * split-based reads where the split may start mid-file (no header available).
      * <p>
-     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
-     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
-     * re-reading/inferring the schema from the file header on every read, which is especially
-     * important for split-based reads where the split may start mid-file (no header available).
+     * <b>This carries no authority.</b> Callers use it for two different things: the planning-phase
+     * schema, constant for the query ({@code FileSourceFactory}), and a schema just inferred from one
+     * file or even one chunk ({@code AsyncExternalSourceOperatorFactory},
+     * {@code ParallelParsingCoordinator}, {@code StreamingParallelParsingCoordinator}). A reader cannot
+     * tell the two apart from this call. So where a reader also receives
+     * {@link FormatReadContext#readSchema()} — the planner's per-file read contract — <b>that is the
+     * authority and must win on type</b>; whatever arrives here may be a guess. Letting the guess win
+     * is what produced the compressed-read type-cast crashes.
      * <p>
      * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
      * the schema from the file metadata.
      *
-     * @param schema the planning-phase schema attributes, or null to clear
+     * @param schema the schema attributes, or null to clear. NOT necessarily planning-phase — see above.
      * @return a new reader with the schema set, or {@code this} if the schema is not needed
      */
     default FormatReader withSchema(List<Attribute> schema) {

@@ -94,7 +94,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES
@@ -290,7 +290,7 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             new IndexedByShardIdFromList<>(List.of(shardContext)),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             DataPartitioning.DOC,
-            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
             1,
             2,
             s -> ScoreMode.COMPLETE_NO_SCORES

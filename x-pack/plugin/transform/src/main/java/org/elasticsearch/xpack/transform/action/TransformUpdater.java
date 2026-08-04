@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -113,9 +114,13 @@ public class TransformUpdater {
      * @param hasLinkedProjects whether the current project has linked projects (skips source index privilege checks)
      * @param cloudCredentialManager UIAM credential manager; always required.
      * @param mintCloudCredential when {@code true} and UIAM is enabled, mint a new credential before writing the
-     *                            config (Update); validation uses the caller's thread-context token only. When
+     *                            config (Update); validation uses the caller-supplied credential only. When
      *                            {@code false} (Reset, Upgrade), validation loads a stored credential by
      *                            {@link TransformConfig#getCredentialId()} when no caller credential is present.
+     * @param callerCredential the caller's UIAM cloud credential, extracted by the caller on the coordinating
+     *                          node (e.g. from {@code UpdateTransformAction.Request#getCloudCredential()}), or
+     *                          {@code null} when none is available. Validation and minting each consume their
+     *                          own independent copy via {@link CloudCredential#copyOf}.
      * @param listener the listener called containing the result of the update
      */
 
@@ -138,11 +143,23 @@ public class TransformUpdater {
         final Settings destIndexSettings,
         final TransformCloudCredentialManager cloudCredentialManager,
         final boolean mintCloudCredential,
+        @Nullable final CloudCredential callerCredential,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
         final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
-        final TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        TransformConfig appliedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        if (shouldDefaultProjectRoutingForUiamMigration(config, appliedConfig, update, callerCredential, mintCloudCredential)) {
+            logger.info(
+                "[{}] defaulting project_routing to [{}] to preserve local search scope",
+                config.getId(),
+                ProjectRoutingResolver.LOCAL_ONLY
+            );
+            appliedConfig = new TransformConfig.Builder(appliedConfig).setSource(
+                appliedConfig.getSource().withProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            ).build();
+        }
+        final TransformConfig updatedConfig = appliedConfig;
         final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
         // <5> Update state document + checkpoints, then emit result.
@@ -207,11 +224,14 @@ public class TransformUpdater {
         });
 
         // <4> Mint cloud credential if UIAM is present. Runs after the noop/dryRun short-circuits in
-        // <3> so a noop update never mints an orphan credential at UIAM.
+        // <3> so a noop update never mints an orphan credential at UIAM. Passes callerCredential
+        // directly (no copy needed): mint runs after <2> below, which already dispatched and closed
+        // its own independent copy, so nothing else still needs this reference by the time mint runs.
         ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
             if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && mintCloudCredential) {
                 cloudCredentialManager.mintAndPersist(
                     updatedConfig.getId(),
+                    callerCredential,
                     l.delegateFailureAndWrap((ll, newTokenId) -> ll.onResponse(Tuple.tuple(destIndexMappings, newTokenId)))
                 );
             } else {
@@ -256,6 +276,7 @@ public class TransformUpdater {
                 transformConfigManager,
                 cloudCredentialManager,
                 mintCloudCredential,
+                callerCredential,
                 l
             );
         });
@@ -293,17 +314,23 @@ public class TransformUpdater {
         TransformConfigManager transformConfigManager,
         TransformCloudCredentialManager cloudCredentialManager,
         boolean mintCloudCredential,
+        @Nullable CloudCredential callerCredential,
         ActionListener<Map<String, String>> listener
     ) {
         ActionListener<ValidateTransformAction.Response> wrapped = listener.delegateFailureAndWrap(
             (l, response) -> l.onResponse(response.getDestIndexMappings())
         );
 
-        // Update: prefer the caller's UIAM credential from the thread context (survives validate via
-        // the request payload through executeAsyncWithOrigin's system-origin stash).
-        var callerCredential = cloudCredentialManager.currentCallerCredential();
+        // Update: prefer the caller-supplied UIAM credential (extracted by the caller on the
+        // coordinating node; survives validate via the request payload through
+        // executeAsyncWithOrigin's system-origin stash).
+        //
+        // Uses an independent copy: dispatchValidateTransform's receiver (TransportValidateTransformAction)
+        // unconditionally closes whatever credential it's given once validate resolves (it has to, to
+        // cover the redirect-to-another-node case), which would zero out callerCredential before <4>
+        // in updateTransform above gets to mint with it.
         if (callerCredential != null) {
-            dispatchValidateTransform(config, client, deferValidation, timeout, callerCredential, wrapped);
+            dispatchValidateTransform(config, client, deferValidation, timeout, CloudCredential.copyOf(callerCredential), wrapped);
             return;
         }
 
@@ -510,6 +537,46 @@ public class TransformUpdater {
                 listener.onResponse(null);
             })
         );
+    }
+
+    /**
+     * Returns {@code true} when an API-key → UIAM migration should cause {@code project_routing} to
+     * be defaulted to {@link ProjectRoutingResolver#LOCAL_ONLY} in order to preserve the pre-migration
+     * local-only search scope. All conditions must hold:
+     * <ul>
+     *   <li>A UIAM credential is being minted now (feature flag on, update path, and
+     *       a non-null caller-supplied cloud credential — extracted on the coordinating node and
+     *       passed in, since the thread-context transient does not survive master forwarding).</li>
+     *   <li>The original config has no UIAM credential ({@code credentialId == null}), meaning
+     *       this is an API-key → UIAM migration and not a re-key of an already-migrated transform.</li>
+     *   <li>The incoming update does not explicitly supply a {@code source} config. Sending an
+     *       explicit {@code source} block as part of the migrating update — even one that omits
+     *       {@code project_routing} — is a deliberate choice by the caller and is never overridden;
+     *       the default only applies when {@code source}, and with it {@code project_routing},
+     *       carries over unchanged from before the migration.</li>
+     *   <li>The applied (post-update) config has no explicit {@code project_routing} set.</li>
+     * </ul>
+     */
+    private static boolean shouldDefaultProjectRoutingForUiamMigration(
+        TransformConfig originalConfig,
+        TransformConfig appliedConfig,
+        TransformConfigUpdate update,
+        @Nullable CloudCredential callerCredential,
+        boolean mintCloudCredential
+    ) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false || mintCloudCredential == false || callerCredential == null) {
+            return false;
+        }
+        if (originalConfig.getCredentialId() != null) {
+            // already on a UIAM credential — this is a re-key, not an API-key → UIAM migration
+            return false;
+        }
+        if (update != null && update.getSource() != null) {
+            // caller explicitly supplied a source config as part of this update — respect it
+            // as-is, even if it omits project_routing
+            return false;
+        }
+        return appliedConfig.getSource().getProjectRouting() == null;
     }
 
     private TransformUpdater() {}

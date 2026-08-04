@@ -307,9 +307,38 @@ If you enable the [`ignore_malformed`](/reference/elasticsearch/mapping-referenc
 * [`version`](/reference/elasticsearch/mapping-reference/version.md#version-synthetic-source)
 * [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-synthetic-source)
 
+## Columnar source [columnar-stored]
 
+```{applies_to}
+stack: preview 9.5+
+serverless: preview
+```
 
-## Disabling the `_source` field [disable-source-field]
+The columnar index modes use columnar source. By default this content gets generated dynamically from doc values at query time.
+But this content can also be stored on disk at index time by using `columnar_stored` source mode.
+The `columnar_stored` source mode can be useful for queries that fetch all or most of the fields in the index.
+
+To use columnar-stored source:
+
+```console
+PUT my-columnar-index
+{
+  "settings": {
+    "index": {
+      "mode": "columnar"
+    }
+  },
+  "mappings": {
+    "_source": {
+      "mode": "columnar_stored"
+    }
+  }
+}
+```
+
+Turning off `_source` entirely (`"_source": {"enabled": false}`) is **not allowed** in columnar modes.
+
+## Turning off the `_source` field [disable-source-field]
 
 Though very handy to have around, the source field does incur storage overhead within the index. For this reason, it can be disabled as follows:
 

@@ -60,6 +60,11 @@ public class QueryWarnings {
         }
 
         @Override
+        public Releasable bindDiscarding() {
+            return () -> {};
+        }
+
+        @Override
         void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {}
     };
 
@@ -75,7 +80,7 @@ public class QueryWarnings {
      * {@link LuceneOperator#getOutput} calls. The {@link DriverContext} is {@code null} when
      * the caller supplies pre-built Warnings rather than requesting lazy creation.
      */
-    private record ThreadState(@Nullable DriverContext dc, IdentityHashMap<Query, Warnings> map) {}
+    private record ThreadState(@Nullable DriverContext dc, @Nullable IdentityHashMap<Query, Warnings> map, boolean discard) {}
 
     private final ThreadLocal<ThreadState> perThreadWarnings = new ThreadLocal<>();
 
@@ -96,7 +101,7 @@ public class QueryWarnings {
      *                                is reentering Lucene from within its own synchronous call
      */
     public Releasable bind(DriverContext dc, IdentityHashMap<Query, Warnings> map) {
-        return doBind(new ThreadState(dc, map));
+        return doBind(new ThreadState(dc, map, false));
     }
 
     /**
@@ -107,7 +112,22 @@ public class QueryWarnings {
      * @throws IllegalStateException if this thread already has a binding
      */
     public Releasable bind(Map<? extends Query, Warnings> prebuilt) {
-        return doBind(new ThreadState(null, new IdentityHashMap<>(prebuilt)));
+        return doBind(new ThreadState(null, new IdentityHashMap<>(prebuilt), false));
+    }
+
+    /**
+     * Bind a placeholder on the calling thread that silently discards any warnings raised while it's
+     * bound, without a {@link DriverContext} or a prebuilt map. Used when {@link Query}s reachable from
+     * this bridge (e.g. a {@link SingleValueMatchQuery} nested inside a kNN query's filter) may fire
+     * outside a driver's lifecycle -- for example while eagerly evaluating a filter during
+     * {@code IndexSearcher#rewrite}, which can happen before any {@link DriverContext}/driver exists to
+     * own the warning (see {@code LuceneSliceQueue#create}). There is currently no well-defined owner
+     * for warnings raised in that window, so they're dropped rather than attributed to a driver.
+     *
+     * @throws IllegalStateException if this thread already has a binding
+     */
+    public Releasable bindDiscarding() {
+        return doBind(new ThreadState(null, null, true));
     }
 
     private Releasable doBind(ThreadState state) {
@@ -132,6 +152,9 @@ public class QueryWarnings {
         ThreadState state = perThreadWarnings.get();
         if (state == null) {
             throw new IllegalStateException("no warnings bound on thread [" + Thread.currentThread().getName() + "] for [" + query + "]");
+        }
+        if (state.discard()) {
+            return;
         }
         Warnings w = state.map().computeIfAbsent(query, q -> {
             if (state.dc() == null) {

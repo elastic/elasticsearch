@@ -1661,17 +1661,39 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
-         * so it can depend on sibling multi-fields, which are only known after this parameter is
-         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
+         * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
+         * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
+         * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.
          */
-        public static DocValuesParameter of(
-            Supplier<Values> defaultValueSupplier,
-            Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
+        public static Values defaultValues(IndexSettings indexSettings, Values nonColumnarDefault, Values.Cardinality columnarCardinality) {
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            boolean multiValue = DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+            boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+            var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
+            return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
+        }
+
+        /**
+         * Variant of {@link #defaultValues(IndexSettings, Values, Values.Cardinality)} for the field types that only began
+         * honoring the index-level doc_values settings in {@code settingsHonoredSince}. Indices created before that version
+         * retain the legacy default (the settings are ignored: strict-columnar indices are enabled with permissive
+         * sub-parameter defaults), so their persisted mappings stay stable across re-parse and upgrade.
+         */
+        public static Values defaultValues(
+            IndexSettings indexSettings,
+            Values nonColumnarDefault,
+            Values.Cardinality columnarCardinality,
+            IndexVersion settingsHonoredSince
         ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
+            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince)) {
+                return defaultValues(indexSettings, nonColumnarDefault, columnarCardinality);
+            }
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            return new Values(true, columnarCardinality, true, true, Values.OnFailure.FAIL);
         }
 
         private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {

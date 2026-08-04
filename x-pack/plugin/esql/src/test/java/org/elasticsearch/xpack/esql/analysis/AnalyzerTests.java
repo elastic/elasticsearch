@@ -4483,8 +4483,12 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
-    public void testDenseVectorResolvesTextField() {
+    private static void assumeDenseVectorCommandEnabled() {
         assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorResolvesTextField() {
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
@@ -4504,7 +4508,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorResolvesMultipleFields() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4519,7 +4523,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorResolvesKeywordField() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4531,7 +4535,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorWildcardExpandsToTextFields() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR publ* WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4543,7 +4547,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorStarEmbedsTextFieldsOnly() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR * WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4558,7 +4562,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorNonTextFieldFails() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         books().error(
             "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
@@ -4566,7 +4570,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorUnknownColumnFails() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         books().error(
             "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("Unknown column [nonexistent]")
@@ -4574,7 +4578,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorWildcardNoMatchIsSilent() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR nomatch* WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4586,7 +4590,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorWildcardNonTextMatchIsSilent() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR title, y* WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4600,7 +4604,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorDuplicateFieldIsDeduped() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
@@ -4613,7 +4617,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorOverlappingWildcardIsDeduped() {
-        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
             FROM books
             | DENSE_VECTOR title, titl* WITH { "inference_id" : "text-embedding-inference-id" }

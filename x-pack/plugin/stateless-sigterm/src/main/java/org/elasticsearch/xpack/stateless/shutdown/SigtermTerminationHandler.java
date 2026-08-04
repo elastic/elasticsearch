@@ -47,6 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -71,6 +72,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
     private final TimeValue pollInterval;
     private final TimeValue timeout;
     private final String nodeId;
+    private final SigtermShutdownMetrics metrics;
 
     public SigtermTerminationHandler(
         Client client,
@@ -79,7 +81,8 @@ public class SigtermTerminationHandler implements TerminationHandler {
         RemoteTransportClient remoteTransportClient,
         TimeValue pollInterval,
         TimeValue timeout,
-        String nodeId
+        String nodeId,
+        SigtermShutdownMetrics metrics
     ) {
         this.client = new OriginSettingClient(client, ClientHelper.STACK_ORIGIN);
         this.threadPool = threadPool;
@@ -88,6 +91,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
         this.pollInterval = pollInterval;
         this.timeout = timeout;
         this.nodeId = nodeId;
+        this.metrics = metrics;
     }
 
     @Override
@@ -97,15 +101,16 @@ public class SigtermTerminationHandler implements TerminationHandler {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SingleNodeShutdownStatus> lastStatus = new AtomicReference<>();
         AtomicBoolean failed = new AtomicBoolean(false);
-        client.execute(
-            PutShutdownNodeAction.INSTANCE,
-            shutdownRequest(),
-            ActionListener.wrap(res -> pollStatusAndLoop(0, latch, lastStatus), ex -> {
-                logger.warn("failed to register graceful shutdown request, stopping immediately", ex);
-                failed.set(true);
-                latch.countDown();
-            })
-        );
+        AtomicLong migrationStartMillis = new AtomicLong(-1);
+        AtomicLong migrationCompleteMillis = new AtomicLong(-1);
+        client.execute(PutShutdownNodeAction.INSTANCE, shutdownRequest(), ActionListener.wrap(res -> {
+            migrationStartMillis.set(threadPool.rawRelativeTimeInMillis());
+            pollStatusAndLoop(0, latch, lastStatus, migrationCompleteMillis);
+        }, ex -> {
+            logger.warn("failed to register graceful shutdown request, stopping immediately", ex);
+            failed.set(true);
+            latch.countDown();
+        }));
         try {
             boolean latchReachedZero = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
             boolean timedOut = latchReachedZero == false && timeout.millis() != 0;
@@ -114,20 +119,29 @@ public class SigtermTerminationHandler implements TerminationHandler {
                 logger.info("Timed out waiting for graceful shutdown, retrieving current recoveries status");
                 logDetailedRecoveryStatusAndWait();
             }
-            var duration = threadPool.rawRelativeTimeInMillis() - started;
+
+            final var end = threadPool.rawRelativeTimeInMillis();
+            final var shutdownDuration = end - started;
+            final String shutdownStatus = getShutdownStatus(failed.get(), status);
             logger.info(
-                new ESLogMessage("shutdown completed after [{}] ms with status [{}]", duration, status) //
+                new ESLogMessage("shutdown completed after [{}] ms with status [{}]", shutdownDuration, status) //
                     .withFields(
                         Map.of(
                             "elasticsearch.shutdown.status",
-                            getShutdownStatus(failed.get(), status),
+                            shutdownStatus,
                             "elasticsearch.shutdown.duration",
-                            duration,
+                            shutdownDuration,
                             "elasticsearch.shutdown.timed-out",
                             timedOut
                         )
                     )
             );
+            metrics.recordShutdownTime(shutdownDuration, shutdownStatus, timedOut);
+            if (migrationStartMillis.get() >= 0) {
+                final boolean migrationCompleted = migrationCompleteMillis.get() >= 0;
+                final long migrationEndMillis = migrationCompleted ? migrationCompleteMillis.get() : end;
+                metrics.recordMigrationTime(migrationEndMillis - migrationStartMillis.get(), migrationCompleted);
+            }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ex);
@@ -398,13 +412,21 @@ public class SigtermTerminationHandler implements TerminationHandler {
         return request;
     }
 
-    private void pollStatusAndLoop(int poll, CountDownLatch latch, AtomicReference<SingleNodeShutdownStatus> lastStatus) {
+    private void pollStatusAndLoop(
+        int poll,
+        CountDownLatch latch,
+        AtomicReference<SingleNodeShutdownStatus> lastStatus,
+        AtomicLong migrationCompleteMillis
+    ) {
         // This transport action does not use a timeout, so we use INFINITE_MASTER_NODE_TIMEOUT as a way to express "this will not time out"
         final var request = new GetShutdownStatusAction.Request(INFINITE_MASTER_NODE_TIMEOUT, nodeId);
         client.execute(GetShutdownStatusAction.INSTANCE, request, ActionListener.wrap(res -> {
             assert res.getShutdownStatuses().size() == 1 : "got more than this node's shutdown status";
             SingleNodeShutdownStatus status = res.getShutdownStatuses().get(0);
             lastStatus.set(status);
+            if (status.migrationStatus().getStatus() == SingleNodeShutdownMetadata.Status.COMPLETE) {
+                migrationCompleteMillis.compareAndSet(-1, threadPool.rawRelativeTimeInMillis());
+            }
             if (status.overallStatus().equals(SingleNodeShutdownMetadata.Status.COMPLETE)) {
                 logger.debug("node ready for shutdown with status [{}]: {}", status.overallStatus(), status);
                 latch.countDown();
@@ -427,7 +449,11 @@ public class SigtermTerminationHandler implements TerminationHandler {
                         logDetailedRecoveryStatus(() -> {});
                     }
                 }
-                threadPool.schedule(() -> pollStatusAndLoop(poll + 1, latch, lastStatus), pollInterval, threadPool.generic());
+                threadPool.schedule(
+                    () -> pollStatusAndLoop(poll + 1, latch, lastStatus, migrationCompleteMillis),
+                    pollInterval,
+                    threadPool.generic()
+                );
             }
         }, ex -> {
             // if the node times out while waiting for a graceful shutdown, it's likely that the last GetShutdownStatusAction

@@ -528,16 +528,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
     }
 
-    /**
-     * Creates a metadata-read directory that stamps regions according to {@code timestampBackfillEnabled}.
-     * Caller should ensure that {@code backfillMetadataReads} is called after the reads are done if backfill was enabled.
-     */
+    /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
+    /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
     public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
         return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
     }
 
+    /// Default implementation with timestamp backfill disabled. For timestamp enabled metadata reads an intermediate directory should be
+    /// created with [#createMetadataReadDirectory(boolean)] and then another directory via [#createPerBccMetadataReadDirectory].
     @Override
-    public BlobStoreCacheDirectory createNestedMetadataReadDirectory() {
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
         return createMetadataReadDirectory(false);
     }
 
@@ -580,8 +580,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
             }
 
+            /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
+            /// fallbackRegionTimestampMillis value.
             @Override
-            public BlobStoreCacheDirectory createNestedMetadataReadDirectory() {
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
                 return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
             }
         };

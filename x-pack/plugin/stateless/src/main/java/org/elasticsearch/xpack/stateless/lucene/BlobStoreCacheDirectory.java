@@ -426,9 +426,9 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
 
     /**
-     * Returns a nested {@link BlobStoreCacheDirectory} for reading BCC/CC metadata through the cache.
+     * @return the {@link BlobStoreCacheDirectory} for a single BCC metadata read through cache.
      */
-    public BlobStoreCacheDirectory createNestedMetadataReadDirectory() {
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
         return createNewBlobStoreCacheDirectoryForWarming();
     }
 

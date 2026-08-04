@@ -218,7 +218,7 @@ final class PatternTextUtf8Splitter {
                     isArg = true;
                 } else if (sawNonAscii) {
                     // TODO: Consider if we need to make this work directly on bytes. Pathological non-ASCII data will allocate a
-                    //  ton of strings.
+                    // ton of strings.
                     runStr = new String(src, runStart, runLen, StandardCharsets.UTF_8);
                     isArg = Arg.isArg(runStr);
                 } else {

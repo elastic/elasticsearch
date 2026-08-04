@@ -71,7 +71,6 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
      */
     public void testOverflowInGroupingProducesNullAndWarning() {
         List<Page> results = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
         DriverContext driverContext = driverContext();
         // Group 0: 1 + 2 (works)
         // Group 1: Long.MAX_VALUE-1 + 2 (overflows)
@@ -94,8 +93,7 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(simpleWithMode(AggregatorMode.SINGLE).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()))
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             new TestDriverRunner().numThreads(1).run(driver);
@@ -126,6 +124,8 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
         assertThat(sumsByGroup.get(2L), equalTo(9L));
         assertThat(nullSumGroups, equalTo(Set.of(1L)));
 
-        assertThat(warnings, hasItem(containsString("long overflow")));
+        // Warnings are accumulated in the per-driver sink and snapshotted at DriverContext#finish() (done by the
+        // driver run above), rather than the ambient response-header ThreadContext.
+        assertThat(driverContext.warnings(), hasItem(containsString("long overflow")));
     }
 }

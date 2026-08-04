@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -1092,14 +1093,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public static DriverContext driverContext(List<CircuitBreaker> breakers) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(512)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        return warningMirroringDriverContext(bigArrays);
     }
 
     protected final DriverContext crankyContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
             .withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        return warningMirroringDriverContext(bigArrays);
+    }
+
+    /**
+     * Production {@link org.elasticsearch.compute.operator.Warnings} write into the per-driver
+     * {@link DriverContext} sink, which is consumed once at the response chokepoint rather than the ambient
+     * {@link HeaderWarning} ThreadContext. Function tests, however, evaluate expressions directly (no Driver, no
+     * response chokepoint) and assert warnings via {@link #assertWarnings}, which reads the ThreadContext. To keep
+     * those content assertions working without threading a context through every call site, this test-only
+     * {@link DriverContext} additionally mirrors every sink write to {@link HeaderWarning}. This mirror lives only
+     * in the test harness; production never dual-writes.
+     */
+    private static DriverContext warningMirroringDriverContext(BigArrays bigArrays) {
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null) {
+            @Override
+            public void addWarning(String warning) {
+                super.addWarning(warning);
+                HeaderWarning.addWarning(warning);
+            }
+        };
     }
 
     @After

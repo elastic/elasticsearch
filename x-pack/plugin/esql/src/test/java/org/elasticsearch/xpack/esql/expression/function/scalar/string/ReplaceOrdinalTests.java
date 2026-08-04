@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -207,7 +208,15 @@ public class ReplaceOrdinalTests extends ESTestCase {
     private DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        // Mirror the per-driver warnings sink to HeaderWarning so this direct-evaluation test can keep asserting
+        // warning content via assertWarnings (production consumes the sink at the response chokepoint instead).
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null) {
+            @Override
+            public void addWarning(String warning) {
+                super.addWarning(warning);
+                HeaderWarning.addWarning(warning);
+            }
+        };
     }
 
     @After

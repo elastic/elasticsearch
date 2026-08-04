@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -57,6 +58,20 @@ public class DriverContext {
 
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /**
+     * Per-driver sink of fully-formatted warning strings, ready to hand to
+     * {@link org.elasticsearch.common.logging.HeaderWarning#addWarning} at the single response chokepoint.
+     * Accumulated by {@link Warnings} (and other compute-time warning producers) during the driver run and
+     * snapshotted at {@link #finish()} into {@link #warningsSnapshot}, mirroring the releasables/async-actions
+     * pattern. This replaces the old ambient {@code HeaderWarning.addWarning} write on whatever worker thread
+     * happened to be running, which lost warnings across {@link Driver#schedule} re-submissions. The list is
+     * synchronized because forked producer threads (e.g. external-source readers) may also contribute before
+     * their async action completes, which always happens-before {@link #finish()}.
+     */
+    private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+
+    private volatile List<String> warningsSnapshot;
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
@@ -98,7 +113,9 @@ public class DriverContext {
         this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
     }
 
-    private DriverContext(
+    // Package-private (rather than public) so that tests exercising WarningsMode.IGNORE can build a context in
+    // that mode; production only ever constructs COLLECT contexts via the public constructors above.
+    DriverContext(
         BigArrays bigArrays,
         BlockFactory blockFactory,
         @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
@@ -214,7 +231,28 @@ public class DriverContext {
             releasableSet.add(r);
             itr.remove();
         }
+        synchronized (warnings) {
+            warningsSnapshot = List.copyOf(warnings);
+        }
         snapshot.compareAndSet(null, new Snapshot(releasableSet));
+    }
+
+    /**
+     * Adds a fully-formatted warning string to this context's per-driver sink. Called single-threaded from the
+     * driver loop (and, for forked producer threads, before the corresponding async action completes). See
+     * {@link #warnings}.
+     */
+    public void addWarning(String warning) {
+        warnings.add(warning);
+    }
+
+    /**
+     * Returns the snapshot of warnings accumulated during the driver run. Must only be called after the context
+     * has been {@link #finish() finished}.
+     */
+    public List<String> warnings() {
+        ensureFinished();
+        return warningsSnapshot;
     }
 
     private void ensureFinished() {
@@ -299,29 +337,30 @@ public class DriverContext {
     }
 
     /**
-     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}.
-     * @see Warnings#createWarnings(WarningsMode, WarningSourceLocation)
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}. Registered warnings
+     * are written into this context's per-driver sink (see {@link #addWarning(String)}).
+     * @see Warnings#createWarnings(DriverContext, WarningSourceLocation)
      */
     public Warnings createWarnings(WarningSourceLocation source) {
-        return Warnings.createWarnings(warningsMode, source);
+        return Warnings.createWarnings(this, source);
     }
 
     /**
      * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
      * that it treats the result as {@code false}.
-     * @see Warnings#createWarningsTreatedAsFalse(WarningsMode, WarningSourceLocation)
+     * @see Warnings#createWarningsTreatedAsFalse(DriverContext, WarningSourceLocation)
      */
     public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
-        return Warnings.createWarningsTreatedAsFalse(warningsMode, source);
+        return Warnings.createWarningsTreatedAsFalse(this, source);
     }
 
     /**
      * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
      * that evaluation resulted in warnings.
-     * @see Warnings#createOnlyWarnings(WarningsMode, WarningSourceLocation)
+     * @see Warnings#createOnlyWarnings(DriverContext, WarningSourceLocation)
      */
     public Warnings createOnlyWarnings(WarningSourceLocation source) {
-        return Warnings.createOnlyWarnings(warningsMode, source);
+        return Warnings.createOnlyWarnings(this, source);
     }
 
     /**

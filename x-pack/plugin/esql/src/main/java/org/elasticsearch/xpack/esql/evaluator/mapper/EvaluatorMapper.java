@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -171,6 +172,18 @@ public interface EvaluatorMapper {
         Block block = toEvaluator(foldChildren).get(driverCtx).eval(new Page(1));
         if (block.getPositionCount() != 1) {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
+        }
+        /*
+         * Constant folding runs synchronously on the coordinator's planning thread, outside any Driver that
+         * would ship a DriverCompletionInfo back to the response chokepoint. Warnings raised while folding are
+         * accumulated in this throwaway context's per-driver sink, so drain them to HeaderWarning here — the
+         * planning thread is the response-header thread, so this is safe and preserves the pre-sink behavior
+         * where fold warnings surfaced to the client. This is not subject to the Driver#schedule thread-hop
+         * race the sink was introduced to fix.
+         */
+        driverCtx.finish();
+        for (String warning : driverCtx.warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
     }

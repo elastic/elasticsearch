@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -237,9 +238,13 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
             assertThat(scores.isNull(0), equalTo(true));   // multivalued group -> null score
             assertThat(scores.isNull(1), equalTo(false));  // ordinary rows keep a score
             assertThat(scores.isNull(2), equalTo(false));
-            assertWarnings(
-                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"
+            ctx.finish();
+            assertThat(
+                ctx.warnings(),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"
+                )
             );
         } finally {
             output.forEach(Page::releaseBlocks);

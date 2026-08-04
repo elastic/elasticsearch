@@ -60,6 +60,12 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
     private final String deciderDescription;
     private volatile ByteSizeValue minimumHeapSizeForEnabled;
 
+    // Pre-built decisions for cases whose explanation is fixed per decider instance. Avoids String
+    // concatenation and Decision.Single allocation on every call through these guard checks.
+    private final Decision disabledDecision;
+    private final Decision notIndexNodeDecision;
+    private final Decision canRemainDisabledDecision;
+
     protected final FrequencyCappedAction logCanRemainMessage;
     protected final FrequencyCappedAction logCanAllocateMessage;
 
@@ -71,6 +77,13 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         this.logger = LogManager.getLogger(getClass());
         this.name = name;
         this.deciderDescription = deciderDescription;
+        this.disabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " allocation decider is disabled");
+        this.notIndexNodeDecision = Decision.single(
+            Decision.Type.YES,
+            name,
+            deciderDescription + " allocation decider is applicable only to index nodes"
+        );
+        this.canRemainDisabledDecision = Decision.single(Decision.Type.YES, name, deciderDescription + " decider can remain disabled");
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, timeValue -> {
@@ -224,7 +237,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
         }
 
         if (isHighWatermarkEnabled() == false) {
-            return allocation.decision(Decision.YES, name, "%s decider can remain disabled", deciderDescription);
+            return allocation.debugDecision() ? canRemainDisabledDecision : Decision.YES;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());
@@ -282,11 +295,11 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
      */
     private @Nullable Decision guardDecision(RoutingNode node, RoutingAllocation allocation) {
         if (isEnabled() == false) {
-            return allocation.decision(Decision.YES, name, deciderDescription + " allocation decider is disabled");
+            return allocation.debugDecision() ? disabledDecision : Decision.YES;
         }
 
         if (node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
-            return allocation.decision(Decision.YES, name, deciderDescription + " allocation decider is applicable only to index nodes");
+            return allocation.debugDecision() ? notIndexNodeDecision : Decision.YES;
         }
 
         final NodeHeapMetrics nodeHeapMetrics = allocation.clusterInfo().getNodeHeapMetrics().get(node.nodeId());

@@ -607,3 +607,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_earliest_latest.retrieve earliest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155850
+- class: org.elasticsearch.reindex.ReindexFailureTests
+  method: testResponseOnSearchFailure
+  issue: https://github.com/elastic/elasticsearch/issues/151064

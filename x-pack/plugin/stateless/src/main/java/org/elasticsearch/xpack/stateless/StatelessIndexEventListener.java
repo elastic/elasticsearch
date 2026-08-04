@@ -474,9 +474,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> offsetsToWarmPerBlobFile = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> cacheTimestampPerBlobFile = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> blobSizes = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -494,35 +492,22 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
                                 var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                offsetsToWarmPerBlobFile.merge(bccBlobFile, offset, Math::max);
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
+                                // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
                                 long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()
                                 );
-                                cacheTimestampPerBlobFile.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
                             },
                             (blobFile, bccSize) -> {
-                                assert offsetsToWarmPerBlobFile.containsKey(blobFile);
-                                assert cacheTimestampPerBlobFile.containsKey(blobFile);
-                                blobSizes.put(blobFile, bccSize);
+                                assert targetsToWarm.containsKey(blobFile);
+                                targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
                             },
                             l2.map(aVoid -> {
-                                var targetsToWarm = Maps.<BlobFile, WarmTarget>newHashMapWithExpectedSize(offsetsToWarmPerBlobFile.size());
-                                for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
-                                    assert cacheTimestampPerBlobFile.containsKey(blobFile);
-                                    assert blobSizes.containsKey(blobFile);
-                                    targetsToWarm.put(
-                                        blobFile,
-                                        new WarmTarget(
-                                            offsetsToWarmPerBlobFile.get(blobFile),
-                                            blobSizes.get(blobFile),
-                                            cacheTimestampPerBlobFile.get(blobFile)
-                                        )
-                                    );
-                                }
+                                assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
                                 var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
                                 for (var entry : targetsToWarm.entrySet()) {
                                     timestampByCacheKey.put(

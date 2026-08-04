@@ -958,7 +958,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes())),
+                Map.of(
+                    blobFile,
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes())
+                ),
                 warmListener
             );
             safeGet(warmListener);
@@ -1794,7 +1797,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the {@link SharedBlobCacheWarmingService.WarmTarget}.
+     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the
+     * {@link SharedBlobCacheWarmingService.WarmTarget}.
      */
     public void testOfflineWarmingStampsRegions() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
@@ -1851,7 +1855,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, new SharedBlobCacheWarmingService.WarmTarget(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes(), knownTimestamp)),
+                Map.of(
+                    blobFile,
+                    new SharedBlobCacheWarmingService.WarmTarget(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes(), knownTimestamp)
+                ),
                 warmListener
             );
             safeGet(warmListener);

@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -824,8 +825,7 @@ public class SharedBlobCacheWarmingService {
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || isOfflineWarmingEnabled)) {
                     SubscribableListener.<Map<BlobFile, WarmTarget>>newForked(l1 -> {
                         if (endTargetsToWarm == null) {
-                            Map<BlobFile, Long> offsetsToWarmPerBlobFile = ConcurrentCollections.newConcurrentMap();
-                            Map<BlobFile, Long> blobSizes = ConcurrentCollections.newConcurrentMap();
+                            Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
                             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                                 commit.commitFiles(),
                                 // do not pass in any previously read BCC, because we actually want to ensure that the
@@ -839,32 +839,25 @@ public class SharedBlobCacheWarmingService {
                                 referencedCompoundCommit -> {
                                     if (isOfflineWarmingEnabled) {
                                         var offset = byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        offsetsToWarmPerBlobFile.merge(
+                                        // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in;
+                                        // We use unknown timestamps here: timestamps are only relevant when the cache boost preference
+                                        // feature is enabled, which requires internal files replicated content for search shards.
+                                        // This branch is only taken when replicated content is disabled.
+                                        targetsToWarm.merge(
                                             referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                            offset,
-                                            Math::max
+                                            WarmTarget.withUnknownTimestamp(offset, 0L),
+                                            WarmTarget::merge
                                         );
                                     }
                                 },
                                 (blobFile, bccSize) -> {
                                     if (isOfflineWarmingEnabled) {
-                                        assert offsetsToWarmPerBlobFile.containsKey(blobFile);
-                                        blobSizes.put(blobFile, bccSize);
+                                        assert targetsToWarm.containsKey(blobFile);
+                                        targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
                                     }
                                 },
                                 l1.map(aVoid -> {
-                                    Map<BlobFile, WarmTarget> targetsToWarm = new HashMap<>(offsetsToWarmPerBlobFile.size());
-                                    for (var blobFile : offsetsToWarmPerBlobFile.keySet()) {
-                                        assert blobSizes.containsKey(blobFile);
-                                        targetsToWarm.put(
-                                            blobFile,
-                                            // We use timestamps only when cache boost preference feature is enabled, which in turn requires
-                                            // internal files replicated content for search shards to be enabled. However, the current
-                                            // branch is taken only when replicated content feature is disabled, so we can safely avoid
-                                            // calculating the timestamp and use an unknown timestamp here.
-                                            WarmTarget.withUnknownTimestamp(offsetsToWarmPerBlobFile.get(blobFile), blobSizes.get(blobFile))
-                                        );
-                                    }
+                                    assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
                                     return targetsToWarm;
                                 })
                             );
@@ -926,6 +919,18 @@ public class SharedBlobCacheWarmingService {
          */
         public static WarmTarget withUnknownTimestamp(long endOffset, long blobSize) {
             return new WarmTarget(endOffset, blobSize, SharedBlobCacheService.UNKNOWN_TIMESTAMP);
+        }
+
+        /**
+         * Merges two warm targets for the same blob: takes the furthest end offset, the larger blob size
+         * (0 is a sentinel for "not yet known"), and the most recent known timestamp.
+         */
+        public WarmTarget merge(WarmTarget other) {
+            return new WarmTarget(
+                Math.max(endOffset(), other.endOffset()),
+                Math.max(blobSize(), other.blobSize()),
+                BlobFileRanges.mostRecentKnownTimestamp(timestampMillis(), other.timestampMillis())
+            );
         }
     }
 

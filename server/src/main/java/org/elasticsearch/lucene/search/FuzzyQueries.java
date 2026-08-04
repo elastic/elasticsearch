@@ -31,6 +31,7 @@ import java.util.BitSet;
  */
 public final class FuzzyQueries {
 
+    /** Segment-count fallback for {@link FuzzyQueryCostEstimator} when the real leaf count isn't available. */
     public static final int DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN = 16;
 
     private FuzzyQueries() {}

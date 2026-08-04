@@ -49,6 +49,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -113,6 +114,14 @@ public class FuzzyQueryCostEstimatorBenchmark {
         abstract String generate(int n, Random r);
     }
 
+    public enum TermFanout {
+        ALL,
+        SPARSE
+    }
+
+    /** Number of segments a term is written into under {@link TermFanout#SPARSE}, capped at {@link #segments}. */
+    private static final int SPARSE_SEGMENTS_PER_TERM = 2;
+
     @Param({ "5", "20", "50", "200", "1024" })
     public int termLength;
 
@@ -133,6 +142,9 @@ public class FuzzyQueryCostEstimatorBenchmark {
 
     @Param({ "1", "4", "16", "64", "128" })
     public int segments;
+
+    @Param({ "ALL", "SPARSE" })
+    public TermFanout termFanout;
 
     private String term;
     private int termByteLength;
@@ -174,15 +186,18 @@ public class FuzzyQueryCostEstimatorBenchmark {
         distinctUtf8Bytes = countDistinctUtf8Bytes(utf8);
 
         directory = new ByteBuffersDirectory();
-        Set<String> vocabulary = buildVocabulary(term, prefixLength);
+        List<String> vocabulary = new ArrayList<>(buildVocabulary(term, prefixLength));
         if (vocabulary.isEmpty()) {
             throw new IllegalStateException("empty vocabulary for term length " + termLength + " / prefix " + prefixLength);
         }
 
+        int segmentsPerTerm = termFanout == TermFanout.ALL ? segments : SPARSE_SEGMENTS_PER_TERM;
+        List<Set<String>> vocabularyBySegment = assignVocabularyToSegments(vocabulary, segments, segmentsPerTerm);
+
         IndexWriterConfig writerConfig = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE).setUseCompoundFile(false);
         try (IndexWriter writer = new IndexWriter(directory, writerConfig)) {
             for (int s = 0; s < segments; s++) {
-                for (String neighbour : vocabulary) {
+                for (String neighbour : vocabularyBySegment.get(s)) {
                     Document doc = new Document();
                     doc.add(new StringField(FIELD, neighbour, Field.Store.NO));
                     writer.addDocument(doc);
@@ -320,6 +335,21 @@ public class FuzzyQueryCostEstimatorBenchmark {
             }
         }
         return total;
+    }
+
+    private static List<Set<String>> assignVocabularyToSegments(List<String> vocabulary, int segments, int segmentsPerTerm) {
+        List<Set<String>> vocabularyBySegment = new ArrayList<>(segments);
+        for (int s = 0; s < segments; s++) {
+            vocabularyBySegment.add(new LinkedHashSet<>());
+        }
+        int fanout = Math.min(segments, segmentsPerTerm);
+        for (int i = 0; i < vocabulary.size(); i++) {
+            String neighbour = vocabulary.get(i);
+            for (int j = 0; j < fanout; j++) {
+                vocabularyBySegment.get((i + j) % segments).add(neighbour);
+            }
+        }
+        return vocabularyBySegment;
     }
 
     private static Set<String> buildVocabulary(String term, int prefixLength) {

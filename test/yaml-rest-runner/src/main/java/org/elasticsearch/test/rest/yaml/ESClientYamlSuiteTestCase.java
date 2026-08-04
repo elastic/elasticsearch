@@ -252,10 +252,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths      list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
+        return createExplicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
     }
 
     /**
@@ -263,10 +260,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
+        return createExplicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
     }
 
     /**
@@ -278,10 +272,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
         throws Exception {
-        if (resolveRestTestsSuiteProperty() != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
-        }
-        return createParameters(executeableSectionRegistry, Map.of(), testPaths);
+        return createExplicitPathParameters(executeableSectionRegistry, Map.of(), testPaths);
     }
 
     /**
@@ -302,7 +293,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("testPaths cannot be null");
         }
 
-        Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
+        return buildParameters(executeableSectionRegistry, yamlParameters, loadSuites(testPaths));
+    }
+
+    /** Build the parameterized test candidates from an already-resolved set of yaml suites. */
+    private static Iterable<Object[]> buildParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        Map<String, Set<Path>> yamlSuites
+    ) throws Exception {
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -344,6 +343,77 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // sort the candidates so they will always be in the same order before being shuffled, for repeatability
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
+    }
+
+    /**
+     * Entry point for the explicit-paths {@link #createParameters} overloads. When the per-task scoped
+     * {@code tests.rest.suite.<task path>} property is set, the suite's declared {@code testPaths} are
+     * intersected with the requested suites, so per-task tooling (e.g. the flakiness-detection re-run
+     * pipeline) can re-run just the changed subset. A bare, unscoped {@code tests.rest.suite} stays
+     * unsupported on an explicit-paths suite and fails.
+     */
+    private static Iterable<Object[]> createExplicitPathParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        String... testPaths
+    ) throws Exception {
+        if (testPaths == null) {
+            throw new IllegalArgumentException("testPaths cannot be null");
+        }
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        String[] filter = explicitPathsSuiteFilter(scoped, System.getProperty(REST_TESTS_SUITE));
+        Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
+        if (filter != null) {
+            yamlSuites = intersectSuites(yamlSuites, loadSuites(filter));
+        }
+        return buildParameters(executeableSectionRegistry, yamlParameters, yamlSuites);
+    }
+
+    /**
+     * The requested suite paths to intersect an explicit-paths suite's declared paths with, or
+     * {@code null} when no scoping applies. The per-task scoped {@code tests.rest.suite.<task>} is honored
+     * (returned, split on {@link #PATHS_SEPARATOR}); a bare, unscoped {@code tests.rest.suite} is rejected
+     * because an explicit-paths suite cannot honor it (the requested value would be silently dropped).
+     */
+    // pkg private for tests
+    static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {
+        if (scopedValue != null) {
+            return scopedValue.split(PATHS_SEPARATOR);
+        }
+        if (globalValue != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return null;
+    }
+
+    /**
+     * Intersects two resolved suite maps at the file level: keeps each {@code requested} file that is also
+     * {@code declared}. Because both sides are first resolved by {@link #loadSuites}, directory-vs-file
+     * granularity is handled naturally - a requested {@code painless/10_basic} narrows a declared
+     * {@code painless} down to that one file, and a requested {@code painless} directory keeps only the
+     * declared files under it. An empty result (the requested suite is not among the declared paths)
+     * yields zero test candidates.
+     */
+    // pkg private for tests
+    static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
+        Set<Path> declaredFiles = new HashSet<>();
+        for (Set<Path> files : declared.values()) {
+            declaredFiles.addAll(files);
+        }
+        Map<String, Set<Path>> result = new HashMap<>();
+        for (Entry<String, Set<Path>> entry : requested.entrySet()) {
+            Set<Path> keep = new HashSet<>();
+            for (Path file : entry.getValue()) {
+                if (declaredFiles.contains(file)) {
+                    keep.add(file);
+                }
+            }
+            if (keep.isEmpty() == false) {
+                result.put(entry.getKey(), keep);
+            }
+        }
+        return result;
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */

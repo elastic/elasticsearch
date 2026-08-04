@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 154280
+summary: "Fix(tsdb): cap range `intoBitSet` `upTo` at `maxDoc`"
+type: bug

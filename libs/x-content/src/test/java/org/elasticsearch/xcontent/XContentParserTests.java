@@ -12,8 +12,10 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -133,6 +135,40 @@ public class XContentParserTests extends ESTestCase {
                 assertFieldWithValue("maxNegativeExp", 0L, parser);
 
                 assertFieldWithInvalidLongValue("tooNegativeExp", parser);
+            }
+        }
+    }
+
+    public void testNumericCoercionBoundsStringLength() throws IOException {
+        String atLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH - 1) + "1";
+        String overLimit = "0".repeat(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH) + "1";
+        assertThat(atLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH));
+        assertThat(overLimit.length(), equalTo(AbstractXContentParser.MAX_NUMERIC_STRING_LENGTH + 1));
+
+        for (CheckedConsumer<XContentParser, IOException> accessor : List.<CheckedConsumer<XContentParser, IOException>>of(
+            XContentParser::shortValue,
+            XContentParser::intValue,
+            XContentParser::longValue,
+            XContentParser::floatValue,
+            XContentParser::doubleValue
+        )) {
+            assertNumericAccessor(atLimit, accessor);
+            assertNumericAccessor(overLimit, parser -> {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> accessor.accept(parser));
+                assertThat(e.getMessage(), containsString("exceeds the maximum"));
+            });
+        }
+    }
+
+    private void assertNumericAccessor(String value, CheckedConsumer<XContentParser, IOException> assertion) throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject().field("n", value).endObject();
+            try (XContentParser parser = decorateParser(createParser(xContentType.xContent(), BytesReference.bytes(builder)))) {
+                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+                assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+                assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
+                assertion.accept(parser);
             }
         }
     }

@@ -117,6 +117,13 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
+    public AbstractBlockBuilder cancelPositionEntry() {
+        // AggregateMetricDoubleBlockBuilder delegates to inner builders; the inherited cancelPositionEntry rolls back
+        // only the outer valueCount and not the inner builders' state. Throw to make misuse obvious.
+        throw new UnsupportedOperationException("cancelPositionEntry is not supported by AggregateMetricDoubleBlockBuilder");
+    }
+
+    @Override
     public AggregateMetricDoubleBlockBuilder appendNull() {
         minBuilder.appendNull();
         maxBuilder.appendNull();

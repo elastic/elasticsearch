@@ -1,4 +1,8 @@
 ### Less than or equal to `<=` [esql-less_than_or_equal]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/less_than_or_equal.svg
 :alt: Embedded

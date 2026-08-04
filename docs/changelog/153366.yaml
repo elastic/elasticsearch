@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 149619
+ - 153030
+ - 145445
+pr: 153366
+summary: Prevents mixing TS and STANDARD indexes with TS and views
+type: bug

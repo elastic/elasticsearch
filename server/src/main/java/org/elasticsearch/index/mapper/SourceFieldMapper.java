@@ -12,14 +12,17 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +40,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -618,6 +622,38 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         } else {
             return originalSource;
         }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO: Need to implement support for additional scenarios
+        // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
+        // materialize, and either recovery source is disabled or only a size estimate is needed
+        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
+        // too), and non-synthetic recovery source all require the full row path.
+        final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
+        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        final boolean syntheticRecovery = context.indexSettings().isRecoverySourceEnabled()
+            && context.indexSettings().isRecoverySourceSyntheticEnabled();
+        if (syntheticRecovery == false) {
+            return;
+        }
+
+        final int docCount = context.docCount();
+        final byte[] sizes = new byte[docCount * 8];
+        for (int d = 0; d < docCount; d++) {
+            final IndexRequest request = context.request(d);
+            final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
+            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes(), sizes, d * 8);
+        }
+        context.addColumn(
+            MappedColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+        );
     }
 
     @Override

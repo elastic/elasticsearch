@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -95,7 +96,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testBuildPreviewDatafeed_GivenPersistedCredential_ShouldClearForPreview() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("cred_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));
-        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", new SecureString("secret".toCharArray())));
+        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
 
         DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build())
             .setCloudInternalCredential(null)

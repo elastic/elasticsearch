@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 154632
+summary: "[Inference API] Documenting SSE parser deviations and fix some issues"
+type: bug

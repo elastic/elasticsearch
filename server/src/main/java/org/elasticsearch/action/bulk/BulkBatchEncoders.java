@@ -58,6 +58,8 @@ import java.util.Map;
  * and the rest of the bulk goes through the inline-source path. {@link #finalizeBatches} returns an
  * empty map when disabled, so previously-committed rows are simply discarded and items keep their
  * inline source.
+ *
+ * TODO: Determine if this comment about EIRF is still accurate with ESCF and remove EIRF from imports and javadoc
  */
 final class BulkBatchEncoders implements Releasable {
 

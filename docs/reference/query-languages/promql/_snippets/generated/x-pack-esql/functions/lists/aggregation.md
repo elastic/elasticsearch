@@ -3,6 +3,9 @@
 :::{include} ../avg.md
 :::
 
+:::{include} ../bottomk.md
+:::
+
 :::{include} ../count.md
 :::
 
@@ -22,4 +25,7 @@
 :::
 
 :::{include} ../sum.md
+:::
+
+:::{include} ../topk.md
 :::

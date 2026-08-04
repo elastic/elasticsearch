@@ -100,10 +100,15 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-        throws IOException {
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         if (in instanceof DirectAccessInput dai) {
-            return dai.withMemorySegmentSlices(offsets, length, count, action);
+            return dai.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
         return false;
     }

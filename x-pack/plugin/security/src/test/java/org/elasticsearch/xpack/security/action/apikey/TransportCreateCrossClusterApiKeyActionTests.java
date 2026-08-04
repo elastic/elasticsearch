@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApi
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Set;
@@ -38,9 +39,8 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
     private SecurityContext securityContext;
     private TransportCreateCrossClusterApiKeyAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() {
         apiKeyService = mock(ApiKeyService.class);
         securityContext = mock(SecurityContext.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();

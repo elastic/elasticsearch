@@ -304,8 +304,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         final TransportRequest request = mock(TransportRequest.class);
         assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(apmSampledTracesIndex), is(true));

@@ -24,6 +24,7 @@ import java.util.Map;
  */
 public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase {
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -657,7 +658,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
         nullify("""
             TS k8s
             | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-            """).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+            """).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testRow() throws Exception {
@@ -673,8 +674,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             TS k8s
             | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
             """;
-        nullify(query).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
-        load(query).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
+        nullify(query).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+        load(query).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // Single subquery without a main index is merged during analysis (no UnionAll), so does_not_exist is loaded into the merged
@@ -890,8 +891,11 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
             """;
-        nullify(query).since(DimensionValues.DIMENSION_VALUES_VERSION).run();
-        load(query).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+        nullify(query).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+        load(query).since(DimensionValues.DIMENSION_VALUES_VERSION)
+            .expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {

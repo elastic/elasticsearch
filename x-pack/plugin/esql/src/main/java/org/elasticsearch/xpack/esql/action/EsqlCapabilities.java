@@ -3573,6 +3573,11 @@ public class EsqlCapabilities {
         PROMQL_TOPK,
 
         /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.

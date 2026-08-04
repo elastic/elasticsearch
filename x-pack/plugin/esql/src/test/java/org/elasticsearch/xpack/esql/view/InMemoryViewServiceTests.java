@@ -1368,6 +1368,32 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testDescriptionRoundTrip() {
+        addView("view1", "FROM a", "A useful view");
+        View stored = viewService.get(projectId, "view1");
+        assertThat(stored.description(), equalTo("A useful view"));
+        assertThat(stored.query(), equalTo("FROM a"));
+    }
+
+    public void testDescriptionIsOptional() {
+        addView("view1", "FROM a");
+        assertNull(viewService.get(projectId, "view1").description());
+    }
+
+    public void testDescriptionLengthExceeded() {
+        String tooLong = "x".repeat(ViewService.MAX_VIEW_DESCRIPTION_LENGTH + 1);
+        Exception e = expectThrows(Exception.class, () -> addView("view1", "FROM a", tooLong));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "view description is too large: "
+                    + tooLong.length()
+                    + " characters, the maximum allowed is "
+                    + ViewService.MAX_VIEW_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
     public void testViewWithDateMathInBody() {
         addDateMathIndex("logs-");
         addView("view1", "FROM <logs-{now/d}>");
@@ -2806,7 +2832,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, new View(name, query));
+        addView(name, query, null, viewService);
+    }
+
+    private void addView(String name, String query, String description) {
+        addView(name, query, description, viewService);
+    }
+
+    private void addView(String name, String query, String description, ViewService viewService) {
+        PutViewAction.Request request = new PutViewAction.Request(
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_MINUTE,
+            new View(name, query, description)
+        );
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> err = new AtomicReference<>(null);
         viewService.putView(projectId, request, ActionListener.wrap(r -> latch.countDown(), e -> {

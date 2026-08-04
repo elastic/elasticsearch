@@ -53,23 +53,23 @@ To skip Kibana entirely: `KIBANA=skip ./demo.sh up`.
 
 ```
   Documents per 10s bucket over the last 6m
-    source   ▇▆█▆▅▃▂▂▂▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▃▃▃▇  min     192  max  41,345
-    derived  ▇▇████████                            min     205  max     240
+    source   ▂▂▃▃▃▄███▇▆▄▃▂▂▂▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁  min     192  max  38,818
+    derived  ▇████████████▇▇▇▇▇▇▇▇▇▅▆▆▆▆▇▆      min     262  max     420
 
-    source rate varied by   215.3x
-    derived rate varied by    1.2x   <- this is the point
+    source rate varied by   202.2x
+    derived rate varied by    1.6x   <- this is the point
 
   Peak value per metric over the last 6m (10s interval, summed across nodes)
-    http.requests                   38,527.00   (720 series-buckets)
-    http.errors                      9,529.00   (424 series-buckets)
-    ingest.docs.rate                 3,852.70   (180 series-buckets)
-    queue.depth.max                  1,464.00   (180 series-buckets)
+    http.requests                   38,818.00   (3632 series-buckets)
+    http.errors                      8,822.00   (1525 series-buckets)
+    ingest.docs.count               38,892.00   (928 series-buckets)
+    queue.depth.max                  3,530.00   (928 series-buckets)
     ...
 ```
 
-The source swung by 215x across the load cycle; the derived document count stayed within 1.2x. The
+The source swung by 202x across the load cycle; the derived document count stayed within 1.6x. The
 derived count is a function of *configuration* — metrics × intervals × dimension combinations — not
-of write volume. The residual 1.2x is dimension combinations coming and going: the `http.errors`
+of write volume. The residual is dimension combinations coming and going: the `http.errors`
 series only exist while something is returning 5xx.
 
 If a phase is quiet enough that an interval sees no writes at all, that interval emits nothing rather
@@ -81,12 +81,12 @@ Every document is written to **both** source streams. They differ only in what t
 
 | | rich (`logs-derived-demo-default`) | lean (`logs-derived-lean-default`) |
 |---|---|---|
-| built-ins | all six `ingest.*` | `ingest.docs.rate` only |
+| built-ins | all three `ingest.*` | `ingest.docs.count` only |
 | dimensions | `service.name`, `cloud.region` | `service.name` |
 | user metrics | seven | two |
-| **derived documents** | **~255 per 10s** | **~27 per 10s** |
+| **derived documents** | **~350 per 10s** | **~26 per 10s** |
 
-Same write volume, ~9x less derived data. Derived cost is a function of metrics x dimensions x
+Same write volume, ~13x less derived data. Derived cost is a function of metrics x dimensions x
 intervals, and nothing else — which is exactly the knob you have.
 
 `./demo.sh status` prints that comparison, and the lean dashboard leads with it.
@@ -168,15 +168,21 @@ In Discover on *demo derived metrics*, useful things to break down by:
   dimension for a stream-wide value.
 - `dimensions.*` — the configured user dimensions.
 
-For a chart in Lens: filter `metric.name: ingest.docs.rate`, then plot **sum of `metric.value`** over `@timestamp`. That is the source stream's ingest rate,
+For a chart in Lens: filter `metric.name: ingest.docs.count`, then plot **sum of `metric.counter`**
+over `@timestamp`, divided by 10 for a per-second figure. That is the source stream's ingest rate,
 reconstructed from a handful of documents per interval. Put a count of the source data stream next to
 it and the two lines track each other.
+
+Which field to plot follows the metric type, because a field carries exactly one `time_series_metric`:
+a counter is in `metric.counter`, a gauge in `metric.value`, a histogram in `metric.histogram`. Every
+document carries `derived_metrics.reduction` so you can tell which without looking up the
+configuration.
 
 Good comparisons to try:
 
 | filter | shows |
 |---|---|
-| `metric.name: ingest.docs.rate` | write rate, tracking the load generator's phases |
+| `metric.name: ingest.docs.count` | write rate, tracking the load generator's phases |
 | `metric.name: http.errors` | 5xx counter, spikes during the `spike` phase |
 | `metric.name: queue.depth.max` | gauge, `max` per interval |
 | `metric.name: event.duration.avg` | gauge, `avg` per interval |

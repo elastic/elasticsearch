@@ -23,12 +23,12 @@ import urllib.request
 QUESTIONS = [
     (
         "documents written",
-        'FROM {derived} | WHERE metric.name == "ingest.docs.count" | STATS v = SUM(metric.value)',
+        'FROM {derived} | WHERE metric.name == "ingest.docs.count" | STATS v = SUM(TO_DOUBLE(metric.counter))',
         "FROM {source} | STATS v = COUNT(*)",
     ),
     (
         "5xx errors",
-        'FROM {derived} | WHERE metric.name == "http.errors" | STATS v = SUM(metric.value)',
+        'FROM {derived} | WHERE metric.name == "http.errors" | STATS v = SUM(TO_DOUBLE(metric.counter))',
         "FROM {source} | WHERE http.response.status_code >= 500 | STATS v = COUNT(*)",
     ),
     (
@@ -50,14 +50,14 @@ QUESTIONS = [
     ),
     (
         "ingest rate per 10s bucket",
-        'FROM {derived} | WHERE metric.name == "ingest.docs.rate" '
-        "| STATS v = SUM(metric.value) BY bucket = BUCKET(@timestamp, 10 second) | STATS v = COUNT(*)",
+        'TS {derived} | WHERE metric.name == "ingest.docs.count" '
+        "| STATS v = SUM(RATE(metric.counter)) BY bucket = BUCKET(@timestamp, 10 second) | STATS v = COUNT(*)",
         "FROM {source} | STATS v = COUNT(*) BY bucket = BUCKET(@timestamp, 10 second) | STATS v = COUNT(*)",
     ),
     (
         "errors per service",
         'FROM {derived} | WHERE metric.name == "http.errors" '
-        "| STATS v = SUM(metric.value) BY service = dimensions.service.name | STATS v = COUNT(*)",
+        "| STATS v = SUM(TO_DOUBLE(metric.counter)) BY service = dimensions.service.name | STATS v = COUNT(*)",
         "FROM {source} | WHERE http.response.status_code >= 500 "
         "| STATS v = COUNT(*) BY service = service.name | STATS v = COUNT(*)",
     ),

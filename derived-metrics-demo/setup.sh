@@ -128,13 +128,13 @@ echo "==> Applying derived metrics to the live data stream"
 es PUT "/_data_stream/${DATA_STREAM}/_options" -d "{\"derived_metrics\": ${DERIVED_METRICS}}" | python3 -m json.tool
 
 
-# The lean stream receives exactly the same documents but asks for far less: one built-in rate, two
-# user metrics, and a single dimension. Its derived volume is a fraction of the rich stream's, which
-# is the point of the comparison, while still being broken down per service.
+# The lean stream receives exactly the same documents but asks for far less: one built-in counter,
+# two user metrics, and a single dimension. Its derived volume is a fraction of the rich stream's,
+# which is the point of the comparison, while still being broken down per service.
 LEAN_DERIVED_METRICS=$(cat <<'JSON'
 {
   "enabled": __ENABLED__,
-  "builtin": ["ingest.docs.rate"],
+  "builtin": ["ingest.docs.count"],
   "default_interval": "__INTERVAL__",
   "dimensions": ["service.name"],
   "metrics": [

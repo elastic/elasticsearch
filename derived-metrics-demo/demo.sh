@@ -114,6 +114,12 @@ YAML
   "$ES_HOME/bin/elasticsearch-users" useradd "${ES_USER}" -p "${ES_PASSWORD}" -r superuser >/dev/null 2>&1 \
     || die "could not create the ${ES_USER} user"
 
+  # Kibana connects as kibana_system rather than as the superuser above. The .kibana* indices are
+  # restricted, and superuser is denied on restricted indices, so Kibana's saved-object migration
+  # would terminate with a security_exception and no dashboard would ever be created.
+  "$ES_HOME/bin/elasticsearch-users" useradd "${KIBANA_ES_USER}" -p "${KIBANA_ES_PASSWORD}" -r kibana_system >/dev/null 2>&1 \
+    || die "could not create the ${KIBANA_ES_USER} user"
+
   log "Starting Elasticsearch (${ES_HEAP} heap, ${ES_LICENSE} license)"
   ES_JAVA_OPTS="" nohup "$ES_HOME/bin/elasticsearch" > "$RUN_DIR/elasticsearch.log" 2>&1 &
   echo $! > "$RUN_DIR/elasticsearch.pid"
@@ -141,8 +147,8 @@ start_kibana() {
     --memory "${KIBANA_MEMORY}" \
     -e "NODE_OPTIONS=--max-old-space-size=${KIBANA_HEAP_MB}" \
     -e "ELASTICSEARCH_HOSTS=http://${ES_HOST_FROM_CONTAINER}:${ES_PORT}" \
-    -e "ELASTICSEARCH_USERNAME=${ES_USER}" \
-    -e "ELASTICSEARCH_PASSWORD=${ES_PASSWORD}" \
+    -e "ELASTICSEARCH_USERNAME=${KIBANA_ES_USER}" \
+    -e "ELASTICSEARCH_PASSWORD=${KIBANA_ES_PASSWORD}" \
     -e "XPACK_SECURITY_ENCRYPTIONKEY=derivedmetricsdemoencryptionkey32chars" \
     -e "XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=derivedmetricsdemosavedobjectskey32chars" \
     -e "XPACK_REPORTING_ENCRYPTIONKEY=derivedmetricsdemoreportingkey32chars000" \

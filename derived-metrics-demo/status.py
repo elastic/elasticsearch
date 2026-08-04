@@ -101,11 +101,18 @@ def main():
         "aggs": {"per_metric": {
             "terms": {"field": "metric.name", "size": 30},
             "aggs": {
+                # A counter lands in metric.counter and a gauge in metric.value, because a field
+                # carries exactly one time_series_metric type. Whichever one this metric does not
+                # use is absent, and sums to zero, so the larger of the two is the metric's value.
                 "per_bucket": {
                     "date_histogram": {"field": "@timestamp", "fixed_interval": interval, "min_doc_count": 1},
-                    "aggs": {"value": {"sum": {"field": "metric.value"}}},
+                    "aggs": {
+                        "value": {"sum": {"field": "metric.value"}},
+                        "counter": {"sum": {"field": "metric.counter"}},
+                    },
                 },
                 "latest": {"max_bucket": {"buckets_path": "per_bucket>value"}},
+                "latest_counter": {"max_bucket": {"buckets_path": "per_bucket>counter"}},
                 # A histogram metric carries a distribution rather than a value, so metric.value is
                 # absent and summing it yields nothing. Its p99 is the interesting number anyway.
                 "p99": {"percentiles": {"field": "metric.histogram", "percents": [99]}},
@@ -129,7 +136,10 @@ def main():
     if not buckets:
         print("    no derived metrics yet; give it an interval or two")
     for bucket in buckets:
-        latest = bucket.get("latest", {}).get("value")
+        latest = max(
+            bucket.get("latest", {}).get("value") or 0.0,
+            bucket.get("latest_counter", {}).get("value") or 0.0,
+        )
         p99 = (bucket.get("p99", {}).get("values") or {}).get("99.0")
         if p99 is not None:
             # a distribution, so report the shape rather than a sum that does not exist

@@ -31,7 +31,7 @@ POST /_query?format=txt
     FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "ingest.docs.count"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS docs = SUM(metric.value), documents_scanned = COUNT(*)
+    | STATS docs = SUM(TO_DOUBLE(metric.counter)), documents_scanned = COUNT(*)
   """
 }
 
@@ -55,7 +55,7 @@ POST /_query?format=txt
     FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.errors"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS errors = SUM(metric.value)
+    | STATS errors = SUM(TO_DOUBLE(metric.counter))
   """
 }
 
@@ -80,7 +80,7 @@ POST /_query?format=txt
     FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.response.bytes"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS bytes = SUM(metric.value)
+    | STATS bytes = SUM(TO_DOUBLE(metric.counter))
   """
 }
 
@@ -158,9 +158,9 @@ POST /_query?format=txt
 {
   "query": """
     FROM derived-metrics-logs-derived-demo-default-10s
-    | WHERE metric.name == "ingest.docs.rate"
+    | WHERE metric.name == "ingest.docs.count"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS docs_per_sec = ROUND(SUM(metric.value), 1)
+    | STATS docs_per_sec = ROUND(SUM(TO_DOUBLE(metric.counter)) / 10, 1)
         BY bucket = BUCKET(@timestamp, 10 second), service = dimensions.service.name
     | SORT bucket DESC, service
     | LIMIT 25
@@ -190,7 +190,7 @@ POST /_query?format=txt
     FROM derived-metrics-logs-derived-demo-default-10s
     | WHERE metric.name == "http.requests"
         AND @timestamp >= "WINDOW_START" AND @timestamp < "WINDOW_END"
-    | STATS requests = SUM(metric.value) BY method = dimensions.http.request.method
+    | STATS requests = SUM(TO_DOUBLE(metric.counter)) BY method = dimensions.http.request.method
     | SORT method
   """
 }

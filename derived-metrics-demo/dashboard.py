@@ -147,7 +147,7 @@ def build_rows(derived_dv, source_dv, derived, source):
         # --- the headline: the same count, and what it cost to be able to answer it ---
         row(METRIC_HEIGHT,
             metric_panel("Documents observed  ·  DERIVED", derived_dv,
-                f'FROM {derived} | WHERE metric.name == "ingest.docs.count" | STATS docs = SUM(metric.value)',
+                f'FROM {derived} | WHERE metric.name == "ingest.docs.count" | STATS docs = SUM(TO_DOUBLE(metric.counter))',
                 "docs", "summed from ingest.docs.count"),
             metric_panel("Documents written  ·  SOURCE", source_dv,
                 f"FROM {source} | STATS docs = COUNT(*)",
@@ -162,32 +162,34 @@ def build_rows(derived_dv, source_dv, derived, source):
 
         # --- built-in ingest metrics ---
         row(CHART_HEIGHT,
-            d_line("Ingest rate, docs/sec", "ingest.docs.rate", "docs_per_sec = SUM(metric.value)", "docs_per_sec"),
+            d_line("Ingest rate, docs/sec", "ingest.docs.count",
+                   "docs_per_sec = SUM(TO_DOUBLE(metric.counter)) / 10", "docs_per_sec"),
             s_line("Ingest rate, docs/sec", "docs_per_sec = TO_DOUBLE(COUNT(*)) / 10", "docs_per_sec")),
         row(CHART_HEIGHT,
-            d_line("Ingest throughput, MB/sec", "ingest.bytes.rate",
-                   "mb_per_sec = SUM(metric.value) / 1048576", "mb_per_sec"),
+            d_line("Ingest throughput, MB/sec", "ingest.bytes.count",
+                   "mb_per_sec = SUM(TO_DOUBLE(metric.counter)) / 1048576 / 10", "mb_per_sec"),
             None),  # the size of _source is not queryable from the stream itself
         row(METRIC_HEIGHT,
             metric_panel("Failed writes  ·  DERIVED", derived_dv,
                 f'FROM {derived} | WHERE metric.name == "ingest.failures.count" '
-                "| STATS failures = SUM(metric.value) | EVAL failures = COALESCE(failures, 0.0)",
+                "| STATS failures = SUM(TO_DOUBLE(metric.counter)) | EVAL failures = COALESCE(failures, 0.0)",
                 "failures", "ingest.failures.count — a failed write leaves nothing behind to count"),
             None),
 
         # --- user counters ---
         row(CHART_HEIGHT,
-            d_line("HTTP requests", "http.requests", "requests = SUM(metric.value)", "requests"),
+            d_line("HTTP requests", "http.requests", "requests = SUM(TO_DOUBLE(metric.counter))", "requests"),
             s_line("HTTP requests", "requests = COUNT(*)", "requests", "http.request.method IS NOT NULL")),
         row(CHART_HEIGHT,
-            d_line("5xx errors", "http.errors", "errors = SUM(metric.value)", "errors"),
+            d_line("5xx errors", "http.errors", "errors = SUM(TO_DOUBLE(metric.counter))", "errors"),
             s_line("5xx errors", "errors = COUNT(*)", "errors", "http.response.status_code >= 500")),
         row(CHART_HEIGHT,
-            d_line("4xx client errors", "http.client.errors", "errors = SUM(metric.value)", "errors"),
+            d_line("4xx client errors", "http.client.errors", "errors = SUM(TO_DOUBLE(metric.counter))", "errors"),
             s_line("4xx client errors", "errors = COUNT(*)", "errors",
                    "http.response.status_code >= 400 AND http.response.status_code < 500")),
         row(CHART_HEIGHT,
-            d_line("Response payload, MB", "http.response.bytes", "mb = SUM(metric.value) / 1048576", "mb"),
+            d_line("Response payload, MB", "http.response.bytes",
+                   "mb = SUM(TO_DOUBLE(metric.counter)) / 1048576", "mb"),
             s_line("Response payload, MB", "mb = TO_DOUBLE(SUM(http.response.body.bytes)) / 1048576", "mb")),
 
         # --- user gauges ---
@@ -228,15 +230,15 @@ def build_lean_rows(derived_dv, source_dv, derived, source, rich_derived_dv, ric
         row(METRIC_HEIGHT,
             metric_panel("Derived documents stored  ·  LEAN config", derived_dv,
                 f"FROM {derived} | STATS documents = COUNT(*)",
-                "documents", "one rate, two metrics, no dimensions"),
+                "documents", "one built-in, two metrics, one dimension"),
             metric_panel("Derived documents stored  ·  RICH config", rich_derived_dv,
                 f"FROM {rich_derived} | STATS documents = COUNT(*)",
-                "documents", "six built-ins, seven metrics, two dimensions")),
+                "documents", "three built-ins, seven metrics, two dimensions")),
         row(METRIC_HEIGHT,
             metric_panel("Documents observed  ·  LEAN", derived_dv,
-                f'FROM {derived} | WHERE metric.name == "ingest.docs.rate" '
-                "| STATS docs = SUM(metric.value) * 10",
-                "docs", "reconstructed from ingest.docs.rate"),
+                f'FROM {derived} | WHERE metric.name == "ingest.docs.count" '
+                "| STATS docs = SUM(TO_DOUBLE(metric.counter))",
+                "docs", "summed from ingest.docs.count"),
             metric_panel("Documents written to each source", source_dv,
                 f"FROM {source} | STATS docs = COUNT(*)",
                 "docs", f"the same documents also go to {rich_source}")),
@@ -251,8 +253,8 @@ def build_lean_rows(derived_dv, source_dv, derived, source, rich_derived_dv, ric
         # --- everything the lean configuration actually asks for, broken down by its one dimension ---
         row(CHART_HEIGHT,
             line_panel("Ingest rate per service, docs/sec  ·  DERIVED", derived_dv,
-                f'FROM {derived} | WHERE metric.name == "ingest.docs.rate" '
-                f"| STATS docs_per_sec = SUM(metric.value) BY bucket = {b}, service = dimensions.service.name",
+                f'FROM {derived} | WHERE metric.name == "ingest.docs.count" '
+                f"| STATS docs_per_sec = SUM(TO_DOUBLE(metric.counter)) / 10 BY bucket = {b}, service = dimensions.service.name",
                 "bucket", "docs_per_sec", DERIVED_COLOUR, breakdown_field="service"),
             line_panel("Ingest rate per service, docs/sec  ·  SOURCE", source_dv,
                 f"FROM {source} | STATS docs_per_sec = TO_DOUBLE(COUNT(*)) / 10 BY bucket = {b}, service = service.name",
@@ -260,7 +262,7 @@ def build_lean_rows(derived_dv, source_dv, derived, source, rich_derived_dv, ric
         row(CHART_HEIGHT,
             line_panel("5xx errors per service  ·  DERIVED", derived_dv,
                 f'FROM {derived} | WHERE metric.name == "http.errors" '
-                f"| STATS errors = SUM(metric.value) BY bucket = {b}, service = dimensions.service.name",
+                f"| STATS errors = SUM(TO_DOUBLE(metric.counter)) BY bucket = {b}, service = dimensions.service.name",
                 "bucket", "errors", DERIVED_COLOUR, breakdown_field="service"),
             line_panel("5xx errors per service  ·  SOURCE", source_dv,
                 f"FROM {source} | WHERE http.response.status_code >= 500 "

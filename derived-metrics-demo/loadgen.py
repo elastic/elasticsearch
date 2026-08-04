@@ -3,7 +3,7 @@
 
 The point of the varying rate is to make the derived metrics visibly track the write load while the
 number of derived documents stays flat: no matter which phase the load is in, each interval produces
-one document per series, so `ingest.docs.rate` moves and the derived document count does not.
+one document per series, so `ingest.docs.count` moves and the derived document count does not.
 
 Only the standard library is used, so this runs against any Python 3.9+ without a virtualenv.
 """

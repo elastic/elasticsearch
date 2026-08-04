@@ -4,9 +4,13 @@
 // `derived_metrics.interval`. Add more intervals in setup.sh and every query below needs a
 // `WHERE derived_metrics.interval == "10s"`, or it sums the same data at two resolutions.
 //
-// The one rule that always applies: reduce according to the metric type. Counters and rates are
-// per-node, per-dimension partials, so they SUM. A `max` gauge takes MAX, a `min` gauge MIN, an
-// `avg` gauge AVG. Summing a gauge gives you a number that means nothing.
+// The one rule that always applies: reduce according to the metric type, and read the field that
+// type lands in. A counter is in `metric.counter`, a gauge in `metric.value`, a histogram in
+// `metric.histogram`. Counters are per-node, per-dimension delta partials, so they SUM. A `max`
+// gauge takes MAX, a `min` gauge MIN, an `avg` gauge AVG. Summing a gauge means nothing.
+//
+// Every document also carries `derived_metrics.reduction`, so a consumer can work out which field
+// to read without going and looking at the source stream's configuration.
 
 
 // ---------------------------------------------------------------------------------------------
@@ -17,7 +21,7 @@
 // source stream received, COUNT(*) tells you what that cost to represent.
 // ---------------------------------------------------------------------------------------------
 FROM derived-metrics-logs-derived-demo-default-10s
-| STATS source_docs = SUM(CASE(metric.name == "ingest.docs.count", metric.value, 0.0)),
+| STATS source_docs = SUM(CASE(metric.name == "ingest.docs.count", TO_DOUBLE(metric.counter), 0.0)),
         derived_docs = COUNT(*)
     BY bucket = BUCKET(@timestamp, 10 second)
 | EVAL compression = TO_LONG(source_docs / derived_docs)
@@ -27,10 +31,14 @@ FROM derived-metrics-logs-derived-demo-default-10s
 
 // ---------------------------------------------------------------------------------------------
 // 2. Ingest rate per service, reconstructed from a handful of documents per interval.
+//
+// There is no `ingest.docs.rate` built-in, because a rate over a counter is a query rather than a
+// second series to store. `RATE` needs the TS command, which reads the counter typing off the
+// mapping and computes per series before anything is summed across them.
 // ---------------------------------------------------------------------------------------------
-FROM derived-metrics-logs-derived-demo-default-10s
-| WHERE metric.name == "ingest.docs.rate"
-| STATS docs_per_sec = SUM(metric.value)
+TS derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.docs.count"
+| STATS docs_per_sec = SUM(RATE(metric.counter))
     BY bucket = BUCKET(@timestamp, 10 second), service = dimensions.service.name
 | SORT bucket DESC, docs_per_sec DESC
 | LIMIT 25
@@ -39,12 +47,15 @@ FROM derived-metrics-logs-derived-demo-default-10s
 // ---------------------------------------------------------------------------------------------
 // 3. Every metric at a glance, over the last two minutes.
 //
-// Note the mixed reductions: the SUM column is only meaningful for the counters and rates.
+// Counters and gauges live in different fields, so both are read and one of them is null per row.
+// The SUM column is only meaningful for the counters; a gauge's is there to show it is not.
 // ---------------------------------------------------------------------------------------------
 FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE @timestamp > NOW() - 2 minutes
-| STATS total = SUM(metric.value), peak = MAX(metric.value), series = COUNT(*)
-    BY metric.name
+| STATS total = SUM(COALESCE(TO_DOUBLE(metric.counter), metric.value)),
+        peak  = MAX(COALESCE(TO_DOUBLE(metric.counter), metric.value)),
+        series = COUNT(*)
+    BY metric.name, reduction = derived_metrics.reduction
 | SORT metric.name
 
 
@@ -53,8 +64,8 @@ FROM derived-metrics-logs-derived-demo-default-10s
 // ---------------------------------------------------------------------------------------------
 FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE @timestamp > NOW() - 5 minutes
-| STATS errors   = SUM(CASE(metric.name == "http.errors", metric.value, 0.0)),
-        requests = SUM(CASE(metric.name == "http.requests", metric.value, 0.0))
+| STATS errors   = SUM(CASE(metric.name == "http.errors", TO_DOUBLE(metric.counter), 0.0)),
+        requests = SUM(CASE(metric.name == "http.requests", TO_DOUBLE(metric.counter), 0.0))
     BY service = dimensions.service.name
 | EVAL error_pct = ROUND(100 * errors / requests, 2)
 | SORT error_pct DESC
@@ -65,7 +76,7 @@ FROM derived-metrics-logs-derived-demo-default-10s
 // ---------------------------------------------------------------------------------------------
 FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE metric.name == "http.errors"
-| STATS errors = SUM(metric.value)
+| STATS errors = SUM(TO_DOUBLE(metric.counter))
     BY status = dimensions.http.response.status_code, service = dimensions.service.name
 | SORT errors DESC
 | LIMIT 20
@@ -96,11 +107,11 @@ FROM derived-metrics-logs-derived-demo-default-10s
 
 
 // ---------------------------------------------------------------------------------------------
-// 8. Throughput in bytes per second, per region.
+// 8. Throughput in bytes per second, per region, as a rate over the bytes counter.
 // ---------------------------------------------------------------------------------------------
-FROM derived-metrics-logs-derived-demo-default-10s
-| WHERE metric.name == "ingest.bytes.rate"
-| STATS mb_per_sec = ROUND(SUM(metric.value) / 1048576, 2)
+TS derived-metrics-logs-derived-demo-default-10s
+| WHERE metric.name == "ingest.bytes.count"
+| STATS mb_per_sec = ROUND(SUM(RATE(metric.counter)) / 1048576, 2)
     BY bucket = BUCKET(@timestamp, 10 second), region = dimensions.cloud.region
 | SORT bucket DESC, mb_per_sec DESC
 | LIMIT 20
@@ -115,16 +126,20 @@ FROM derived-metrics-logs-derived-demo-default-10s
 FROM derived-metrics-logs-derived-demo-default-10s
 | WHERE metric.name == "ingest.docs.count"
     AND @timestamp > NOW() - 5 minutes
-| STATS docs = SUM(metric.value), series = COUNT(*)
+| STATS docs = SUM(TO_DOUBLE(metric.counter)), series = COUNT(*)
     BY node = derived_metrics.node_name, source = derived_metrics.source
 
 
 // ---------------------------------------------------------------------------------------------
-// 10. The TS command works too, since the destination is a real TSDS.
+// 10. The counter typing is real, not cosmetic.
+//
+// `metric.counter` comes back as `counter_double`, so ES|QL refuses the aggregations that make no
+// sense over a counter and allows the ones that do. Swap SUM(RATE(...)) for SUM_OVER_TIME(...)
+// below and the query is rejected rather than quietly answering the wrong question.
 // ---------------------------------------------------------------------------------------------
 TS derived-metrics-logs-derived-demo-default-10s
-| WHERE metric.name == "ingest.docs.rate"
-| STATS rate = SUM(metric.value) BY bucket = BUCKET(@timestamp, 30 second)
+| WHERE metric.name == "ingest.docs.count"
+| STATS rate = SUM(RATE(metric.counter)) BY bucket = BUCKET(@timestamp, 30 second)
 | SORT bucket DESC
 | LIMIT 20
 

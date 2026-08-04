@@ -106,7 +106,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         transitionExecutor.stop();
     }
 
-    // Visible for testing
+    // visible for testing
     DLMFrozenTransitionExecutor getTransitionExecutor() {
         return transitionExecutor;
     }

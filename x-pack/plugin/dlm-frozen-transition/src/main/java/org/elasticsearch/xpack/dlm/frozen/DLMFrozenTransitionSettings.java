@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.dlm.frozen;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+
+import java.util.List;
 
 public class DLMFrozenTransitionSettings {
 
@@ -26,8 +29,24 @@ public class DLMFrozenTransitionSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The amount of time an index can be stuck (repeatedly erroring, eligible but unable to be marked, or marked but
+     * not yet attempted) before the {@code dlm_frozen_transitions} health indicator reports YELLOW for it.
+     */
+    public static final Setting<TimeValue> HEALTH_STUCK_THRESHOLD_SETTING = Setting.timeSetting(
+        "dlm.frozen.health.stuck_threshold",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /** All settings owned by this class, for convenient registration in plugins and test cluster setup. */
+    public static final List<Setting<?>> ALL_SETTINGS = List.of(TRANSITION_ENABLED_SETTING, HEALTH_STUCK_THRESHOLD_SETTING);
+
     private volatile int errorRetryInterval;
     private volatile boolean transitionEnabled;
+    private volatile TimeValue healthStuckThreshold;
 
     /**
      * Sets internal settings to their initial values
@@ -36,6 +55,7 @@ public class DLMFrozenTransitionSettings {
     public DLMFrozenTransitionSettings(Settings settings) {
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.transitionEnabled = TRANSITION_ENABLED_SETTING.get(settings);
+        this.healthStuckThreshold = HEALTH_STUCK_THRESHOLD_SETTING.get(settings);
     }
 
     /**
@@ -60,6 +80,7 @@ public class DLMFrozenTransitionSettings {
                 this::updateErrorInterval
             );
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_ENABLED_SETTING, this::updateTransitionEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HEALTH_STUCK_THRESHOLD_SETTING, this::updateHealthStuckThreshold);
     }
 
     private void updateErrorInterval(int newInterval) {
@@ -68,6 +89,10 @@ public class DLMFrozenTransitionSettings {
 
     private void updateTransitionEnabled(boolean enabled) {
         this.transitionEnabled = enabled;
+    }
+
+    private void updateHealthStuckThreshold(TimeValue newThreshold) {
+        this.healthStuckThreshold = newThreshold;
     }
 
     /**
@@ -85,5 +110,13 @@ public class DLMFrozenTransitionSettings {
      */
     public boolean isTransitionEnabled() {
         return transitionEnabled;
+    }
+
+    /**
+     * @return the latest property value for the health stuck threshold
+     * @see #HEALTH_STUCK_THRESHOLD_SETTING
+     */
+    public TimeValue getHealthStuckThreshold() {
+        return healthStuckThreshold;
     }
 }

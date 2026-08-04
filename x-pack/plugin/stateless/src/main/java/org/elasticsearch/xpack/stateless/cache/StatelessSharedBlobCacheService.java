@@ -225,7 +225,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
     }
 
-    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(
+    // package private for testing
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,

@@ -72,7 +72,7 @@ public class AggregatorFactories {
         Setting.Property.NodeScope
     );
 
-    private static int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+    private static volatile int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
 
     /**
      * Parses the aggregation request recursively generating aggregator
@@ -92,6 +92,10 @@ public class AggregatorFactories {
             throw new IllegalArgumentException("maxNestedDepth must be >= 1");
         }
         AggregatorFactories.maxNestedDepth = maxNestedDepth;
+    }
+
+    public static int getMaxNestedDepth() {
+        return maxNestedDepth;
     }
 
     private static String maxNestedDepthExceededMessage() {

@@ -9,13 +9,13 @@
         "refresh_interval": "10s",
         "sort": {
           "field": [
-            "k8s.namespace.name",
-            "k8s.pod.name",
-            "service.name",
-            "host.name",
-            "container.name",
-            "process.executable.name",
-            "thread.name",
+            "resource.attributes.k8s.namespace.name",
+            "resource.attributes.k8s.pod.name",
+            "resource.attributes.service.name",
+            "resource.attributes.host.name",
+            "resource.attributes.container.name",
+            "resource.attributes.process.executable.name",
+            "resource.attributes.thread.name",
             "@timestamp"
           ],
           "order": [
@@ -45,24 +45,9 @@
           "type": "date_nanos",
           "format": "strict_date_optional_time_nanos||epoch_second"
         },
-        "host.id": {
-          "type": "keyword"
-        },
         "Stacktrace.id": {
           "type": "keyword",
           "index": false
-        },
-        "k8s.pod.name": {
-          "type": "keyword"
-        },
-        "container.name": {
-          "type": "keyword"
-        },
-        "thread.name": {
-          "type": "keyword"
-        },
-        "process.executable.name": {
-          "type": "keyword"
         },
         "Stacktrace.count": {
           "type": "short",
@@ -72,30 +57,23 @@
           "type": "long",
           "index": false
         },
-        "agent.version": {
-          "type": "keyword"
-        },
-        "host.ip": {
-          "type": "ip"
-        },
-        "host.name": {
-          "type": "keyword"
-        },
-        "os.version": {
-          "type": "keyword"
-        },
-        "service.name": {
-          "type": "keyword"
-        },
-        "container.id": {
-          "type": "keyword"
-        },
-        "k8s.namespace.name": {
-          "type": "keyword"
+        "resource": {
+          "properties": {
+            "attributes": {
+              "type": "passthrough",
+              "dynamic": true,
+              "priority": 40,
+              "properties": {
+                "thread.name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
         },
         "process.thread.name": {
           "type": "alias",
-          "path": "thread.name"
+          "path": "resource.attributes.thread.name"
         }
       }
     }

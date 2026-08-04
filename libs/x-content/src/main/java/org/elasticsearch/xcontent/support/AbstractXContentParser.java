@@ -41,7 +41,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
-    private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
+    public static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (coerce == false) {
             // Need to throw type IllegalArgumentException as current catch logic in
             // NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
@@ -118,6 +118,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         return shortValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
+    /**
+     * Parses a {@code short} from its decimal string representation, using the same semantics as the
+     * document-indexing path. The value is first parsed as a {@code double} and then narrowed; values
+     * outside [{@value Short#MIN_VALUE}, {@value Short#MAX_VALUE}] throw
+     * {@link IllegalArgumentException}.
+     */
+    public static short parseShort(String text) {
+        double doubleValue = Double.parseDouble(text);
+        if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + text + "] is out of range for a short");
+        }
+        return (short) doubleValue;
+    }
+
     @Override
     public short shortValue(boolean coerce) throws IOException {
         Token token = currentToken();
@@ -125,14 +139,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             checkCoerceString(coerce, Short.class);
             XContentString numericText = optimizedText();
             checkNumericStringLength(numericText.stringLength());
-            String value = numericText.string();
-            double doubleValue = Double.parseDouble(value);
-
-            if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-            }
-
-            return (short) doubleValue;
+            return parseShort(numericText.string());
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -146,6 +153,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         return intValue(DEFAULT_NUMBER_COERCE_POLICY);
     }
 
+    /**
+     * Parses an {@code int} from its decimal string representation, using the same semantics as the
+     * document-indexing path. The value is first parsed as a {@code double} and then narrowed; values
+     * outside [{@value Integer#MIN_VALUE}, {@value Integer#MAX_VALUE}] throw
+     * {@link IllegalArgumentException}.
+     */
+    public static int parseInt(String text) {
+        double doubleValue = Double.parseDouble(text);
+        if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + text + "] is out of range for an integer");
+        }
+        return (int) doubleValue;
+    }
+
     @Override
     public int intValue(boolean coerce) throws IOException {
         Token token = currentToken();
@@ -153,14 +174,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             checkCoerceString(coerce, Integer.class);
             XContentString numericText = optimizedText();
             checkNumericStringLength(numericText.stringLength());
-            String value = numericText.string();
-            double doubleValue = Double.parseDouble(value);
-
-            if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
-            }
-
-            return (int) doubleValue;
+            return parseInt(numericText.string());
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -184,10 +198,17 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
-    /** Return the long that {@code stringValue} stores or throws an exception if the
-     *  stored value cannot be converted to a long that stores the exact same
-     *  value and {@code coerce} is false. */
-    private static long toLong(String stringValue, boolean coerce) {
+    /**
+     * Returns the {@code long} that {@code stringValue} represents, using the same semantics as the
+     * document-indexing path ({@code longValue(coerce)}).
+     *
+     * <p>Plain integer strings are parsed via {@link Long#parseLong}; strings that cannot be parsed
+     * that way (decimals, scientific notation, big integers) fall back to {@link java.math.BigDecimal}.
+     * A fractional part is truncated when {@code coerce=true} and rejected with
+     * {@link IllegalArgumentException} when {@code coerce=false}. Values outside
+     * [{@link Long#MIN_VALUE}, {@link Long#MAX_VALUE}] always throw.
+     */
+    public static long toLong(String stringValue, boolean coerce) {
         try {
             return Long.parseLong(stringValue);
         } catch (NumberFormatException e) {

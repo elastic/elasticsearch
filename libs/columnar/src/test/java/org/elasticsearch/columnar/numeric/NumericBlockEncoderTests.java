@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -178,6 +179,41 @@ public class NumericBlockEncoderTests extends ESTestCase {
             new NumericBlockEncoder(read, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), BLOCK, decoded);
             assertArrayEquals(base, decoded);
         }
+    }
+
+    public void testSplitDeltaRegistryRebuildRoundTrip() throws IOException {
+        long[] block = new long[BLOCK];
+        long ts = 1_700_000_000_000L;
+        for (int i = 0; i < BLOCK / 2; i++) {
+            block[i] = ts;
+            ts -= 500;
+        }
+        ts += 100_000;
+        for (int i = BLOCK / 2; i < BLOCK; i++) {
+            block[i] = ts;
+            ts += 500;
+        }
+        NumericPipeline write = new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, new ForTerminal(BLOCK));
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        new NumericBlockEncoder(write, BLOCK).encode(block.clone(), BLOCK, out);
+        NumericPipeline read = NumericPipeline.Registry.rebuild(write.terminalId(), write.transformIds(), BLOCK);
+        long[] decoded = new long[BLOCK];
+        new NumericBlockEncoder(read, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), BLOCK, decoded);
+        assertArrayEquals(block, decoded);
+    }
+
+    public void testAlpRegistryRebuildRoundTrip() throws IOException {
+        long[] block = new long[BLOCK];
+        for (int i = 0; i < BLOCK; i++) {
+            block[i] = NumericUtils.doubleToSortableLong(22.0 + i * 0.1);
+        }
+        NumericPipeline write = new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(BLOCK) }, new ForTerminal(BLOCK));
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        new NumericBlockEncoder(write, BLOCK).encode(block.clone(), BLOCK, out);
+        NumericPipeline read = NumericPipeline.Registry.rebuild(write.terminalId(), write.transformIds(), BLOCK);
+        long[] decoded = new long[BLOCK];
+        new NumericBlockEncoder(read, BLOCK).decode(new ByteArrayDataInput(out.toArrayCopy()), BLOCK, decoded);
+        assertArrayEquals(block, decoded);
     }
 
     private void assertRoundTrip(long[] block) throws IOException {

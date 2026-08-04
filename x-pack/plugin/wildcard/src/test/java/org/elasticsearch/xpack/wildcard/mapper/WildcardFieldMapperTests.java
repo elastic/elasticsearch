@@ -84,6 +84,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -133,9 +134,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
+    public void initWildcardFieldTypes() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
@@ -163,20 +163,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.forceMerge(1);
         rewriteReader = iw.getReader();
         iw.close();
-
-        super.setUp();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeRewriteIndex() throws Exception {
         try {
             rewriteReader.close();
             rewriteDir.close();
         } catch (Exception ignoreCloseFailure) {
             // allow any superclass tear down logic to continue
         }
-        // TODO Auto-generated method stub
-        super.tearDown();
     }
 
     public void testTooBigKeywordField() throws IOException {

@@ -38,7 +38,25 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Fetches deferred fields from the owning data nodes after the coordinator has narrowed the candidate set.
+ * Coordinator-side operator that fetches deferred field values from owning data nodes after the query has
+ * narrowed the candidate row set.
+ * <p>
+ * Each input page carries a column of serialized {@link RemoteFetchHandle}s plus any coordinator columns that
+ * should be retained. For every input page the operator:
+ * <ol>
+ *     <li>decodes and groups handles by target session ({@code nodeId}, {@code retainedSessionId})</li>
+ *     <li>opens a {@link RemoteFetchService.TargetExchange} per target session when needed</li>
+ *     <li>sends batches of handles to the data node via the exchange</li>
+ *     <li>collects response pages from the exchange and merges fetched columns back onto the input rows</li>
+ *     <li>emits one output page once every group for that input page has completed</li>
+ * </ol>
+ * An optional {@code pushdownPlan} may be supplied so filtering happens on the data node. Mapped responses
+ * include a trailing position-mapping column ({@link org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource#POSITION_ATTRIBUTE_NAME})
+ * so rows pruned by pushdown can be omitted from the merged output; see {@link RemoteFetchPushdownOperatorBuilder} for the
+ * supported pushdown shape.
+ * <p>
+ * Transport and data-node execution are handled by {@link RemoteFetchService}; this operator owns the coordinator
+ * merge and exchange lifecycle only.
  */
 public final class RemoteFetchOperator implements Operator {
     record GroupPages(List<Page> pages, boolean hasPositionMapping, int handleCount) {}

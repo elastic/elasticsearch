@@ -212,7 +212,7 @@ $$$index-max-analyzed-offset$$$
 
 $$$index-max-number-of-fragments$$$
 
-`index.highlight.max_number_of_fragments` {applies_to}`stack: ga 8.19, ga 9.4+`
+`index.highlight.max_number_of_fragments` {applies_to}`stack: ga 9.4+`
 :   The maximum value of [`number_of_fragments`](/reference/elasticsearch/rest-apis/highlighting-settings.md#number_of_fragments) accepted for a highlight request. Highlighters allocate memory in proportion to the requested number of fragments, so this setting bounds how much a single request can allocate. Defaults to `10000`.
 
 $$$index-max-terms-count$$$

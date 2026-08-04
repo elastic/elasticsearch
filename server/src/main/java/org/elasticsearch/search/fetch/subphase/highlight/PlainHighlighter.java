@@ -158,7 +158,7 @@ public class PlainHighlighter implements Highlighter {
                     tokenStream,
                     text,
                     false,
-                    cappedNumberOfFragments(numberOfFragments, text.length())
+                    cappedNumberOfFragments(numberOfFragments, textLength)
                 );
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {

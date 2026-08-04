@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 155507
+summary: Limit `number_of_fragments` in highlighting to prevent OOM crash
+type: bug

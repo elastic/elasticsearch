@@ -496,6 +496,15 @@ Running multiple versions of {{es}} in the same cluster beyond the duration of a
 For more information about upgrades, see [Upgrading {{es}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 
 
+## Limitations
+
+### Datasets across clusters
+```{applies_to}
+stack: experimental =9.5
+```
+
+You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.
+
 ## Query across {{serverless-short}} projects [ccq-cps]
 
 ```{applies_to}

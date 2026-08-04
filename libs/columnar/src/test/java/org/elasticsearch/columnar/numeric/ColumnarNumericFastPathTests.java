@@ -274,6 +274,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 values.length,
                 values.length,
                 () -> singleValuedCursor(values),
+                NumericPipeline.defaultPipeline(NumericColumnWriter.BLOCK_SIZE),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
                 dir,

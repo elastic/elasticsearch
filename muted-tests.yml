@@ -17,9 +17,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
-  method: testIndexPoints
-  issue: https://github.com/elastic/elasticsearch/issues/142439
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/155496
@@ -430,18 +427,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/154606
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testAccessTokensWorkInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154618
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testTokensStayInvalidatedInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154619
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testInvalidatingTokensInMixedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154620
-- class: org.elasticsearch.upgrades.TokenBackwardsCompatibilityIT
-  method: testTokensStayInvalidatedInUpgradedCluster
-  issue: https://github.com/elastic/elasticsearch/issues/154627
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
@@ -598,3 +583,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testOutputSupportedTypes {p0=LT}
   issue: https://github.com/elastic/elasticsearch/issues/155694
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitChunksPressure
+  issue: https://github.com/elastic/elasticsearch/issues/155754
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testSlicing
+  issue: https://github.com/elastic/elasticsearch/issues/155761
+- class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
+  method: testIncludeEmptyBuckets_timeSeriesAndDimension
+  issue: https://github.com/elastic/elasticsearch/issues/155779
+- class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
+  method: testScoreMIP
+  issue: https://github.com/elastic/elasticsearch/issues/155783
+- class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
+  method: testRandomWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/155784

@@ -52,6 +52,7 @@ public class AggregateWritables {
             AbsentOverTime.ENTRY,
             PromqlHistogramQuantile.ENTRY,
             DimensionValues.ENTRY,
+            PackDimsAgg.ENTRY,
             HistogramMerge.ENTRY,
             DeltaOnlyHistogramMergeOverTime.ENTRY,
             HistogramMergeOverTime.ENTRY,

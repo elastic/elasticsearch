@@ -48,7 +48,6 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,13 +73,11 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
 
     private KnnVectorsFormat format;
 
-    @Before
-    public void initFormat() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
-    }
-
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

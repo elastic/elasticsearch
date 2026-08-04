@@ -43,7 +43,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,35 +78,6 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     private KnnVectorsFormat format;
     private ExecutorService executorService;
 
-    @Before
-    public void initFormat() throws Exception {
-        int numMergingThreads = 1;
-        if (random().nextBoolean()) {
-            numMergingThreads = random().nextInt(2, 4);
-            executorService = Executors.newFixedThreadPool(numMergingThreads);
-        }
-        if (rarely()) {
-            format = new ES920DiskBBQVectorsFormat(
-                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                random().nextBoolean(),
-                executorService,
-                numMergingThreads
-            );
-        } else {
-            // run with low numbers to force many clusters with parents
-            format = new ES920DiskBBQVectorsFormat(
-                random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                random().nextBoolean(),
-                executorService,
-                numMergingThreads
-            );
-        }
-    }
-
     @After
     public void shutdownExecutor() throws Exception {
         if (executorService != null) {
@@ -136,6 +106,33 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            int numMergingThreads = 1;
+            if (random().nextBoolean()) {
+                numMergingThreads = random().nextInt(2, 4);
+                executorService = Executors.newFixedThreadPool(numMergingThreads);
+            }
+            if (rarely()) {
+                format = new ES920DiskBBQVectorsFormat(
+                    random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
+                    random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    random().nextBoolean(),
+                    executorService,
+                    numMergingThreads
+                );
+            } else {
+                // run with low numbers to force many clusters with parents
+                format = new ES920DiskBBQVectorsFormat(
+                    random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
+                    random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                    DenseVectorFieldMapper.ElementType.FLOAT,
+                    random().nextBoolean(),
+                    executorService,
+                    numMergingThreads
+                );
+            }
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

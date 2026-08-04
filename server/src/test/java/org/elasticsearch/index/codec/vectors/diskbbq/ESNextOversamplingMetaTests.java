@@ -29,7 +29,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
-import org.junit.Before;
 
 import java.io.IOException;
 
@@ -49,11 +48,6 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
     @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
-    }
-
-    @Before
-    public void initFormat() throws Exception {
-        format = new ESNextDiskBBQVectorsFormat(128, 4, null);
     }
 
     @Override
@@ -77,6 +71,9 @@ public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ESNextDiskBBQVectorsFormat(128, 4, null);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

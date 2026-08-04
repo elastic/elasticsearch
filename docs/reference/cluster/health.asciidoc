@@ -80,8 +80,12 @@ The cluster health API accepts the following request parameters:
     `lt(N)` notation.
 
 `timeout`::
-    A time based parameter controlling how long to wait if one of
-    the wait_for_XXX are provided. Defaults to `30s`.
+    A time based parameter controlling the maximum time to wait for
+    one of the wait_for_XXX conditions to be met. If the condition is
+    met sooner, the API returns immediately; if it is not met within
+    this time, the API returns anyway with the current cluster state.
+    Only has an effect if one of the wait_for_XXX parameters is
+    provided. Defaults to `30s`.
 
 
 The following is an example of getting the cluster health at the

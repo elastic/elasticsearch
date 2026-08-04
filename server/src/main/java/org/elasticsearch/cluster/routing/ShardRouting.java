@@ -79,7 +79,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             this.isValidForUnassigned = isValidForUnassigned;
         }
 
-        static RecoveryPriority readFrom(StreamInput in) throws IOException {
+        public static RecoveryPriority readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
                 return in.readEnum(RecoveryPriority.class);
             } else {

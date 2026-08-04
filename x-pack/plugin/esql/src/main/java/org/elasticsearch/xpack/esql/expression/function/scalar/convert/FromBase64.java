@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -41,11 +42,10 @@ public class FromBase64 extends UnaryScalarFunction {
         FromBase64::new
     );
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Decode a base64 string.",
-        examples = @Example(file = "string", tag = "from_base64")
-    )
+    @FunctionInfo(returnType = "keyword", description = "Decode a base64 string.", detailedDescription = """
+        Returns `null` and adds a warning header to the response if the decoded bytes are not
+        well-formed UTF-8.
+        """, examples = @Example(file = "string", tag = "from_base64"))
     public FromBase64(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "A base64 string.") Expression string
@@ -85,13 +85,16 @@ public class FromBase64 extends UnaryScalarFunction {
         return NodeInfo.create(this, FromBase64::new, field());
     }
 
-    @Evaluator()
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder oScratch) {
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(field.length);
         oScratch.clear();
         int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
+        if (Utf8Sanitizer.isWellFormed(oScratch.bytes(), 0, decodedSize) == false) {
+            throw new IllegalArgumentException("decoded value is not valid UTF-8, which is not supported yet");
+        }
         return new BytesRef(oScratch.bytes(), 0, decodedSize);
     }
 

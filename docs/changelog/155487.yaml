@@ -1,4 +1,4 @@
-area: "Codec,"
+area: "Performance"
 issues: []
 pr: 155487
 summary: Upgrade libzstd build toolchain to GCC 14 with LTO

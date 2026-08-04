@@ -23,6 +23,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -327,14 +328,8 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
         return switch (fieldType) {
             case "dense_vector" -> generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f);
             case "semantic_text" -> "hello";
-            case "semantic" -> randomBoolean() ? "hello" : randomNonTextFieldValue();
+            case "semantic" -> SemanticTextFieldTests.randomSemanticInput(true);
             default -> throw new IllegalArgumentException("unknown field type: " + fieldType);
         };
-    }
-
-    private Map<String, Object> randomNonTextFieldValue() {
-        String base64Image = "data:image/png;base64,"
-            + Base64.getEncoder().encodeToString(randomAlphaOfLength(8).getBytes(StandardCharsets.UTF_8));
-        return Map.of("type", "image", "format", "base64", "value", base64Image);
     }
 }

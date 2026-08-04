@@ -70,6 +70,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
         filters.put("bengalistem", StemmerTokenFilterFactory.class);
         filters.put("bulgarianstem", StemmerTokenFilterFactory.class);
+        filters.put("casefolding", Void.class);
         filters.put("englishminimalstem", StemmerTokenFilterFactory.class);
         filters.put("englishpossessive", StemmerTokenFilterFactory.class);
         filters.put("finnishlightstem", StemmerTokenFilterFactory.class);

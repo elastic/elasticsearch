@@ -94,4 +94,8 @@ public class ShardRoutingHelper {
             routing.role()
         );
     }
+
+    public static ShardRouting.RecoveryPriority recoveryPriorityForNewlyCreatedShard(boolean primary) {
+        return primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
+    }
 }

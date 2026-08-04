@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -2828,7 +2829,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             getSource(primary, allocation.state),
             initialUnassignedInfo,
             ShardRouting.Role.DEFAULT,
-            primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
         );
         if (allocation.state == CREATING) {
             return routing;

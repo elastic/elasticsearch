@@ -459,7 +459,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
                 ShardRouting.Role.DEFAULT,
-                primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
             );
             ShardRouting started = ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassigned, node1.getId()));
             indexMetadata.putInSyncAllocationIds(shard, Collections.singleton(started.allocationId().getId()));

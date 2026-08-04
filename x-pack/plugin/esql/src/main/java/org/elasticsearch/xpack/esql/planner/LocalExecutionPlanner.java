@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.operator.CategorizeEvalOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -1131,14 +1133,25 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
-        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
-        List<Integer> groupKeys = topNByExec.groupings()
-            .stream()
-            .map(grouping -> getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"))
-            .toList();
+
+        // Resolve grouping keys; for CATEGORIZE(...) groupings, chain a CategorizeEvalOperator
+        // that appends an ordered-MV IntBlock (no fan-out) as a new channel.
+        List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
+        for (Expression grouping : topNByExec.groupings()) {
+            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
+                source = addCategorizeChannel(source, categorize, context);
+                groupKeys.add(source.layout.numberOfChannels() - 1);
+            } else {
+                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
+            }
+        }
         if (groupKeys.isEmpty()) {
             throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
         }
+
+        // Build topNCommon AFTER inserting any CategorizeEvalOperators so that elementTypes
+        // and encoders cover the newly added int channels.
+        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
         return source.with(
             new GroupedTopNOperator.GroupedTopNOperatorFactory(
                 common.limit,
@@ -2092,17 +2105,45 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
+
+        // Resolve grouping keys; for CATEGORIZE(...) groupings, chain a CategorizeEvalOperator
+        // that appends an ordered-MV IntBlock (no fan-out) as a new channel.
+        List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
+        for (Expression grouping : limitBy.groupings()) {
+            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
+                source = addCategorizeChannel(source, categorize, context);
+                groupKeys.add(source.layout.numberOfChannels() - 1);
+            } else {
+                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
+            }
+        }
+
         Layout layout = source.layout;
-        List<Integer> groupKeys = limitBy.groupings()
-            .stream()
-            .map(g -> getAttributeChannel(g, layout, "LIMIT BY expression must be an attribute"))
-            .toList();
         List<Layout.ChannelSet> inverse = layout.inverse();
         List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    /**
+     * Chains a {@link CategorizeEvalOperator} that reads the raw text field referenced by
+     * {@code categorize.field()}, runs it through the ML categorizer, and appends a new
+     * {@code IntBlock} channel to the page. The new channel holds ordered category IDs —
+     * multivalue positions are NOT unrolled, so {@code [a, b] != [b, a]}.
+     */
+    private PhysicalOperation addCategorizeChannel(PhysicalOperation source, Categorize categorize, LocalExecutionPlannerContext context) {
+        Attribute fieldAttr = Expressions.attribute(categorize.field());
+        if (fieldAttr == null) {
+            throw new EsqlIllegalArgumentException("CATEGORIZE field must resolve to an attribute");
+        }
+        int fieldChannel = source.layout.get(fieldAttr.id()).channel();
+        Layout newLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
+        return source.with(
+            new CategorizeEvalOperator.Factory(fieldChannel, categorize.categorizeDef(), context.analysisRegistry()),
+            newLayout
+        );
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

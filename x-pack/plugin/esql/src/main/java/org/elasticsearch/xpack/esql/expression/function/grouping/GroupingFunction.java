@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -33,18 +34,18 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            if (p instanceof Aggregate) {
+            if (p instanceof Aggregate || p instanceof LimitBy || p instanceof TopNBy) {
                 return;
             }
-            // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) is only allowed inside a STATS command,
+            // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) is only allowed inside STATS, LIMIT BY, and TOPN BY commands,
             // since it relies on aggregation-specific state to be evaluated.
             p.forEachExpression(
                 NonEvaluatableGroupingFunction.class,
-                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS or LIMIT BY command", gf.sourceText()))
             );
             // EvaluatableGroupingFunction (e.g. BUCKET) can be computed row-by-row, so it is also
-            // allowed as a LIMIT ... BY key on top of STATS.
-            if (p instanceof LimitBy == false) {
+            // allowed as a LIMIT ... BY or TOPN BY key on top of STATS.
+            if (p instanceof LimitBy == false && p instanceof TopNBy == false) {
                 p.forEachExpression(
                     EvaluatableGroupingFunction.class,
                     gf -> failures.add(

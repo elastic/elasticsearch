@@ -868,12 +868,9 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | LIMIT 1 BY BUCKET(emp_no, 100.), languages");
     }
 
-    public void testCategorizeNotAllowedInLimitBy() {
-        // Stateful grouping functions still require a STATS context.
-        defaultAnalyzer().error(
-            "FROM test | LIMIT 1 BY CATEGORIZE(first_name)",
-            equalTo("1:24: cannot use grouping function [CATEGORIZE(first_name)] outside of a STATS command")
-        );
+    public void testCategorizeAllowedInLimitByAndTopNBy() {
+        defaultAnalyzer().query("FROM test | LIMIT 1 BY CATEGORIZE(first_name)");
+        defaultAnalyzer().query("FROM test | SORT emp_no | LIMIT 1 BY CATEGORIZE(first_name)");
     }
 
     public void testUnsupportedGroupKeyTypesNotAllowedInLimitBy() {

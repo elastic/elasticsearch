@@ -214,8 +214,8 @@ class StatelessIndexNodeRecoveryListener implements IndexEventListener {
                     cacheService.forceEvict(indexShard.shardId(), k -> true);
                     l.onResponse(null);
                 }
-                case null -> throw new AlreadyClosedException("engine is closed");
                 case NoOpEngine ignored -> l.onResponse(null);
+                case null -> throw new AlreadyClosedException("engine is closed");
                 default -> throw new AssertionError("unexpected engine type: " + engineOrNull);
             }
         });

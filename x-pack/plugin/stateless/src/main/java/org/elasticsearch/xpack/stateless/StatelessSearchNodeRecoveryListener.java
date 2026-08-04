@@ -121,23 +121,23 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         ActionListener.run(listener, l -> {
             final Engine engineOrNull = indexShard.getEngineOrNull();
-            if (engineOrNull instanceof SearchEngine searchEngine) {
-                /*
-                 * The shard can be closed underneath us, so we assert that we're either
-                 * recovering or closed at this point
-                 */
-                assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
-                    : "expected index in recovering shard state but is: " + indexShard.state();
-                assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
-                    : "expected initializing shard routing state but is: " + indexShard.state();
-                indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
-                searchEngine.afterRecovery();
-                l.onResponse(null);
-            } else if (engineOrNull == null) {
-                throw new AlreadyClosedException("engine is closed");
-            } else {
-                assert engineOrNull instanceof NoOpEngine;
-                l.onResponse(null);
+            switch (engineOrNull) {
+                case SearchEngine searchEngine -> {
+                    /*
+                     * The shard can be closed underneath us, so we assert that we're either
+                     * recovering or closed at this point
+                     */
+                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
+                        : "expected index in recovering shard state but is: " + indexShard.state();
+                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
+                        : "expected initializing shard routing state but is: " + indexShard.state();
+                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
+                    searchEngine.afterRecovery();
+                    l.onResponse(null);
+                }
+                case NoOpEngine ignored -> l.onResponse(null);
+                case null -> throw new AlreadyClosedException("engine is closed");
+                default -> throw new AssertionError("unexpected engine type: " + engineOrNull);
             }
         });
     }

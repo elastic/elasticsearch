@@ -1127,6 +1127,18 @@ public class IndexEngine extends InternalEngine {
         }
 
         @Override
+        protected boolean shouldBacklogMerges() {
+            // If there is a queue of uploads for this shard, we don't want to start merges which would also create a commit
+            // that needs to be uploaded.
+            // One pending commit is obviously fine, it may be uploading right now.
+            // Two commits are considered acceptable as well, we assume that current upload will finish shortly
+            // and the second pending commit will start.
+            // Three and more are considered problematic since commit 3 clearly arrived faster than
+            // we could upload a single commit, and we are starting to back up.
+            return forceMergesInProgress.get() == 0 && statelessCommitService.pendingBccUploadsCount(shardId) >= 3;
+        }
+
+        @Override
         protected boolean isAutoThrottle() {
             return false;
         }

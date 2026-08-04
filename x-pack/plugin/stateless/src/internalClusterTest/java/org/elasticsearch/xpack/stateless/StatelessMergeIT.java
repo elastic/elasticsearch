@@ -14,10 +14,12 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -36,8 +38,10 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +65,10 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(TestTelemetryPlugin.class, ShutdownPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(TestTelemetryPlugin.class, ShutdownPlugin.class, StatelessMockRepositoryPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     @Override
@@ -70,6 +77,11 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             // Occasionally the abstract stateless test will set this low causing many flushes in these test. We want to control the flushes
             // in these tests.
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 30);
+    }
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
     }
 
     public void testMergesUseTheMergeThreadPool() {
@@ -405,6 +417,57 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
 
     }
 
+    public void testMergesAreQueuedWhenThereIsCommitUploadQueue() throws Exception {
+        String indexNode = startMasterAndIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 0)
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                .build()
+        );
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var blockUploads = new BlockUploads();
+        setNodeRepositoryStrategy(indexNode, blockUploads);
+
+        // Create enough segments to trigger a merge, has to be at least 8 as required by TieredMergePolicy in Lucene.
+        // This also creates a queue of commit uploads since we have blocked upload operation.
+        int iterations = randomIntBetween(8, 12);
+        for (int i = 0; i < iterations; i++) {
+            indexDocs(indexName, randomIntBetween(1, 10));
+            refresh(indexName);
+        }
+
+        // Give merge policy/scheduler more chances to schedule merges which will be backlogged.
+        int iterationsWhileReadyToMerge = randomIntBetween(1, 5);
+        for (int i = 0; i < iterationsWhileReadyToMerge; i++) {
+            indexDocs(indexName, randomIntBetween(1, 10));
+            refresh(indexName);
+        }
+
+        // We observe no merges even though there are a lot of segment due to the upload queue.
+        var startingMerges = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge
+            .getTotal();
+        assertEquals(0, startingMerges);
+
+        // This thread will be blocked until the latest commit is uploaded.
+        var flushThread = new Thread(() -> flush(indexName));
+        flushThread.start();
+
+        blockUploads.latch.countDown();
+
+        // This commit should trigger a merge and re-trigger merges that were previously backlogged.
+        flushThread.join();
+
+        // Now that there is no queue, we will start merges.
+        assertBusy(() -> {
+            var unblockedMerges = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge
+                .getTotal();
+            assertTrue(unblockedMerges > 0);
+        });
+    }
+
     public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
         final var threadCount = threadPool.info(ThreadPool.Names.MERGE).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
@@ -429,5 +492,22 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             threadPool.executor(ThreadPool.Names.MERGE).execute(blockingTask);
         }
         safeAwait(startBarrier);
+    }
+
+    private static class BlockUploads extends StatelessMockRepositoryStrategy {
+        public final CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public void blobContainerWriteBlobAtomic(
+            CheckedRunnable<IOException> originalRunnable,
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            safeAwait(latch);
+            super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
     }
 }

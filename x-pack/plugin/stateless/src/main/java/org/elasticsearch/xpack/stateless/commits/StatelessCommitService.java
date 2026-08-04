@@ -1090,6 +1090,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    public int pendingBccUploadsCount(ShardId shardId) {
+        try {
+            ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+            return commitState.pendingUploadBccGenerations.size();
+        } catch (AlreadyClosedException ace) {
+            return 0;
+        }
+    }
+
     public void register(
         ShardId shardId,
         long primaryTerm,

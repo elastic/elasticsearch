@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -73,6 +72,7 @@ import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -254,7 +254,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         List<ShardRouting> shardRoutingsWithUnknownRecoveryPriority = StreamSupport.stream(routingTable.spliterator(), false)
             .flatMap(project -> StreamSupport.stream(project.spliterator(), false))
             .flatMap(IndexRoutingTable::allShards)
-            .flatMap(IndexShardRoutingTable::allShards)
+            // Get all shards from the IndexShardRoutingTable, including relocation targets which are included in getAllInitializingShards()
+            // but not in allShards(), deduping because getAllInitializingShards() also includes some shards that _are_ in allShards():
+            .flatMap(shard -> Stream.concat(shard.allShards(), shard.getAllInitializingShards().stream()).distinct())
             .filter(shard -> shard.recoveryPriority() == ShardRouting.RecoveryPriority.UNKNOWN)
             .toList();
         assert shardRoutingsWithUnknownRecoveryPriority.isEmpty()

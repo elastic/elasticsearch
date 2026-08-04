@@ -112,11 +112,13 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
         ExecutorService threadpool = Executors.newScheduledThreadPool(1);
         try (var mockLog = MockLog.capture(ShortCircuitingRenormalizer.class)) {
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "warn on lost search context",
+                new MockLog.ExceptionSeenEventExpectation(
+                    "warn on lost search context, with the exception attached for diagnostics",
                     ShortCircuitingRenormalizer.class.getCanonicalName(),
                     Level.WARN,
-                    "*search context was lost*"
+                    "*search context was lost*",
+                    lostContextException.getClass(),
+                    lostContextException.getMessage()
                 )
             );
             mockLog.addExpectation(

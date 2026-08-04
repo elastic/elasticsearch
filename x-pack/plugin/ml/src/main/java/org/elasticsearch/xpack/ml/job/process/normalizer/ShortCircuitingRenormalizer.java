@@ -185,12 +185,14 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                         // Renormalization is best-effort: the same time window will be renormalized again when the
                         // next bucket completes, so this is an expected, self-healing transient rather than an error.
                         logger.warn(
-                            "[{}] Normalization did not complete because the search context was lost; "
+                            () -> "["
+                                + jobId
+                                + "] Normalization did not complete because the search context was lost; "
                                 + "it will be retried when the next bucket is processed",
-                            jobId
+                            e
                         );
                     } else {
-                        logger.error("[" + jobId + "] Normalization failed", e);
+                        logger.error(() -> "[" + jobId + "] Normalization failed", e);
                     }
                 } finally {
                     latch.countDown();

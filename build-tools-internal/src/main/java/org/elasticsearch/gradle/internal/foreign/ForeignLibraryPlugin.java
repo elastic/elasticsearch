@@ -36,21 +36,17 @@ import javax.inject.Inject;
  * The augment step injects {@code provides org.elasticsearch.foreign.LibraryProvider with ...}
  * directives that reference generated classes the source {@code module-info.java} cannot name.
  *
- * <p>The {@code test} and {@code testFixtures} source sets are processed too, so bindings that only make
- * sense in tests can live next to the tests that use them instead of adding production surface. Those
- * source sets need no {@code module-info.class} augmentation: tests run on the classpath, where
- * {@code ServiceLoader} discovers the generated providers through the {@code META-INF/services} file the
- * annotation processor emits.
+ * <p>All non-main source sets are processed too, so bindings that only make sense in tests
+ * can live next to the tests that use them instead of adding production surface. Those source sets need
+ * no {@code module-info.class} augmentation: tests run on the classpath, where {@code ServiceLoader}
+ * discovers the generated providers through the {@code META-INF/services} file the annotation processor
+ * emits.
  */
 public class ForeignLibraryPlugin implements Plugin<Project> {
 
     private static final JavaLanguageVersion PROCESSOR_TOOLCHAIN = JavaLanguageVersion.of(25);
     private static final String FOREIGN_LIBRARY_PROJECT = ":libs:foreign-library";
     private static final String PROCESSOR_PROJECT = ":libs:foreign-library:processor";
-
-    // Gradle's java-test-fixtures plugin creates the "testFixtures" source set but does not expose its
-    // name as public API, hence the literal.
-    static final List<String> TEST_SOURCE_SET_NAMES = List.of(SourceSet.TEST_SOURCE_SET_NAME, "testFixtures");
 
     static final String PROCESSOR_CONFIGURATION_NAME = "foreignLibraryProcessor";
     static final String PROCESS_ANNOTATIONS_TASK_NAME = "processForeignAnnotations";
@@ -88,9 +84,9 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
         swapModuleInfoInJar(project, augmentModuleInfo);
 
-        // Test source sets get the same annotation processing, but no module-info augmentation and no jar
-        // swap: they are non-modular and run on the classpath.
-        sourceSets.matching(sourceSet -> TEST_SOURCE_SET_NAMES.contains(sourceSet.getName())).all(sourceSet -> {
+        // All non-main source sets get the same annotation processing, but no module-info augmentation
+        // and no jar swap: they are non-modular and run on the classpath.
+        sourceSets.matching(sourceSet -> SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName()) == false).all(sourceSet -> {
             TaskProvider<JavaCompile> task = registerProcessAnnotationsTask(project, sourceSet, processorConfiguration);
             sourceSet.getOutput().dir(task.flatMap(JavaCompile::getDestinationDirectory));
         });

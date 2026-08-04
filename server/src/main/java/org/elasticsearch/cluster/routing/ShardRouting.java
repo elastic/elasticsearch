@@ -467,23 +467,23 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             recoverySource = null;
         }
-        if (state != ShardRoutingState.STARTED) {
-            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+        if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+            if (state != ShardRoutingState.STARTED) {
                 recoveryPriority = RecoveryPriority.readFrom(in);
             } else {
-                // When the ShardRouting is too old to have the recoveryPriority field, it must have been created with master-side recovery
-                // throttling in place, so the priority is of limited significance. So use an arbitrary value which is valid for its state:
-                recoveryPriority = switch (state) {
-                    case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
-                    case INITIALIZING -> relocatingNodeId != null
-                        ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                        : RecoveryPriority.UNASSIGNED_UNEXPECTED;
-                    case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
-                    case STARTED -> null;
-                };
+                recoveryPriority = null;
             }
         } else {
-            recoveryPriority = null;
+            // When the ShardRouting is too old to have the recoveryPriority field, it must have been created with master-side recovery
+            // throttling in place, so the priority is of limited significance. So use an arbitrary value which is valid for its state:
+            recoveryPriority = switch (state) {
+                case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case INITIALIZING -> relocatingNodeId != null
+                    ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                    : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+                case STARTED -> null;
+            };
         }
         final var remoteUnassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
         if (in.getTransportVersion().supports(INITIALIZE_FROM_UNASSIGNED_XOR_RELOCATION) == false

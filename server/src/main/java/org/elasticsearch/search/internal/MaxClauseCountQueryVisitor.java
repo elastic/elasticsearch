@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
@@ -62,6 +63,12 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     @Nullable
     private final Predicate<Query> preCharged;
 
+    /**
+     * Index segment count charged against fuzzy clauses' per-segment expansion cost; see
+     * {@link FuzzyQueries#estimateBytes(FuzzyQuery, int)}.
+     */
+    private final int segmentCount;
+
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
     }
@@ -71,9 +78,23 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable Predicate<Query> preCharged) {
+        this(maxClauseCount, breaker, preCharged, FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN);
+    }
+
+    public MaxClauseCountQueryVisitor(
+        int maxClauseCount,
+        @Nullable CircuitBreaker breaker,
+        @Nullable Predicate<Query> preCharged,
+        int segmentCount
+    ) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.preCharged = preCharged;
+        this.segmentCount = segmentCount;
+    }
+
+    public static int segmentCountOrDefault(@Nullable IndexReader reader) {
+        return reader == null ? FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN : reader.leaves().size();
     }
 
     public int getMaxClauseCount() {
@@ -132,7 +153,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
         long bytes;
         if (query instanceof FuzzyQuery fq) {
-            bytes = FuzzyQueries.estimateBytes(fq);
+            bytes = FuzzyQueries.estimateBytes(fq, segmentCount);
         } else if (query instanceof PointRangeQuery prq) {
             bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof Accountable a) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.search;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -26,10 +27,12 @@ import java.util.BitSet;
  * retained {@link #queryRamBytes(FuzzyQuery)} and the parameter-driven
  * {@link FuzzyQueryCostEstimator} estimate are accumulated by {@code MaxClauseCountQueryVisitor}
  * during the once-per-phase walk in {@code AbstractQueryBuilder#toQuery}, alongside prefix,
- * wildcard, regexp, and range queries. Use {@link #estimateBytes(FuzzyQuery)} when accounting
+ * wildcard, regexp, and range queries. Use {@link #estimateBytes(FuzzyQuery, int)} when accounting
  * outside that walk (e.g. ad-hoc field-type callers) needs the same total.
  */
 public final class FuzzyQueries {
+
+    public static final int DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN = 16;
 
     private FuzzyQueries() {}
 
@@ -58,19 +61,24 @@ public final class FuzzyQueries {
         return new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions, effectiveRewrite);
     }
 
+    public static long estimateBytes(FuzzyQuery query) {
+        return estimateBytes(query, DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN);
+    }
+
     /**
      * Total bytes the request circuit breaker should be charged for {@code query}: the retained
      * RAM of the query object plus the parameter-driven {@link FuzzyQueryCostEstimator} estimate.
      * Used by {@code MaxClauseCountQueryVisitor} for fuzzy clauses during the once-per-phase walk.
      */
-    public static long estimateBytes(FuzzyQuery query) {
+    public static long estimateBytes(FuzzyQuery query, int segmentCount) {
         BytesRef bytes = query.getTerm().bytes();
         long cost = new FuzzyQueryCostEstimator(
             bytes.length,
             countDistinctUtf8Bytes(bytes),
             query.getMaxEdits(),
             query.getPrefixLength(),
-            effectiveMaxExpansions(query)
+            effectiveMaxExpansions(query),
+            segmentCount
         ).estimate();
         return queryRamBytes(query) + cost;
     }

@@ -201,8 +201,14 @@ public class FuzzyQueryCostEstimatorBenchmark {
 
         fuzzyQuery = new FuzzyQuery(new Term(FIELD, term), maxEdits, prefixLength, maxExpansions, transpositions);
 
-        precomputedEstimate = new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength, maxExpansions)
-            .estimate();
+        precomputedEstimate = new FuzzyQueryCostEstimator(
+            termByteLength,
+            distinctUtf8Bytes,
+            maxEdits,
+            prefixLength,
+            maxExpansions,
+            segments
+        ).estimate();
         precomputedAutomaton = sumRamBytes(term, maxEdits, prefixLength, transpositions);
         Set<Term> expanded = collectExpandedTerms(searcher, fuzzyQuery);
         precomputedExpandedTerms = expanded.size();
@@ -229,7 +235,7 @@ public class FuzzyQueryCostEstimatorBenchmark {
             return 0L;
         }
         publish(metrics);
-        return new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength, maxExpansions).estimate();
+        return new FuzzyQueryCostEstimator(termByteLength, distinctUtf8Bytes, maxEdits, prefixLength, maxExpansions, segments).estimate();
     }
 
     @Benchmark

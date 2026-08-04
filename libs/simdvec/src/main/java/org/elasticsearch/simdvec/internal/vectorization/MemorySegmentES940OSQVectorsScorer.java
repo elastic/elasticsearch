@@ -485,6 +485,11 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             );
         }
 
+        /*
+         * NOTE: the 128 and 256 bit implementations ARE identical, but they're separated out
+         * to ensure the vector species is a static constant, so the JIT definitely does the right thing
+         */
+
         private float applyCorrections128BulkImpl(
             MemorySegment memorySegment,
             float queryAdditionalCorrection,
@@ -525,34 +530,42 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     ByteOrder.LITTLE_ENDIAN
                 );
                 var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
+                // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
                 var res1 = ax.mul(ay).mul(dimensions);
                 var res2 = lx.mul(ay).mul(targetComponentSums);
                 var res3 = ax.mul(ly).mul(y1);
                 var res4 = lx.mul(ly).mul(qcDist);
                 var res = res1.add(res2).add(res3).add(res4);
-                // For euclidean, we need to invert the score and apply the additional correction, which is
-                // assumed to be the squared l2norm of the centroid centered vectors.
-                if (similarityFunction == EUCLIDEAN) {
-                    res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                    res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
-                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                    res.intoArray(scores, i);
-                } else {
-                    // For cosine and max inner product, we need to apply the additional correction, which is
-                    // assumed to be the non-centered dot-product between the vector and the centroid
-                    res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        res.intoArray(scores, i);
-                        for (int j = 0; j < FLOAT_SPECIES_128.length(); j++) {
-                            scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
-                            maxScore = Math.max(maxScore, scores[i + j]);
-                        }
-                    } else {
-                        res = res.add(1f).mul(0.5f).max(0);
-                        res.intoArray(scores, i);
+                switch (similarityFunction) {
+                    // For euclidean, we need to invert the score and apply the additional correction, which is
+                    // assumed to be the squared l2norm of the centroid centered vectors.
+                    case EUCLIDEAN:
+                        res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                        res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                    }
+                        break;
+                    // For others, we need to apply the additional correction, which is
+                    // assumed to be the non-centered dot-product between the vector and the centroid
+                    case MAXIMUM_INNER_PRODUCT:
+                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
+                        // see VectorUtil.scaleMaxInnerProductScore
+                        var negMask = res.lt(0);
+                        if (negMask.anyTrue()) {
+                            var neg = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res.mul(-1).add(1));
+                            res = res.add(1).blend(neg, negMask);
+                        } else {
+                            res = res.add(1);
+                        }
+                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
+                        break;
+                    case COSINE:
+                    case DOT_PRODUCT:
+                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
+                        res = res.add(1f).mul(0.5f).max(0);
+                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
+                        break;
                 }
+                res.intoArray(scores, i);
             }
             if (limit < bulkSize) {
                 maxScore = applyCorrectionsIndividually(
@@ -613,34 +626,42 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     ByteOrder.LITTLE_ENDIAN
                 );
                 var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
+                // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
                 var res1 = ax.mul(ay).mul(dimensions);
                 var res2 = lx.mul(ay).mul(targetComponentSums);
                 var res3 = ax.mul(ly).mul(y1);
                 var res4 = lx.mul(ly).mul(qcDist);
                 var res = res1.add(res2).add(res3).add(res4);
-                // For euclidean, we need to invert the score and apply the additional correction, which is
-                // assumed to be the squared l2norm of the centroid centered vectors.
-                if (similarityFunction == EUCLIDEAN) {
-                    res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                    res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
-                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                    res.intoArray(scores, i);
-                } else {
-                    // For cosine and max inner product, we need to apply the additional correction, which is
+                switch (similarityFunction) {
+                    // For euclidean, we need to invert the score and apply the additional correction, which is
+                    // assumed to be the squared l2norm of the centroid centered vectors.
+                    case EUCLIDEAN:
+                        res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                        res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
+                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
+                        break;
+                    // For others, we need to apply the additional correction, which is
                     // assumed to be the non-centered dot-product between the vector and the centroid
-                    res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        res.intoArray(scores, i);
-                        for (int j = 0; j < FLOAT_SPECIES_256.length(); j++) {
-                            scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
-                            maxScore = Math.max(maxScore, scores[i + j]);
+                    case MAXIMUM_INNER_PRODUCT:
+                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
+                        // see VectorUtil.scaleMaxInnerProductScore
+                        var negMask = res.lt(0);
+                        if (negMask.anyTrue()) {
+                            var neg = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res.mul(-1).add(1));
+                            res = res.add(1).blend(neg, negMask);
+                        } else {
+                            res = res.add(1);
                         }
-                    } else {
+                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
+                        break;
+                    case COSINE:
+                    case DOT_PRODUCT:
+                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                         res = res.add(1f).mul(0.5f).max(0);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                        res.intoArray(scores, i);
-                    }
+                        break;
                 }
+                res.intoArray(scores, i);
             }
             if (limit < bulkSize) {
                 maxScore = applyCorrectionsIndividually(

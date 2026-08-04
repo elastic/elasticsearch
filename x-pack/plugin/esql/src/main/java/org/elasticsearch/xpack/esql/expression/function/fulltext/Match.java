@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -20,6 +21,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -97,7 +100,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer")
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -155,16 +158,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
-            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
-            `MATCH` can also search expressions that are not backed by an index, such as
-            computed columns produced by `EVAL`, `STATS`, or other commands.
-            When the target is not an indexed field, the search evaluates by scanning
-            values row by row, which may be slower on large datasets.
-            When searching expressions, <<esql-function-named-params,function named parameters>>
-            (match query options) are not supported.
-            Additionally, `MATCH` on an expression does not contribute to the relevance score
-            when using `METADATA _score`.
-
             Match can use <<esql-function-named-params,function named parameters>> to specify additional options
             for the match query.
             All <<match-field-params,match query parameters>> are supported.
@@ -172,6 +165,24 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
             `MATCH` returns true if the provided query matches the row.
+
+            **`MATCH` on expressions**
+
+            {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+            `MATCH` can also search expressions that are not backed by an index, such as
+            computed columns produced by `EVAL`, `STATS`, or other commands.
+            When the target is not an indexed field, the search evaluates by scanning
+            values row by row, which may be slower on large datasets.
+            Additionally, `MATCH` on an expression does not contribute to the relevance score
+            when using `METADATA _score`.
+
+            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            When searching `text` expressions, <<esql-function-named-params,function named parameters>>
+            (match query options) are supported. The `analyzer` option must name a registered analyzer
+            (prebuilt or plugin-contributed). Per-index custom analyzers cannot be used because the
+            expression is not backed by an index. Unlike on an indexed field, the analyzer is applied to
+            both the query and the expression values. When no analyzer is specified, the `standard`
+            analyzer is used. On other expression types options are not supported.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -406,7 +417,19 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        return matchQuery(getNameFromFieldAttribute(fieldAttribute));
+    }
+
+    /**
+     * Builds the same query as {@link #translate}, but uses {@code fieldName} directly instead of the mapped field name.
+     * HIGHLIGHT needs this because its per-row MemoryIndex uses ON column names and must not invoke mapped behavior such
+     * as {@code semantic_text} inference.
+     */
+    public QueryBuilder asLexicalQueryBuilder(String fieldName) {
+        return matchQuery(fieldName).toQueryBuilder();
+    }
+
+    private MatchQuery matchQuery(String fieldName) {
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
     }
@@ -449,8 +472,14 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     @Override
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
-        super.fieldVerifier(plan, function, field, failures);
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (isRuntimeSearch() == false) {
             return;
         }
@@ -475,7 +504,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         if (options() != null && field().dataType() == TEXT) {
-            verifyRuntimeOptions(function, field, failures);
+            verifyRuntimeOptions(function, field, analysisRegistry, failures);
         } else if (options() != null) {
             failures.add(
                 Failure.fail(
@@ -488,22 +517,25 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     /**
      * Validates the options for a runtime-search {@code match} on a {@code text} field. Checks that the
-     * {@code analyzer} option is absent (not supported for runtime fields), that options are only used with
-     * {@code text} fields, and that the options produce a valid {@code MatchQueryBuilder}.
+     * {@code analyzer} option (if present) names a registered analyzer and that the options produce a valid
+     * {@code MatchQueryBuilder}.
      */
-    private void verifyRuntimeOptions(FullTextFunction function, Expression field, Failures failures) {
+    private void verifyRuntimeOptions(
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         Map<String, Object> opts = matchQueryOptions();
-        // TODO: Allowing `analyzer` requires a validation to make sure this is a built-in analyzer.
-        // It also requires tweaking `toEvaluator` and `RuntimeSearchExecutionContext` that currently only use the standard analyzer.
-        if (opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
-            failures.add(
-                Failure.fail(
-                    function,
-                    "The analyzer option is not supported for [MATCH] function call on non-index-mapped field [{}]",
-                    field.sourceText()
-                )
-            );
-            return;
+        // The registry is only available in the post-analysis pass; analyzer names cannot change during
+        // optimization, so the post-optimization call with a null registry will skip this check.
+        if (analysisRegistry != null && opts.containsKey(ANALYZER_FIELD.getPreferredName())) {
+            try {
+                PlannerUtils.resolveAnalyzer(BytesRefs.toString(opts.get(ANALYZER_FIELD.getPreferredName())), analysisRegistry);
+            } catch (InvalidArgumentException e) {
+                failures.add(Failure.fail(function, "{}", e.getMessage()));
+                return;
+            }
         }
         if (query() instanceof Literal) {
             // Validate that the options produce a valid MatchQueryBuilder at plan-verification time rather than at execution time.
@@ -547,8 +579,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
         // When options are used, we build a Lucene query
         if (field.dataType() == TEXT && options() != null) {
-            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
-            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchQuery);
+            Map<String, Object> opts = matchQueryOptions();
+            var matchQuery = new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts);
+            var analyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
+            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchQuery, analyzer);
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));

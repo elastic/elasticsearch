@@ -9,8 +9,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -22,27 +22,27 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt8Tests extends SimdVecLibraryTests {
 
     final float delta;
 
-    public JDKVectorLibraryInt8Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt8Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {
-        assumeFalse("Cosine is undefined for zero vectors", function == VectorSimilarityFunctions.Function.COSINE);
+        assumeFalse("Cosine is undefined for zero vectors", function == SimdVecLibrary.SimilarityFunction.COSINE);
         testByteVectors(byte[]::new);
     }
 
@@ -323,9 +323,14 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     public void testBulkSparseIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         int count = 3;
-        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         var query = arena.allocate(size);
         var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate(size);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
 
         // addresses segment too small for the given count
         var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
@@ -351,7 +356,8 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         // null (zero) address in the addresses segment
-        ex = expectThrows(IAE, () -> similarityBulkSparse(addresses, query, size, count, scores));
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
         assertThat(ex.getMessage(), containsString("null"));
     }
 

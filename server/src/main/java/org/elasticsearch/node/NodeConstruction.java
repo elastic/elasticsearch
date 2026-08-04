@@ -1427,7 +1427,8 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             rerouteService
         );
-        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::computeAndSubmitCancellations);
+        resourcesToClose.add(recoveryCancellationService);
+        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::cancelUndesiredRecoveries);
 
         modules.add(loadPluginComponents(pluginComponents));
 
@@ -1479,6 +1480,7 @@ class NodeConstruction {
             b.bind(RepositoriesService.class).toInstance(repositoriesService);
             b.bind(SnapshotsService.class).toInstance(snapshotsService);
             b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
+            b.bind(RecoveryDirectCancellationService.class).toInstance(recoveryCancellationService);
             b.bind(RestoreService.class).toInstance(restoreService);
             b.bind(RerouteService.class).toInstance(rerouteService);
             b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);

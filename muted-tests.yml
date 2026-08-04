@@ -604,3 +604,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFailureTests
   method: testResponseOnSearchFailure
   issue: https://github.com/elastic/elasticsearch/issues/151064
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerInSubqueryGoldenTests
+  method: testTsRateWithNotInSubquery
+  issue: https://github.com/elastic/elasticsearch/issues/155867

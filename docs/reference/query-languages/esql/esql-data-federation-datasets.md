@@ -306,14 +306,11 @@ The following settings apply to all file-based data sources:
 
 ### NDJSON settings
 
-**Commonly changed:**
-
-| Setting | Default | Description |
-|---|---|---|
+% **Commonly changed:** table hidden — schema_sample_size was the only row.
+% Restore when https://github.com/elastic/elasticsearch/issues/155636 is resolved:
+% | Setting | Default | Description |
+% |---|---|---|
 % | `schema_sample_size` | `20000` | Lines sampled to infer the schema. Determines whether sparse or late-appearing fields get a column. |
-% Hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
-
-**Advanced:**
 
 | Setting | Default | Description |
 |---|---|---|

@@ -69,7 +69,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 )
             );
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
-        historyStore = new SnapshotHistoryStore(client, clusterService);
+        historyStore = new SnapshotHistoryStore(client, clusterService, threadPool);
     }
 
     @After

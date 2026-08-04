@@ -216,11 +216,12 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
-        // get the key ... construct connectionpProvider
         ConnectionProviderKey key = new ConnectionProviderKey(null, settings);
-        AzureConnectionProviderReference ref = acquireConnectionProvider(key);
+        AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
 
-        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(ref.getConnectionProvider());
+        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(
+            connectionProviderReference.getConnectionProvider()
+        );
         nettyHttpClient = nettyHttpClient.port(80)
             .wiretap(false)
             .resolver(DefaultAddressResolverGroup.INSTANCE)
@@ -264,7 +265,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         BlobServiceClient blobServiceClient = builder.buildClient();
         BlobServiceAsyncClient asyncClient = builder.buildAsyncClient();
-        return new AzureBlobServiceClient(blobServiceClient, asyncClient, settings.getMaxRetries(), byteBufAllocator);
+        return new AzureBlobServiceClient(
+            blobServiceClient,
+            asyncClient,
+            settings.getMaxRetries(),
+            byteBufAllocator,
+            connectionProviderReference
+        );
     }
 
     @Override

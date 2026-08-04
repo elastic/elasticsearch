@@ -15,16 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Verifies that {@link PatternTextUtf8Splitter} produces results that are byte-identical to the
- * row-path code ({@link PatternTextValueProcessor}, {@link Arg}).
- *
- * <p>Each test constructs an input string, runs both the byte-level and the string-based paths,
- * and asserts parity via the differential assertions in {@link #assertMatchesRowPath}.
- */
 public class PatternTextUtf8SplitterTests extends ESTestCase {
-
-    // ── Differential helper ───────────────────────────────────────────────────────────────────
 
     /**
      * Asserts that {@link PatternTextUtf8Splitter#split} produces the same results as
@@ -65,8 +56,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         assertArrayEquals(label + " bytes mismatch", expected, got);
     }
 
-    // ── Basic cases ───────────────────────────────────────────────────────────────────────────
-
     public void testSimpleLogLine() throws IOException {
         assertMatchesRowPath("Error 123 at line 456");
     }
@@ -98,8 +87,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
     public void testAllDelimiters() throws IOException {
         assertMatchesRowPath("   \t\n\r");
     }
-
-    // ── Delimiter varieties ───────────────────────────────────────────────────────────────────
 
     public void testEveryDelimiterChar() throws IOException {
         // Each of the 8 delimiter characters in isolation.
@@ -141,8 +128,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         assertMatchesRowPath("\t \r\n");
     }
 
-    // ── Arg detection ─────────────────────────────────────────────────────────────────────────
-
     public void testPureDigitToken() throws IOException {
         assertMatchesRowPath("value 42");
         assertMatchesRowPath("value 0");
@@ -157,8 +142,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
     public void testNoDigits() throws IOException {
         assertMatchesRowPath("abc def ghi");
     }
-
-    // ── Non-ASCII text ────────────────────────────────────────────────────────────────────────
 
     public void testNonAsciiNoDigits() throws IOException {
         // Multi-byte sequences with no digit code points.
@@ -193,8 +176,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         assertMatchesRowPath("🚀 launch 42");
     }
 
-    // ── Buffer reuse ──────────────────────────────────────────────────────────────────────────
-
     public void testBufferReuseAcrossCalls() throws IOException {
         // Ensure the splitter correctly resets its state between calls.
         PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
@@ -225,8 +206,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         // The second call's template should match the second input (no args left over from first).
         assertEquals(second, t2);
     }
-
-    // ── Length limit ──────────────────────────────────────────────────────────────────────────
 
     public void testExactlyAtLimit() throws IOException {
         // Exactly MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE ASCII chars → TEMPLATED.
@@ -302,8 +281,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         assertMatchesRowPath(input);
     }
 
-    // ── Randomized fuzz ───────────────────────────────────────────────────────────────────────
-
     public void testRandomLogLines() throws IOException {
         for (int i = 0; i < 200; i++) {
             String input = randomLogLine();
@@ -329,8 +306,6 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         }
     }
 
-    // ── argsInfo when there are no args ───────────────────────────────────────────────────────
-
     public void testArgsInfoEmptyArgs() throws IOException {
         // The row path always emits argsInfo even for no-args values. Verify byte parity.
         PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split("no args here");
@@ -343,7 +318,149 @@ public class PatternTextUtf8SplitterTests extends ESTestCase {
         assertEquals("argsInfo for empty args should match", expectedArgsInfo, splitter.argsInfo().utf8ToString());
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────────────────────
+    // ── Zero-copy fast paths ──────────────────────────────────────────────────────────────────
+    //
+    // These tests verify that template() / joinedArgs() point directly into the source BytesRef
+    // (assertSame on the backing array) when the single-slice fast path applies, and that the
+    // fallback path (assertNotSame) is taken when multiple non-empty complement slices exist.
+    //
+    // For "123 456" the template is just the space " " — a single contiguous slice — so it IS
+    // zero-copy even though there are two args.
+    // For "[42]" the template is "[" and "]" — two non-contiguous slices — so it is NOT.
+
+    public void testTemplateSingleSliceZeroCopy() throws IOException {
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // "Error 123": template = "Error " — one non-empty slice before the single arg.
+        BytesRef v = new BytesRef("Error 123");
+        splitter.split(v);
+        assertSame("template should point into source for single-slice case", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("Error 123");
+
+        // " 42": template = " " — one non-empty slice before the arg.
+        v = new BytesRef(" 42");
+        splitter.split(v);
+        assertSame("template should point into source for single-slice case", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath(" 42");
+
+        // "42 ": template = " " — one non-empty slice after the arg.
+        v = new BytesRef("42 ");
+        splitter.split(v);
+        assertSame("template should point into source for single-slice case", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("42 ");
+
+        // "123 456": template = " " (the space between two args) — one non-empty slice.
+        v = new BytesRef("123 456");
+        splitter.split(v);
+        assertSame("template should point into source for single-slice case", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("123 456");
+
+        // "No numbers here": no args, template == whole input — one non-empty slice.
+        v = new BytesRef("No numbers here");
+        splitter.split(v);
+        assertSame("template should point into source when no args", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("No numbers here");
+    }
+
+    public void testTemplateZeroLengthZeroCopy() throws IOException {
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // "123": all-arg, template is empty — zero non-empty slices, still zero-copy path.
+        BytesRef v = new BytesRef("123");
+        splitter.split(v);
+        assertSame("template should point into source even when template is empty", v.bytes, splitter.template().bytes);
+        assertEquals(0, splitter.template().length);
+        assertMatchesRowPath("123");
+
+        // "": empty input — template is empty.
+        v = new BytesRef("");
+        splitter.split(v);
+        assertSame("template should point into source for empty input", v.bytes, splitter.template().bytes);
+        assertEquals(0, splitter.template().length);
+        assertMatchesRowPath("");
+    }
+
+    public void testTemplateMultiSliceFallback() throws IOException {
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // "Error 123 at line 456": two args → three template slices ("Error ", " at line ", "")
+        // = two non-empty slices → fallback path.
+        BytesRef v = new BytesRef("Error 123 at line 456");
+        splitter.split(v);
+        assertNotSame("template should use scratch buffer for multi-slice case", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("Error 123 at line 456");
+
+        // "[42]": template = "[" and "]" — two non-empty slices → fallback path.
+        v = new BytesRef("[42]");
+        splitter.split(v);
+        assertNotSame("template should use scratch buffer for [42] (two non-empty slices)", v.bytes, splitter.template().bytes);
+        assertMatchesRowPath("[42]");
+    }
+
+    public void testArgsSingleArgZeroCopy() throws IOException {
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // Single arg: joinedArgs() should point into the source.
+        BytesRef v = new BytesRef("abc 42");
+        splitter.split(v);
+        assertEquals(1, splitter.argCount());
+        assertSame("joinedArgs should point into source for single arg", v.bytes, splitter.joinedArgs().bytes);
+        assertMatchesRowPath("abc 42");
+
+        v = new BytesRef("42");
+        splitter.split(v);
+        assertEquals(1, splitter.argCount());
+        assertSame("joinedArgs should point into source for bare single arg", v.bytes, splitter.joinedArgs().bytes);
+        assertMatchesRowPath("42");
+    }
+
+    public void testArgsMultiArgFallback() throws IOException {
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // Multiple args: joinedArgs() must use internal scratch.
+        BytesRef v = new BytesRef("a 1 b 2");
+        splitter.split(v);
+        assertEquals(2, splitter.argCount());
+        assertNotSame("joinedArgs should use scratch buffer for multiple args", v.bytes, splitter.joinedArgs().bytes);
+        assertMatchesRowPath("a 1 b 2");
+    }
+
+    public void testZeroCopyThenFallbackThenZeroCopyReuse() throws IOException {
+        // Verifies that templateRef is correctly reset on each call: a zero-copy ref from call N
+        // must not bleed into call N+1, and the fallback buffer must not corrupt call N+2's
+        // zero-copy ref.
+        PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+
+        // Call 1: single-slice zero-copy.
+        BytesRef v1 = new BytesRef("Error 123");
+        splitter.split(v1);
+        assertSame(v1.bytes, splitter.template().bytes);
+        String t1 = splitter.template().utf8ToString(); // capture before next call
+
+        // Call 2: multi-slice fallback.
+        BytesRef v2 = new BytesRef("Error 123 at line 456");
+        splitter.split(v2);
+        assertNotSame(v2.bytes, splitter.template().bytes);
+        // Also must not still point at v1's bytes.
+        assertNotSame(v1.bytes, splitter.template().bytes);
+        String t2 = splitter.template().utf8ToString();
+
+        // Call 3: single-slice zero-copy again — must point at v3, not v1 or templateBuf.
+        BytesRef v3 = new BytesRef("Warning 789");
+        splitter.split(v3);
+        assertSame(v3.bytes, splitter.template().bytes);
+        String t3 = splitter.template().utf8ToString();
+
+        // Parity checks.
+        assertMatchesRowPath("Error 123");
+        assertMatchesRowPath("Error 123 at line 456");
+        assertMatchesRowPath("Warning 789");
+
+        // The captured strings must also match the row path individually.
+        assertEquals(PatternTextValueProcessor.split("Error 123").template(), t1);
+        assertEquals(PatternTextValueProcessor.split("Error 123 at line 456").template(), t2);
+        assertEquals(PatternTextValueProcessor.split("Warning 789").template(), t3);
+    }
 
     /** Generates a random log-like string mixing words, numbers, and delimiters. */
     private String randomLogLine() {

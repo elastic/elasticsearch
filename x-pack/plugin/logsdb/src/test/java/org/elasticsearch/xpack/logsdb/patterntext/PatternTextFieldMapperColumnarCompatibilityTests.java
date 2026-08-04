@@ -19,12 +19,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Parity tests for {@link PatternTextFieldMapper#mapColumnBatch} against the row path.
- * The {@link AbstractColumnarMapperCompatibilityTestCase} harness drives the mapper through both
- * paths and compares the resulting Lucene fields as order-independent multisets, covering the
- * {@code MappedColumns#rowCursor()} and {@code MappedColumns#toColumnBatch()} representations.
- */
 public class PatternTextFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "f";
@@ -93,8 +87,6 @@ public class PatternTextFieldMapperColumnarCompatibilityTests extends AbstractCo
             )
         );
     }
-
-    // ── Field absent for some docs (sparse) ──────────────────────────────────────────────────
 
     public void testFieldAbsentInSomeDocs() throws IOException {
         assertColumnarMatchesXContent(

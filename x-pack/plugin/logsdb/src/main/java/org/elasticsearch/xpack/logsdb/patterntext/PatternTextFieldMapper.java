@@ -247,12 +247,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
-    /**
-     * The Lucene {@link FieldType} carried by the template-id keyword field. Captured once at
-     * construction time so {@link #mapColumnBatch} can emit the {@code .template_id} column with
-     * the exact same field-type the row path produces, without going through a per-doc
-     * {@link KeywordFieldMapper#buildKeywordField} call.
-     */
     private final FieldType templateIdFieldType;
     private final boolean useBinaryDocValueArgs;
     private final boolean useBinaryDocValuesForRawText;
@@ -370,8 +364,6 @@ public class PatternTextFieldMapper extends FieldMapper {
             && indexSettings.useTimeSeriesDocValuesFormat();
     }
 
-    // ── Columnar batch mapping ────────────────────────────────────────────────────────────────
-
     @Override
     public boolean supportsColumnarParse(IndexSettings settings) {
         // Only activate on strict-columnar index modes (COLUMNAR / LOGSDB_COLUMNAR), which
@@ -387,9 +379,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     /**
      * Maps a batch of documents for this {@code pattern_text} field from the supplied ESCF source
-     * column. Produces the same Lucene fields as the per-document row path
-     * ({@link #parseCreateField}) without allocating a {@code String}, running a regex, or
-     * collecting into intermediate lists.
+     * column.
      *
      * <p>Up to six columns may be emitted:
      * <ol>
@@ -417,7 +407,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         // only when the source is UNION/other kind.
         final EscfColumnBuilder analyzedBuilder = source.leafValueKind() != EscfColumnKind.STRING ? newStringBuilder() : null;
 
-        final EscfColumnBuilder templateIdBuilder = newStringBuilder();
+        // Never written when templating is disabled, so do not allocate it in that case.
+        final EscfColumnBuilder templateIdBuilder = fieldType().disableTemplating() ? null : newStringBuilder();
         // These are allocated when first needed (TEMPLATED path) to avoid waste for
         // disable_templating=true or all-LENGTH_EXCEEDED batches.
         EscfColumnBuilder templateBuilder = null;
@@ -449,6 +440,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             if (valueSeenThisDoc) {
                 // pattern_text is single-valued; bail so ShardBatchMapper falls back to the
                 // row path which raises the correct per-doc error (on_failure=FAIL).
+                // TODO: Improve and handle this here.
                 throw new UnsupportedOperationException(
                     "mapColumnBatch: pattern_text field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
                 );

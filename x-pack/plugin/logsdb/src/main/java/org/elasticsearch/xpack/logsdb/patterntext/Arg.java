@@ -27,7 +27,6 @@ public class Arg {
     private static final String SPACE = " ";
     private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
     static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-    /** Maximum bytes a single vint can occupy. */
     static final int VINT_MAX_BYTES = 5;
 
     public enum Type {
@@ -99,20 +98,14 @@ public class Arg {
     }
 
     /**
-     * Byte-level variant of {@link #encodeInfo(List)} for the columnar batch path.
-     * Writes the base64url encoding of {@code count} arg offsets into {@code dest} and returns the
-     * number of bytes written. All arg types are assumed to be {@link Type#GENERIC}.
+     * Byte-level equivalent of {@link #encodeInfo(List)} for the columnar path: writes base64url
+     * bytes into {@code dest} and returns their length.
      *
-     * @param offsets     UTF-16 template offsets for each arg (indices 0..count-1 are used)
-     * @param count       number of args to encode (may be zero)
-     * @param rawScratch  scratch buffer for the binary vint step; length must be ≥
-     *                    {@code VINT_MAX_BYTES + count * 2 * VINT_MAX_BYTES}
-     * @param dest        destination for base64url bytes; length must be ≥
-     *                    {@link #argsInfoMaxBase64Bytes(int)} with this {@code count}
-     * @return number of bytes written to {@code dest}
+     * <p>{@code out} is a caller-owned, reusable {@link ByteArrayDataOutput}, reset onto
+     * {@code rawScratch} on every call so that it is not allocated per document.
      */
-    static int encodeInfoBytes(int[] offsets, int count, byte[] rawScratch, byte[] dest) throws IOException {
-        var out = new ByteArrayDataOutput(rawScratch);
+    static int encodeInfoBytes(int[] offsets, int count, ByteArrayDataOutput out, byte[] rawScratch, byte[] dest) throws IOException {
+        out.reset(rawScratch);
         out.writeVInt(count);
         int prev = 0;
         for (int i = 0; i < count; i++) {
@@ -127,9 +120,6 @@ public class Arg {
         return ENCODER.encode(Arrays.copyOfRange(rawScratch, 0, rawLen), dest);
     }
 
-    /**
-     * Maximum number of base64url bytes that {@link #encodeInfoBytes} can write for {@code count} args.
-     */
     static int argsInfoMaxBase64Bytes(int count) {
         int rawMax = VINT_MAX_BYTES + count * 2 * VINT_MAX_BYTES;
         return ((rawMax + 2) / 3) * 4;

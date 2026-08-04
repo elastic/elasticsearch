@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148349
-summary: Cache parquet dictionary array across batches
-type: enhancement

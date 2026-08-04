@@ -39,11 +39,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     /// Describes the priority of a recovery. The [#ordinal()] is significant, with lower values indicating higher priorities.
     public enum RecoveryPriority implements Writeable {
 
-        /*
-         * TODO:
-         *  - Review all usages of moveToUnassigned and make sure priorities make sense for all callers
-         */
-
         /// A primary shard which is unassigned because it is newly created.
         ///
         /// This is considered high priority because recovery should be fast, so we can get this out of the way and unblock writes to the

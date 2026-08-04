@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -106,6 +108,20 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         DENSE_VECTOR,
         DATE_RANGE,
         DOUBLE_RANGE,
+        PARTIAL_AGG };
+
+    /**
+     * Types whose block representation doesn't support {@code Block#lookup}, the mechanism {@code HashJoinExec}
+     * uses to broadcast a join's right-hand "added" fields (e.g. an INLINE STATS aggregate result) back onto the
+     * matching left-hand rows. This only matters when the right-hand side is materialized as in-memory data - a
+     * genuine {@code LOOKUP JOIN} against a real index instead reads its added fields fresh from the index via
+     * {@code LookupJoinExec}, which never calls {@code lookup()}, so that case is exempted below.
+     */
+    public static final DataType[] UNSUPPORTED_OUTPUT_TYPES = {
+        AGGREGATE_METRIC_DOUBLE,
+        EXPONENTIAL_HISTOGRAM,
+        TDIGEST,
+        DATE_RANGE,
         PARTIAL_AGG };
 
     private final JoinConfig config;
@@ -391,5 +407,35 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         if (executesOn() == ExecuteLocation.REMOTE) {
             checkRemoteJoin(failures);
         }
+        // Checked post-optimization (rather than in postAnalysisVerification) because INLINE STATS only becomes a
+        // Join - and rightOutputFields() only reflects its aggregate outputs - once its surrogate is substituted in.
+        if (rightIsRealLookupIndex() == false && config().leftFields().isEmpty() == false) {
+            // The message names the command the user actually wrote: an InlineJoin is always the surrogate of
+            // INLINE STATS, never something a user can type directly, so "JOIN" here would be a confusing,
+            // purely internal term.
+            // InlineJoin without join keys (INLINE STATS without BY) is safe: InlineJoin.inlineData() converts
+            // the single aggregate row to Eval+Literal constants, so Block#lookup() is never called.
+            String unsupportedOutputMessage = this instanceof InlineJoin
+                ? "Data type [{}] of field [{}] is not currently supported as INLINE STATS with BY computed output"
+                : "Data type [{}] of field [{}] is not currently supported as JOIN computed output";
+            for (Attribute rightOutputField : rightOutputFields()) {
+                if (Arrays.stream(UNSUPPORTED_OUTPUT_TYPES).anyMatch(t -> rightOutputField.dataType().equals(t))) {
+                    failures.add(fail(rightOutputField, unsupportedOutputMessage, rightOutputField.dataType(), rightOutputField.name()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Mirrors {@code Mapper#isIndexModeLookup}: whether this join's right-hand side is a genuine lookup-mode
+     * index (planned as {@code LookupJoinExec}, which reads columns straight from the index) rather than
+     * in-memory data materialized by the planner (planned as {@code HashJoinExec}, which calls {@code lookup()}).
+     */
+    private boolean rightIsRealLookupIndex() {
+        LogicalPlan right = right();
+        if (right instanceof Filter filter) {
+            right = filter.child();
+        }
+        return right instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
     }
 }

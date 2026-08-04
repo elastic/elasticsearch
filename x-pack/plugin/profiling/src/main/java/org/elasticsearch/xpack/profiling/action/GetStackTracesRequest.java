@@ -423,7 +423,8 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
         return Objects.equals(query, that.query)
             && Objects.equals(sampleSize, that.sampleSize)
             && Arrays.equals(indices, that.indices)
-            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField);
+            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField)
+            && schema == that.schema;
     }
 
     @Override
@@ -434,7 +435,7 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
         // to produce consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
-        return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);
+        return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField, schema);
     }
 
     @Override

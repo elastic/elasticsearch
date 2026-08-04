@@ -71,6 +71,11 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    // Controls whether the legacy ECS index templates and ILM policies are installed. Defaults to false on fresh clusters.
+    // On upgrade, auto-detection in ProfilingIndexTemplateRegistry checks for the presence of the "profiling-ilm" component
+    // template and enables ECS schema automatically in memory for backward compatibility. Note: explicitly setting this to
+    // false via the dynamic API after auto-detection has fired will suppress ECS template maintenance for the remainder of
+    // the node's lifetime; the flag resets on restart, at which point auto-detection runs again.
     public static final Setting<Boolean> PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.schema.ecs.enabled",
         false,

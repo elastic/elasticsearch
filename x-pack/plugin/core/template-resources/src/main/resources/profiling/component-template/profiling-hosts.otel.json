@@ -6,7 +6,7 @@
         "refresh_interval": "10s",
         "sort": {
           "field": [
-            "host.id",
+            "resource.attributes.host.id",
             "@timestamp"
           ]
         },
@@ -29,45 +29,15 @@
           "type": "date",
           "format": "epoch_second"
         },
-        "host": {
+        "resource": {
           "properties": {
-            "arch": {
-              "type": "keyword"
-            },
-            "id": {
-              "type": "keyword"
-            },
-            "name": {
-              "type": "keyword"
-            },
-            "type": {
-              "type": "keyword"
-            }
-          }
-        },
-        "cloud": {
-          "properties": {
-            "provider": {
-              "type": "keyword"
-            },
-            "region": {
-              "type": "keyword"
-            }
-          }
-        },
-        "os": {
-          "properties": {
-            "type": {
-              "type": "keyword"
-            }
-          }
-        },
-        "profiling": {
-          "properties": {
-            "agent": {
+            "attributes": {
+              "type": "passthrough",
+              "dynamic": true,
+              "priority": 40,
               "properties": {
-                "config.sampling_frequency": {
-                  "type": "integer"
+                "host.id": {
+                  "type": "keyword"
                 }
               }
             }

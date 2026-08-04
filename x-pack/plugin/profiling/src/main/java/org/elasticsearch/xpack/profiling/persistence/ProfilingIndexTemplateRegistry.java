@@ -268,14 +268,18 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         if (templatesEnabled == false) {
             return Collections.emptyMap();
         }
-        Map<String, ComponentTemplate> result = new HashMap<>();
+        if (ecsSchemaEnabled && otelSchemaEnabled) {
+            Map<String, ComponentTemplate> result = new HashMap<>(ecsComponentTemplates);
+            result.putAll(otelComponentTemplates);
+            return Collections.unmodifiableMap(result);
+        }
         if (ecsSchemaEnabled) {
-            result.putAll(ecsComponentTemplates);
+            return ecsComponentTemplates;
         }
         if (otelSchemaEnabled) {
-            result.putAll(otelComponentTemplates);
+            return otelComponentTemplates;
         }
-        return Collections.unmodifiableMap(result);
+        return Collections.emptyMap();
     }
 
     private final Map<String, ComposableIndexTemplate> ecsComposableIndexTemplates = parseComposableTemplates(
@@ -389,14 +393,18 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         if (templatesEnabled == false) {
             return Collections.emptyMap();
         }
-        Map<String, ComposableIndexTemplate> result = new HashMap<>();
+        if (ecsSchemaEnabled && otelSchemaEnabled) {
+            Map<String, ComposableIndexTemplate> result = new HashMap<>(ecsComposableIndexTemplates);
+            result.putAll(otelComposableIndexTemplates);
+            return Collections.unmodifiableMap(result);
+        }
         if (ecsSchemaEnabled) {
-            result.putAll(ecsComposableIndexTemplates);
+            return ecsComposableIndexTemplates;
         }
         if (otelSchemaEnabled) {
-            result.putAll(otelComposableIndexTemplates);
+            return otelComposableIndexTemplates;
         }
-        return Collections.unmodifiableMap(result);
+        return Collections.emptyMap();
     }
 
     @Override
@@ -431,30 +439,36 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        Map<String, ComponentTemplate> expectedComponentTemplates = new HashMap<>();
         if (ecsSchemaEnabled) {
-            expectedComponentTemplates.putAll(ecsComponentTemplates);
-        }
-        if (otelSchemaEnabled) {
-            expectedComponentTemplates.putAll(otelComponentTemplates);
-        }
-        for (String name : expectedComponentTemplates.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
-            if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
-                return false;
+            for (String name : ecsComponentTemplates.keySet()) {
+                ComponentTemplate ct = state.metadata().getProject().componentTemplates().get(name);
+                if (ct == null || ct.version() < INDEX_TEMPLATE_VERSION) {
+                    return false;
+                }
             }
         }
-        Map<String, ComposableIndexTemplate> expectedComposableTemplates = new HashMap<>();
+        if (otelSchemaEnabled) {
+            for (String name : otelComponentTemplates.keySet()) {
+                ComponentTemplate ct = state.metadata().getProject().componentTemplates().get(name);
+                if (ct == null || ct.version() < INDEX_TEMPLATE_VERSION) {
+                    return false;
+                }
+            }
+        }
         if (ecsSchemaEnabled) {
-            expectedComposableTemplates.putAll(ecsComposableIndexTemplates);
+            for (String name : ecsComposableIndexTemplates.keySet()) {
+                ComposableIndexTemplate cit = state.metadata().getProject().templatesV2().get(name);
+                if (cit == null || cit.version() < INDEX_TEMPLATE_VERSION) {
+                    return false;
+                }
+            }
         }
         if (otelSchemaEnabled) {
-            expectedComposableTemplates.putAll(otelComposableIndexTemplates);
-        }
-        for (String name : expectedComposableTemplates.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
-            if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
-                return false;
+            for (String name : otelComposableIndexTemplates.keySet()) {
+                ComposableIndexTemplate cit = state.metadata().getProject().templatesV2().get(name);
+                if (cit == null || cit.version() < INDEX_TEMPLATE_VERSION) {
+                    return false;
+                }
             }
         }
         if (ecsSchemaEnabled && isDataStreamsLifecycleOnlyMode(settings) == false) {

@@ -157,6 +157,9 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         }
 
         private boolean isAnyPre891Data(ClusterState state) {
+            if (templateRegistry.isEcsSchemaEnabled() == false) {
+                return false;
+            }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);

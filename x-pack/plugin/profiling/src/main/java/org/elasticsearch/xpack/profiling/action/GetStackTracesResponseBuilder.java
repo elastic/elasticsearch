@@ -29,7 +29,6 @@ class GetStackTracesResponseBuilder {
     private final Double customPerCoreWattX86;
     private final Double customPerCoreWattARM64;
     private final Double customCostPerCoreHour;
-    private final GetStackTracesRequest.Schema schema;
 
     public void setStackTraces(Map<String, StackTrace> stackTraces) {
         this.stackTraces = stackTraces;
@@ -144,11 +143,6 @@ class GetStackTracesResponseBuilder {
         this.customPerCoreWattX86 = request.getCustomPerCoreWattX86();
         this.customPerCoreWattARM64 = request.getCustomPerCoreWattARM64();
         this.customCostPerCoreHour = request.getCustomCostPerCoreHour();
-        this.schema = request.getSchema();
-    }
-
-    boolean isOtelSchema() {
-        return schema == GetStackTracesRequest.Schema.OTEL;
     }
 
     public GetStackTracesResponse build() {

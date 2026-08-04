@@ -92,6 +92,10 @@
         },
         "k8s.namespace.name": {
           "type": "keyword"
+        },
+        "process.thread.name": {
+          "type": "alias",
+          "path": "thread.name"
         }
       }
     }

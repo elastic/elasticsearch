@@ -610,3 +610,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerInSubqueryGoldenTests
   method: testTsRateWithNotInSubquery
   issue: https://github.com/elastic/elasticsearch/issues/155867
+- class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
+  method: testAsyncSearchIndexMigration {p0=9.6.0}
+  issue: https://github.com/elastic/elasticsearch/issues/155871

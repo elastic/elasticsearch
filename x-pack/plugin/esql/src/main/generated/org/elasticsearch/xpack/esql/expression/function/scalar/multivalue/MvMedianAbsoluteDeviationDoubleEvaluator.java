@@ -43,11 +43,11 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           double value = v.getDouble(first);
@@ -110,11 +110,11 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         double value = v.getDouble(first);
@@ -155,11 +155,11 @@ public final class MvMedianAbsoluteDeviationDoubleEvaluator extends AbstractMult
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       MvMedianAbsoluteDeviation.Doubles work = new MvMedianAbsoluteDeviation.Doubles();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         double result = MvMedianAbsoluteDeviation.ascending(work, v, first, valueCount);
         builder.appendDouble(result);

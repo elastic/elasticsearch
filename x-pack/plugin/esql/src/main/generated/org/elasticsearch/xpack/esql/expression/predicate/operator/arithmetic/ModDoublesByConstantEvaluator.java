@@ -75,10 +75,11 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

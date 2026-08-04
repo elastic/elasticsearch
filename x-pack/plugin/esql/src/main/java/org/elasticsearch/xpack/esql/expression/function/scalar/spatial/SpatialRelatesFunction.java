@@ -189,7 +189,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             long gridId,
             DataType gridType
         ) {
-            if (wkb.getValueCount(position) < 1) {
+            if (wkb.isNull(position)) {
                 builder.appendNull();
             } else {
                 builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridId, gridType));
@@ -203,7 +203,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock gridIds,
             DataType gridType
         ) {
-            if (wkb.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+            if (wkb.isNull(position) || gridIds.isNull(position)) {
                 builder.appendNull();
             } else {
                 builder.appendBoolean(compareGeometryAndGrid(asGeometry(wkb, position), gridIds.getLong(position), gridType));
@@ -232,7 +232,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             long gridId,
             DataType gridType
         ) {
-            if (encodedPoint.getValueCount(position) < 1) {
+            if (encodedPoint.isNull(position)) {
                 builder.appendNull();
             } else {
                 final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
@@ -248,7 +248,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock gridIds,
             DataType gridType
         ) {
-            if (encodedPoint.getValueCount(position) < 1 || gridIds.getValueCount(position) < 1) {
+            if (encodedPoint.isNull(position) || gridIds.isNull(position)) {
                 builder.appendNull();
             } else {
                 final Point point = spatialCoordinateType.longAsPoint(encodedPoint.getLong(position));
@@ -275,7 +275,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, Component2D right)
             throws IOException {
-            if (left.getValueCount(position) < 1) {
+            if (left.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -285,7 +285,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
         protected void processSourceAndSource(BooleanBlock.Builder builder, int position, BytesRefBlock left, BytesRefBlock right)
             throws IOException {
-            if (left.getValueCount(position) < 1 || right.getValueCount(position) < 1) {
+            if (left.isNull(position) || right.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, left, position);
@@ -300,7 +300,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock leftValue,
             Component2D rightValue
         ) throws IOException {
-            if (leftValue.getValueCount(position) < 1) {
+            if (leftValue.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(
@@ -320,7 +320,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             LongBlock leftValue,
             BytesRefBlock rightValue
         ) throws IOException {
-            if (leftValue.getValueCount(position) < 1 || rightValue.getValueCount(position) < 1) {
+            if (leftValue.isNull(position) || rightValue.isNull(position)) {
                 builder.appendNull();
             } else {
                 final GeometryDocValueReader reader = asGeometryDocValueReader(

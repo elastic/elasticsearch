@@ -73,10 +73,11 @@ public final class RoundIntEvaluator implements ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -84,10 +85,11 @@ public final class RoundIntEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (decimalsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (decimalsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

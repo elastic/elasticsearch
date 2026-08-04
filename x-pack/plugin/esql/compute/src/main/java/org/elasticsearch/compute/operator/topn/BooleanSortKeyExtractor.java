@@ -72,7 +72,12 @@ abstract class BooleanSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then call block.getBoolean(getFirstValueIndex(position)) with
+            // valueCount == 0, reading at an index with no backing value -- silent data corruption
+            // or AIOOBE.
+            return block.isNull(position);
         }
     }
 
@@ -91,7 +96,11 @@ abstract class BooleanSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then compute start + getValueCount(position) - 1 = start - 1 and
+            // read block.getBoolean(start - 1) -- silent data corruption or AIOOBE.
+            return block.isNull(position);
         }
     }
 
@@ -116,7 +125,11 @@ abstract class BooleanSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() skips the loop body (end == start) and falls through to encode(true,
+            // true), silently treating [] as a single-element [true] -- wrong sort key, no crash.
+            return block.isNull(position);
         }
     }
 
@@ -141,7 +154,11 @@ abstract class BooleanSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() skips the loop body (end == start) and falls through to encode(false,
+            // false), silently treating [] as a single-element [false] -- wrong sort key, no crash.
+            return block.isNull(position);
         }
     }
 }

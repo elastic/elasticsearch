@@ -38,11 +38,11 @@ public final class MvFirstBooleanEvaluator extends AbstractMultivalueFunction.Ab
     int positionCount = v.getPositionCount();
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         boolean result = MvFirst.process(v, first, end);

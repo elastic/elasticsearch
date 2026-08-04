@@ -251,6 +251,7 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
+    /** Bounds the requested number of fragments to the number of fragments the text could actually produce. */
     static int cappedNumberOfFragments(int requestedNumberOfFragments, int textLength) {
         return Math.min(requestedNumberOfFragments, Math.max(1, textLength));
     }

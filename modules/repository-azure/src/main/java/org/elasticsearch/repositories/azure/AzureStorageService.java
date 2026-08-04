@@ -209,6 +209,10 @@ public class AzureStorageService {
         clientsManager.refreshClusterClientSettings(clientsSettings);
     }
 
+    public void clearCache() {
+        azureClientProvider.clearCache();
+    }
+
     /**
      * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
      */

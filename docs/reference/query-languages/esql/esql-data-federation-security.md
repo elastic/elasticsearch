@@ -30,8 +30,7 @@ On upgraded self-managed clusters, the encryption password is not configured aut
 Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
 :::
 
-<!-- TODO: uncomment once https://github.com/elastic/elasticsearch/pull/152731 merges
-Learn more about the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md). -->
+Learn more about the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md).
 
 ### Credential masking
 

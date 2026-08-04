@@ -31,8 +31,8 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
+    private LongCounter cachePopulationBytes;
     private final DoubleHistogram cachePopulationThroughput;
-    private final LongCounter cachePopulationBytes;
     private final LongCounter cachePopulationTime;
 
     public enum CachePopulationReason {
@@ -118,20 +118,20 @@ public class BlobCacheMetrics {
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
-     * @param blobName The file that was requested and triggered the cache population.
+     * @param fileName The file that was requested and triggered the cache population.
      * @param bytesCopied The number of bytes copied
      * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
-        String blobName,
+        String fileName,
         int bytesCopied,
         long copyTimeNanos,
         CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource
     ) {
-        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(blobName);
+        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(fileName);
         String blobFileExtension = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
         Map<String, Object> metricAttributes = Map.of(
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,

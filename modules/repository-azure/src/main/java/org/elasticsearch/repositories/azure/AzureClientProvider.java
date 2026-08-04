@@ -150,7 +150,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
     }
 
-    record ConnectionProviderKey(@Nullable ProjectId projectId, AzureStorageSettings settings) {}
+    record ConnectionProviderKey(@Nullable ProjectId projectId, String clientName, AzureStorageSettings settings) {}
 
     private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
 
@@ -215,6 +215,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     AzureBlobServiceClient createClient(
+        String clientName,
         AzureStorageSettings settings,
         LocationMode locationMode,
         RequestRetryOptions retryOptions,
@@ -226,7 +227,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
-        ConnectionProviderKey key = new ConnectionProviderKey(null, settings);
+        ConnectionProviderKey key = new ConnectionProviderKey(null, clientName, settings);
         AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(

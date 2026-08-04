@@ -26,13 +26,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryFailureStrategySelectorPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -43,9 +44,12 @@ import static org.hamcrest.Matchers.equalTo;
     reason = "test investigation",
     value = "org.elasticsearch.indices.recovery.ThrottlingRecoveryService:TRACE,"
         + "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE,"
-        + "org.elasticsearch.index.shard.IndexShard:TRACE"
+        + "org.elasticsearch.index.shard.IndexShard:TRACE,"
+        + "org.elasticsearch.indices.recovery.PeerRecoveryTargetService:TRACE"
 )
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
+    private static final String RETRY_MESSAGE = "RETRY_CAUSE";
+    private static final RuntimeException RETRY_CAUSE = new RuntimeException(RETRY_MESSAGE);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -173,8 +177,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String target = internalCluster().startNode();
 
         // Fail next recovery attempt
+        // Target send error response back to source on data channel
+        // Source sends an error response back on the coordination channel (as response to start_recovery request)
+        // Target -> RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
+        AtomicInteger fileChunkCounter = new AtomicInteger(0);
+        final var targetTransport = MockTransportService.getInstance(target);
+        targetTransport.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.FILE_CHUNK, (handler, request, channel, task) -> {
+            if (fileChunkCounter.incrementAndGet() == 1) {
+                throw RETRY_CAUSE; // or channel.sendResponse(RETRY_CAUSE);
+            }
+            handler.messageReceived(request, channel, task);
+        });
+
         RetryRecoveryTestPlugin.reset();
-        RetryRecoveryTestPlugin.armFailure();
 
         // Recover from peer
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, source, target));
@@ -275,22 +290,21 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     public static class RetryRecoveryTestPlugin extends Plugin implements RecoveryFailureStrategySelectorPlugin {
-        private static final AtomicBoolean failNextRecovery = new AtomicBoolean(false);
+        private static final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>(null);
         private static final AtomicInteger recoveryCounter = new AtomicInteger();
         private static final AtomicInteger retryCounter = new AtomicInteger();
-        private static final RuntimeException RETRY_CAUSE = new RuntimeException("RETRY_CAUSE");
 
         private static final Gate stateChangePostRecovery = new Gate();
 
         public static void reset() {
-            failNextRecovery.set(false);
+            failureTarget.set(null);
             recoveryCounter.set(0);
             retryCounter.set(0);
             stateChangePostRecovery.reset();
         }
 
         public static void armFailure() {
-            failNextRecovery.set(true);
+            failureTarget.set(FailureTarget.STATE_CHANGED_POST_RECOVERY);
         }
 
         @Override
@@ -308,11 +322,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 }
 
                 @Override
-                public void indexShardStateChanged(IndexShard indexShard, IndexShardState previousState, IndexShardState currentState, String reason) {
+                public void indexShardStateChanged(
+                    IndexShard indexShard,
+                    IndexShardState previousState,
+                    IndexShardState currentState,
+                    String reason
+                ) {
                     if (currentState == IndexShardState.POST_RECOVERY) {
                         stateChangePostRecovery.enter();
                         try {
-                            if (failNextRecovery.getAndSet(false)) {
+                            if (failureTarget.compareAndSet(FailureTarget.STATE_CHANGED_POST_RECOVERY, null)) {
                                 throw RETRY_CAUSE;
                             }
                         } finally {
@@ -325,9 +344,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         @Override
         public FailureStrategySelector createFailureStrategySelector() {
-            return (e, defaultStrategy) -> ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t == RETRY_CAUSE).isPresent()
-                ? RETRY
-                : defaultStrategy;
+            return (e, defaultStrategy) -> ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t.getMessage().contains(RETRY_MESSAGE))
+                .isPresent() ? RETRY : defaultStrategy;
         }
+    }
+
+    enum FailureTarget {
+        STATE_CHANGED_POST_RECOVERY
     }
 }

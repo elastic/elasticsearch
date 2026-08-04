@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.MockLog;
@@ -42,7 +43,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -52,7 +53,9 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -486,121 +489,122 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(testStrategy, clusterState); // start primary
         clusterState = startInitializingShardsAndReroute(testStrategy, clusterState); // start replica
 
-        final var initialShard = clusterState.routingTable().index("idx").shard(0);
-        final var shardId = initialShard.shardId();
-        final var initialPrimary = initialShard.primaryShard();
-        final var initialReplicas = initialShard.replicaShards();
-        assertThat(initialPrimary.state(), equalTo(STARTED));
-        assertThat(initialReplicas.getFirst().state(), equalTo(STARTED));
-
+        final var shardId = clusterState.routingTable().index("idx").shard(0).shardId();
         final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
 
-        final String primaryNodeId = initialPrimary.currentNodeId();
-        final String replicaNodeId = initialReplicas.getFirst().currentNodeId();
-        final String replicaAllocationId = initialReplicas.getFirst().allocationId().getId();
+        // Mix primary moves with genuine replica failures, ensure at least one primary move.
+        int genuineFailures = 0;
+        boolean primaryMoved = false;
+        while (genuineFailures < maxRetries) {
+            final var replica = soleReplicaShard(clusterState, 0);
+            assertThat(replica.state(), equalTo(STARTED));
+            assertThat(replica.relocationFailureInfo().failedRelocations(), equalTo(genuineFailures));
+            withRoutingAllocation(
+                clusterState,
+                alloc -> assertThat(decider.canAllocate(replica, alloc).type(), equalTo(Decision.Type.YES))
+            );
 
-        // Pick a target node that is neither the primary's nor the replica's current node.
-        final String tempTarget = Stream.of("node1", "node2", "node3", "node4")
-            .filter(n -> n.equals(primaryNodeId) == false && n.equals(replicaNodeId) == false)
-            .findFirst()
-            .get();
+            final boolean doPrimaryMove = randomBoolean() || (primaryMoved == false && genuineFailures == maxRetries - 1);
+            final List<String> freeNodes = unoccupiedNodeIds(clusterState, shardId);
+            assertThat(freeNodes.size(), equalTo(2));
 
-        // Burn through maxRetries - 1 genuine relocation failures on the replica.
-        for (int i = 0; i < maxRetries - 1; i++) {
-            clusterState = withRoutingAllocation(clusterState, alloc -> {
-                final var replica = alloc.routingNodes().getByAllocationId(shardId, replicaAllocationId);
-                alloc.routingNodes().relocateShard(replica, tempTarget, 0, "test", alloc.changes());
-            });
-            clusterState = withRoutingAllocation(clusterState, alloc -> {
-                final var target = alloc.routingNodes()
-                    .assignedShards(shardId)
-                    .stream()
-                    .filter(ShardRouting::isRelocationTarget)
-                    .toList()
-                    .getFirst();
-                alloc.routingNodes()
-                    .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure"), alloc.changes());
-            });
+            if (doPrimaryMove) {
+                final String primaryTargetNode = freeNodes.get(0);
+                final String replicaTargetNode = freeNodes.get(1);
+
+                clusterState = withRoutingAllocation(clusterState, alloc -> {
+                    final var primary = soleStartedPrimaryShard(alloc, shardId);
+                    final var startedReplica = soleStartedReplicaShard(alloc, shardId);
+                    alloc.routingNodes().relocateShard(primary, primaryTargetNode, 0, "test", alloc.changes());
+                    alloc.routingNodes().relocateShard(startedReplica, replicaTargetNode, 0, "test", alloc.changes());
+                });
+
+                final var primaryTarget = primaryShard(clusterState, 0).getTargetRelocatingShard();
+                clusterState = withRoutingAllocation(clusterState, alloc -> {
+                    final var target = alloc.routingNodes().getByAllocationId(shardId, primaryTarget.allocationId().getId());
+                    alloc.routingNodes().startShard(target, alloc.changes(), target.getExpectedShardSize());
+                });
+
+                final var restartedReplica = soleReplicaShard(clusterState, 0);
+                assertTrue(restartedReplica.relocating());
+                assertThat(
+                    "primary move must not consume the replica relocation retry budget",
+                    restartedReplica.relocationFailureInfo().failedRelocations(),
+                    equalTo(genuineFailures)
+                );
+
+                // Cancel the restarted relocation (not a failure) so the next iteration starts from STARTED
+                final var replicaTarget = restartedReplica.getTargetRelocatingShard();
+                clusterState = withRoutingAllocation(clusterState, alloc -> {
+                    final var target = alloc.routingNodes().getByAllocationId(shardId, replicaTarget.allocationId().getId());
+                    alloc.routingNodes()
+                        .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.RECOVERY_CANCELLED, "cleanup"), alloc.changes());
+                });
+                primaryMoved = true;
+            } else {
+                final String replicaTargetNode = randomFrom(freeNodes);
+                clusterState = withRoutingAllocation(clusterState, alloc -> {
+                    final var startedReplica = soleStartedReplicaShard(alloc, shardId);
+                    alloc.routingNodes().relocateShard(startedReplica, replicaTargetNode, 0, "test", alloc.changes());
+                });
+                final var relocationTarget = soleReplicaShard(clusterState, 0).getTargetRelocatingShard();
+                clusterState = withRoutingAllocation(clusterState, alloc -> {
+                    final var target = alloc.routingNodes().getByAllocationId(shardId, relocationTarget.allocationId().getId());
+                    alloc.routingNodes()
+                        .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure"), alloc.changes());
+                });
+                genuineFailures++;
+            }
         }
 
-        final var shardBeforePrimaryRelocation = clusterState.routingTable().index("idx").shard(0);
-        final var replicaBeforePrimaryRelocation = shardBeforePrimaryRelocation.replicaShards().getFirst();
-        assertThat(replicaBeforePrimaryRelocation.relocationFailureInfo().failedRelocations(), equalTo(maxRetries - 1));
-        assertThat(replicaBeforePrimaryRelocation.allocationId().getId(), equalTo(replicaAllocationId));
-
-        final String freshPrimaryNode = "fresh-primary-target";
-        final String freshReplicaNode = "fresh-replica-target";
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(freshPrimaryNode)).add(newNode(freshReplicaNode)))
-            .build();
-
-        // Relocate both the primary and the replica to the fresh nodes.
-        final String primaryAllocationId = shardBeforePrimaryRelocation.primaryShard().allocationId().getId();
-        clusterState = withRoutingAllocation(clusterState, alloc -> {
-            final var primary = alloc.routingNodes().getByAllocationId(shardId, primaryAllocationId);
-            final var replica = alloc.routingNodes().getByAllocationId(shardId, replicaAllocationId);
-            alloc.routingNodes().relocateShard(primary, freshPrimaryNode, 0, "test", alloc.changes());
-            alloc.routingNodes().relocateShard(replica, freshReplicaNode, 0, "test", alloc.changes());
-        });
-
-        final String primaryTargetAllocationId = clusterState.routingTable()
-            .index("idx")
-            .shard(0)
-            .primaryShard()
-            .getTargetRelocatingShard()
-            .allocationId()
-            .getId();
-
-        // Start the primary's relocation target. This triggers reinitiation of the replica's relocation.
-        clusterState = withRoutingAllocation(clusterState, alloc -> {
-            final var primaryTarget = alloc.routingNodes().getByAllocationId(shardId, primaryTargetAllocationId);
-            alloc.routingNodes().startShard(primaryTarget, alloc.changes(), primaryTarget.getExpectedShardSize());
-        });
-
-        // The replica's relocation should have been restarted without incrementing failedRelocations.
-        final var replicaAfterPrimaryStart = clusterState.routingTable().index("idx").shard(0).replicaShards().getFirst();
-        assertThat(
-            "restarting replica relocation due to primary moving should not increment failedRelocations",
-            replicaAfterPrimaryStart.relocationFailureInfo().failedRelocations(),
-            equalTo(maxRetries - 1)
-        );
-
-        // One retry remains, so the decider must still allow relocation.
-        withRoutingAllocation(clusterState, alloc -> {
-            final var replicaSource = alloc.routingNodes()
-                .assignedShards(shardId)
-                .stream()
-                .filter(ShardRouting::relocating)
-                .findFirst()
-                .orElseThrow();
-            assertThat(decider.canAllocate(replicaSource, alloc).type(), equalTo(Decision.Type.YES));
-        });
-
-        // Consume the last retry with a genuine relocation failure.
-        clusterState = withRoutingAllocation(clusterState, alloc -> {
-            final var target = alloc.routingNodes()
-                .assignedShards(shardId)
-                .stream()
-                .filter(ShardRouting::isRelocationTarget)
-                .toList()
-                .getFirst();
-            alloc.routingNodes()
-                .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "final-failure"), alloc.changes());
-        });
-
-        // All retries exhausted: the decider must block further relocation.
+        final var exhaustedReplica = soleReplicaShard(clusterState, 0);
+        assertThat(exhaustedReplica.state(), equalTo(STARTED));
+        assertThat(exhaustedReplica.relocationFailureInfo().failedRelocations(), equalTo(maxRetries));
         withRoutingAllocation(clusterState, alloc -> {
             alloc.debugDecision(true);
-            final var replicaSource = alloc.routingNodes()
-                .assignedShards(shardId)
-                .stream()
-                .filter(s -> s.primary() == false && s.started())
-                .toList()
-                .getFirst();
-            final var decision = decider.canAllocate(replicaSource, alloc);
+            final var decision = decider.canAllocate(exhaustedReplica, alloc);
             assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
         });
+    }
+
+    private static ShardRouting soleReplicaShard(ClusterState clusterState, int shardId) {
+        final var shard = clusterState.routingTable().index("idx").shard(shardId);
+        assertThat(shard, notNullValue());
+        final var replicas = shard.replicaShards();
+        assertThat(replicas, hasSize(1));
+        return replicas.getFirst();
+    }
+
+    private static ShardRouting primaryShard(ClusterState clusterState, int shardId) {
+        final var shard = clusterState.routingTable().index("idx").shard(shardId);
+        assertThat(shard, notNullValue());
+        return shard.primaryShard();
+    }
+
+    private static ShardRouting soleStartedReplicaShard(RoutingAllocation alloc, ShardId shardId) {
+        final var filteredShards = alloc.routingNodes()
+            .assignedShards(shardId)
+            .stream()
+            .filter(s -> s.primary() == false && s.started())
+            .toList();
+        assertThat(filteredShards, hasSize(1));
+        return filteredShards.getFirst();
+    }
+
+    private static ShardRouting soleStartedPrimaryShard(RoutingAllocation alloc, ShardId shardId) {
+        final var filteredShards = alloc.routingNodes().assignedShards(shardId).stream().filter(s -> s.primary() && s.started()).toList();
+        assertThat(filteredShards, hasSize(1));
+        return filteredShards.getFirst();
+    }
+
+    private static List<String> unoccupiedNodeIds(ClusterState clusterState, ShardId shardId) {
+        final var occupied = clusterState.getRoutingNodes()
+            .assignedShards(shardId)
+            .stream()
+            .map(ShardRouting::currentNodeId)
+            .collect(Collectors.toSet());
+        return clusterState.nodes().getNodes().keySet().stream().filter(id -> occupied.contains(id) == false).toList();
     }
 
     private ClusterState applyShardCancellation(ClusterState clusterState, ShardRouting shardRouting) {

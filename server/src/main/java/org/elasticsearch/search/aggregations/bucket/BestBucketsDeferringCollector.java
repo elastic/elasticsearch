@@ -92,7 +92,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         this.topLevelQuery = topLevelQuery;
         this.searcher = searcher;
         this.isGlobal = isGlobal;
-        this.bytesAccounter = bytesAccounter;
+        this.bytesAccounter = Objects.requireNonNull(bytesAccounter, "bytesAccounter");
     }
 
     @Override
@@ -294,10 +294,15 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
-        // Return bytes for all committed entries before rebuilding them. The old packed
-        // structures stay alive during the loop (we iterate over them), so for a brief
-        // moment real memory is slightly higher than the breaker tracking, but this is
-        // bounded and acceptable.
+        // Return bytes for all committed entries before rebuilding them.
+        // The old packed structures remain referenced throughout the rebuild loop below
+        // (we iterate over their contents), so actual heap usage temporarily exceeds
+        // breaker tracking by up to the total size of the old entries. This is bounded
+        // and acceptable. If bytesAccounter throws while recharging a new entry in the
+        // second loop, entries still points at the old list whose bytes have already
+        // been returned; the resulting CircuitBreakingException propagates to the
+        // caller, failing the query, and AggregatorBase.close() reconciles
+        // requestBytesUsed with the breaker on the way out.
         for (Entry sourceEntry : entries) {
             bytesAccounter.accept(-sourceEntry.ramBytesUsed);
         }

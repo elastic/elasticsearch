@@ -151,17 +151,15 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     /// in the started_* detail fields together with fully started shards.
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStartedOrRelocating() {
         ProjectId projectId = randomProjectIdOrDefault();
-        // 0 = all started, 1 = all relocating, 2 = random mix of started and relocating
-        final int availabilityMode = randomIntBetween(0, 2);
         var clusterState = createClusterStateWith(
             projectId,
             List.of(
                 index(
                     "replicated-index",
-                    availableOrRelocatingAllocation(availabilityMode),
-                    availableOrRelocatingAllocation(availabilityMode)
+                    new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING)),
+                    new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING))
                 ),
-                index("unreplicated-index", availableOrRelocatingAllocation(availabilityMode))
+                index("unreplicated-index", new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING)))
             ),
             List.of()
         );
@@ -3190,18 +3188,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     private record NodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, Integer allocationDelaySeconds) {}
-
-    /**
-     * @param availabilityMode 0 = always started, 1 = always relocating, otherwise a random mix of the two
-     */
-    private static ShardAllocation availableOrRelocatingAllocation(int availabilityMode) {
-        final ShardState state = switch (availabilityMode) {
-            case 0 -> AVAILABLE;
-            case 1 -> RELOCATING;
-            default -> randomBoolean() ? AVAILABLE : RELOCATING;
-        };
-        return new ShardAllocation(randomNodeId(), state);
-    }
 
     /**
      * Empty shutdowns, a non-RESTART shutdown type, or a RESTART shutdown for a different node — all make

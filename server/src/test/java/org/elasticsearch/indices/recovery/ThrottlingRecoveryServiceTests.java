@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.AbstractProjectResolver;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
@@ -69,11 +70,17 @@ import static org.mockito.Mockito.when;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
+    private static DiscoveryNode localNode;
+    private static DiscoveryNode sourceNode;
+    private static DiscoveryNode targetNode;
     private RecoveryStats stats = new RecoveryStats();
 
     @BeforeClass
     public static void init() throws Exception {
         threadPool = new TestThreadPool(ThrottlingRecoveryServiceTests.class.getSimpleName());
+        localNode = DiscoveryNodeUtils.create("local-node");
+        sourceNode = DiscoveryNodeUtils.create("source");
+        targetNode = DiscoveryNodeUtils.create("target");
     }
 
     @AfterClass
@@ -1287,7 +1294,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("local-node"));
+        when(clusterService.localNode()).thenReturn(localNode);
         return clusterService;
     }
 
@@ -1345,6 +1352,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 );
             }
         );
-        return new RecoveryState(routing, DiscoveryNodeUtils.create("source"), DiscoveryNodeUtils.create("target"));
+        return new RecoveryState(routing, sourceNode, targetNode);
     }
 }

@@ -29,6 +29,7 @@ toc:
       - file: configuration-reference/remote-clusters.md
       - file: configuration-reference/search-settings.md
       - file: configuration-reference/security-settings.md
+      - file: cluster-state-encryption-key.md
       - file: configuration-reference/shard-request-cache-settings.md
       - file: configuration-reference/snapshot-restore-settings.md
         children:
@@ -181,6 +182,10 @@ toc:
           - file: mapping-reference/rank-features.md
           - file: mapping-reference/rank-vectors.md
           - file: mapping-reference/search-as-you-type.md
+          - file: mapping-reference/semantic-field.md
+            children:
+              - file: mapping-reference/semantic-field-quickstart.md
+              - file: mapping-reference/semantic-field-reference.md
           - file: mapping-reference/semantic-text.md
             children:
               - file: mapping-reference/semantic-text-reference.md

@@ -12,6 +12,12 @@ ProjectExec[[SUM(sv){r}#0, MEDIAN(sv){r}#1, _approximation_confidence_interval(S
   "bool" : {
     "filter" : [
       {
+        "exists" : {
+          "field" : "sv",
+          "boost" : 0.0
+        }
+      },
+      {
         "random_sampling" : {
           "query" : 0.0123456789,
           "seed" : 42,

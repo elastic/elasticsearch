@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -54,7 +56,6 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
@@ -180,10 +181,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             searchExecutionContext,
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
-            defaultCtx,
-            new PotentiallyUnmappedKeywordEsField("resource.attributes.host.name")
-        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name");
 
         MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
         assertThat(
@@ -321,7 +319,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             MappedFieldType.FieldExtractPreference.NONE
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private static Settings tsdbSettings(String temporalityFieldName) {

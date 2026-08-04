@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,6 +46,9 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         dateTimes(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateNanos(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateRanges(cases);
+        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V6.isEnabled()) {
+            doubleRanges(cases);
+        }
         geoPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         cartesianPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geoShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
@@ -82,6 +87,28 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
                 "MvCount[field=Attribute[channel=0]]",
                 DataType.INTEGER,
                 equalTo(mvData.size())
+            );
+        }));
+    }
+
+    private static void doubleRanges(List<TestCaseSupplier> cases) {
+        FunctionAppliesTo appliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        cases.add(new TestCaseSupplier("mv_count(double_range)", List.of(DataType.DOUBLE_RANGE), () -> {
+            DoubleRangeBlockBuilder.DoubleRange value = TestCaseSupplier.randomDoubleRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DOUBLE_RANGE, "field").withAppliesTo(appliesTo)),
+                "MvCount[field=Attribute[channel=0]]",
+                DataType.INTEGER,
+                equalTo(1)
+            );
+        }));
+        cases.add(new TestCaseSupplier("mv_count(<double_ranges>)", List.of(DataType.DOUBLE_RANGE), () -> {
+            List<DoubleRangeBlockBuilder.DoubleRange> values = randomList(1, 10, TestCaseSupplier::randomDoubleRange);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(values, DataType.DOUBLE_RANGE, "field").withAppliesTo(appliesTo)),
+                "MvCount[field=Attribute[channel=0]]",
+                DataType.INTEGER,
+                equalTo(values.size())
             );
         }));
     }

@@ -177,7 +177,7 @@ public interface NativeAccess {
     /*
      * Returns the vector similarity functions, or an empty optional.
      */
-    Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
+    Optional<SimdVecLibrary> getVectorSimilarityFunctions();
 
     /**
      * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.

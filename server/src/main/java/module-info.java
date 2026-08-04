@@ -231,6 +231,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
@@ -411,6 +412,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.multiproject,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,

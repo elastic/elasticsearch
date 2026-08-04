@@ -49,18 +49,15 @@ public class CohereResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Validates the status code throws an RetryException if not in the range [200, 300).
+     * Handles failure status codes by throwing a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * @param outboundRequest The http request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {

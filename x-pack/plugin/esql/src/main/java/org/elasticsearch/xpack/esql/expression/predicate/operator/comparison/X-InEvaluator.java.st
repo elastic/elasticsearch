@@ -15,12 +15,12 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.$Type$Block;
-$if(!LongRange)$
+$if(!Range)$
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.data.BooleanVector;
 $endif$
-$if(LongRange)$
-import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+$if(Range)$
+import org.elasticsearch.compute.data.$Type$BlockBuilder;
 $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -66,7 +66,7 @@ public class In$Name$Evaluator implements ExpressionEvaluator {
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     rhsBlocks[i] = ($Type$Block) rhs[i].eval(page);
                 }
-$if(!LongRange)$
+$if(!Range)$
                 $Type$Vector lhsVector = lhsBlock.asVector();
                 if (lhsVector == null) {
                     return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
@@ -104,11 +104,11 @@ $elseif(BytesRef)$
             for (int i = 0; i < rhs.length; i++) {
                 rhsScratch[i] = new BytesRef();
             }
-$elseif(LongRange)$
-            LongRangeBlockBuilder.LongRange lhsScratch = new LongRangeBlockBuilder.LongRange();
-            LongRangeBlockBuilder.LongRange[] rhsScratch = new LongRangeBlockBuilder.LongRange[rhs.length];
+$elseif(Range)$
+            $Type$BlockBuilder.$Type$ lhsScratch = new $Type$BlockBuilder.$Type$();
+            $Type$BlockBuilder.$Type$[] rhsScratch = new $Type$BlockBuilder.$Type$[rhs.length];
             for (int i = 0; i < rhs.length; i++) {
-                rhsScratch[i] = new LongRangeBlockBuilder.LongRange();
+                rhsScratch[i] = new $Type$BlockBuilder.$Type$();
             }
 $endif$
             BitSet nulls = new BitSet(rhs.length);
@@ -157,8 +157,8 @@ $elseif(boolean)$
                     } else {
                         hasFalse = true;
                     }
-$elseif(LongRange)$
-                    rhsScratch[i] = rhsBlocks[i].getLongRange(o, rhsScratch[i]);
+$elseif(Range)$
+                    rhsScratch[i] = rhsBlocks[i].get$Type$(o, rhsScratch[i]);
 $else$
                     rhsValues[i] = rhsBlocks[i].get$Type$(o);
 $endif$
@@ -174,8 +174,14 @@ $elseif(BytesRef)$
 $elseif(NanosMillis)$
                 // Even though these are longs, they're in different units and need special handling
                 foundMatch = In.processNanosMilils(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
-$elseif(LongRange)$
-                foundMatch = In.processLongRange(nulls, mvs, lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsScratch);
+$elseif(Range)$
+                foundMatch = In.process$Type$(
+                    //
+                    nulls,
+                    mvs,
+                    lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p), lhsScratch),
+                    rhsScratch
+                );
 $else$
                 foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
@@ -193,7 +199,7 @@ $endif$
         }
     }
 
-$if(!LongRange)$
+$if(!Range)$
     private BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
 $if(int)$
@@ -276,7 +282,7 @@ $endif$
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            this.warnings = driverContext.createWarnings(source);
         }
         return warnings;
     }

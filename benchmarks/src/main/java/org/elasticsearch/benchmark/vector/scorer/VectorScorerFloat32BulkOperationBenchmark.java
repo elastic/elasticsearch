@@ -12,7 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -39,7 +39,7 @@ import java.util.stream.IntStream;
 /**
  * Bare-bones bulk operation benchmark for float32 vector similarity functions.
  * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
- * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
+ * via {@link SimdVecLibrary}, bypassing the Lucene scorer infrastructure
  * so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
@@ -156,16 +156,16 @@ public class VectorScorerFloat32BulkOperationBenchmark {
 
     private float callSingleScore(MemorySegment vec, MemorySegment query, int dims) {
         return switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32(vec, query, dims);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32(vec, query, dims);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32(vec, query, dims);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32(vec, query, dims);
             default -> throw new UnsupportedOperationException(function.toString());
         };
     }
 
     private void callBulkScore(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32Bulk(a, b, dims, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32Bulk(a, b, dims, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32Bulk(a, b, dims, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32Bulk(a, b, dims, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
@@ -180,16 +180,16 @@ public class VectorScorerFloat32BulkOperationBenchmark {
         MemorySegment results
     ) {
         switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
     private void callBulkSparseScore(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (function) {
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductF32BulkSparse(addresses, b, dims, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceF32BulkSparse(addresses, b, dims, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductF32BulkSparse(addresses, b, dims, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceF32BulkSparse(addresses, b, dims, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
@@ -264,7 +264,5 @@ public class VectorScorerFloat32BulkOperationBenchmark {
         return scores;
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

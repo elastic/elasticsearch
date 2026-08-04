@@ -781,3 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/155780
+- class: org.elasticsearch.gateway.GatewayServiceIT
+  method: testSettingsAppliedBeforeReroute
+  issue: https://github.com/elastic/elasticsearch/issues/155802

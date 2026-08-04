@@ -76,6 +76,27 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     }
 
     /**
+     * Resource attributes emitted by {@code OtelSdkResource}. Attribute values are covered by
+     * {@code OtelSdkResourceTests}; this integration test only verifies they reach OTLP export.
+     */
+    @Override
+    protected Set<String> requiredResourceKeys() {
+        return Set.of(
+            "service.name",
+            "service.version",
+            "service.instance.id",
+            "process.runtime.name",
+            "process.runtime.version",
+            "telemetry.distro.name",
+            "telemetry.distro.version",
+            "host.arch",
+            "os.type",
+            "process.pid",
+            "deployment.environment"
+        );
+    }
+
+    /**
      * Extends the base required keys with the OTel HTTP semantic convention attributes
      * produced by {@code APMHttpServerInstrumentation} on the SDK export path.
      */

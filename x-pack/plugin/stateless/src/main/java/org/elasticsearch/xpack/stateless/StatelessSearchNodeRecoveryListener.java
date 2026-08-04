@@ -124,6 +124,11 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
 
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        assert indexShard.routingEntry().isSearchable();
+        afterSearchShardRecovery(indexShard, listener);
+    }
+
+    private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
         ActionListener.run(listener, l -> {
             final Engine engineOrNull = indexShard.getEngineOrNull();
             switch (engineOrNull) {

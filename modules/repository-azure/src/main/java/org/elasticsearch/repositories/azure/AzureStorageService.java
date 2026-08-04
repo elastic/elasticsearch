@@ -124,6 +124,7 @@ public class AzureStorageService {
     }
 
     private AzureBlobServiceClient buildClient(
+        String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
         AzureClientProvider.RequestMetricsHandler requestMetricsHandler,
@@ -132,6 +133,7 @@ public class AzureStorageService {
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(
+            clientName,
             azureStorageSettings,
             locationMode,
             retryOptions,
@@ -329,7 +331,7 @@ public class AzureStorageService {
             AzureClientProvider.RequestMetricsHandler requestMetricsHandler
         ) {
             final var azureStorageSettings = getClientSettings(projectId, clientName); // ensure the client exists
-            return buildClient(locationMode, purpose, requestMetricsHandler, azureStorageSettings);
+            return buildClient(clientName, locationMode, purpose, requestMetricsHandler, azureStorageSettings);
         }
 
         public AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {

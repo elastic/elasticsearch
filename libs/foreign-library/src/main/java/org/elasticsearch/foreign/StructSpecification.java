@@ -35,8 +35,8 @@ public @interface StructSpecification {
      * their resolved offsets; unmodeled bytes become padding in the layout.
      *
      * <p>When {@code false} (the default), the struct is in dense mode: fields lay out sequentially
-     * in declaration order. {@link Padding @Padding} is allowed; {@link Offset @Offset} and
-     * {@link StructSize @StructSize} are compile errors.
+     * in declaration order with C natural-alignment padding inserted automatically. {@link Offset
+     * @Offset} and {@link StructSize @StructSize} are compile errors.
      */
     boolean sparse() default false;
 }

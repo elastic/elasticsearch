@@ -46,15 +46,13 @@ class StructSpecParser {
     private static final String STRUCT_SPECIFICATION_FQN = org.elasticsearch.foreign.StructSpecification.class.getName();
     private static final String OFFSET_FQN = "org.elasticsearch.foreign.Offset";
     private static final String OFFSET_LIST_FQN = "org.elasticsearch.foreign.Offset.List";
-    private static final String PADDING_FQN = "org.elasticsearch.foreign.Padding";
-    private static final String PADDING_LIST_FQN = "org.elasticsearch.foreign.Padding.List";
     private static final String STRUCT_SIZE_FQN = "org.elasticsearch.foreign.StructSize";
     private static final String STRUCT_SIZE_LIST_FQN = "org.elasticsearch.foreign.StructSize.List";
 
     /**
      * Builds the {@link StructModel} for a {@code @StructSpecification} record. Record components are
-     * scalar getters laid out in declaration order; {@code @Offset}/{@code @Padding} on a component
-     * and {@code @StructSize} on the record are honoured exactly as for interfaces. Emits errors for
+     * scalar getters laid out in declaration order; {@code @Offset} on a component and
+     * {@code @StructSize} on the record are honoured exactly as for interfaces. Emits errors for
      * unsupported component types and returns {@code null} if any error was emitted.
      */
     static StructModel fromRecord(TypeElement typeElement, Set<String> supportedPlatforms, Messager messager) {
@@ -93,18 +91,7 @@ class StructSpecParser {
             String name = component.getSimpleName().toString();
             StructFieldModel field = new ScalarFieldModel(name, fieldType, true, false);
             List<AnnotationMirror> offsetMirrors = ModelUtil.collectRepeatableAnnotations(component, OFFSET_FQN, OFFSET_LIST_FQN);
-            List<AnnotationMirror> paddingMirrors = ModelUtil.collectRepeatableAnnotations(component, PADDING_FQN, PADDING_LIST_FQN);
-            error |= placeNewField(
-                layout,
-                field,
-                isSparse,
-                offsetMirrors,
-                paddingMirrors,
-                supportedPlatforms,
-                typeSimpleName,
-                component,
-                messager
-            );
+            error |= placeNewField(layout, field, isSparse, offsetMirrors, supportedPlatforms, typeSimpleName, component, messager);
         }
 
         Map<String, Long> byteSizes = resolveByteSizes(
@@ -200,31 +187,18 @@ class StructSpecParser {
                 scalarFieldNames.add(name);
             }
 
-            // Layout annotations are only permitted on the first-declared accessor.
+            // @Offset is only permitted on the first-declared accessor.
             List<AnnotationMirror> offsetMirrors = ModelUtil.collectRepeatableAnnotations(first, OFFSET_FQN, OFFSET_LIST_FQN);
-            List<AnnotationMirror> paddingMirrors = ModelUtil.collectRepeatableAnnotations(first, PADDING_FQN, PADDING_LIST_FQN);
-            if (second != null
-                && (ModelUtil.collectRepeatableAnnotations(second, OFFSET_FQN, OFFSET_LIST_FQN).isEmpty() == false
-                    || ModelUtil.collectRepeatableAnnotations(second, PADDING_FQN, PADDING_LIST_FQN).isEmpty() == false)) {
+            if (second != null && ModelUtil.collectRepeatableAnnotations(second, OFFSET_FQN, OFFSET_LIST_FQN).isEmpty() == false) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@Offset/@Padding on '" + name + "' in '" + typeSimpleName + "' must be on the first-declared accessor of the field",
+                    "@Offset on '" + name + "' in '" + typeSimpleName + "' must be on the first-declared accessor of the field",
                     second
                 );
                 error = true;
             }
 
-            error |= placeNewField(
-                layout,
-                field,
-                isSparse,
-                offsetMirrors,
-                paddingMirrors,
-                supportedPlatforms,
-                typeSimpleName,
-                first,
-                messager
-            );
+            error |= placeNewField(layout, field, isSparse, offsetMirrors, supportedPlatforms, typeSimpleName, first, messager);
         }
 
         // Every @ArrayField's lengthField must name a real scalar field on this same struct.
@@ -267,10 +241,10 @@ class StructSpecParser {
     // --- Layout accumulation ---
 
     /**
-     * Accumulates the field shapes (recorded once, identical across platforms) and, per platform, the
-     * value each field contributes to layout building: its absolute {@code @Offset} in sparse mode, or
-     * its explicit {@code @Padding}-before ({@code null} = align naturally) in dense mode. The
-     * per-platform running end is tracked only for sparse offset validation.
+     * Accumulates the field shapes (recorded once, identical across platforms) and, in sparse mode,
+     * each field's absolute {@code @Offset} per platform plus the running end (used to validate that
+     * offsets do not overlap). Dense structs record no per-platform values — the builder derives their
+     * natural-aligned layout from the field shapes alone.
      */
     private static final class LayoutBuilder {
         private final List<StructFieldModel> fields = new ArrayList<>();
@@ -323,18 +297,16 @@ class StructSpecParser {
     }
 
     /**
-     * Places a field on every platform: records its shape once and the per-platform value the layout
-     * builder needs. In sparse mode that is the absolute {@code @Offset} (also validating it does not
-     * overlap the previous field); in dense mode it is the explicit {@code @Padding}-before, or
-     * {@code null} to let the dense builder apply natural alignment. Returns {@code true} if any error
-     * was emitted.
+     * Places a field on every platform: records its shape once and, in sparse mode, its absolute
+     * {@code @Offset} per platform (validating it does not overlap the previous field). In dense mode
+     * fields are laid out with natural alignment by the builder, so only the disallowed {@code @Offset}
+     * is checked here. Returns {@code true} if any error was emitted.
      */
     private static boolean placeNewField(
         LayoutBuilder layout,
         StructFieldModel field,
         boolean isSparse,
         List<AnnotationMirror> offsetMirrors,
-        List<AnnotationMirror> paddingMirrors,
         Set<String> supportedPlatforms,
         String typeSimpleName,
         Element reportElement,
@@ -346,14 +318,6 @@ class StructSpecParser {
 
         if (isSparse) {
             long size = FieldLayouts.memberLayout(field).byteSize();
-            if (paddingMirrors.isEmpty() == false) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "@Padding on '" + name + "' in '" + typeSimpleName + "' is not allowed in sparse mode (@Offset should be used instead)",
-                    reportElement
-                );
-                error = true;
-            }
             if (offsetMirrors.isEmpty()) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -396,30 +360,17 @@ class StructSpecParser {
                 layout.addValue(p, offset);
                 layout.advanceCursor(p, offset + size);
             }
-        } else {
-            if (offsetMirrors.isEmpty() == false) {
-                messager.printMessage(
-                    Kind.ERROR,
-                    "@Offset on '"
-                        + name
-                        + "' in '"
-                        + typeSimpleName
-                        + "' is not allowed in dense mode (set sparse = true on @StructSpecification to enable @Offset)",
-                    reportElement
-                );
-                error = true;
-            }
-            Map<String, Integer> paddings = paddingMirrors.isEmpty()
-                ? null
-                : resolvePerPlatform(paddingMirrors, supportedPlatforms, "Padding", reportElement, messager);
-            if (paddings == null && paddingMirrors.isEmpty() == false) {
-                error = true; // resolution error already reported
-            }
-            // Record the explicit @Padding per platform, or null so the dense layout builder applies
-            // natural alignment.
-            for (String p : supportedPlatforms) {
-                layout.addValue(p, paddings == null ? null : (long) paddings.get(p));
-            }
+        } else if (offsetMirrors.isEmpty() == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Offset on '"
+                    + name
+                    + "' in '"
+                    + typeSimpleName
+                    + "' is not allowed in dense mode (set sparse = true on @StructSpecification to enable @Offset)",
+                reportElement
+            );
+            error = true;
         }
 
         return error;
@@ -470,11 +421,10 @@ class StructSpecParser {
     }
 
     /**
-     * Builds one {@link MemoryLayout} per platform from the shared field shapes and that platform's
-     * resolved values (offsets for sparse, paddings for dense), then collapses platforms with an
-     * identical layout into a single {@link StructLayoutModel}. Groups (and the platforms within them)
-     * come out in {@code Platform} ordinal order because {@code supportedPlatforms} is iterated in
-     * that order.
+     * Builds the struct's {@link StructLayoutModel}s. A dense struct has one natural-aligned layout
+     * shared by every supported platform. A sparse struct is built per platform from its resolved
+     * offsets, then platforms with an identical layout are collapsed into one entry — in {@code
+     * Platform} ordinal order, since {@code supportedPlatforms} is iterated in that order.
      */
     private static StructModel buildStructModel(
         String typeSimpleName,
@@ -485,16 +435,19 @@ class StructSpecParser {
         boolean isSparse
     ) {
         List<StructFieldModel> fields = List.copyOf(layout.fields());
-        Map<MemoryLayout, List<String>> platformsByLayout = new LinkedHashMap<>();
-        for (String p : supportedPlatforms) {
-            MemoryLayout memoryLayout = isSparse
-                ? FieldLayouts.sparseStructLayout(fields, layout.valuesFor(p), byteSizes.get(p))
-                : FieldLayouts.denseStructLayout(fields, layout.valuesFor(p));
-            platformsByLayout.computeIfAbsent(memoryLayout, k -> new ArrayList<>()).add(p);
-        }
-        List<StructLayoutModel> layouts = new ArrayList<>();
-        for (var entry : platformsByLayout.entrySet()) {
-            layouts.add(new StructLayoutModel(List.copyOf(entry.getValue()), entry.getKey()));
+        List<StructLayoutModel> layouts;
+        if (isSparse) {
+            Map<MemoryLayout, List<String>> platformsByLayout = new LinkedHashMap<>();
+            for (String p : supportedPlatforms) {
+                MemoryLayout memoryLayout = FieldLayouts.sparseStructLayout(fields, layout.valuesFor(p), byteSizes.get(p));
+                platformsByLayout.computeIfAbsent(memoryLayout, k -> new ArrayList<>()).add(p);
+            }
+            layouts = new ArrayList<>();
+            for (var entry : platformsByLayout.entrySet()) {
+                layouts.add(new StructLayoutModel(List.copyOf(entry.getValue()), entry.getKey()));
+            }
+        } else {
+            layouts = List.of(new StructLayoutModel(List.copyOf(supportedPlatforms), FieldLayouts.denseStructLayout(fields)));
         }
         return isRecord
             ? new StructRecordModel(typeSimpleName, fields, layouts)
@@ -535,8 +488,8 @@ class StructSpecParser {
     // --- Per-platform annotation resolution ---
 
     /**
-     * Resolves a list of repeated layout annotation mirrors (e.g. {@code @Offset}/{@code @Padding}/
-     * {@code @StructSize}) to a value per supported platform. A bare annotation (empty
+     * Resolves a list of repeated layout annotation mirrors (e.g. {@code @Offset}/{@code @StructSize})
+     * to a value per supported platform. A bare annotation (empty
      * {@code platforms}) is the universal fallback; per-platform entries override it. Validates that
      * at most one universal is present, no platform is covered twice, and every supported platform
      * resolves. Returns {@code null} on any error (already emitted).

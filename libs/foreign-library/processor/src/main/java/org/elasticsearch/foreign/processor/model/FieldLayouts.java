@@ -16,8 +16,8 @@ import java.util.List;
 
 /**
  * Builds a struct's {@link MemoryLayout} from its field shapes plus resolved placement — a dense
- * layout (fields laid out sequentially with explicit or natural-alignment padding) or a sparse layout
- * (fields at absolute offsets). Each field's size and alignment come from its own member layout
+ * layout (fields in declaration order with C natural-alignment padding) or a sparse layout (fields at
+ * absolute offsets). Each field's size and alignment come from its own member layout
  * ({@link #memberLayout}), so they are never computed here.
  */
 final class FieldLayouts {
@@ -25,22 +25,16 @@ final class FieldLayouts {
     private FieldLayouts() {}
 
     /**
-     * Builds a dense struct layout: fields laid out in order, each preceded by its explicit
-     * {@code @Padding} gap or, when that is {@code null}, by the natural-alignment gap derived from
-     * the field's own member layout. There is no trailing padding — the total size is the end of the
-     * last field.
-     *
-     * @param paddingBefore explicit padding per field (index-aligned with {@code fields}); a
-     *        {@code null} entry means "align this field naturally"
+     * Builds a dense struct layout: fields in declaration order with C natural-alignment padding
+     * inserted automatically before any field the running offset does not already leave aligned.
+     * There is no trailing padding — the total size is the end of the last field.
      */
-    static MemoryLayout denseStructLayout(List<StructFieldModel> fields, List<Long> paddingBefore) {
+    static MemoryLayout denseStructLayout(List<StructFieldModel> fields) {
         List<MemoryLayout> members = new ArrayList<>();
         long cursor = 0;
-        for (int i = 0; i < fields.size(); i++) {
-            StructFieldModel field = fields.get(i);
+        for (StructFieldModel field : fields) {
             MemoryLayout member = memberLayout(field);
-            Long explicit = paddingBefore.get(i);
-            long pad = explicit != null ? explicit : naturalPadding(cursor, member.byteAlignment());
+            long pad = naturalPadding(cursor, member.byteAlignment());
             if (pad > 0) {
                 members.add(MemoryLayout.paddingLayout(pad));
                 cursor += pad;
@@ -49,6 +43,10 @@ final class FieldLayouts {
             cursor += member.byteSize();
         }
         return MemoryLayout.structLayout(members.toArray(MemoryLayout[]::new));
+    }
+
+    private static long naturalPadding(long cursor, long alignment) {
+        return cursor % alignment == 0 ? 0 : alignment - cursor % alignment;
     }
 
     /**
@@ -77,10 +75,6 @@ final class FieldLayouts {
             members.add(MemoryLayout.paddingLayout(totalByteSize - cursor));
         }
         return MemoryLayout.structLayout(members.toArray(MemoryLayout[]::new));
-    }
-
-    private static long naturalPadding(long cursor, long alignment) {
-        return cursor % alignment == 0 ? 0 : alignment - cursor % alignment;
     }
 
     /**

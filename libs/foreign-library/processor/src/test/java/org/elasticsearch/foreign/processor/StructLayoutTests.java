@@ -15,46 +15,15 @@ import org.elasticsearch.foreign.Platform;
 import java.lang.foreign.MemoryLayout;
 
 /**
- * Tests for {@code @Padding}, {@code @Offset}, and {@code @StructSize} annotations in both dense
- * and sparse struct modes: annotation-processor diagnostics for invalid combinations, plus
- * behavioral tests that verify the generated {@code $Impl} class has the correct {@code LAYOUT}
- * size and field offsets at runtime.
+ * Tests for dense (natural-aligned) and sparse ({@code @Offset} + {@code @StructSize}) struct
+ * modes: annotation-processor diagnostics for invalid combinations, plus behavioral tests that
+ * verify the generated {@code $Impl} class has the correct {@code LAYOUT} size and field offsets at
+ * runtime.
  */
 @SuppressForbidden(
     reason = "behavioral tests verify static fields of processor-generated classes; getDeclaredField is the only way to access them"
 )
 public class StructLayoutTests extends ProcessorTestCase {
-
-    /**
-     * A dense struct with {@code @Padding} on a field should compile successfully.
-     */
-    public void testDenseWithPaddingCompiles() {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Padding;
-            import org.elasticsearch.foreign.StructSpecification;
-            import org.elasticsearch.foreign.Function;
-            import java.lang.foreign.MemorySegment;
-            @LibrarySpecification
-            public interface TestLib {
-                @StructSpecification
-                interface Stat {
-                    int stMode();
-                    void stMode(int v);
-                    @Padding(4)
-                    long stSize();
-                    void stSize(long v);
-                }
-                @Function("stat")
-                int stat(MemorySegment path, Stat stat);
-            }
-            """;
-
-        CompilationResult result = compile("test.TestLib", source);
-
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-    }
 
     /**
      * A sparse struct with {@code @Offset} on every field and {@code @StructSize} should compile.
@@ -219,41 +188,6 @@ public class StructLayoutTests extends ProcessorTestCase {
     }
 
     /**
-     * {@code @Padding} on a field in sparse mode is a compile error.
-     */
-    public void testSparseWithPaddingEmitsError() {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Offset;
-            import org.elasticsearch.foreign.Padding;
-            import org.elasticsearch.foreign.StructSize;
-            import org.elasticsearch.foreign.StructSpecification;
-            import org.elasticsearch.foreign.Function;
-            import java.lang.foreign.MemorySegment;
-            @LibrarySpecification
-            public interface TestLib {
-                @StructSpecification(sparse = true)
-                @StructSize(144)
-                interface Stat64 {
-                    @Offset(48)
-                    @Padding(4)
-                    long stSize();
-                    void stSize(long v);
-                }
-                @Function("stat64")
-                int stat64(MemorySegment path, Stat64 stat);
-            }
-            """;
-
-        CompilationResult result = compile("test.TestLib", source);
-
-        assertFalse("Expected compilation to fail due to @Padding in sparse mode", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@Padding") && msg.contains("sparse"));
-        assertTrue("Expected error about @Padding in sparse mode but got: " + result.errors(), hasError);
-    }
-
-    /**
      * A sparse struct with {@code @Offset} values declared out of order (second field's offset is
      * before the end of the first field) should emit a clear overlap error.
      */
@@ -399,57 +333,13 @@ public class StructLayoutTests extends ProcessorTestCase {
     }
 
     /**
-     * A dense struct with {@code @Padding(4)} before a field inserts exactly 4 bytes of explicit
-     * padding before that field. The struct has: long a (8 bytes) + 4 bytes explicit padding +
-     * int b (4 bytes) = 16 bytes. Without {@code @Padding}, int b would land at offset 8 (naturally
-     * aligned), giving a total of 12 bytes. So the layout grows by 4 bytes.
+     * A dense struct inserts C natural-alignment padding automatically: {@code int a} (4 bytes) then
+     * {@code long b} places {@code b} at offset 8 (after 4 bytes of padding), for a total of 16 bytes.
      */
-    public void testDenseWithPaddingInsertsExplicitGap() throws Exception {
+    public void testDenseAutoAlignmentInsertsPadding() throws Exception {
         String source = """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Padding;
-            import org.elasticsearch.foreign.StructSpecification;
-            import org.elasticsearch.foreign.Function;
-            import java.lang.foreign.MemorySegment;
-            @LibrarySpecification
-            public interface TestLib {
-                @StructSpecification
-                interface Dense {
-                    long a();
-                    void a(long v);
-                    @Padding(4)
-                    int b();
-                    void b(int v);
-                }
-                @Function("fn")
-                int fn(MemorySegment p, Dense s);
-            }
-            """;
-
-        CompilationResult result = compile("test.TestLib", source);
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-
-        Class<?> implClass = result.loadClass("test.TestLib$Dense$Impl");
-        assertNotNull("Dense$Impl class not found", implClass);
-
-        var layoutField = implClass.getDeclaredField("LAYOUT");
-        layoutField.setAccessible(true);
-        MemoryLayout layout = (MemoryLayout) layoutField.get(null);
-        // long a (8) + 4 bytes @Padding + int b (4) = 16 bytes
-        assertEquals("Layout with @Padding(4) grows by 4 vs natural alignment", 16L, layout.byteSize());
-    }
-
-    /**
-     * {@code @Padding(0)} on a field means no explicit padding (but the field stays at the current
-     * cursor position). For a struct where natural alignment would not add padding anyway, the
-     * result is the same size as without @Padding. int a (4) + @Padding(0) + int b (4) = 8.
-     */
-    public void testDenseWithZeroPaddingNoChange() throws Exception {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Padding;
             import org.elasticsearch.foreign.StructSpecification;
             import org.elasticsearch.foreign.Function;
             import java.lang.foreign.MemorySegment;
@@ -459,9 +349,8 @@ public class StructLayoutTests extends ProcessorTestCase {
                 interface Dense {
                     int a();
                     void a(int v);
-                    @Padding(0)
-                    int b();
-                    void b(int v);
+                    long b();
+                    void b(long v);
                 }
                 @Function("fn")
                 int fn(MemorySegment p, Dense s);
@@ -477,8 +366,9 @@ public class StructLayoutTests extends ProcessorTestCase {
         var layoutField = implClass.getDeclaredField("LAYOUT");
         layoutField.setAccessible(true);
         MemoryLayout layout = (MemoryLayout) layoutField.get(null);
-        // int a (4) + @Padding(0) + int b (4) = 8 bytes
-        assertEquals("@Padding(0) produces same size as no padding for same-alignment fields", 8L, layout.byteSize());
+        // int a (4) + 4 bytes auto natural-alignment padding + long b (8) = 16 bytes
+        assertEquals("Auto-aligned dense layout size", 16L, layout.byteSize());
+        assertEquals("b must be at offset 8", 8L, layout.byteOffset(MemoryLayout.PathElement.groupElement("b")));
     }
 
     /**
@@ -661,50 +551,6 @@ public class StructLayoutTests extends ProcessorTestCase {
         assertEquals("Sparse layout byteSize() must equal @StructSize even with padding", 32L, layout.byteSize());
         // Field at declared offset
         assertEquals("value must be at offset 8", 8L, layout.byteOffset(MemoryLayout.PathElement.groupElement("value")));
-    }
-
-    /**
-     * A {@code @StructSpecification} record honours {@code @Padding} exactly as an interface does:
-     * {@code long a} (8 bytes, offset 0) + {@code @Padding(4)} + {@code int b} places {@code b} at
-     * offset 12, giving a {@code $Pack} LAYOUT of 16 bytes (vs 12 under natural alignment).
-     */
-    public void testDenseRecordWithPaddingLayout() throws Exception {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.ArrayField;
-            import org.elasticsearch.foreign.Padding;
-            import org.elasticsearch.foreign.StructSpecification;
-            import org.elasticsearch.foreign.Function;
-            import java.lang.foreign.MemorySegment;
-            @LibrarySpecification
-            public interface TestLib {
-                @StructSpecification
-                record Elem(long a, @Padding(4) int b) {}
-                @StructSpecification
-                interface Buf {
-                    @ArrayField(lengthField = "len")
-                    Elem at(int i);
-                    int len();
-                    void len(int v);
-                }
-                @Function("fn")
-                int fn(MemorySegment p, Buf b);
-            }
-            """;
-
-        CompilationResult result = compile("test.TestLib", source);
-        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
-
-        Class<?> packClass = result.loadClass("test.TestLib$Elem$Pack");
-        assertNotNull("Elem$Pack class not found", packClass);
-
-        var layoutField = packClass.getDeclaredField("LAYOUT");
-        layoutField.setAccessible(true);
-        MemoryLayout layout = (MemoryLayout) layoutField.get(null);
-        // long a (8) + 4 bytes @Padding + int b (4) = 16 bytes
-        assertEquals("Record layout with @Padding(4) grows by 4 vs natural alignment", 16L, layout.byteSize());
-        assertEquals("b must be at offset 12", 12L, layout.byteOffset(MemoryLayout.PathElement.groupElement("b")));
     }
 
     /**

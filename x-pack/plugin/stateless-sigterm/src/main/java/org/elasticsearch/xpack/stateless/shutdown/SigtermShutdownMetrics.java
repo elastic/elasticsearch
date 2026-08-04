@@ -19,8 +19,8 @@ public class SigtermShutdownMetrics {
     public static final String SHUTDOWN_DURATION_HISTOGRAM = "es.shutdown.sigterm.duration.histogram";
     public static final String SHARD_MIGRATION_DURATION_HISTOGRAM = "es.shutdown.sigterm.migration.duration.histogram";
 
-    public static final String ATTRIBUTE_NAME_STATUS = "status";
-    public static final String ATTRIBUTE_NAME_TIMED_OUT = "timed_out";
+    public static final String ATTRIBUTE_NAME_STATUS = "es_shutdown_status";
+    public static final String ATTRIBUTE_NAME_TIMED_OUT = "es_shutdown_timed_out";
 
     public static final SigtermShutdownMetrics NOOP = new SigtermShutdownMetrics(MeterRegistry.NOOP);
 

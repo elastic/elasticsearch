@@ -100,6 +100,11 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             }
 
             @Override
+            protected boolean isEcsSchemaEnabled() {
+                return true;
+            }
+
+            @Override
             protected Iterable<ProfilingIndex> getManagedIndices() {
                 return managedIndices;
             }

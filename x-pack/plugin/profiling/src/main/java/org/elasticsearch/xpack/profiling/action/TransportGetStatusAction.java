@@ -149,8 +149,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private boolean isResourcesCreated(ClusterState state) {
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
-            boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
+            // ECS-specific resources (k/v indices and data streams) are only expected when ECS schema is active.
+            boolean ecsEnabled = templateRegistry.isEcsSchemaEnabled();
+            boolean indicesCreated = ecsEnabled == false || ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
+            boolean dataStreamsCreated = ecsEnabled == false || ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
             return templatesCreated && indicesCreated && dataStreamsCreated;
         }
 

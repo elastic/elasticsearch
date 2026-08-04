@@ -126,13 +126,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
         dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
-        boolean ecsEnabled = PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.get(settings);
-        indexManager.get().setEcsSchemaEnabled(ecsEnabled);
-        dataStreamManager.get().setEcsSchemaEnabled(ecsEnabled);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED, v -> {
-            indexManager.get().setEcsSchemaEnabled(v);
-            dataStreamManager.get().setEcsSchemaEnabled(v);
-        });
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);

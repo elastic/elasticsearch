@@ -196,6 +196,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value();
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                // getResampledIndex builds a new EventsIndex from raw index names, losing the OTel suffix; restore it.
+                if (request.isOtelSchema()) {
+                    resampledIndex = resampledIndex.withOtelSuffix();
+                }
                 log.debug(
                     "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
                     request.getSampleSize(),

@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -37,6 +39,23 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
  * A request to get profiling details
  */
 public class GetStackTracesRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
+    /** The index schema to use when searching for profiling data. */
+    public enum Schema {
+        ECS,
+        OTEL;
+
+        public static Schema fromString(String value, XContentLocation location) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "ecs" -> ECS;
+                case "otel" -> OTEL;
+                default -> throw new ParsingException(
+                    location,
+                    "Unknown [" + SCHEMA_FIELD.getPreferredName() + "] value [" + value + "]; valid values are [ecs, otel]"
+                );
+            };
+        }
+    }
+
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
@@ -70,7 +89,7 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     private Double customPerCoreWattARM64;
     private Double customCostPerCoreHour;
 
-    private boolean useOtelSchema = false;
+    private Schema schema = Schema.ECS;
 
     // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -205,8 +224,12 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
         this.shardSeed = shardSeed;
     }
 
+    public Schema getSchema() {
+        return schema;
+    }
+
     public boolean isOtelSchema() {
-        return useOtelSchema;
+        return schema == Schema.OTEL;
     }
 
     public void parseXContent(XContentParser parser) throws IOException {
@@ -246,7 +269,7 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
                 } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostPerCoreHour = parser.doubleValue();
                 } else if (SCHEMA_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.useOtelSchema = "otel".equals(parser.text());
+                    this.schema = Schema.fromString(parser.text(), parser.getTokenLocation());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
@@ -417,7 +440,7 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     @Override
     public String[] indices() {
         Set<String> indices = new HashSet<>();
-        if (useOtelSchema) {
+        if (schema == Schema.OTEL) {
             indices.add("profiling-stacktraces.otel-default");
             indices.add("profiling-stackframes.otel-default");
             indices.add("profiling-executables.otel-default");

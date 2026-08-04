@@ -40,14 +40,12 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     protected final Logger logger = LogManager.getLogger(getClass());
 
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
-    private final AtomicBoolean ecsUpgradeChecked = new AtomicBoolean(false);
     private final ClusterService clusterService;
     protected final ThreadPool threadPool;
     protected final Client client;
     private final IndexStateResolver indexStateResolver;
     private final ProfilingIndexTemplateRegistry templateRegistry;
     private volatile boolean templatesEnabled;
-    private volatile boolean ecsSchemaEnabled = false;
 
     AbstractProfilingPersistenceManager(
         ThreadPool threadPool,
@@ -76,26 +74,13 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
         this.templatesEnabled = templatesEnabled;
     }
 
-    public void setEcsSchemaEnabled(boolean ecsSchemaEnabled) {
-        this.ecsSchemaEnabled = ecsSchemaEnabled;
-    }
-
     @Override
     public final void clusterChanged(ClusterChangedEvent event) {
         // wait for the cluster state to be recovered
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        // One-time upgrade detection: if the ECS schema setting was never explicitly configured
-        // and ECS templates already exist, this cluster is upgrading from an ECS-only version.
-        if (ecsSchemaEnabled == false && ecsUpgradeChecked.compareAndSet(false, true)) {
-            if (hasExistingEcsTemplates(event.state())) {
-                logger.info("Detected existing ECS profiling templates; enabling ECS schema for backward compatibility");
-                ecsSchemaEnabled = true;
-                templateRegistry.setEcsSchemaEnabled(true);
-            }
-        }
-        if (templatesEnabled == false || ecsSchemaEnabled == false) {
+        if (templatesEnabled == false || isEcsSchemaEnabled() == false) {
             return;
         }
 
@@ -138,6 +123,11 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
         return templateRegistry.isAllResourcesCreated(event.state(), settings);
     }
 
+    /** Returns {@code true} when the ECS schema is active for this cluster. Overridable for testing. */
+    protected boolean isEcsSchemaEnabled() {
+        return templateRegistry.isEcsSchemaEnabled();
+    }
+
     /**
      * @return An iterable of all indices that are managed by this instance.
      */
@@ -178,10 +168,6 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     protected final void updateSettings(UpdateSettingsRequest request, ActionListener<AcknowledgedResponse> listener) {
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
         executeAsync("update settings", request, listener, (req, l) -> client.admin().indices().updateSettings(req, l));
-    }
-
-    private static boolean hasExistingEcsTemplates(ClusterState state) {
-        return state.metadata().getProject().componentTemplates().containsKey("profiling-ilm");
     }
 
     protected final <Request extends ActionRequest & IndicesRequest, Response extends AcknowledgedResponse> void executeAsync(

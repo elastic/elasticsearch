@@ -109,6 +109,10 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
+        // ECS templates include standalone index templates (sq-executables, sq-leafframes, returnpads-private) that
+        // have no required component templates. The second assertBusy relies on being able to install at least two
+        // composable templates from an empty cluster state.
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -140,6 +144,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -170,6 +175,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -201,6 +207,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -257,6 +264,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyUpgraded() throws Exception {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -397,6 +405,36 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
         assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testEcsUpgradeDetectedOnFirstClusterEvent() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        assertFalse("ECS should be disabled initially", registry.isEcsSchemaEnabled());
+
+        // Simulate a cluster state that contains the ECS marker template "profiling-ilm".
+        Map<String, Integer> existingComponentTemplates = Map.of("profiling-ilm", ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        ClusterChangedEvent event = createClusterChangedEvent(existingComponentTemplates, Map.of(), nodes);
+
+        client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
+        registry.clusterChanged(event);
+
+        assertTrue("ECS should be auto-enabled after detecting existing ECS templates", registry.isEcsSchemaEnabled());
+    }
+
+    public void testEcsUpgradeNotTriggeredWithoutEcsTemplates() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        assertFalse("ECS should be disabled initially", registry.isEcsSchemaEnabled());
+
+        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
+
+        client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
+        registry.clusterChanged(event);
+
+        assertFalse("ECS should remain disabled when no ECS templates exist", registry.isEcsSchemaEnabled());
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

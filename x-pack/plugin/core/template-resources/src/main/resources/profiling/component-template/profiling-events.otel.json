@@ -9,18 +9,16 @@
         "refresh_interval": "10s",
         "sort": {
           "field": [
-            "profiling.project.id",
             "k8s.namespace.name",
-            "orchestrator.resource.name",
+            "k8s.pod.name",
             "service.name",
             "host.name",
             "container.name",
             "process.executable.name",
-            "process.thread.name",
+            "thread.name",
             "@timestamp"
           ],
           "order": [
-            "asc",
             "asc",
             "asc",
             "asc",
@@ -43,9 +41,6 @@
       },
       "dynamic": false,
       "properties": {
-        "profiling.project.id": {
-          "type": "keyword"
-        },
         "@timestamp": {
           "type": "date_nanos",
           "format": "strict_date_optional_time_nanos||epoch_second"
@@ -57,13 +52,13 @@
           "type": "keyword",
           "index": false
         },
-        "orchestrator.resource.name": {
+        "k8s.pod.name": {
           "type": "keyword"
         },
         "container.name": {
           "type": "keyword"
         },
-        "process.thread.name": {
+        "thread.name": {
           "type": "keyword"
         },
         "process.executable.name": {
@@ -86,10 +81,7 @@
         "host.name": {
           "type": "keyword"
         },
-        "os.kernel": {
-          "type": "keyword"
-        },
-        "tags": {
+        "os.version": {
           "type": "keyword"
         },
         "service.name": {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 
@@ -79,6 +81,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     private volatile boolean templatesEnabled;
     private volatile boolean ecsSchemaEnabled = false;
     private volatile boolean otelSchemaEnabled = true;
+    private final AtomicBoolean ecsUpgradeChecked = new AtomicBoolean(false);
 
     public ProfilingIndexTemplateRegistry(
         Settings nodeSettings,
@@ -99,8 +102,27 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         this.ecsSchemaEnabled = ecsSchemaEnabled;
     }
 
+    public boolean isEcsSchemaEnabled() {
+        return ecsSchemaEnabled;
+    }
+
     public void setOtelSchemaEnabled(boolean otelSchemaEnabled) {
         this.otelSchemaEnabled = otelSchemaEnabled;
+    }
+
+    /**
+     * Auto-enables ECS schema on the first cluster event when an existing ECS deployment is detected.
+     * Runs before template installation so ECS templates are included in the same event cycle.
+     */
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (ecsSchemaEnabled == false && ecsUpgradeChecked.compareAndSet(false, true)) {
+            if (event.state().metadata().getProject().componentTemplates().containsKey("profiling-ilm")) {
+                logger.info("Detected existing ECS profiling templates; enabling ECS schema for backward compatibility");
+                ecsSchemaEnabled = true;
+            }
+        }
+        super.clusterChanged(event);
     }
 
     public void close() {

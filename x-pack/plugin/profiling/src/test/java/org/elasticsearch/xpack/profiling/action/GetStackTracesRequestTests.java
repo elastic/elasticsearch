@@ -491,6 +491,73 @@ public class GetStackTracesRequestTests extends ESTestCase {
         assertTrue("custom index not contained in indices list", Set.of(indices).contains(customIndex));
     }
 
+    public void testParseSchemaEcs() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("schema", "ecs")
+            .endObject()
+        //end::noformat
+        )) {
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
+            assertFalse("ECS schema must not be flagged as OTel", request.isOtelSchema());
+            assertEquals(GetStackTracesRequest.Schema.ECS, request.getSchema());
+        }
+    }
+
+    public void testParseSchemaOtel() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("schema", "otel")
+            .endObject()
+        //end::noformat
+        )) {
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
+            assertTrue("OTel schema must be flagged as OTel", request.isOtelSchema());
+            assertEquals(GetStackTracesRequest.Schema.OTEL, request.getSchema());
+        }
+    }
+
+    public void testParseSchemaUnknownValueRejected() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("schema", "unknown")
+            .endObject()
+        //end::noformat
+        )) {
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            expectThrows(org.elasticsearch.common.ParsingException.class, () -> request.parseXContent(content));
+        }
+    }
+
+    public void testDefaultSchemaIsEcs() {
+        GetStackTracesRequest request = new GetStackTracesRequest();
+        assertFalse("default schema must be ECS", request.isOtelSchema());
+        assertEquals(GetStackTracesRequest.Schema.ECS, request.getSchema());
+    }
+
+    public void testConsidersDefaultOtelIndicesInRelatedIndices() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+            .startObject()
+                .field("schema", "otel")
+            .endObject()
+        //end::noformat
+        )) {
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            request.parseXContent(content);
+            String[] indices = request.indices();
+            assertEquals(15, indices.length);
+            assertTrue("OTel stacktraces index must be present", Set.of(indices).contains("profiling-stacktraces.otel-default"));
+            assertTrue("OTel stackframes index must be present", Set.of(indices).contains("profiling-stackframes.otel-default"));
+            assertTrue("OTel executables index must be present", Set.of(indices).contains("profiling-executables.otel-default"));
+        }
+    }
+
     public void testConsidersDefaultIndicesInRelatedIndices() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             1,

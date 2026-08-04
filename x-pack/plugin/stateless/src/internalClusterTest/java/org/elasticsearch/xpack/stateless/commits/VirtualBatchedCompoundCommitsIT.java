@@ -1304,12 +1304,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // measurements. The two refreshes admit independent numbers of chunk requests, and because of the concurrent
         // overlap documented below for rejections, either refresh may admit an extra chunk request (a page re-fetched
         // after a retry) which adds an extra +/-PAGE_SIZE pair. The exact total is therefore not deterministic, so we
-        // assert the invariants that always hold instead of an exact count/order: at least the first refresh's 2 * `pages`
-        // measurements, each measurement is +/-PAGE_SIZE, and the additions and removals balance so the pressure returns
-        // to zero.
+        // assert the invariants that always hold instead of an exact count/order: at least 2 * `pages` + 2 measurements
+        // (the first refresh's exact 2 * `pages`, plus at least one +/-PAGE_SIZE pair from the second refresh, which
+        // reads at least one page), each measurement is +/-PAGE_SIZE, and the additions and removals balance so the
+        // pressure returns to zero.
         final int pages = pagesRead.get();
         var measurements = metricsPlugin.getLongUpDownCounterMeasurement(CURRENT_CHUNKS_BYTES_METRIC);
-        assertThat(measurements.size(), greaterThanOrEqualTo(pages * 2));
+        assertThat(measurements.size(), greaterThanOrEqualTo(pages * 2 + 2));
         long netChunksBytes = 0;
         for (Measurement measurement : measurements) {
             assertThat(Math.abs(measurement.getLong()), equalTo((long) PAGE_SIZE));

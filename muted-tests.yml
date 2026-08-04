@@ -418,9 +418,6 @@ tests:
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testUpgradeDataStream
   issue: https://github.com/elastic/elasticsearch/issues/154593
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
-  method: testPopulateCacheWithSharedSourceInputStreamFactory
-  issue: https://github.com/elastic/elasticsearch/issues/154597
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602

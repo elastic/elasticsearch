@@ -74,13 +74,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1021,11 +1024,13 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} opens a
-     * range stream for each stride probe, reads only enough bytes to find the next record
-     * boundary, then must call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     * Regression guard on the shape of the I/O, not just its result: each stride probe must read bounded
+     * chunks that it consumes in full, so the provider can pool the connection. Neither of the two failure
+     * modes is acceptable — draining a huge range wastes the transfer, and aborting to avoid the drain
+     * destroys the connection and makes the next probe re-handshake, which is what made cross-region
+     * discovery cost ~0.5s per probe.
      */
-    public void testComputeRecordAlignedMacroSplitStartsDoesNotDrainStream() throws IOException {
+    public void testComputeRecordAlignedMacroSplitStartsUsesPooledChunkReads() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -1052,11 +1057,12 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
-        assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertEquals("boundary probes must not abort — an aborted response is not a poolable connection", 0, tracking.abortCalls.get());
+        assertFalse("no probe may reach the abort path", tracking.aborted.get());
         assertThat(
-            "boundary probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            "boundary probes must read bounded chunks; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
-            lessThan(fileLength / 2)
+            lessThanOrEqualTo((long) starts.size() * ChunkedStorageInputStream.FIRST_CHUNK_SIZE)
         );
     }
 
@@ -2525,5 +2531,155 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static Attribute refAttr(String name) {
         return new ReferenceAttribute(SRC, name, DataType.KEYWORD);
+    }
+
+    /**
+     * A payload comfortably larger than the 1 MiB {@link SegmentableFormatReader#minimumSegmentSize}, since a
+     * grid point is only kept when at least that much file remains after it — a smaller corpus yields no grid
+     * at all and would make these tests assert nothing.
+     */
+    private static byte[] plainCsvPayload(int targetBytes) {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        for (int i = 0; csv.length() < targetBytes; i++) {
+            csv.append(i).append(",value_").append(i).append('\n');
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private SegmentableFormatReader plainCsvReader() {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        return (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
+    }
+
+    /**
+     * Probing the stride grid concurrently must not change where the splits land. Determinism is what makes the
+     * fan-out reviewable: it turns "does parallelism corrupt the boundaries" into a question the sequential run
+     * answers, rather than one that depends on interleaving.
+     */
+    public void testStridedGridBoundariesMatchWithAndWithoutProbeExecutor() throws Exception {
+        byte[] payload = plainCsvPayload(10 * 1024 * 1024);
+        SegmentableFormatReader reader = plainCsvReader();
+        StorageObject object = new RecordingStorageObject(payload);
+        long stride = payload.length / 8;
+
+        List<Long> sequential = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            reader,
+            object,
+            payload.length,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            null
+        );
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        List<Long> concurrent;
+        try {
+            concurrent = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+                reader,
+                object,
+                payload.length,
+                stride,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                executor
+            );
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat("expected several macro-split boundaries", sequential.size(), greaterThan(2));
+        assertEquals("concurrent probing must produce identical boundaries", sequential, concurrent);
+
+        Set<Long> trueStarts = trueRecordStarts(reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
+        long previous = -1;
+        for (long start : concurrent) {
+            assertThat("boundaries must strictly increase", start, greaterThan(previous));
+            assertTrue("boundary " + start + " must be a true record start", trueStarts.contains(start));
+            previous = start;
+        }
+    }
+
+    /**
+     * A record longer than the stride answers several grid points with the same boundary. Emitting it once per
+     * grid point would produce zero-length splits, so the repeats must collapse.
+     */
+    public void testStridedGridDropsRepeatsFromRecordSpanningGridPoints() throws Exception {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        csv.append("1,").append("x".repeat(2_000_000)).append('\n');
+        for (int i = 0; csv.length() < 12 * 1024 * 1024; i++) {
+            csv.append(i).append(",value_").append(i).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        SegmentableFormatReader reader = plainCsvReader();
+
+        // Small enough that the single huge record straddles many consecutive grid points.
+        long stride = 1024 * 1024;
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            reader,
+            new RecordingStorageObject(payload),
+            payload.length,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            null
+        );
+
+        assertEquals("boundaries must be unique", new TreeSet<>(starts).size(), starts.size());
+        long previous = -1;
+        for (long start : starts) {
+            assertThat("boundaries must strictly increase", start, greaterThan(previous));
+            previous = start;
+        }
+    }
+
+    /**
+     * A grid point whose record exceeds the byte budget stops the grid, leaving the rest of the file as one
+     * trailing split — the shape the chained walk produced, since it could never see past such a probe.
+     */
+    public void testStridedGridStopsAtFirstGridPointOverRecordBudget() throws Exception {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        for (int i = 0; csv.length() < 4 * 1024 * 1024; i++) {
+            csv.append(i).append(",value_").append(i).append('\n');
+        }
+        int oversizedAt = csv.length();
+        csv.append("big,").append("x".repeat(3 * 1024 * 1024)).append('\n');
+        for (int i = 0; csv.length() < 12 * 1024 * 1024; i++) {
+            csv.append(i).append(",tail_").append(i).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            plainCsvReader(),
+            new RecordingStorageObject(payload),
+            payload.length,
+            1024 * 1024,
+            64 * 1024,
+            () -> false,
+            null
+        );
+
+        assertThat("boundaries before the oversized record are still emitted", starts.size(), greaterThan(1));
+        for (long start : starts) {
+            assertThat("the grid must not continue past the oversized record", start, lessThanOrEqualTo((long) oversizedAt));
+        }
+    }
+
+    public void testStridedGridProbeCancellationIsObserved() {
+        byte[] payload = plainCsvPayload(10 * 1024 * 1024);
+        AtomicBoolean cancelled = new AtomicBoolean();
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+                plainCsvReader(),
+                new RecordingStorageObject(payload),
+                payload.length,
+                payload.length / 8,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> cancelled.getAndSet(true),
+                null
+            )
+        );
     }
 }

@@ -130,11 +130,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@link ParallelParsingCoordinator#computeSegments} opens a range stream for
-     * each nominal split probe, reads only enough bytes to find the next record boundary, then must
-     * call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     * Regression guard on the shape of the I/O, not just its result: each nominal split probe must read
+     * bounded chunks that it consumes in full, so the provider can pool the connection. Draining a huge
+     * remainder wastes the transfer, and aborting to avoid the drain destroys the connection — this loop
+     * runs per macro-split at read time, so a per-probe reconnect is paid on every scan.
      */
-    public void testComputeSegmentsDoesNotDrainStream() throws IOException {
+    public void testComputeSegmentsUsesPooledChunkReads() throws IOException {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
         StringBuilder csv = new StringBuilder("id,name\n");
@@ -159,11 +160,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
 
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
-        assertTrue("each segment probe must abort the underlying stream", tracking.abortCalls.get() >= segments.size() - 1);
+        assertEquals("segment probes must not abort — an aborted response is not a poolable connection", 0, tracking.abortCalls.get());
+        assertFalse("no probe may reach the abort path", tracking.aborted.get());
         assertThat(
-            "segment probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            "segment probes must read bounded chunks; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
             tracking.bytesConsumed.get(),
-            Matchers.lessThan(fileLength / 2)
+            Matchers.lessThanOrEqualTo((long) segments.size() * ChunkedStorageInputStream.FIRST_CHUNK_SIZE)
         );
     }
 

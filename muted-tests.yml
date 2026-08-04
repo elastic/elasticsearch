@@ -604,3 +604,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testTransformLifecycleInALoop
   issue: https://github.com/elastic/elasticsearch/issues/155844
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats_earliest_latest.retrieve earliest long by timestamp}
+  issue: https://github.com/elastic/elasticsearch/issues/155850

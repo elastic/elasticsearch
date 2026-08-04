@@ -46,8 +46,7 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     private KnnVectorsFormat format;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initFormat() throws Exception {
         QuantEncoding encoding = randomFrom(QuantEncoding.values());
         if (rarely()) {
             format = new ES950DiskBBQVectorsFormat(
@@ -87,7 +86,6 @@ public class ES950DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         }
-        super.setUp();
     }
 
     @Override

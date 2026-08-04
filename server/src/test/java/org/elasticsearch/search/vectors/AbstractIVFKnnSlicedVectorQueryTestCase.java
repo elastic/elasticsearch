@@ -60,8 +60,7 @@ abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
     protected ESNextDiskBBQVectorsFormat format;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initFormat() throws Exception {
         format = new ESNextDiskBBQVectorsFormat(128, 4, SLICE_FIELD);
     }
 

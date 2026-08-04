@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -63,9 +64,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
     private PastTimeSeriesIndexCreationExecutor executor;
     private ProjectResolver projectResolver;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initExecutor() throws Exception {
         projectId = randomProjectIdOrDefault();
         createDataStreamService = mock(MetadataCreateDataStreamService.class);
         when(createDataStreamService.createPastBackingIndex(any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(inv -> {

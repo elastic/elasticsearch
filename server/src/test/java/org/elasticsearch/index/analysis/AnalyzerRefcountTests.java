@@ -24,6 +24,8 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,9 +66,8 @@ public class AnalyzerRefcountTests extends ESTestCase {
 
     private AnalysisRegistry registry;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRegistry() throws Exception {
         // The whole class exercises the recipe cache and its reference counting, which only exist when analyzer
         // sharing is on. Off (release builds) every index builds a fresh analyzer, so there is nothing to assert here.
         assumeTrue("analyzer sharing feature flag must be enabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
@@ -79,10 +80,10 @@ public class AnalyzerRefcountTests extends ESTestCase {
         registry = module.getAnalysisRegistry();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeRegistry() throws Exception {
         try {
-            // registry is null when setUp skipped the test (analyzer sharing disabled) before building it.
+            // registry is null when initRegistry skipped the test (analyzer sharing disabled) before building it.
             if (registry != null) {
                 // Opt-in strict leak check: every test in this class must drain the cache before
                 // teardown. Any IndexAnalyzers built without being closed shows up here, attributed
@@ -93,7 +94,6 @@ public class AnalyzerRefcountTests extends ESTestCase {
             if (registry != null) {
                 registry.close();
             }
-            super.tearDown();
         }
     }
 

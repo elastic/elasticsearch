@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,9 +47,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     private ReadSniffer readSniffer;
     private Netty4HttpRequestBodyStream stream;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initStream() throws Exception {
         channel = new EmbeddedChannel();
         readSniffer = new ReadSniffer();
         channel.pipeline().addLast(new FlowControlHandler(), readSniffer);
@@ -67,9 +68,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         });
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeStream() throws Exception {
         stream.close();
     }
 

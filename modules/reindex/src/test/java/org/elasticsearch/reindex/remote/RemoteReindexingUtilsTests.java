@@ -86,8 +86,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     private RestClient client;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -104,8 +103,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 

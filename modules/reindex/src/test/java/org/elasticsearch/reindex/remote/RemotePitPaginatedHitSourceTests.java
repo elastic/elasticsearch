@@ -152,9 +152,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -179,9 +177,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 

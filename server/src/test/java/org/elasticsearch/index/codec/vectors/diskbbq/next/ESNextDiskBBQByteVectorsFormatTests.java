@@ -63,8 +63,7 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
     private KnnVectorsFormat format;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void initFormat() throws Exception {
         QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
@@ -107,7 +106,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
                 null
             );
         }
-        super.setUp();
     }
 
     @Override

@@ -61,15 +61,15 @@ import static java.util.stream.Collectors.toMap;
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
-    /**
-     * The maximum number of levels of aggregations that may be nested within one another.
-     */
+    public static final int MAX_NESTED_DEPTH_HARD_LIMIT = 1000;
+
     public static final Setting<Integer> MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
         "search.aggs.max_nested_depth",
         50,
         1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
+        MAX_NESTED_DEPTH_HARD_LIMIT,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private static volatile int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
@@ -83,9 +83,10 @@ public class AggregatorFactories {
     }
 
     /**
-     * Set the maximum number of levels of aggregations that may be nested within one another. Called once per node from
-     * {@link org.elasticsearch.search.SearchModule}; {@link #parseAggregators(XContentParser)} is static, so the limit
-     * has to live in a static too.
+     * Set the maximum number of levels of aggregations that may be nested within one another. Called once per node at
+     * startup from {@link org.elasticsearch.search.SearchModule}, and again on every update of
+     * {@link #MAX_NESTED_DEPTH_SETTING} since it is {@link Setting.Property#Dynamic}; {@link #parseAggregators(XContentParser)}
+     * is static, so the limit has to live in a static too.
      */
     public static void setMaxNestedDepth(int maxNestedDepth) {
         if (maxNestedDepth < 1) {

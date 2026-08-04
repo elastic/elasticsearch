@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
@@ -38,7 +39,9 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -52,8 +55,11 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
-import org.elasticsearch.escf.EscfRowColumnBuilder;
+import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
@@ -202,23 +208,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return textSearchInfo;
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                true,
-                DocValuesParameter.Values.Cardinality.LOW,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
-        }
-
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
-    }
-
     private static KeywordFieldMapper toType(FieldMapper in) {
         return (KeywordFieldMapper) in;
     }
@@ -315,7 +304,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
 
             this.docValuesParameters = DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -393,13 +386,23 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
+                hasDocValues
+                    ? DocValuesParameter.defaultValues(
+                        indexSettings,
+                        DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                        DocValuesParameter.Values.Cardinality.HIGH
+                    )
+                    : DocValuesParameter.Values.DISABLED_LOW_CARDINALITY
             );
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
-            var defaultDocValues = defaultDocValuesParameters(indexSettings);
+            var defaultDocValues = DocValuesParameter.defaultValues(
+                indexSettings,
+                DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                DocValuesParameter.Values.Cardinality.HIGH
+            );
             this.docValuesParameters.setValue(
                 new DocValuesParameter.Values(
                     true,
@@ -642,6 +645,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final IgnoreAbove ignoreAbove;
         private final String nullValue;
+        private final BytesRef nullUtf8Value;
         private final NamedAnalyzer normalizer;
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
@@ -678,6 +682,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 builder.indexSettings.getIndexVersionCreated()
             );
             this.nullValue = builder.nullValue.getValue();
+            this.nullUtf8Value = this.nullValue == null ? null : new BytesRef(this.nullValue);
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
@@ -709,6 +714,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
+            this.nullUtf8Value = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
@@ -733,6 +739,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
+            this.nullUtf8Value = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
@@ -757,6 +764,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
+            this.nullUtf8Value = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
@@ -1326,7 +1334,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates,
-                        useArrayOrderBinaryDocValues
+                        useArrayOrderBinaryDocValues,
+                        context.getCircuitBreaker()
                     );
                 } else {
                     if (context.getCircuitBreaker() != null) {
@@ -1505,11 +1514,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support is limited to strict-columnar index modes (COLUMNAR, LOGSDB_COLUMNAR)
-        // where high-cardinality keywords use the document-order inline-null binary doc-values
-        // encoding (ArrayOrderInlineNull).
         return indexSettings.getMode().isStrictColumnar()
-            && fieldType().usesArrayOrderBinaryDocValues()
+            && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -1517,58 +1523,105 @@ public final class KeywordFieldMapper extends FieldMapper {
             && fieldType().isDimension() == false;
     }
 
-    @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        final int docCount = ctx.docCount();
-
-        // Dispatch on the ESCF column kind and build a scan cursor.
-        final ObjectTupleCursor<BytesRef> cursor;
-        switch (source.kind()) {
-            case EscfColumnKind.STRING, EscfColumnKind.ARRAY -> cursor = source.bytesRefCursor();
-            default ->
-                // TODO: support UNION and other input columns (required for explicit null / null_value handling).
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: ESCF column kind ["
-                        + EscfColumnKind.name(source.kind())
-                        + "] is not yet supported for field ["
-                        + fullPath()
-                        + "]"
-                );
+    /**
+     * Returns true when this keyword field's doc-values encoding is supported on the columnar batch
+     * path. Accepts both the array-order (multi_value=true, offsetsFieldName set) and single-valued
+     * binary (multi_value=false) encoding. Other combinations fall back to the row path.
+     */
+    private boolean supportsColumnarDocValues() {
+        if (fieldType().usesBinaryDocValues() == false) {
+            return false;
         }
 
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            return true;
+        }
+
+        // Only support single valued when not ArrayOrderBinaryDocValues
+        return docValuesParameters().multiValue() == false;
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
         final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
         final boolean emitDvs = fieldType().hasDocValues();
-
-        // Nothing to emit.
         if (emitTerms == false && emitDvs == false && emitFallback == false) {
             return;
         }
+
+        // These paths build a scan cursor that converts all ESCF column kinds to BytesRef strings:
+        // longs/doubles via canonical toString, booleans as "true"/"false", strings as-is, arrays
+        // element-by-element. BINARY and KEY_VALUE columns are unsupported and throw when the cursor is
+        // iterated.
+        // NOTE: numbers are converted from their parsed values (Long/Double), so non-canonical source
+        // literals (e.g. "1.50", "1e3") will produce the canonical toString form rather than the original
+        // source characters (which the row path preserves via parser.getText()).
+        // In order to support the original string representations we would need to keep the columns as
+        // strings. This is possible as an eventual user option.
+
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            mapColumnBatchArrayOrder(ctx, EscfColumnTransforms.utf8Cursor(source), emitTerms, emitDvs, emitFallback);
+        } else {
+            mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
+        }
+    }
+
+    private void mapColumnBatchArrayOrder(
+        BatchMappingContext ctx,
+        ObjectTupleCursor<BytesRef> cursor,
+        boolean emitTerms,
+        boolean emitDvs,
+        boolean emitFallback
+    ) {
+        final int docCount = ctx.docCount();
+
         // TODO: make the batch return these column builders to wire up recycling
-        final EscfRowColumnBuilder terms = emitTerms ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder binaryDvs = emitDvs ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder dvCounts = emitDvs ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder fallback = emitFallback ? EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE) : null;
-        final EscfRowColumnBuilder fallbackCounts = emitFallback
-            ? EscfRowColumnBuilder.longs(BytesRefRecycler.NON_RECYCLING_INSTANCE)
-            : null;
+        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
+        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
+        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null;
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null;
+        final BytesRef nullValueBytes = fieldType().nullUtf8Value;
 
         int currentDoc = -1;
         boolean ignoredThisDoc = false;
         // Per-doc element buffer for blob encoding; null when blob is not emitted.
         BytesRef[] docSlots = emitDvs ? new BytesRef[4] : null;
         int docSlotCount = 0;
+        // True when the current doc has at least one non-null slot; gates binary dv blob emission.
+        boolean hasNonNull = false;
 
         while (true) {
             final int nextDoc = cursor.nextDoc();
             if (nextDoc != currentDoc) {
-                // Flush the completed doc's elements as one encoded blob and record its count inline.
+                // Flush the completed doc's elements.
+                // All-null docs write counts (matching ArrayOrderInlineNull.recordNull) but no blob.
                 if (binaryDvs != null && docSlotCount > 0) {
-                    // TODO: improve MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode to directly write to column and
-                    // save allocation and copy
-                    binaryDvs.setString(currentDoc, MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount));
                     dvCounts.setLong(currentDoc, docSlotCount);
+                    if (hasNonNull) {
+                        // TODO: improve MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode to directly write to column and
+                        // save allocation and copy
+                        binaryDvs.setString(
+                            currentDoc,
+                            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount)
+                        );
+                    }
                     docSlotCount = 0;
+                    hasNonNull = false;
                 }
                 if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
                     break;
@@ -1577,13 +1630,32 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ignoredThisDoc = false;
             }
 
-            final BytesRef binaryValue = cursor.value();
+            BytesRef binaryValue = cursor.value();
+
+            // Explicit JSON null: apply null_value substitution if configured; otherwise record a
+            // null doc-values slot (no term, no ignore_above check), mirroring the row-path's
+            // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+            if (binaryValue == null) {
+                if (nullValueBytes != null) {
+                    binaryValue = nullValueBytes;
+                    // Fall through to normal value processing below.
+                } else {
+                    if (binaryDvs != null) {
+                        if (docSlotCount == docSlots.length) {
+                            docSlots = Arrays.copyOf(
+                                docSlots,
+                                ArrayUtil.oversize(docSlotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF)
+                            );
+                        }
+                        docSlots[docSlotCount++] = null;
+                        // hasNonNull stays false: null slots do not produce a binary dv blob.
+                    }
+                    continue;
+                }
+            }
 
             // ignore_above: record _ignored once per doc; defer the synthetic-source value fallback.
-            // Wrap as a Text so isIgnored can compute the char count from the UTF-8 bytes.
-            // TODO: optimize to calculate ignoreAbove on utf-8. If bytes < ignore above we don't need to even create String
-            final Text textValue = new Text(new XContentString.UTF8Bytes(binaryValue.bytes, binaryValue.offset, binaryValue.length));
-            if (fieldType().ignoreAbove().isIgnored(textValue)) {
+            if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 if (ignoredThisDoc == false) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                     if (fallback != null) {
@@ -1614,20 +1686,22 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null) {
                 if (docSlotCount == docSlots.length) {
-                    docSlots = Arrays.copyOf(docSlots, docSlotCount * 2);
+                    docSlots = Arrays.copyOf(docSlots, ArrayUtil.oversize(docSlotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                 }
                 docSlots[docSlotCount++] = binaryValue;
+                hasNonNull = true;
             }
         }
 
-        // Attach output columns. Each builder is independent: terms and blob/counts may be omitted
-        // independently based on field configuration.
+        // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
+        // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
         if (terms != null && terms.isEmpty() == false) {
             ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
         }
         if (binaryDvs != null && binaryDvs.isEmpty() == false) {
             ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
-            // countsBuilder is always non-empty when binaryDvs is non-empty (written in lock-step).
+        }
+        if (dvCounts != null && dvCounts.isEmpty() == false) {
             ctx.addColumn(
                 LuceneLongColumn.of(
                     dvCounts.finish(docCount),
@@ -1647,6 +1721,96 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Defaults.COUNTS_FIELD_TYPE,
                     LongColumn.NumericKind.LONG
                 )
+            );
+        }
+    }
+
+    private void mapColumnBatchSingleValue(
+        BatchMappingContext ctx,
+        EscfColumn source,
+        boolean emitTerms,
+        boolean emitDvs,
+        boolean emitFallback
+    ) {
+        final int docCount = ctx.docCount();
+        boolean valuesProduced = false;
+
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source);
+        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs) ? mergeStringColumn() : null;
+        final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
+        final BytesRef nullValueBytes = fieldType().nullUtf8Value;
+
+        int currentDoc = -1;
+        boolean valueSeenThisDoc = false;
+        while (true) {
+            final int nextDoc = cursor.nextDoc();
+            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            if (nextDoc != currentDoc) {
+                currentDoc = nextDoc;
+                valueSeenThisDoc = false;
+            }
+            BytesRef binaryValue = cursor.value();
+            if (binaryValue == null) {
+                if (nullValueBytes != null) {
+                    binaryValue = nullValueBytes;  // substitute, fall through to normal processing
+                } else {
+                    continue;  // null without null_value -> absent (row-path parity)
+                }
+            }
+
+            // TODO: Can move this validation earlier based on array type
+            if (valueSeenThisDoc) {
+                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                // which raises the correct per-doc error (on_failure=FAIL).
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                );
+            }
+            valueSeenThisDoc = true;
+
+            if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
+                ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                // Deoptimize: we were planning to zero-copy the source column, but now we must
+                // exclude this doc's value from the output. Lazily create the builder and backfill
+                // all accepted values from before this doc, then continue building per-value.
+                if (values == null && (emitTerms || emitDvs)) {
+                    values = mergeStringColumn();
+                    EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc);
+                }
+                if (fallback != null) {
+                    fallback.setString(currentDoc, binaryValue);
+                }
+                continue;
+            }
+            if (binaryValue.length > MAX_TERM_LENGTH) {
+                throw largeTermException(binaryValue);
+            }
+
+            valuesProduced = true;
+            if (values != null) {
+                values.setString(currentDoc, binaryValue);
+            }
+        }
+
+        // Emit one term column (frozen fieldType, DocValuesType=NONE for HIGH cardinality) and one
+        // plain binary DV column (BinaryDocValuesField.TYPE, omitNorms=false) — no .counts sidecar.
+        // Both columns share the same finished EscfColumnData (one serialization, two field-type wrappers).
+        if (valuesProduced) {
+            final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();
+            if (emitTerms) {
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+            }
+            if (emitDvs) {
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
+            }
+        }
+        // Synthetic-source fallback for ignore_above values: single BinaryDocValuesField (no counts),
+        // mirroring the row-path's addBinaryFieldLegacyEncodingAware isSingleValued() branch.
+        if (fallback != null && fallback.isEmpty() == false) {
+            ctx.addColumn(
+                LuceneBinaryColumn.of(fallback.finish(docCount), fieldType().syntheticSourceFallbackFieldName(), BinaryDocValuesField.TYPE)
             );
         }
     }

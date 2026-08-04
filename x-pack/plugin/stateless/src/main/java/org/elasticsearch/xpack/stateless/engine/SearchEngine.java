@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -362,6 +363,7 @@ public class SearchEngine extends Engine {
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
                 searchDirectory::getTimestampMillis,
+                searchDirectory::resolveRegionTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -581,7 +583,7 @@ public class SearchEngine extends Engine {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
-                    // TODO: pass timestamps to cache regions read in this call
+                    final Map<FileCacheKey, Long> backfillTimestampsByCacheKey = ConcurrentCollections.newConcurrentMap();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
@@ -597,8 +599,31 @@ public class SearchEngine extends Engine {
                                     referencedCompoundCommit.referencedInternalFiles()
                                 )
                             );
+                            var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                            // Accumulate raw per-CC timestamps; resolution happens once below, before backfilling.
+                            long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
+                            );
+                            backfillTimestampsByCacheKey.merge(
+                                new FileCacheKey(searchDirectory.getShardId(), bccBlobFile),
+                                ccTimestamp,
+                                BlobFileRanges::mostRecentKnownTimestamp
+                            );
                         },
-                        listenableFuture.map(aVoid -> newBlobFileRanges)
+                        listenableFuture.map(aVoid -> {
+                            // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
+                            // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.
+                            long latestCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                latestCommit.getTimestampFieldValueRange()
+                            );
+                            backfillTimestampsByCacheKey.replaceAll(
+                                (cacheKey, rawMillis) -> searchDirectory.resolveRegionTimestampMillis(
+                                    BlobFileRanges.firstKnownTimestamp(rawMillis, latestCommitTimestamp)
+                                )
+                            );
+                            searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(backfillTimestampsByCacheKey));
+                            return newBlobFileRanges;
+                        })
                     );
                 } else {
                     listenableFuture.onResponse(Map.of());

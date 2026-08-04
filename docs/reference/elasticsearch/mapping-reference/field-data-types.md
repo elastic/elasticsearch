@@ -98,8 +98,11 @@ Dates
 [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md)
 :   `text`-like type for as-you-type completion.
 
+[`semantic`](/reference/elasticsearch/mapping-reference/semantic-field.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+:   Used for performing semantic search on multimodal content.
+
 [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md)
-:   Used for performing [semantic search](docs-content://solutions/search/semantic-search.md).
+:   Used for performing [semantic search](docs-content://solutions/search/semantic-search.md) on text.
 
 [`token_count`](/reference/elasticsearch/mapping-reference/token-count.md)
 :   A count of tokens in a text.

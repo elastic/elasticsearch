@@ -88,6 +88,14 @@ setup:
 
 ---
 "optional-description":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/view/{name}
+          capabilities: [view_description]
+      test_runner_features: capabilities
+      reason: "View description field introduced"
+
   - do:
       esql.put_view:
         name: dogs

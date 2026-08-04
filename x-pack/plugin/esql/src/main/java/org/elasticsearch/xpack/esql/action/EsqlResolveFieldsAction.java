@@ -89,6 +89,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             return;
         }
 
+        // the strategies here/
+        // mappings -> fc
+        // s3
+
         fieldCapsAction.executeRequest(task, request.fieldCapsRequest(), new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(

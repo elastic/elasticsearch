@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -158,7 +159,9 @@ public class QueryRewriteContextTests extends ESTestCase {
      */
     public void testIsMappedFieldMetadataDynamicSubfield() {
         DynamicMetadataFieldMapper metaMapper = new DynamicMetadataFieldMapper();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(false, false));
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false, false)
+        );
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { metaMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
 

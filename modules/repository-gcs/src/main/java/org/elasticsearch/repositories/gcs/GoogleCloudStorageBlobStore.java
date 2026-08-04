@@ -660,9 +660,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
             return;
         }
-        // GCS XML API does not support preconditions on the complete-multipart-upload request
-        if (failIfAlreadyExists && blobExists(purpose, blobName)) {
-            throw new FileAlreadyExistsException(blobName);
+        if (failIfAlreadyExists) {
+            throw new UnsupportedOperationException("GCS XML API multipart upload does not support failIfAlreadyExists");
         }
         final long partSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
         final int nbParts = Math.toIntExact((blobSize + partSize - 1) / partSize);

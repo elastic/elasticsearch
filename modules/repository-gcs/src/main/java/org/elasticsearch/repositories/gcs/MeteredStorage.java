@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
 
@@ -67,11 +66,7 @@ public class MeteredStorage {
         this.storage = storage;
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
-        // MultipartUploadClient.create() internally sets a custom header provider, strip the custom use-agent one to avoid conflict
-        final HttpStorageOptions multipartOptions = ((HttpStorageOptions) storage.getOptions()).toBuilder()
-            .setHeaderProvider(() -> Map.of())
-            .build();
-        this.multipartUploadClient = MultipartUploadClient.create(MultipartUploadSettings.of(multipartOptions));
+        this.multipartUploadClient = MultipartUploadClient.create(MultipartUploadSettings.of((HttpStorageOptions) storage.getOptions()));
     }
 
     // for testing

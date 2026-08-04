@@ -40,4 +40,35 @@ public class HighlightGoldenTests extends GoldenTestCase {
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
+
+    /**
+     * The logical optimizer moves the SORT and LIMIT below HIGHLIGHT, combining them into a TopN that HIGHLIGHT now sits above.
+     * The local physical plan then pushes that TopN into the source, so highlighting runs on the surviving rows.
+     */
+    public void testTopNIsPushedBelowHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT emp_no DESC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /**
+     * The TopN stays above HIGHLIGHT when it sorts on a generated highlight column, since that sort depends on the highlight output.
+     */
+    public void testTopNOnGeneratedSnippetIsNotPushedBelowHighlight() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = """
+            FROM employees
+            | WHERE first_name : "elasticsearch"
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | SORT highlight_first_name ASC
+            | LIMIT 10
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
 }

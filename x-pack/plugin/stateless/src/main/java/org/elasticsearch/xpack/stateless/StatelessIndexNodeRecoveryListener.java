@@ -16,22 +16,16 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -39,29 +33,18 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
-import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
-import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
-import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -69,30 +52,25 @@ import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
-import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.engine.IndexEngine.TRANSLOG_RELEASE_END_FILE;
 
-class StatelessIndexEventListener implements IndexEventListener {
+class StatelessIndexNodeRecoveryListener implements IndexEventListener {
 
-    private static final Logger logger = LogManager.getLogger(StatelessIndexEventListener.class);
+    private static final Logger logger = LogManager.getLogger(StatelessIndexNodeRecoveryListener.class);
 
     private final ThreadPool threadPool;
     private final StatelessCommitService statelessCommitService;
     private final ObjectStoreService objectStoreService;
     private final TranslogReplicator translogReplicator;
-    private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
     private final SharedBlobCacheWarmingService warmingService;
     private final StatelessSharedBlobCacheService cacheService;
     private final HollowShardsService hollowShardsService;
@@ -100,34 +78,28 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SplitSourceService splitSourceService;
     private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
-    private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
-    private final ClusterService clusterService;
     private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
 
-    StatelessIndexEventListener(
+    StatelessIndexNodeRecoveryListener(
         ThreadPool threadPool,
         StatelessCommitService statelessCommitService,
         ObjectStoreService objectStoreService,
         TranslogReplicator translogReplicator,
-        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
         HollowShardsService hollowShardsService,
         SplitTargetService splitTargetService,
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        ClusterService clusterService,
         StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
         this.objectStoreService = objectStoreService;
         this.translogReplicator = translogReplicator;
-        this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
         this.warmingService = warmingService;
         this.hollowShardsService = hollowShardsService;
         this.splitTargetService = splitTargetService;
@@ -135,11 +107,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
         this.cacheService = cacheService;
-        this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
-            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
-        );
         this.snapshotsCommitService = snapshotsCommitService;
-        this.clusterService = clusterService;
         this.recoveryMetricsCollector = recoveryMetricsCollector;
     }
 
@@ -195,27 +163,23 @@ class StatelessIndexEventListener implements IndexEventListener {
                     .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
 
                 var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
-                if (indexShard.routingEntry().isSearchable()) {
-                    beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
-                } else {
-                    if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
-                        splitTargetService.startSplitTargetShardRecovery(
-                            indexShard,
-                            indexSettings.getIndexMetadata(),
-                            new ThreadedActionListener<>(
-                                threadPool.generic(),
-                                releaseAfterListener.delegateFailureAndWrap(
-                                    (listener1, unused) -> beforeRecoveryOnIndexingShard(
-                                        indexShard,
-                                        existingBlobContainer,
-                                        releaseAfterListener
-                                    )
+                if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
+                    splitTargetService.startSplitTargetShardRecovery(
+                        indexShard,
+                        indexSettings.getIndexMetadata(),
+                        new ThreadedActionListener<>(
+                            threadPool.generic(),
+                            releaseAfterListener.delegateFailureAndWrap(
+                                (listener1, unused) -> beforeRecoveryOnIndexingShard(
+                                    indexShard,
+                                    existingBlobContainer,
+                                    releaseAfterListener
                                 )
                             )
-                        );
-                    } else {
-                        beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
-                    }
+                        )
+                    );
+                } else {
+                    beforeRecoveryOnIndexingShard(indexShard, existingBlobContainer, releaseAfterListener);
                 }
                 success = true;
             } finally {
@@ -225,6 +189,62 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> {
+            final Engine engineOrNull = indexShard.getEngineOrNull();
+            switch (engineOrNull) {
+                case IndexEngine engine -> {
+                    long currentGeneration = engine.getCurrentGeneration();
+                    if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {
+                        ShardId shardId = indexShard.shardId();
+                        statelessCommitService.addListenerForUploadedGeneration(shardId, engine.getCurrentGeneration(), l);
+                    } else {
+                        engine.flush(true, true, l.map(f -> null));
+                    }
+                }
+                case HollowIndexEngine ignored -> {
+                    hollowShardsService.addHollowShard(indexShard, "recovery");
+                    // Evict the recovery BCC blob, since it won't be read again, in order to create space for new cache entries.
+                    // Note: we run prewarming asynchronously. It's unlikely but possible to have it race with eviction, and that may mean
+                    // the cache entry ultimately stays in the cache. But because it should be rare, we do not optimize further for this.
+                    cacheService.forceEvict(indexShard.shardId(), k -> true);
+                    l.onResponse(null);
+                }
+                case null -> throw new AlreadyClosedException("engine is closed");
+                case NoOpEngine ignored -> l.onResponse(null);
+                default -> throw new AssertionError("unexpected engine type: " + engineOrNull);
+            }
+        });
+    }
+
+    @Override
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        // Index shards only.
+        if (indexShard.routingEntry().isPromotableToPrimary()) {
+            IndexSettings indexSettings = indexShard.indexSettings();
+            IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+            if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
+                splitSourceService.splitSourceShardStarted(indexShard, reshardingMetadata);
+            }
+        }
+    }
+
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        // Can be null if there was a problem creating the shard.
+        if (indexShard != null) {
+            splitTargetService.cancelSplits(indexShard);
+        }
+    }
+
+    @Override
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        if (indexShard != null) {
+            splitSourceService.cancelSplits(indexShard);
         }
     }
 
@@ -242,27 +262,6 @@ class StatelessIndexEventListener implements IndexEventListener {
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
             latestCommit != null ? latestCommit.lastCompoundCommit().toShortDescription() : "empty commit",
-            describe(indexShard.recoveryState())
-        );
-    }
-
-    private static void logBootstrappingFromIndexingShard(
-        IndexShard indexShard,
-        StatelessCompoundCommit latestCommit,
-        PrimaryTermAndGeneration latestUploaded
-    ) {
-        assert indexShard.routingEntry().isPromotableToPrimary() == false;
-        assert latestCommit != null;
-        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
-        logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
-            indexShard.shardId(),
-            indexShard.shardId().getIndex().getUUID(),
-            indexShard.routingEntry().role(),
-            indexShard.getOperationPrimaryTerm(),
-            latestCommit.toShortDescription(),
-            uploaded ? "uploaded" : "pending upload",
-            latestUploaded,
             describe(indexShard.recoveryState())
         );
     }
@@ -413,225 +412,5 @@ class StatelessIndexEventListener implements IndexEventListener {
             );
             return null;
         });
-    }
-
-    private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
-        throws IOException {
-        assert indexShard.store().refCount() > 0 : indexShard.shardId();
-        assert blobContainer != null : indexShard.routingEntry();
-
-        final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
-        final var batchedCompoundCommit = objectStoreService.readSearchShardState(
-            blobContainer,
-            searchDirectory,
-            indexShard.getOperationPrimaryTerm()
-        );
-        assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
-            : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
-
-        recoveryCommitRegistrationHandler.register(
-            batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
-            batchedCompoundCommit != null
-                ? batchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration()
-                : PrimaryTermAndGeneration.ZERO,
-            indexShard.shardId(),
-            listener.<RegisterCommitResponse>delegateFailure((l, response) -> {
-                var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
-                var nodeId = response.getNodeId();
-                assert nodeId != null : response;
-
-                final StatelessCompoundCommit compoundCommit;
-                if (response.getCompoundCommit() == null) {
-                    // If the indexing shard provided no compound commit to recover from, then the last uploaded BCC term/gen returned
-                    // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
-                    assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
-
-                    logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
-                    // If there is no batched compound commit found in the object store, then recover from an empty commit
-                    if (batchedCompoundCommit == null) {
-                        l.onResponse(null);
-                        return;
-                    }
-
-                    // Otherwise recover from the compound commit found in the object store
-                    // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
-                    // until the next new commit notification.
-                    compoundCommit = batchedCompoundCommit.lastCompoundCommit();
-                    lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
-                } else {
-                    compoundCommit = response.getCompoundCommit();
-                    logBootstrappingFromIndexingShard(indexShard, compoundCommit, lastUploaded);
-                }
-
-                assert batchedCompoundCommit == null
-                    || batchedCompoundCommit.lastCompoundCommit()
-                        .primaryTermAndGeneration()
-                        .onOrBefore(compoundCommit.primaryTermAndGeneration());
-
-                searchDirectory.updateLatestUploadedBcc(lastUploaded);
-                searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
-
-                SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
-                    if (useInternalFilesReplicatedContentForSearchShards) {
-                        Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
-                        ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                            compoundCommit.commitFiles(),
-                            batchedCompoundCommit,
-                            searchDirectory,
-                            IOContext.DEFAULT,
-                            bccHeaderReadExecutor,
-                            referencedCompoundCommit -> {
-                                blobFileRanges.putAll(
-                                    computeBlobFileRanges(
-                                        true,
-                                        referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
-                                        referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
-                                        referencedCompoundCommit.referencedInternalFiles()
-                                    )
-                                );
-                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
-                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
-                                // representative timestamp among the referenced CCs sharing that blob.
-                                long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
-                                    referencedCompoundCommit.statelessCompoundCommitReference()
-                                        .compoundCommit()
-                                        .getTimestampFieldValueRange()
-                                );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
-                            },
-                            l2.map(aVoid -> {
-                                var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
-                                for (var entry : targetsToWarm.entrySet()) {
-                                    timestampByCacheKey.put(
-                                        new FileCacheKey(searchDirectory.getShardId(), entry.getKey()),
-                                        entry.getValue().timestampMillis()
-                                    );
-                                }
-                                // This backfill also handles the initial BCC read in readSearchShardState.
-                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
-                                return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
-                            })
-                        );
-                    } else {
-                        l2.onResponse(null);
-                    }
-                }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
-                    final var resumeRecovery = new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            assert indexShard.store().refCount() > 0 : indexShard.shardId();
-                            l3.onResponse(null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("warming failed: " + e.getMessage(), e);
-                            onResponse(null);
-                        }
-                    };
-
-                    if (warmingInputs != null) {
-                        searchDirectory.updateCommit(compoundCommit, warmingInputs.blobFileRanges());
-                    } else {
-                        searchDirectory.updateCommit(compoundCommit);
-                    }
-                    warmingService.warmCacheForSearchShardRecovery(
-                        clusterService.state(),
-                        indexShard,
-                        compoundCommit,
-                        searchDirectory,
-                        warmingInputs != null ? warmingInputs.targetsToWarm() : null,
-                        resumeRecovery
-                    );
-                }));
-            })
-        );
-    }
-
-    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
-        public SearchRecoveryWarmingInputs {
-            Objects.requireNonNull(blobFileRanges);
-            Objects.requireNonNull(targetsToWarm);
-        }
-    }
-
-    @Override
-    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> {
-            if (indexShard.routingEntry().isPromotableToPrimary()) {
-                Engine engineOrNull = indexShard.getEngineOrNull();
-
-                if (engineOrNull instanceof IndexEngine engine) {
-                    long currentGeneration = engine.getCurrentGeneration();
-                    if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {
-                        ShardId shardId = indexShard.shardId();
-                        statelessCommitService.addListenerForUploadedGeneration(shardId, engine.getCurrentGeneration(), l);
-                    } else {
-                        engine.flush(true, true, l.map(f -> null));
-                    }
-                } else if (engineOrNull instanceof HollowIndexEngine) {
-                    hollowShardsService.addHollowShard(indexShard, "recovery");
-                    // Evict the recovery BCC blob, since it won't be read again, in order to create space for new cache entries.
-                    // Note: we run prewarming asynchronously. It's unlikely but possible to have it race with eviction, and that may mean
-                    // the cache entry ultimately stays in the cache. But because it should be rare, we do not optimize further for this.
-                    cacheService.forceEvict(indexShard.shardId(), k -> true);
-                    l.onResponse(null);
-                } else if (engineOrNull == null) {
-                    throw new AlreadyClosedException("engine is closed");
-                } else {
-                    assert engineOrNull instanceof NoOpEngine;
-                    l.onResponse(null);
-                }
-            } else {
-                final Engine engineOrNull = indexShard.getEngineOrNull();
-                if (engineOrNull instanceof SearchEngine searchEngine) {
-                    /*
-                     * The shard can be closed underneath us, so we assert that we're either
-                     * recovering or closed at this point
-                     */
-                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
-                        : "expected index in recovering shard state but is: " + indexShard.state();
-                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
-                        : "expected initializing shard routing state but is: " + indexShard.state();
-                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
-                    searchEngine.afterRecovery();
-                    l.onResponse(null);
-                } else if (engineOrNull == null) {
-                    throw new AlreadyClosedException("engine is closed");
-                } else {
-                    assert engineOrNull instanceof NoOpEngine;
-                    l.onResponse(null);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void afterIndexShardStarted(IndexShard indexShard) {
-        // Index shards only.
-        if (indexShard.routingEntry().isPromotableToPrimary()) {
-            IndexSettings indexSettings = indexShard.indexSettings();
-            IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
-            if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
-                splitSourceService.splitSourceShardStarted(indexShard, reshardingMetadata);
-            }
-        }
-    }
-
-    @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        // Can be null if there was a problem creating the shard.
-        if (indexShard != null) {
-            splitTargetService.cancelSplits(indexShard);
-        }
-    }
-
-    @Override
-    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
-            splitSourceService.cancelSplits(indexShard);
-        }
     }
 }

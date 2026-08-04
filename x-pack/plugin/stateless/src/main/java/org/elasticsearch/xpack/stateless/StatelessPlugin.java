@@ -265,6 +265,7 @@ import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETT
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
 public class StatelessPlugin extends Plugin
@@ -540,6 +541,7 @@ public class StatelessPlugin extends Plugin
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
     );
+    private final SetOnce<NodeShutdownFlagHolder> nodeShutdownFlagHolder = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -1048,6 +1050,9 @@ public class StatelessPlugin extends Plugin
                     threadPool.relativeTimeInMillisSupplier()
                 )
             );
+
+            var nodeShutdownFlagHolder = setAndGet(this.nodeShutdownFlagHolder, new NodeShutdownFlagHolder());
+            clusterService.addListener(nodeShutdownFlagHolder);
         }
 
         if (statelessServicesConsumerProviders.get() != null) {
@@ -1310,7 +1315,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
-            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
@@ -1420,13 +1425,12 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        var statelessCommitService = commitService.get();
-        var localTranslogReplicator = translogReplicator.get();
-        var localSplitTargetService = splitTargetService.get();
-        var localSplitSourceService = splitSourceService.get();
-        var snapshotsCommitService = snapshotsCommitServiceRef.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
+            final var statelessCommitService = commitService.get();
+            final var localTranslogReplicator = translogReplicator.get();
+            final var snapshotsCommitService = snapshotsCommitServiceRef.get();
+
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             indexModule.addIndexEventListener(new IndexEventListener() {
@@ -1564,9 +1568,26 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
+            indexModule.addIndexEventListener(
+                new StatelessIndexNodeRecoveryListener(
+                    threadPool.get(),
+                    statelessCommitService,
+                    objectStoreService.get(),
+                    localTranslogReplicator,
+                    sharedBlobCacheWarmingService.get(),
+                    hollowShardsService.get(),
+                    splitTargetService.get(),
+                    splitSourceService.get(),
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    getStatelessSharedBlobCacheService(),
+                    snapshotsCommitService,
+                    recoveryMetricsCollector.get()
+                )
+            );
         }
         if (hasSearchRole) {
-            final var commitService = this.commitService.get();
+            final var nodeShutdownFlagHolder = this.nodeShutdownFlagHolder.get();
             final var collector = searchShardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1580,7 +1601,7 @@ public class StatelessPlugin extends Plugin
                     if (reason == IndexRemovalReason.DELETED) {
                         // Evict cache regions of shards of the deleted index
                         final var cacheService = sharedBlobCacheService.get();
-                        if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                        if (cacheService.isCacheBoostPreferenceEnabled() && nodeShutdownFlagHolder.isNodeShuttingDown() == false) {
                             cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
                         }
                     }
@@ -1592,14 +1613,14 @@ public class StatelessPlugin extends Plugin
 
                     // Demote cache regions of the closed shard, so they can be more easily evicted
                     final var cacheService = sharedBlobCacheService.get();
-                    if (cacheService.isDemoteClosedShardRegionsEnabled() && commitService.isNodeShuttingDown() == false) {
+                    if (cacheService.isDemoteClosedShardRegionsEnabled() && nodeShutdownFlagHolder.isNodeShuttingDown() == false) {
                         final var hasShard = indicesService.get().hasShardPredicate();
                         // Index deletion also ultimately closes the store, but there is no point demoting regions of an index
                         // that no longer exists: beforeIndexRemoved above enqueues them for eviction when that is enabled, and
                         // otherwise they are left to the regular LFU. We check index existence in the predicate because
                         // onStoreClosed can run on the cluster state applier thread, where querying the ClusterService#state()
                         // is not allowed.
-                        final Predicate<ShardId> shouldDemote = id -> commitService.isNodeShuttingDown() == false
+                        final Predicate<ShardId> shouldDemote = id -> nodeShutdownFlagHolder.isNodeShuttingDown() == false
                             && clusterService.get().state().metadata().lookupProject(id.getIndex()).isPresent()
                             && hasShard.test(id) == false;
                         cacheService.demoteAllAsync(shardId, shouldDemote);
@@ -1623,27 +1644,18 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
+            indexModule.addIndexEventListener(
+                new StatelessSearchNodeRecoveryListener(
+                    objectStoreService.get(),
+                    recoveryCommitRegistrationHandler.get(),
+                    sharedBlobCacheWarmingService.get(),
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    clusterService.get().getClusterSettings(),
+                    clusterService.get()
+                )
+            );
         }
-        indexModule.addIndexEventListener(
-            new StatelessIndexEventListener(
-                threadPool.get(),
-                statelessCommitService,
-                objectStoreService.get(),
-                localTranslogReplicator,
-                recoveryCommitRegistrationHandler.get(),
-                sharedBlobCacheWarmingService.get(),
-                hollowShardsService.get(),
-                splitTargetService.get(),
-                splitSourceService.get(),
-                projectResolver.get(),
-                bccHeaderReadExecutor.get(),
-                clusterService.get().getClusterSettings(),
-                getStatelessSharedBlobCacheService(),
-                snapshotsCommitService,
-                clusterService.get(),
-                recoveryMetricsCollector.get()
-            )
-        );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }
 

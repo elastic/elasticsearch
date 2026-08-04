@@ -382,7 +382,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(0));
         } else {
             // One from IndexShardCacheWarmer, one for the region 0 pre-warming
-            // and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
+            // and the other from StatelessIndexNodeRecoveryListener (which we may need to wait for it to appear)
             assertBusy(() -> assertThat(measurements.size(), equalTo(3)));
             long totalBytesWarmed = 0;
             for (final Measurement metric : measurements) {

@@ -355,9 +355,15 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testPrivateCustomsAreExcluded() throws Exception {
-        // ensure that the custom is injected into the cluster state
-        assertBusy(() -> assertTrue(clusterService().state().customs().containsKey("test")));
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setCustoms(true).get();
+        // Wait on the same node that will serve the local TransportClusterStateAction request, so we
+        // exercise filtering only after that node has applied the private custom.
+        final String node = randomFrom(internalCluster().getNodeNames());
+        awaitClusterState(node, state -> state.customs().containsKey("test"));
+        ClusterStateResponse clusterStateResponse = client(node).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setCustoms(true)
+            .get();
         assertFalse(clusterStateResponse.getState().customs().containsKey("test"));
     }
 

@@ -116,61 +116,71 @@ public class NodeTranslogBuffer implements Releasable {
             boolean dataToSync = false;
             var metadata = new HashMap<ShardId, TranslogMetadata>();
             var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
-            var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
-            var headerStream = new ReleasableBytesStreamOutput(bigArrays);
+            ReleasableBytesStreamOutput compoundTranslogStream = null;
+            ReleasableBytesStreamOutput headerStream = null;
+            boolean success = false;
+            try {
+                compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
+                headerStream = new ReleasableBytesStreamOutput(bigArrays);
+                for (var state : activeShards) {
+                    ShardId shardId = state.getShardId();
 
-            for (var state : activeShards) {
-                ShardId shardId = state.getShardId();
+                    long position = compoundTranslogStream.position();
+                    ShardBuffer buffer = buffers.get(state);
+                    TranslogMetadata.Directory directory = state.createDirectory(generation, buffer == null ? 0 : buffer.totalOps());
 
-                long position = compoundTranslogStream.position();
-                ShardBuffer buffer = buffers.get(state);
-                TranslogMetadata.Directory directory = state.createDirectory(generation, buffer == null ? 0 : buffer.totalOps());
-
-                // If the ShardSyncState is closed ignore. If shard has been closed, then there is a potentially a race with creating an
-                // accurate directory. The safest approach is to not include this shard in the translog metadata.
-                if (state.isClosed() == false) {
-                    if (buffer != null) {
-                        dataToSync = true;
-                        buffer.buffer().bytes().writeTo(compoundTranslogStream);
-                        metadata.put(shardId, metadata(buffer, position, compoundTranslogStream.position() - position, directory));
-                        syncedLocations.put(shardId, buffer.syncMarker());
-                    } else {
-                        metadata.put(shardId, metadata(null, position, compoundTranslogStream.position() - position, directory));
+                    // If the ShardSyncState is closed ignore. If shard has been closed, then there is a potentially a race with creating
+                    // an accurate directory. The safest approach is to not include this shard in the translog metadata.
+                    if (state.isClosed() == false) {
+                        if (buffer != null) {
+                            dataToSync = true;
+                            buffer.buffer().bytes().writeTo(compoundTranslogStream);
+                            metadata.put(shardId, metadata(buffer, position, compoundTranslogStream.position() - position, directory));
+                            syncedLocations.put(shardId, buffer.syncMarker());
+                        } else {
+                            metadata.put(shardId, metadata(null, position, compoundTranslogStream.position() - position, directory));
+                        }
                     }
                 }
+
+                // It is possible that there were operations in the buffer which are no longer associated with active shards.
+                // If there is no data to sync related to active shards, do not produce a translog to sync
+                if (dataToSync == false) {
+                    return null;
+                }
+
+                // Write the header to the stream
+                new CompoundTranslogHeader(metadata).writeToStore(headerStream);
+
+                final ReleasableBytesStreamOutput headerToClose = headerStream;
+                final ReleasableBytesStreamOutput compoundTranslogToClose = compoundTranslogStream;
+                TranslogReplicator.CompoundTranslogBytes compoundTranslogBytes = new TranslogReplicator.CompoundTranslogBytes(
+                    CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
+                    () -> Releasables.close(headerToClose, compoundTranslogToClose)
+                );
+
+                // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry
+                // for a specified ShardId. Storing them has a memory cost that is non-negligible in some scenarios.
+                // We also use toUnmodifiableMap as it has a lower memory usage than HashMap.
+                Map<ShardId, Long> totalOps = metadata.entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().operations().totalOps() > 0)
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().operations().totalOps()));
+
+                TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
+                    Strings.format("%019d", generation),
+                    generation,
+                    totalOps,
+                    syncedLocations
+                );
+
+                success = true;
+                return new TranslogReplicator.CompoundTranslog(compoundMetadata, compoundTranslogBytes);
+            } finally {
+                if (success == false) {
+                    Releasables.close(headerStream, compoundTranslogStream);
+                } // else compoundTranslogBytes is responsible for closing the streams
             }
-
-            // It is possible that there were operations in the buffer which are no longer associated with active shards.
-            // If there is no data to sync related to active shards, do not produce a translog to sync
-            if (dataToSync == false) {
-                Releasables.close(headerStream, compoundTranslogStream);
-                return null;
-            }
-
-            // Write the header to the stream
-            new CompoundTranslogHeader(metadata).writeToStore(headerStream);
-
-            TranslogReplicator.CompoundTranslogBytes compoundTranslogBytes = new TranslogReplicator.CompoundTranslogBytes(
-                CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
-                () -> Releasables.close(headerStream, compoundTranslogStream)
-            );
-
-            // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry
-            // for a specified ShardId. Storing them has a memory cost that is non-negligible in some scenarios.
-            // We also use toUnmodifiableMap as it has a lower memory usage than HashMap.
-            Map<ShardId, Long> totalOps = metadata.entrySet()
-                .stream()
-                .filter(e -> e.getValue().operations().totalOps() > 0)
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().operations().totalOps()));
-
-            TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
-                Strings.format("%019d", generation),
-                generation,
-                totalOps,
-                syncedLocations
-            );
-
-            return new TranslogReplicator.CompoundTranslog(compoundMetadata, compoundTranslogBytes);
         } finally {
             buffers.clear();
         }

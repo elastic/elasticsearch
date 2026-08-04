@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -140,6 +147,45 @@ public class NodeTranslogBufferTests extends ESTestCase {
         assertThat(translog.metadata().totalOps().size(), equalTo(1));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
+    }
+
+    /**
+     * Tests that the compoundTranslogStream and headerStream are closed on exception
+     */
+    public void testStreamsAreReleasedWhenCompleteThrows() throws IOException {
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+
+        ShardSyncState shardSyncState = mock(ShardSyncState.class);
+        when(shardSyncState.getShardId()).thenReturn(new ShardId("test", "_na_", 0));
+        // Fail partway through complete(), after the compound and header streams have already been allocated.
+        when(shardSyncState.createDirectory(1, 1)).thenThrow(new RuntimeException("simulated failure while building directory"));
+
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(bigArrays, 1000);
+        assertTrue(translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[40]), 1, new Translog.Location(0, 0, 50)));
+
+        var e = expectThrows(RuntimeException.class, () -> translogBuffer.complete(1, Set.of(shardSyncState)));
+        assertThat(e.getMessage(), equalTo("simulated failure while building directory"));
+
+        assertThat("streams allocated in complete() must be released when it throws", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testStreamsAreReleasedWhenThereIsNoDataToSync() throws IOException {
+        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+
+        // The shard has buffered data but is not part of the active shards passed to complete(), so dataToSync stays false.
+        ShardSyncState inactiveShard = mock(ShardSyncState.class);
+        when(inactiveShard.getShardId()).thenReturn(new ShardId("inactive", "_na_", 0));
+
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(bigArrays, 1000);
+        assertTrue(translogBuffer.writeToBuffer(inactiveShard, serialized(new byte[40]), 1, new Translog.Location(0, 0, 50)));
+
+        assertNull(translogBuffer.complete(0, Collections.emptySet()));
+
+        assertThat("streams allocated in complete() must be released on the no-data path", breaker.getUsed(), equalTo(0L));
     }
 
     private Translog.Serialized serialized(byte[] source) {

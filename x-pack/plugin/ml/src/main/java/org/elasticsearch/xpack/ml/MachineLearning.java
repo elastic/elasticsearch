@@ -922,6 +922,7 @@ public class MachineLearning extends Plugin
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
             MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
+            MachineLearningField.SANDBOX_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,

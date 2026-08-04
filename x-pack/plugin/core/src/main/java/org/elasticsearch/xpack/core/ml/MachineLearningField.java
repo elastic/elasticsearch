@@ -82,6 +82,23 @@ public final class MachineLearningField {
         Setting.Property.NodeScope
     );
 
+    /**
+     * When set to {@code false}, the ML controller launches the
+     * {@code pytorch_inference} process without the Sandbox2 security sandbox,
+     * falling back to the legacy in-process seccomp system call filter. This is
+     * an operational escape hatch for environments where the sandbox cannot
+     * start (for example, unprivileged user namespaces disabled, or a
+     * non-writable {@code /tmp}). Disabling the sandbox reduces process and
+     * filesystem isolation for untrusted models and should only be used when
+     * sandboxing is operationally impossible.
+     */
+    public static final Setting<Boolean> SANDBOX_ENABLED = Setting.boolSetting(
+        "xpack.ml.trained_models.sandbox_enabled",
+        true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
     public static final String ML_FEATURE_FAMILY = "machine-learning";
     public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(

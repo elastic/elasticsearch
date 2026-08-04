@@ -129,6 +129,15 @@ $$$xpack.ml.trained_models.graph_validation_enabled$$$
     Skipping graph validation reduces assurance that a deployed model only performs expected operations. Only disable validation when you understand the trade-offs.
     ::::
 
+$$$xpack.ml.trained_models.sandbox_enabled$$$
+
+`xpack.ml.trained_models.sandbox_enabled` {applies_to}`stack: ga 9.6`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether the `pytorch_inference` native process for trained model deployments runs inside the Sandbox2 security sandbox. When `true` (the default), the process is launched inside the sandbox, which enforces system call and filesystem isolation before the model runs. When `false`, the sandbox is bypassed and the process falls back to the in-process system call filter. Use `false` only as an operational escape hatch—for example, on hosts where unprivileged user namespaces are disabled and the sandbox cannot start. Sandbox2 and this escape hatch apply on Linux only; on other platforms the setting has no effect. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
+
+    ::::{warning}
+    Bypassing the sandbox reduces process and filesystem isolation for untrusted models. Only disable the sandbox when sandboxing is operationally impossible and you understand the trade-offs.
+    ::::
+
 $$$xpack.ml.model_repository$$$
 
 `xpack.ml.model_repository`

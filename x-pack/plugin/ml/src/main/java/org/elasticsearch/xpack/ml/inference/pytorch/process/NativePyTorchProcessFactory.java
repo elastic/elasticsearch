@@ -40,6 +40,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     private final String nodeName;
     private volatile Duration processConnectTimeout;
     private volatile boolean modelGraphValidationEnabled;
+    private volatile boolean sandboxEnabled;
 
     public NativePyTorchProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
@@ -51,6 +52,8 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED, this::setModelGraphValidationEnabled);
+        this.sandboxEnabled = MachineLearningField.SANDBOX_ENABLED.get(env.settings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearningField.SANDBOX_ENABLED, this::setSandboxEnabled);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -59,6 +62,10 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
 
     void setModelGraphValidationEnabled(boolean modelGraphValidationEnabled) {
         this.modelGraphValidationEnabled = modelGraphValidationEnabled;
+    }
+
+    void setSandboxEnabled(boolean sandboxEnabled) {
+        this.sandboxEnabled = sandboxEnabled;
     }
 
     @Override
@@ -110,7 +117,13 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams(), modelGraphValidationEnabled);
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            task.getParams(),
+            modelGraphValidationEnabled,
+            sandboxEnabled
+        );
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

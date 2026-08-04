@@ -906,7 +906,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                    cleanup();
+                    cleanupForUploadTaskListener(virtualBcc, blobReference);
                     return;
                 }
                 // Copies to split targets and search-node notification are dispatched after markBccUploaded
@@ -927,7 +927,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         copyPermit = objectStoreService.acquireCopyPermit();
                     } catch (Exception e) {
                         // Service is already shutting down; treat the same as a closed shard.
-                        cleanup();
+                        cleanupForUploadTaskListener(virtualBcc, blobReference);
                         return;
                     }
                     // Serialise copies via a per-shard single-slot runner so that
@@ -943,7 +943,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                         break;
                                     } catch (Exception e) {
                                         if (commitState.isClosed()) {
-                                            cleanup();
+                                            cleanupForUploadTaskListener(virtualBcc, blobReference);
                                             return;
                                         }
                                         final long delayMs = retryDelayMs;
@@ -966,7 +966,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                     }
                                 }
                                 if (commitState.isClosed()) {
-                                    cleanup();
+                                    cleanupForUploadTaskListener(virtualBcc, blobReference);
                                     return;
                                 }
                             }
@@ -998,7 +998,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         e
                     );
                 } finally {
-                    cleanup();
+                    cleanupForUploadTaskListener(virtualBcc, blobReference);
                 }
             }
 
@@ -1032,7 +1032,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         e
                     );
                 }
-                cleanup();
+                cleanupForUploadTaskListener(virtualBcc, blobReference);
             }
 
             private boolean assertClosedOrRejectionFailure(final Exception e) {
@@ -1044,12 +1044,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     || e instanceof ShardNotFoundException : closed + " vs " + e;
                 return true;
             }
-
-            private void cleanup() {
-                IOUtils.closeWhileHandlingException(virtualBcc);
-                blobReference.decRef();
-            }
         };
+    }
+
+    // Package private for testing purpose
+    void cleanupForUploadTaskListener(VirtualBatchedCompoundCommit virtualBcc, ShardCommitState.BlobReference blobReference) {
+        IOUtils.closeWhileHandlingException(virtualBcc);
+        blobReference.decRef();
     }
 
     private void maybeLogSlowBccUpload(VirtualBatchedCompoundCommit virtualBcc, BccUploadResult uploadResult) {

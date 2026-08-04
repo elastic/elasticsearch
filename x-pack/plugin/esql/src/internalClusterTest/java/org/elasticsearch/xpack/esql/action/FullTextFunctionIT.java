@@ -17,7 +17,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class FullTextFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchPhraseOrUnmappedFieldIsNullWithLoadAcrossRemoteDataNodes() {

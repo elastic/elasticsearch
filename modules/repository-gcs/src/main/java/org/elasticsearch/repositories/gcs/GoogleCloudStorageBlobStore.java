@@ -654,6 +654,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         boolean failIfAlreadyExists,
         Executor executor
     ) throws IOException {
+        if (blobSize <= getLargeBlobThresholdInBytes()) {
+            try (var stream = provider.apply(0L, blobSize)) {
+                writeBlob(purpose, blobName, stream, blobSize, failIfAlreadyExists);
+            }
+            return;
+        }
         // GCS XML API does not support preconditions on the complete-multipart-upload request
         if (failIfAlreadyExists && blobExists(purpose, blobName)) {
             throw new FileAlreadyExistsException(blobName);

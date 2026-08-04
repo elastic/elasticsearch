@@ -135,9 +135,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                     false,
                     balance::addAndGet
                 );
-                deferringCollector.setDeferredCollector(
-                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
-                );
+                deferringCollector.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
                 deferringCollector.preCollection();
                 indexSearcher.search(query, new Collector() {
                     @Override
@@ -199,9 +197,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                     false,
                     balance::addAndGet
                 );
-                deferringCollector.setDeferredCollector(
-                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
-                );
+                deferringCollector.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
                 deferringCollector.preCollection();
                 indexSearcher.search(query, new Collector() {
                     @Override
@@ -255,19 +251,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader);
                 Query query = Queries.ALL_DOCS_INSTANCE;
 
-                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
-                    query,
-                    indexSearcher,
-                    false,
-                    bytes -> {
-                        if (bytes > 0) {
-                            throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
-                        }
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false, bytes -> {
+                    if (bytes > 0) {
+                        throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
                     }
-                );
-                deferringCollector.setDeferredCollector(
-                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
-                );
+                });
+                deferringCollector.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
                 deferringCollector.preCollection();
                 indexSearcher.search(query, new Collector() {
                     @Override
@@ -277,9 +266,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
                     @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        return deferringCollector.getLeafCollector(
-                            new AggregationExecutionContext(context, null, null, null)
-                        );
+                        return deferringCollector.getLeafCollector(new AggregationExecutionContext(context, null, null, null));
                     }
                 });
                 expectThrows(CircuitBreakingException.class, deferringCollector::postCollection);

@@ -27,6 +27,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -43,9 +45,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -101,6 +106,185 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
         indexReader.close();
         directory.close();
+    }
+
+    /**
+     * Verifies that bytes are charged to the circuit breaker after collection and fully returned
+     * to zero after {@link BestBucketsDeferringCollector#prepareSelectedBuckets}.
+     */
+    public void testCircuitBreakerBytesChargedAndReturnedAfterReplay() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 5; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+                indexWriter.commit();
+                for (int i = 0; i < 5; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader);
+                Query query = Queries.ALL_DOCS_INSTANCE;
+
+                AtomicLong balance = new AtomicLong();
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
+                    query,
+                    indexSearcher,
+                    false,
+                    balance::addAndGet
+                );
+                deferringCollector.setDeferredCollector(
+                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
+                );
+                deferringCollector.preCollection();
+                indexSearcher.search(query, new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(
+                            new AggregationExecutionContext(context, null, null, null)
+                        );
+                        return new LeafBucketCollector() {
+                            @Override
+                            public void collect(int doc, long bucket) throws IOException {
+                                delegate.collect(doc, doc);
+                            }
+                        };
+                    }
+                });
+                deferringCollector.postCollection();
+
+                assertThat("bytes must be charged to the breaker after collection", balance.get(), greaterThan(0L));
+
+                deferringCollector.prepareSelectedBuckets(toLongArray(0));
+
+                assertThat("all breaker bytes must be returned after replay", balance.get(), equalTo(0L));
+            }
+        }
+    }
+
+    /**
+     * Verifies that {@link BestBucketsDeferringCollector#rewriteBuckets} returns the old entries'
+     * bytes and recharges for the rebuilt entries, and that the balance reaches zero after
+     * {@link BestBucketsDeferringCollector#prepareSelectedBuckets}.
+     */
+    public void testCircuitBreakerBytesAdjustedByRewriteBuckets() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 5; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+                indexWriter.commit();
+                for (int i = 0; i < 5; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader);
+                Query query = Queries.ALL_DOCS_INSTANCE;
+
+                AtomicLong balance = new AtomicLong();
+                AtomicLong balanceAfterRewrite = new AtomicLong(-1);
+                AtomicInteger segmentsSeen = new AtomicInteger();
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
+                    query,
+                    indexSearcher,
+                    false,
+                    balance::addAndGet
+                );
+                deferringCollector.setDeferredCollector(
+                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
+                );
+                deferringCollector.preCollection();
+                indexSearcher.search(query, new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        // getLeafCollector triggers finishLeaf() for the previous segment, so by the
+                        // time we reach the second segment the first segment's bytes are committed.
+                        LeafBucketCollector delegate = deferringCollector.getLeafCollector(
+                            new AggregationExecutionContext(context, null, null, null)
+                        );
+                        if (segmentsSeen.incrementAndGet() == 2) {
+                            deferringCollector.rewriteBuckets(oldBucket -> 0);
+                            balanceAfterRewrite.set(balance.get());
+                        }
+                        return new LeafBucketCollector() {
+                            @Override
+                            public void collect(int doc, long bucket) throws IOException {
+                                delegate.collect(doc, doc);
+                            }
+                        };
+                    }
+                });
+                deferringCollector.postCollection();
+
+                assertThat("balance must be non-negative after rewriteBuckets", balanceAfterRewrite.get(), greaterThan(-1L));
+                assertThat("bytes must be charged after collection", balance.get(), greaterThan(0L));
+
+                deferringCollector.prepareSelectedBuckets(toLongArray(0));
+
+                assertThat("all breaker bytes must be returned after replay", balance.get(), equalTo(0L));
+            }
+        }
+    }
+
+    /**
+     * Verifies that a circuit breaker trip during {@code postCollection} propagates correctly.
+     */
+    public void testCircuitBreakerTripDuringFinishLeaf() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 10; i++) {
+                    indexWriter.addDocument(new Document());
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader);
+                Query query = Queries.ALL_DOCS_INSTANCE;
+
+                BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
+                    query,
+                    indexSearcher,
+                    false,
+                    bytes -> {
+                        if (bytes > 0) {
+                            throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
+                        }
+                    }
+                );
+                deferringCollector.setDeferredCollector(
+                    Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR)
+                );
+                deferringCollector.preCollection();
+                indexSearcher.search(query, new Collector() {
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+
+                    @Override
+                    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                        return deferringCollector.getLeafCollector(
+                            new AggregationExecutionContext(context, null, null, null)
+                        );
+                    }
+                });
+                expectThrows(CircuitBreakingException.class, deferringCollector::postCollection);
+            }
+        }
     }
 
     private BucketCollector bla(Set<Integer> docIds) {

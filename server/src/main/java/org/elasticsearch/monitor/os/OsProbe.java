@@ -180,16 +180,15 @@ public class OsProbe {
      * {@link #getTotalPhysicalMemorySize()} when meminfo is unavailable.
      */
     public long getTotalPhysicalMemorySizeFromMeminfo() {
-        if (Constants.LINUX == false) {
-            return getTotalPhysicalMemorySize();
-        }
-        try {
-            long total = getTotalMemFromProcMeminfo();
-            if (total > 0) {
-                return total;
+        if (Constants.LINUX) {
+            try {
+                long total = getTotalMemFromProcMeminfo();
+                if (total > 0) {
+                    return total;
+                }
+            } catch (Exception e) {
+                logger.warn("exception retrieving total physical memory from meminfo", e);
             }
-        } catch (Exception e) {
-            logger.warn("exception retrieving total physical memory from meminfo", e);
         }
         return getTotalPhysicalMemorySize();
     }

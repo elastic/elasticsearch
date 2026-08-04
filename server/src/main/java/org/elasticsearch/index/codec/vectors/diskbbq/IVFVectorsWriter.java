@@ -532,17 +532,26 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
      * @return a {@link CentroidAssignments} instance with one centroid and
      *         all vectors assigned to it
      */
-    protected final CentroidInformation<float[]> buildFlatCentroidAssignments(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues)
+    protected final CentroidInformation<?> buildFlatCentroidAssignments(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues)
         throws IOException {
         int dimension = fieldInfo.getVectorDimension();
         int count = vectorValues.size();
-        float[] centroid = new float[dimension];
-        accumulateVectors(fieldInfo.getVectorEncoding(), vectorValues, centroid);
+        float[] floatCentroid = new float[dimension];
+        accumulateVectors(fieldInfo.getVectorEncoding(), vectorValues, floatCentroid);
         for (int d = 0; d < dimension; d++) {
-            centroid[d] /= count;
+            floatCentroid[d] /= count;
+        }
+        // For byte fields with native byte support, produce byte centroids so that the
+        // on-disk format stores them as bytes and merge can reuse them without type mismatch.
+        if (supportsByteNative() && fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {
+            byte[] byteCentroid = new byte[dimension];
+            for (int d = 0; d < dimension; d++) {
+                byteCentroid[d] = (byte) Math.clamp(Math.round(floatCentroid[d]), -128, 127);
+            }
+            return CentroidInformation.ofBytes(dimension, new byte[][] { byteCentroid }, new int[count], OverspillAssignments.NONE);
         }
         // For flat centroid assignments there is a single global centroid and no secondary centroid assignments
-        return CentroidInformation.ofFloat(dimension, new float[][] { centroid }, new int[count], OverspillAssignments.NONE);
+        return CentroidInformation.ofFloat(dimension, new float[][] { floatCentroid }, new int[count], OverspillAssignments.NONE);
     }
 
     /**

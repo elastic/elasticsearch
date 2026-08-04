@@ -410,8 +410,17 @@ toc:
           - file: esql/esql-cross-serverless-projects.md
           - file: esql/esql-subquery.md
           - file: esql/esql-views.md
-      - hidden: esql/esql-data-federation.md
-      - hidden: esql/esql-data-federation-sources.md
+      - file: esql/esql-data-federation.md
+        children:
+          - file: esql/esql-data-federation-quickstart.md
+          - file: esql/esql-data-federation-sources.md
+            children:
+              - file: esql/esql-data-federation-federated-identity.md
+              - file: esql/esql-data-federation-static-credentials.md
+          - file: esql/esql-data-federation-datasets.md
+          - file: esql/esql-data-federation-querying.md
+          - file: esql/esql-data-federation-security.md
+          - file: esql/esql-data-federation-cluster-settings.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

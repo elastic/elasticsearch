@@ -314,8 +314,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
-                            shardCacheRequirements = cacheSizesAndCommitmentStats.shardCacheRequirements();
-                            nodeCacheSizeAndCommitments = cacheSizesAndCommitmentStats.nodeCacheSizeAndCommitments();
+                            final CacheSizesAndCommitmentStats adjusted = adjustCacheSizesAndCommitmentStats(cacheSizesAndCommitmentStats);
+                            shardCacheRequirements = adjusted.shardCacheRequirements();
+                            nodeCacheSizeAndCommitments = adjusted.nodeCacheSizeAndCommitments();
                         }
 
                         @Override
@@ -673,6 +674,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     ShardStats[] adjustShardStats(ShardStats[] shardStats) {
         return shardStats;
+    }
+
+    // allow tests to adjust the cache sizes and commitment stats on receipt
+    CacheSizesAndCommitmentStats adjustCacheSizesAndCommitmentStats(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+        return cacheSizesAndCommitmentStats;
     }
 
     void refreshAsync(ActionListener<ClusterInfo> future) {

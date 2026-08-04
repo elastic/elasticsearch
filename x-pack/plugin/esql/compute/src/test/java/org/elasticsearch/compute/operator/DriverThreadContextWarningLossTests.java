@@ -236,7 +236,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         @Override
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), TEST_SOURCE_LOCATION);
+                Warnings warnings = driverContext.createOnlyWarnings(TEST_SOURCE_LOCATION);
                 warnings.registerWarning(warningMessage);
             }
             return page;
@@ -297,7 +297,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         protected Page process(Page page) {
             Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
             if (warning != null && warning.warned().compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
+                Warnings warnings = driverContext.createOnlyWarnings(WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
                 warnings.registerWarning(warning.message());
             }
             return page;

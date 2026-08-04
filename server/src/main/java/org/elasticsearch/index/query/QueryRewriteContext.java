@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -632,15 +631,14 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return false;
         }
-        String fieldName = resolveSliceAlias(name);
-        if (mappingLookup.getFullNameToFieldType().containsKey(fieldName) || runtimeMappings.containsKey(fieldName)) {
+        if (mappingLookup.getFullNameToFieldType().containsKey(name) || runtimeMappings.containsKey(name)) {
             return true;
         }
-        int dotIndex = fieldName.indexOf('.');
+        int dotIndex = name.indexOf('.');
         if (dotIndex > 0) {
-            return mappingLookup.getMapper(fieldName.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+            return mappingLookup.getMapper(name.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
                 && metaMapper.fieldType() instanceof DynamicFieldType dft
-                && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
+                && dft.getChildFieldType(name.substring(dotIndex + 1)) != null;
         }
         return false;
     }

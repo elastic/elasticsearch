@@ -1,0 +1,5 @@
+pr: 155804
+summary: Log ES|QL lookup-join missing-index failures at `WARN` instead of `ERROR`
+area: ES|QL
+type: bug
+issues: []

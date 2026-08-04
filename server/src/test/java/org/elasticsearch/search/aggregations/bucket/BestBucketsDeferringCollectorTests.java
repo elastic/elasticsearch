@@ -46,11 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -109,10 +109,18 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     /**
-     * Verifies that bytes are charged to the circuit breaker after collection and fully returned
-     * to zero after {@link BestBucketsDeferringCollector#prepareSelectedBuckets}.
+     * Verifies the exact sequence of circuit-breaker events across the full lifecycle.
+     * <p>
+     * With two segments (5 docs each) the expected event list is:
+     * <pre>
+     *   +chargeA  — finishLeaf for segment 1 (triggered when segment 2 starts)
+     *   +chargeB  — finishLeaf for segment 2 (postCollection)
+     *   -chargeA  — prepareSelectedBuckets frees segment 1 entry
+     *   -chargeB  — prepareSelectedBuckets frees segment 2 entry
+     * </pre>
+     * Each return must equal the exact charge for that entry, and the total must be zero.
      */
-    public void testCircuitBreakerBytesChargedAndReturnedAfterReplay() throws IOException {
+    public void testCircuitBreakerChargesOneEventPerSegmentAndReleasesSymmetrically() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 5; i++) {
@@ -128,12 +136,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader);
                 Query query = Queries.ALL_DOCS_INSTANCE;
 
-                AtomicLong balance = new AtomicLong();
+                List<Long> events = new ArrayList<>();
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
                     query,
                     indexSearcher,
                     false,
-                    balance::addAndGet
+                    events::add
                 );
                 deferringCollector.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
                 deferringCollector.preCollection();
@@ -158,21 +166,38 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 });
                 deferringCollector.postCollection();
 
-                assertThat("bytes must be charged to the breaker after collection", balance.get(), greaterThan(0L));
+                // exactly one positive charge per segment
+                assertThat(events.size(), equalTo(2));
+                assertThat("segment 1 charge must be positive", events.get(0), greaterThan(0L));
+                assertThat("segment 2 charge must be positive", events.get(1), greaterThan(0L));
 
                 deferringCollector.prepareSelectedBuckets(toLongArray(0));
 
-                assertThat("all breaker bytes must be returned after replay", balance.get(), equalTo(0L));
+                // each entry's return must exactly match its charge
+                assertThat(events.size(), equalTo(4));
+                assertThat("segment 1 return must equal its charge", events.get(2), equalTo(-events.get(0)));
+                assertThat("segment 2 return must equal its charge", events.get(3), equalTo(-events.get(1)));
+                assertThat("net balance must be zero", events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
             }
         }
     }
 
     /**
-     * Verifies that {@link BestBucketsDeferringCollector#rewriteBuckets} returns the old entries'
-     * bytes and recharges for the rebuilt entries, and that the balance reaches zero after
-     * {@link BestBucketsDeferringCollector#prepareSelectedBuckets}.
+     * Verifies the exact circuit-breaker event sequence when {@link BestBucketsDeferringCollector#rewriteBuckets}
+     * is called between segments.
+     * <p>
+     * Expected event list:
+     * <pre>
+     *   +chargeA     — finishLeaf for segment 1 (triggered when segment 2 starts)
+     *   -chargeA     — rewriteBuckets loop 1: return old entry bytes
+     *   +chargeA'    — rewriteBuckets loop 2: charge rebuilt entry (all-zero buckets
+     *                  compress better, so chargeA' &lt; chargeA)
+     *   +chargeB     — finishLeaf for segment 2 (postCollection)
+     *   -chargeA'    — prepareSelectedBuckets frees segment 1 (rebuilt) entry
+     *   -chargeB     — prepareSelectedBuckets frees segment 2 entry
+     * </pre>
      */
-    public void testCircuitBreakerBytesAdjustedByRewriteBuckets() throws IOException {
+    public void testCircuitBreakerRewriteBucketsProducesSymmetricEvents() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 5; i++) {
@@ -188,14 +213,13 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader);
                 Query query = Queries.ALL_DOCS_INSTANCE;
 
-                AtomicLong balance = new AtomicLong();
-                AtomicLong balanceAfterRewrite = new AtomicLong(-1);
+                List<Long> events = new ArrayList<>();
                 AtomicInteger segmentsSeen = new AtomicInteger();
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(
                     query,
                     indexSearcher,
                     false,
-                    balance::addAndGet
+                    events::add
                 );
                 deferringCollector.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
                 deferringCollector.preCollection();
@@ -207,14 +231,15 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
                     @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        // getLeafCollector triggers finishLeaf() for the previous segment, so by the
-                        // time we reach the second segment the first segment's bytes are committed.
+                        // finishLeaf() for the previous segment runs inside getLeafCollector,
+                        // so segment 1 is committed before rewriteBuckets is called.
                         LeafBucketCollector delegate = deferringCollector.getLeafCollector(
                             new AggregationExecutionContext(context, null, null, null)
                         );
                         if (segmentsSeen.incrementAndGet() == 2) {
+                            // merge all distinct ordinals (0-4) into bucket 0 — the
+                            // rebuilt buckets array is all-zero and compresses smaller
                             deferringCollector.rewriteBuckets(oldBucket -> 0);
-                            balanceAfterRewrite.set(balance.get());
                         }
                         return new LeafBucketCollector() {
                             @Override
@@ -226,12 +251,26 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 });
                 deferringCollector.postCollection();
 
-                assertThat("balance must be non-negative after rewriteBuckets", balanceAfterRewrite.get(), greaterThan(-1L));
-                assertThat("bytes must be charged after collection", balance.get(), greaterThan(0L));
+                // [+chargeA, -chargeA, +chargeA', +chargeB]
+                assertThat(events.size(), equalTo(4));
+                long chargeA = events.get(0);
+                long returnA = events.get(1);
+                long chargeAPrime = events.get(2);
+                long chargeB = events.get(3);
+
+                assertThat("segment 1 initial charge must be positive", chargeA, greaterThan(0L));
+                assertThat("rewriteBuckets must return the exact original bytes", returnA, equalTo(-chargeA));
+                assertThat("rebuilt entry charge must be positive", chargeAPrime, greaterThan(0L));
+                assertThat("all-zero buckets must compress smaller than distinct ordinals", chargeAPrime, lessThan(chargeA));
+                assertThat("segment 2 charge must be positive", chargeB, greaterThan(0L));
 
                 deferringCollector.prepareSelectedBuckets(toLongArray(0));
 
-                assertThat("all breaker bytes must be returned after replay", balance.get(), equalTo(0L));
+                // [+chargeA, -chargeA, +chargeA', +chargeB, -chargeA', -chargeB]
+                assertThat(events.size(), equalTo(6));
+                assertThat("rebuilt entry return must match its charge", events.get(4), equalTo(-chargeAPrime));
+                assertThat("segment 2 return must match its charge", events.get(5), equalTo(-chargeB));
+                assertThat("net balance must be zero", events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
             }
         }
     }

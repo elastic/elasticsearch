@@ -680,6 +680,74 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the external-sort endianness bug in {@link SortedSlotAccumulator}:
+     * when accumulated slot records exceed {@code maxBufferBytes}, they are spilled to temp
+     * run files using Lucene's {@link org.apache.lucene.store.IndexOutput#writeBytes}, then
+     * read back with {@link org.apache.lucene.store.IndexInput#readInt}. The record headers
+     * must be little-endian (matching Lucene's convention) to survive the round-trip.
+     *
+     * <p>This test forces the spill path by using a tiny {@code maxBufferedBytes} (1024),
+     * then verifies that every document's values round-trip correctly through the columnar
+     * format. Without the fix, this fails with {@code ArrayIndexOutOfBoundsException} during
+     * the flush (the same crash observed in production with shard sizes of ~860 MiB).
+     */
+    public void testExternalSortSpillRoundTrip() throws IOException {
+        // Tiny maxBufferedBytes forces the accumulator to spill to run files.
+        final FlattenedDocValuesFormat fmt = new FlattenedDocValuesFormat(
+            FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+            FlattenedDocValuesFormat.MAX_DOCS_PER_BLOCK_DEFAULT,
+            FlattenedDocValuesFormat.MIN_COMPRESS_BYTES_DEFAULT,
+            /* maxBufferedBytes */ 1024
+        );
+        final int numDocs = 200;
+        final int numKeys = 8;
+
+        // Build reference: docIndex → key → value.
+        final List<Map<String, String>> reference = new ArrayList<>();
+        final List<byte[]> blobs = new ArrayList<>();
+        for (int d = 0; d < numDocs; d++) {
+            final Map<String, String> expected = new TreeMap<>();
+            final byte[] blob = generateBlobForKeys(d, 0, numKeys);
+            blobs.add(blob);
+            for (int ki = 0; ki < numKeys; ki++) {
+                expected.put(String.format(java.util.Locale.ROOT, "key%04d", ki), "val-" + d + "-" + ki);
+            }
+            reference.add(expected);
+        }
+
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(fmt));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                for (byte[] blob : blobs) {
+                    writer.addDocument(docWithBlob(blob));
+                }
+                writer.forceMerge(1);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext ctx = reader.leaves().get(0);
+                final LeafReader leaf = ctx.reader();
+                final BinaryDocValues dv = leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull("field must have DV", dv);
+
+                int docIdx = 0;
+                for (int doc = dv.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                    final Map<String, List<String>> got = parseBlob(dv.binaryValue());
+                    final Map<String, String> exp = reference.get(docIdx++);
+                    for (final Map.Entry<String, String> entry : exp.entrySet()) {
+                        final List<String> vals = got.get(entry.getKey());
+                        assertNotNull("doc " + doc + " key " + entry.getKey() + " missing", vals);
+                        assertEquals("doc " + doc + " key " + entry.getKey() + " value count", 1, vals.size());
+                        assertEquals("doc " + doc + " key " + entry.getKey() + " value", entry.getValue(), vals.get(0));
+                    }
+                }
+                assertEquals("all docs must be present", numDocs, docIdx);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------------

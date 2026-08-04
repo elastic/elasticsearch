@@ -14,13 +14,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.PriorityQueue;
 
@@ -49,10 +50,13 @@ import java.util.PriorityQueue;
  * </ul>
  *
  * <h2>Record format</h2>
- * Each record consists of three 4-byte big-endian integers
+ * Each record consists of three 4-byte <em>little-endian</em> integers
  * ({@code keyOrd}, {@code docId}, {@code payloadLen}) followed by {@code payloadLen} payload
- * bytes. The payload holds pre-encoded column-block slot bytes: {@code [vint prefix][value bytes]}
- * per slot, where prefix 0 = null and prefix N+1 = N value bytes.
+ * bytes. Little-endian matches Lucene's {@link org.apache.lucene.store.DataOutput#writeInt} /
+ * {@link org.apache.lucene.store.DataInput#readInt}, which is what the external-sort run
+ * files are written and read through. The payload holds pre-encoded column-block slot bytes:
+ * {@code [vint prefix][value bytes]} per slot, where prefix 0 = null and prefix N+1 = N
+ * value bytes.
  */
 final class SortedSlotAccumulator implements Closeable {
 
@@ -142,25 +146,37 @@ final class SortedSlotAccumulator implements Closeable {
         int pos = 0;
         final byte[] chunk = new byte[maxBufferBytes];
 
-        while (pos < bufLen) {
-            int chunkLen = 0;
-            int numRecs = 0;
-
+        try {
             while (pos < bufLen) {
-                final int payloadLen = readInt(buf, pos + 8);
-                final int recLen = RECORD_HEADER_BYTES + payloadLen;
-                if (chunkLen + recLen > chunk.length) {
-                    if (numRecs > 0) break;
-                    // Single oversized record: grow chunk temporarily.
-                    System.arraycopy(buf, pos, new byte[chunkLen + recLen], chunkLen, recLen);
-                }
-                System.arraycopy(buf, pos, chunk, chunkLen, recLen);
-                chunkLen += recLen;
-                numRecs++;
-                pos += recLen;
-            }
+                int chunkLen = 0;
+                int numRecs = 0;
 
-            runFiles.add(writeSortedRun(chunk, chunkLen, numRecs, lexRankOf));
+                while (pos < bufLen) {
+                    final int payloadLen = readInt(buf, pos + 8);
+                    final int recLen = RECORD_HEADER_BYTES + payloadLen;
+                    if (chunkLen + recLen > chunk.length) {
+                        if (numRecs > 0) break;
+                        // Single oversized record: write it as its own sorted run and move on.
+                        final byte[] oversized = new byte[recLen];
+                        System.arraycopy(buf, pos, oversized, 0, recLen);
+                        runFiles.add(writeSortedRun(oversized, recLen, 1, lexRankOf));
+                        pos += recLen;
+                        continue;
+                    }
+                    System.arraycopy(buf, pos, chunk, chunkLen, recLen);
+                    chunkLen += recLen;
+                    numRecs++;
+                    pos += recLen;
+                }
+
+                if (numRecs > 0) {
+                    runFiles.add(writeSortedRun(chunk, chunkLen, numRecs, lexRankOf));
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            // Clean up any run files already written before re-throwing.
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(directory, runFiles.toArray(new String[0]));
+            throw e;
         }
 
         // buf no longer needed.
@@ -206,22 +222,50 @@ final class SortedSlotAccumulator implements Closeable {
     }
 
     /**
-     * Sorts {@code key[0..n)} ascending, applying the same permutation to {@code off[0..n)}.
+     * Sorts {@code key[0..n)} ascending in-place, applying the same permutation to
+     * {@code off[0..n)}.
+     *
+     * <p>The sort is effectively stable: when two records share the same primary sort key
+     * {@code (lexRank, docId)} (i.e., multiple slot values for the same sub-field in the
+     * same document), their relative order is resolved by {@code off[i]}, which is their
+     * byte offset within the buffer or chunk and increases monotonically with insertion order.
+     * This preserves the original document-visit order of multiple values for the same key,
+     * which the columnar reader exposes as the array order for that field.
      */
-    private static void sortParallel(long[] key, int[] off, int n) {
-        final Integer[] idx = new Integer[n];
-        for (int i = 0; i < n; i++) {
-            idx[i] = i;
-        }
-        Arrays.sort(idx, (a, b) -> Long.compare(key[a], key[b]));
-        final long[] tmpKey = new long[n];
-        final int[] tmpOff = new int[n];
-        for (int i = 0; i < n; i++) {
-            tmpKey[i] = key[idx[i]];
-            tmpOff[i] = off[idx[i]];
-        }
-        System.arraycopy(tmpKey, 0, key, 0, n);
-        System.arraycopy(tmpOff, 0, off, 0, n);
+    private static void sortParallel(final long[] key, final int[] off, final int n) {
+        new IntroSorter() {
+            private long pivotKey;
+            private int pivotOff;
+
+            @Override
+            protected int compare(int i, int j) {
+                final int c = Long.compare(key[i], key[j]);
+                // Stable tiebreak: smaller byte offset = earlier insertion = earlier array slot.
+                return c != 0 ? c : Integer.compare(off[i], off[j]);
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                final long tmpKey = key[i];
+                key[i] = key[j];
+                key[j] = tmpKey;
+                final int tmpOff = off[i];
+                off[i] = off[j];
+                off[j] = tmpOff;
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivotKey = key[i];
+                pivotOff = off[i];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                final int c = Long.compare(pivotKey, key[j]);
+                return c != 0 ? c : Integer.compare(pivotOff, off[j]);
+            }
+        }.sort(0, n);
     }
 
     // -----------------------------------------------------------------------
@@ -466,18 +510,16 @@ final class SortedSlotAccumulator implements Closeable {
     }
 
     // -----------------------------------------------------------------------
-    // I/O helpers
+    // I/O helpers — little-endian to match Lucene's DataInput#readInt /
+    // DataOutput#writeInt, since run files are read back through IndexInput.
     // -----------------------------------------------------------------------
 
     static int readInt(byte[] buf, int off) {
-        return ((buf[off] & 0xFF) << 24) | ((buf[off + 1] & 0xFF) << 16) | ((buf[off + 2] & 0xFF) << 8) | (buf[off + 3] & 0xFF);
+        return (int) BitUtil.VH_LE_INT.get(buf, off);
     }
 
     private static void writeInt(byte[] buf, int off, int v) {
-        buf[off] = (byte) (v >>> 24);
-        buf[off + 1] = (byte) (v >>> 16);
-        buf[off + 2] = (byte) (v >>> 8);
-        buf[off + 3] = (byte) v;
+        BitUtil.VH_LE_INT.set(buf, off, v);
     }
 
     @Override

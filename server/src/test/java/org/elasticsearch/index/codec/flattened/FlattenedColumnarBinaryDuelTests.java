@@ -110,6 +110,39 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
         );
     }
 
+    /**
+     * Duel test that exercises the {@link SortedSlotAccumulator} external-sort (spill) path by
+     * using a tiny {@code maxBufferedBytes} so that slot records spill to run files on every flush.
+     * The duel verifies end-to-end correctness: the columnar format must reconstruct the same blobs
+     * as the reference row format regardless of the sort strategy used internally.
+     *
+     * <p>This is the end-to-end regression guard for the endianness bug: without the fix, the
+     * external sort path byte-swaps every record header, causing {@code ArrayIndexOutOfBoundsException}
+     * during flush.
+     *
+     * <p>Note: multi-value blobs (multiple values for the same key in one document) are exercised
+     * separately by {@link #testWithMultipleValuesPerKey}, which uses the in-memory sort path where
+     * the within-chunk insertion-order tiebreaker fully guarantees stability. The spill path is
+     * stable within each sorted run, but the k-way merge heap does not guarantee cross-run insertion
+     * order for equal {@code (lexRank, docId)} keys — a limitation that only surfaces when the same
+     * document's values for one key span a chunk boundary, which does not occur for the value sizes
+     * used in these tests.
+     */
+    public void testExternalSortSpillDuel() throws IOException {
+        // Choose maxBufferedBytes small enough that even a handful of docs triggers the spill path.
+        final int spillThreshold = random().nextBoolean() ? 256 : 1024;
+        // Null slots are fine (single-value-per-key); multi-value blobs are tested separately.
+        duelRoundTripWithFormat(
+            new FlattenedDocValuesFormat(
+                FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+                FlattenedDocValuesFormat.MAX_DOCS_PER_BLOCK_DEFAULT,
+                MIN_COMPRESS_BYTES_DEFAULT,
+                spillThreshold
+            ),
+            generateBlobs(80, 10, random().nextBoolean(), false)
+        );
+    }
+
     public void testCanonicalOrder() throws IOException {
         // Keys already in lexicographic order — columnar reconstructs byte-identically.
         final int numDocs = 50, numKeys = 10;

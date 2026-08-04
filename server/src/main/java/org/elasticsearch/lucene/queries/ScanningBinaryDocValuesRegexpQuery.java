@@ -9,9 +9,9 @@
 
 package org.elasticsearch.lucene.queries;
 
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
@@ -33,6 +33,9 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
      * @param pattern the regexp pattern to match; callers must pre-process it with
      *                {@link org.elasticsearch.common.lucene.search.AutomatonQueries#collapseConsecutiveQuantifiers}
      *                to avoid determinization complexity blowup on patterns like {@code a**}.
+     * @param circuitBreaker the request circuit breaker to account the automaton construction against; may be
+     *                {@code null}, in which case the automaton is built without accounting (used by callers that
+     *                have no breaker in hand, e.g. some unit tests).
      */
     public ScanningBinaryDocValuesRegexpQuery(
         String fieldName,
@@ -40,22 +43,25 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        boolean arrayOrderInlineNull
+        boolean arrayOrderInlineNull,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
-        super(fieldName, buildAutomaton(pattern, syntaxFlags, matchFlags, maxDeterminizedStates), arrayOrderInlineNull);
+        super(
+            fieldName,
+            AutomatonQueries.toRegexpByteRunAutomaton(
+                fieldName,
+                Objects.requireNonNull(pattern),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                circuitBreaker
+            ),
+            arrayOrderInlineNull
+        );
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
         this.matchFlags = matchFlags;
         this.maxDeterminizedStates = maxDeterminizedStates;
-    }
-
-    private static ByteRunAutomaton buildAutomaton(String pattern, int syntaxFlags, int matchFlags, int maxDeterminizedStates) {
-        return new ByteRunAutomaton(
-            Operations.determinize(
-                new RegExp(Objects.requireNonNull(pattern), syntaxFlags, matchFlags).toAutomaton(),
-                maxDeterminizedStates
-            )
-        );
     }
 
     @Override

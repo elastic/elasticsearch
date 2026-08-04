@@ -15,7 +15,9 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -286,7 +289,7 @@ public abstract class FullTextFunction extends Function
         // because join is not pushed down into subqueries yet.
         boolean checkCommandsBeforeExpression = isLookupJoinOnCondition
             || checkFullTextFunctionsAboveSubqueries
-            || hasSubqueryInChildrenPlans(plan) == false;
+            || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
@@ -316,7 +319,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
-                    && (lp instanceof Dedup == false),
+                    && (lp instanceof Dedup == false)
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -446,7 +450,17 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+    /**
+     * The {@code analysisRegistry} is only available in the post-analysis pass; the post-optimization re-run passes
+     * {@code null}, so registry-backed checks must be skipped when it is absent.
+     */
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
         // Field can be null when the field does not exist in the mapping
@@ -684,6 +698,20 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                // After optimization, if this filter is still directly above a coordinator join, the push-down
+                // optimizer could not move it to the data nodes. Full-text functions require a Lucene shard
+                // context that the coordinator does not have for the data-side index.
+                if (f.child() instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a WHERE clause that references both data-side and lookup-side "
+                                + "fields after LOOKUP JOIN _coordinator:",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
             }
         };
     }
@@ -717,6 +745,10 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    private static boolean hasFilterPushdownTarget(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnionAll || p instanceof Highlight);
     }
 
     /**

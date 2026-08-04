@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -137,6 +138,11 @@ public class DatafeedJobBuilder {
             return;
         }
 
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+        PersistedCloudCredential cloudCredential = effectiveDatafeedConfig.getCloudInternalCredential();
+        String cloudCredentialId = cloudCredential != null ? cloudCredential.id() : null;
+
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
@@ -155,6 +161,7 @@ public class DatafeedJobBuilder {
                 datafeedConfig.getId(),
                 datafeedConfig.getProjectRouting(),
                 job.getId(),
+                cloudCredentialId,
                 buildDataDescription(job),
                 frequency.millis(),
                 queryDelay.millis(),
@@ -183,9 +190,6 @@ public class DatafeedJobBuilder {
             auditor.error(job.getId(), enriched.getMessage());
             listener.onFailure(enriched);
         });
-
-        // Apply cross-project search mode to IndicesOptions before creating the factory
-        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,

@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.NodeCacheCommitmentMetrics;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -259,6 +260,7 @@ import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -872,6 +874,7 @@ class NodeConstruction {
         );
 
         clusterInfoService.addListener(new WriteLoadMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
+        clusterInfoService.addListener(new NodeCacheCommitmentMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),
@@ -1205,6 +1208,9 @@ class NodeConstruction {
             clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders = pluginsService.loadServiceProviders(
+            TransportMessageListener.Provider.class
+        );
         final TransportService transportService = serviceProvider.newTransportService(
             pluginsService,
             settings,
@@ -1218,7 +1224,8 @@ class NodeConstruction {
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            transportMessageListenerProviders
         );
         transportServiceRef.set(transportService);
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());

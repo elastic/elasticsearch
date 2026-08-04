@@ -535,7 +535,7 @@ public class LookupExecutionPlanner {
             SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
+            Warnings warnings = lookupDriverContext.createWarnings(planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
 
             LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);

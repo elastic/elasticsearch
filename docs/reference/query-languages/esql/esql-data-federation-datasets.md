@@ -291,14 +291,14 @@ The following settings apply to all file-based data sources:
 
 **Advanced:**
 
+% schema_sample_size (default 20000) hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
+
 | Setting | Default (CSV / TSV) | Description |
 |---|---|---|
 | `quote` | `"` / none | The quote character, or `"none"` to turn quoting off. An explicit value overrides the `mode` preset. |
 | `escape` | `\` / none | The escape character, or `"none"` to turn escaping off. An explicit value overrides the `mode` preset. |
 | `comment` | `//` | Lines beginning with this prefix are skipped. |
 | `column_prefix` | `col` | Prefix for generated column names when `header_row` is `false`. |
-% | `schema_sample_size` | `20000` | Rows sampled to infer column types. |
-% Hidden until https://github.com/elastic/elasticsearch/issues/155636 is resolved
 | `datetime_format` | ISO-8601 | The pattern used to parse date and time values. |
 | `trim_spaces` | `false` | Whether to remove surrounding ASCII whitespace from string field values. |
 | `multi_value_syntax` | `none` | Whether bracketed multi-values are recognized. Valid values: `"none"`, `"brackets"`. |

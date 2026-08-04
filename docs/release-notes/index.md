@@ -104,8 +104,7 @@ The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `hist
 ::::
 
 ::::{dropdown} ES|QL Data Federation
-Add [**ES|QL Data Federation**](elasticsearch://reference/query-languages/esql/esql-data-federation.md)
-management UI in Kibana. This feature enables you to create and manage external
+[**ES|QL Data Federation** (experimental)](elasticsearch://reference/query-languages/esql/esql-data-federation.md) is now available. This feature enables you to create and manage external
 data sources (Amazon S3 initially) and query datasets using {{esql}}.
 
 This is an experimental feature and is not enabled by default. To try it out, set

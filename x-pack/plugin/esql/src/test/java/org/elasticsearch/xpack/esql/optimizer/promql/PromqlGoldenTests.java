@@ -99,4 +99,25 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("PROMQL index=k8s step=1h result=(topk(2, sum by (pod) (network.bytes_in)))").transportVersion(TransportVersion.current())
             .run();
     }
+
+    public void testLimitk() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limitk(3, network.bytes_in))").transportVersion(TransportVersion.current()).run();
+    }
+
+    public void testLimitkByGrouping() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))").transportVersion(TransportVersion.current())
+            .run();
+    }
+
+    public void testLimitkOverSumBy() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
+        assumeTrue("requires fix for topk over aggregated vectors", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limitk(2, sum by (pod) (network.bytes_in)))").transportVersion(TransportVersion.current())
+            .run();
+    }
 }

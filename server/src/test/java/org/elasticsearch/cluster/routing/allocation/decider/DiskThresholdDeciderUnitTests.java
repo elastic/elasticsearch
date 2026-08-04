@@ -456,7 +456,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
-        test_0 = ShardRoutingHelper.relocate(test_0, "node2");
+        test_0 = ShardRoutingHelper.relocate(test_0, "node2", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(index, 1),
@@ -468,7 +468,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
-        test_1 = ShardRoutingHelper.relocate(test_1, "node1");
+        test_1 = ShardRoutingHelper.relocate(test_1, "node1", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         ShardRouting test_2 = ShardRouting.newUnassigned(
             new ShardId(index, 2),
@@ -520,7 +520,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         other_0 = ShardRoutingHelper.initialize(other_0, "node2");
         other_0 = ShardRoutingHelper.moveToStarted(other_0);
-        other_0 = ShardRoutingHelper.relocate(other_0, "node1");
+        other_0 = ShardRoutingHelper.relocate(other_0, "node1", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
 
         node = RoutingNodesHelper.routingNode(
             "node1",

@@ -2124,7 +2124,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testLockingBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(
+            shard.routingEntry(),
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
@@ -2151,7 +2155,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(
+            shard.routingEntry(),
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final CountDownLatch startRecovery = new CountDownLatch(1);
         final CountDownLatch relocationStarted = new CountDownLatch(1);
@@ -2231,7 +2239,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         assertFalse(shard.isRelocatedPrimary());
-        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(
+            shard.routingEntry(),
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
@@ -2283,7 +2295,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedShardCanNotBeRevived() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting routing = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting routing = ShardRoutingHelper.relocate(
+            originalRouting,
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         blockingCallRelocated(shard, routing, (primaryContext, listener) -> listener.onResponse(null));
         expectThrows(IllegalIndexShardStateException.class, () -> IndexShardTestCase.updateRoutingEntry(shard, originalRouting));
@@ -2305,7 +2321,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
+            originalRouting,
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         IndexShardTestCase.updateRoutingEntry(shard, originalRouting);
         safeAwaitFailure(
@@ -2324,7 +2344,11 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRelocatedShardCanNotBeRevivedConcurrently() throws IOException, InterruptedException, BrokenBarrierException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
-        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(originalRouting, "other_node");
+        final ShardRouting relocationRouting = ShardRoutingHelper.relocate(
+            originalRouting,
+            "other_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, relocationRouting);
         CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
         AtomicReference<Exception> relocationException = new AtomicReference<>();
@@ -2387,15 +2411,27 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting original = shard.routingEntry();
 
-        final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(original, "node_1");
+        final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(
+            original,
+            "node_1",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetNodeShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
 
-        final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(
+            original,
+            "node_2",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, wrongTargetAllocationIdShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
 
-        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(
+            original,
+            "node_2",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, correctShardRouting);
 
         final AtomicBoolean relocated = new AtomicBoolean();
@@ -2838,7 +2874,11 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         ShardRouting origRouting = shard.routingEntry();
         assertThat(shard.state(), equalTo(IndexShardState.STARTED));
-        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
+        ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(
+            origRouting,
+            "some_node",
+            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+        );
         IndexShardTestCase.updateRoutingEntry(shard, inRecoveryRouting);
         blockingCallRelocated(shard, inRecoveryRouting, (primaryContext, listener) -> listener.onResponse(null));
         assertTrue(shard.isRelocatedPrimary());

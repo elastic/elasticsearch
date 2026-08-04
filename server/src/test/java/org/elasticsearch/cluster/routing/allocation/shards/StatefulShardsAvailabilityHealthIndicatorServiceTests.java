@@ -1246,10 +1246,26 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             clusterState,
             Collections.emptyMap()
         );
-        final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        assertThat(result.status(), equalTo(RED));
-        assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard."));
-        assertThat(result.details(), equalTo(new SimpleHealthIndicatorDetails(addDefaults(Map.of("unassigned_primaries", 1)))));
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary shard.",
+                    Map.of("unassigned_primaries", 1),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                            1,
+                            "Cannot add data to 1 index [" + indexName + "]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
+                    ),
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))))
+                )
+            )
+        );
     }
 
     /// A replica shard that became inactive only moments ago is usually given a short grace period before the
@@ -1280,12 +1296,25 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             clusterState,
             Collections.emptyMap()
         );
-        final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        assertThat(result.status(), equalTo(YELLOW));
-        assertThat(result.symptom(), equalTo("This cluster has 1 unavailable replica shard."));
         assertThat(
-            result.details(),
-            equalTo(new SimpleHealthIndicatorDetails(addDefaults(Map.of("started_primaries", 1, "unassigned_replicas", 1))))
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                createExpectedResult(
+                    YELLOW,
+                    "This cluster has 1 unavailable replica shard.",
+                    Map.of("started_primaries", 1, "unassigned_replicas", 1),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
+                            2,
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [" + indexName + "].",
+                            List.of(ImpactArea.SEARCH)
+                        )
+                    ),
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(indexName)))))
+                )
+            )
         );
     }
 

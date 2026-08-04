@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 
 /**
- * Tracks whether this node has been marked for shutdown via the node shutdown API.
+ * Tracks whether this node has been marked for shutdown.
  */
 class NodeShutdownFlagHolder implements ClusterStateListener {
 

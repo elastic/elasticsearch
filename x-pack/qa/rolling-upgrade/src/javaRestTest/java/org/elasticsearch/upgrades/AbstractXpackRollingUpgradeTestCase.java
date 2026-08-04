@@ -7,17 +7,15 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -27,39 +25,55 @@ import org.junit.rules.TestRule;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    private static final ElasticsearchCluster cluster = XpackRollingUpgradeClusterConfig.buildCluster(
-        getOldClusterVersion(),
-        isOldClusterDetachedVersion(),
-        repoDirectory
-    );
+    private static final ElasticsearchCluster cluster = buildCluster();
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    protected AbstractXpackRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+    private static ElasticsearchCluster buildCluster() {
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
+            .nodes(NODE_NUM)
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "false")
+            .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+            .systemProperty("ingest.geoip.downloader.endpoint.default", "http://invalid.endpoint")
+            .setting("ingest.geoip.downloader.endpoint", "http://invalid.endpoint")
+            .setting("path.repo", new Supplier<>() {
+                @Override
+                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+                public String get() {
+                    return repoDirectory.getRoot().getPath();
+                }
+            })
+            .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
+            .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
+
+        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
+        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
+        // do not need this.
+        if (Version.tryParse(getOldClusterVersion()).map(v -> v.before(Version.fromString("8.18.0"))).orElse(false)) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
+
+    public AbstractXpackRollingUpgradeTestCase(int upgradedNodes) {
         super(upgradedNodes);
     }
 
     @Override
     protected ElasticsearchCluster getUpgradeCluster() {
         return cluster;
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(super.restClientSettings())
-            .put(
-                ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))
-            )
-            .build();
     }
 
     protected static boolean isOriginalCluster(String clusterVersion) {

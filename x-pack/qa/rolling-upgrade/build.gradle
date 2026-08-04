@@ -26,13 +26,9 @@ dependencies {
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
-  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
-
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    systemProperty("tests.path.searchable.snapshots.repo", searchableSnapshotRepository)
     // Disable ML tests for incompatible systems, see BwcVersions#isMlCompatible
     systemProperty("tests.ml.skip", (BwcVersions.isMlCompatible(bwcVersion) == false).toString())
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
@@ -52,9 +48,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
           'upgraded_cluster/90_ml_data_frame_analytics_crud'
         ].join(',')
       )
-    }
-    doFirst {
-      delete(searchableSnapshotRepository)
     }
   }
 }

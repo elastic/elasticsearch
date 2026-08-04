@@ -592,3 +592,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
   method: testSlicing
   issue: https://github.com/elastic/elasticsearch/issues/155761
+- class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
+  method: testIncludeEmptyBuckets_timeSeriesAndDimension
+  issue: https://github.com/elastic/elasticsearch/issues/155779
+- class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
+  method: testScoreMIP
+  issue: https://github.com/elastic/elasticsearch/issues/155783
+- class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
+  method: testRandomWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/155784

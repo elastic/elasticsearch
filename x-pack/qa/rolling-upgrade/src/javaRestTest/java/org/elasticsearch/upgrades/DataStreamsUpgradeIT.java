@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.upgrades.XpackIndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+public class DataStreamsUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     public DataStreamsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

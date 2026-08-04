@@ -562,9 +562,14 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     public void testNumberOfFragmentsAboveMaximum() throws IOException {
-        int maxNumberOfFragments = randomBoolean() ? 10_000 : randomIntBetween(1, 100_000);
+        boolean useDefaultMaximum = randomBoolean();
+        int maxNumberOfFragments = useDefaultMaximum
+            ? IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getDefault(Settings.EMPTY)
+            : randomIntBetween(1, 100_000);
         SearchExecutionContext mockContext = mockSearchExecutionContext(
-            Settings.builder().put(IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey(), maxNumberOfFragments).build()
+            useDefaultMaximum
+                ? Settings.EMPTY
+                : Settings.builder().put(IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey(), maxNumberOfFragments).build()
         );
         int numberOfFragments = maxNumberOfFragments + randomIntBetween(1, 1000);
 

@@ -68,9 +68,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("Values must contains at least one value.");
         }
         for (int i = 0; i < values.length; i++) {
-            if (values[i] == null) {
-                throw new IllegalArgumentException("Values cannot contain null at position " + i + ".");
-            }
+            if (values[i] == null) continue;
             if (values[i] instanceof String) continue;
             if (values[i] instanceof Text) continue;
             if (values[i] instanceof Long) continue;
@@ -119,7 +117,14 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] != null) {
                 fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
-                throw new IllegalArgumentException("Values cannot contain null at position " + i + ".");
+                SortField.Type sortType = extractSortType(sortField);
+                if (sortType == SortField.Type.STRING || sortType == SortField.Type.STRING_VAL) {
+                    fieldValues[i] = null;
+                } else {
+                    throw new IllegalArgumentException(
+                        "[search_after] value at position " + i + " cannot be null for sort field [" + sortField.getField() + "] of type [" + sortType + "]."
+                    );
+                }
             }
         }
         /*
@@ -251,6 +256,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     values.add(parser.text());
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     values.add(parser.booleanValue());
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    values.add(null);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

@@ -281,36 +281,6 @@ public class SearchAfterBuilderTests extends ESTestCase {
     }
 
     /**
-     * Test that null values are properly rejected in setSortValues
-     */
-    public void testSetSortValuesRejectsNull() {
-        SearchAfterBuilder builder = new SearchAfterBuilder();
-
-        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> { builder.setSortValues(new Object[] { null }); });
-        assertThat(e1.getMessage(), equalTo("Values cannot contain null at position 0."));
-
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> {
-            builder.setSortValues(new Object[] { 123L, null, "test" });
-        });
-        assertThat(e2.getMessage(), equalTo("Values cannot contain null at position 1."));
-    }
-
-    /**
-     * Test that null values are properly rejected in JSON parsing
-     */
-    public void testFromXContentRejectsNull() throws Exception {
-        String jsonWithNull = "{\"search_after\": [123, null, \"test\"]}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonWithNull)) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            ParsingException e = expectThrows(ParsingException.class, () -> { SearchAfterBuilder.fromXContent(parser); });
-            assertThat(e.getMessage(), containsString("[VALUE_NULL]"));
-            assertThat(e.getMessage(), containsString("search_after"));
-        }
-    }
-
-    /**
      * Test that buildFieldDoc rejects null values
      */
     public void testBuildFieldDocRejectsNull() {
@@ -322,6 +292,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
         });
-        assertThat(e.getMessage(), equalTo("Values cannot contain null at position 0."));
+        assertThat(e.getMessage(), containsString("cannot be null"));
+        assertThat(e.getMessage(), containsString("LONG"));
     }
 }

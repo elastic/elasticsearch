@@ -134,6 +134,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -1591,6 +1592,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Creates a new Cluster object using shouldSkipOnFailure flag to set Status then swaps it in the clusters CHM at key clusterAlias but
+     * does <b>not</b> append any exception to the list of shard failures. Used when all shards fail due to an internal cancel, since we
+     * don't want to include exceptions due to the internal cancel in the response.
+     */
+    static void ccsClusterInfoUpdateInternalCancel(SearchResponse.Clusters clusters, String clusterAlias, boolean shouldSkipOnFailure) {
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            SearchResponse.Cluster.Status status;
+            if (shouldSkipOnFailure) {
+                status = SearchResponse.Cluster.Status.SKIPPED;
+            } else {
+                status = SearchResponse.Cluster.Status.FAILED;
+            }
+            return new SearchResponse.Cluster.Builder(v).setStatus(status).build();
+        });
+    }
+
+    /**
      * Creates a new Cluster object using the {@link ShardSearchFailure} info and shouldSkipOnFailure
      * flag to set Status. Then it swaps it in the clusters CHM at key clusterAlias
      */
@@ -2404,7 +2422,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logCCSError(f, clusterAlias, skipOnFailure);
             remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
+            // If all shards failed due the search being cancelled internally, do not include the placeholder exception in the response
+            if (ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL.equals(ExceptionsHelper.unwrapCause(e).getMessage())) {
+                ccsClusterInfoUpdateInternalCancel(clusters, clusterAlias, skipOnFailure);
+                maybeFinish();
+                return;
+            }
+
+            var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
+            if (skipOnFailure && isTaskCancelled == false) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
@@ -2413,10 +2439,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false
-                    && ExceptionsHelper.isTaskCancelledException(e) == false) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false && isTaskCancelled == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
+
                 if (exceptions.compareAndSet(null, exception) == false) {
                     exceptions.accumulateAndGet(exception, (previous, current) -> {
                         current.addSuppressed(previous);

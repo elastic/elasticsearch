@@ -15,8 +15,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -385,6 +388,54 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 2, 1, 1, tookMillis, false);
 
+        var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(exception));
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_DoesNotIncludeShardFailure_WhenFailureIsDueToInternalCancel() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", false, null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
+        var shards = List.of(shard0, shard1, shard2);
+
+        var tookMillis = TimeValue.timeValueMillis(1);
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 0, false);
+
+        // Register a failure due to an internal TaskCancelledException and confirm the state
+        onQueryFailureForShardIndex(listener, shards, 0, new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON));
+
+        // Confirm the failure is included in failed shards count but not appended to the list of shard failures
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 3, 0, 1, 0, null, false);
+
+        // Register a failure due to a nested internal TaskCancelledException and confirm the state
+        onQueryFailureForShardIndex(
+            listener,
+            shards,
+            1,
+            new RemoteTransportException("test RTE", new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON))
+        );
+
+        // Confirm the failure is included in failed shards count but not appended to the list of shard failures
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 3, 0, 2, 0, null, false);
+
+        // Register a failure due to a non-internal TaskCancelledException and confirm the state
+        var exception = new TaskCancelledException("not internal cancel");
+        var shardTarget = onQueryFailureForShardIndex(listener, shards, 2, exception);
+
+        SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.FAILED, 3, 0, 3, 1, null, false);
+        // Confirm the failure is appended to the list of failures
         var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
         assertThat(failure.shard(), is(shardTarget));
         assertThat(failure.getCause(), is(exception));

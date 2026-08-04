@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
@@ -31,7 +32,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -254,7 +254,11 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... presentShardIds) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), hasShardPredicate, now, pinnedWindowDuration);
+        return new PinnedWindowEvictionPolicy(
+            createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration),
+            TimeProviderUtils.create(() -> now),
+            hasShardPredicate
+        );
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
@@ -270,25 +274,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
         return TestUtils.mockIndicesService(clusterService, hasShardPredicate);
-    }
-
-    private static final class FixedTimePinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {
-        private final long fixedCurrentTimeMillis;
-
-        FixedTimePinnedWindowEvictionPolicy(
-            ThreadPool threadPool,
-            Predicate<ShardId> hasShardPredicate,
-            long fixedCurrentTimeMillis,
-            TimeValue pinnedWindowDuration
-        ) {
-            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, hasShardPredicate);
-            this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
-        }
-
-        @Override
-        protected long currentTimeMillis() {
-            return fixedCurrentTimeMillis;
-        }
     }
 
     private static ClusterSettings createClusterSettingsWithPinnedWindowDuration(TimeValue pinnedWindowDuration) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -189,6 +190,10 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         boolean includeDefaults
     ) {
         if (fieldMappings.containsKey(field)) {
+            return;
+        }
+        // This iterates mappers, not field types, so the FieldTypeLookup exclusion misses it - keep the _unmapped sink hidden here.
+        if (fieldMapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink()) {
             return;
         }
         if (fieldPredicate.test(field)) {

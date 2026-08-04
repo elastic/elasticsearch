@@ -17,6 +17,19 @@ setup:
             index.mode: columnar
             index.mapping.flattened_unmapped_fields.enabled: true
 
+  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones.
+  - do:
+      indices.create:
+        index: test_mapped
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              mapped:
+                type: long
+
 ---
 "term query resolves bare, dotted and never-indexed absorbed names":
   - do:
@@ -161,18 +174,6 @@ setup:
   # The sink is a last-resort fallback, so a concrete mapping must win: "mapped" keeps real long semantics (a numeric range) while a sibling
   # unmapped field in the same document is still absorbed.
   - do:
-      indices.create:
-        index: test_mapped
-        body:
-          settings:
-            index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
-          mappings:
-            properties:
-              mapped:
-                type: long
-
-  - do:
       index:
         index: test_mapped
         id: "1"
@@ -193,3 +194,98 @@ setup:
         index: test_mapped
         body: { query: { term: { loose: "loose-value" } } }
   - match: { hits.total.value: 1 }
+
+---
+"the sink itself is never exposed as a field":
+  # The sink is internal storage: absent from everything that enumerates field names, and its own name resolves like any other unmapped name.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+
+  - do:
+      field_caps:
+        index: test_mapped
+        fields: "*"
+  - is_true: fields.mapped
+  - is_false: fields._unmapped
+
+  - do:
+      field_caps:
+        index: test_mapped
+        fields: "_unmapped"
+  - match: { fields: {} }
+
+  - do:
+      indices.get_field_mapping:
+        index: test_mapped
+        fields: "*"
+  - is_true: test_mapped.mappings.mapped
+  - is_false: test_mapped.mappings._unmapped
+
+  - do:
+      indices.get_field_mapping:
+        index: test_mapped
+        fields: "_unmapped"
+  - match: { test_mapped.mappings: {} }
+
+  # Requesting the sink explicitly returns no fields object at all, rather than an error.
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { match_all: {} }, fields: [ "*" ] }
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+  - is_false: hits.hits.0.fields._unmapped
+
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { match_all: {} }, fields: [ "_unmapped" ] }
+  - is_false: hits.hits.0.fields
+
+  # Absorbed fields stay retrievable under their own names - hiding the sink must not hide the data it holds.
+  - do:
+      search:
+        index: test_mapped
+        body: { query: { match_all: {} }, fields: [ "bare" ] }
+  - match: { hits.hits.0.fields.bare: [ "bare-value" ] }
+
+---
+"include_unmapped reaches absorbed fields":
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          nums: [ 3, 1, 1 ]
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      search:
+        index: test_mapped
+        body:
+          query: { match_all: {} }
+          fields:
+            - field: "*"
+              include_unmapped: true
+
+  # Mapped fields still arrive through the ordinary path, with their real type.
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+
+  # Absorbed leaves arrive one entry per leaf, never as the sink container.
+  - match: { hits.hits.0.fields._unmapped\.bare: [ "bare-value" ] }
+  - match: { hits.hits.0.fields._unmapped\.outer\.inner\.leaf: [ "leaf-value" ] }
+  - is_false: hits.hits.0.fields._unmapped
+
+  # Absorbed values are strings even where the document held numbers, since the sink stores keywords. Array order and duplicates survive,
+  # which is the document-order encoding strict columnar uses rather than the sorted-unique doc values a lossy flattened field would give.
+  - match: { hits.hits.0.fields._unmapped\.nums: [ "3", "1", "1" ] }

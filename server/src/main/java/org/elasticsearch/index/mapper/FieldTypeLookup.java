@@ -87,10 +87,13 @@ final class FieldTypeLookup {
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
-            fullNameToFieldType.put(fieldType.name(), fieldType);
             if (fieldMapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink()) {
+                // Internal storage rather than a mapped field, so it is kept out of the name maps: nothing that enumerates field names
+                // (field caps, wildcards in fields/stored_fields) reaches it. Unmapped names still do - see get(String, boolean).
                 unmappedSink = (DynamicFieldType) fieldType;
+                continue;
             }
+            fullNameToFieldType.put(fieldType.name(), fieldType);
             fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);

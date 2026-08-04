@@ -1200,10 +1200,7 @@ public class MachineLearning extends Plugin
                 pyTorchProcessFactory = new NativePyTorchProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
             } catch (IOException e) {
-                // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
-                // only log this at the lowest level of detail. It's almost always "file not found" on a named pipe we expect to be
-                // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
-                logger.trace("Failed to connect to ML native controller", e);
+                logger.warn("Failed to connect to ML native controller", e);
                 throw new ElasticsearchException(
                     "Failure running machine learning native code. This could be due to running "
                         + "on an unsupported OS or distribution, missing OS libraries, or a problem with the temp directory. To "

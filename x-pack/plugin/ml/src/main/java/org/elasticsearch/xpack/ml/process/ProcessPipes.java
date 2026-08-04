@@ -282,4 +282,16 @@ public class ProcessPipes {
     public Duration getTimeout() {
         return timeout;
     }
+
+    public String describeNamedPipes() {
+        return String.format(
+            Locale.ROOT,
+            "logPipe=%s inputPipe=%s outputPipe=%s restorePipe=%s namedPipeConnectTimeout=%ss",
+            logPipeName,
+            processInPipeName,
+            processOutPipeName,
+            restorePipeName,
+            timeout.getSeconds()
+        );
+    }
 }

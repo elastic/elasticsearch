@@ -788,19 +788,29 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testLayoutParameter() throws IOException {
-        // Default is ROW and must not be serialized.
+        // Default is COLUMNAR in strict columnar modes and must not be serialized.
         for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             MapperService ms = createMapperService(
                 Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
                 fieldMapping(this::minimalMapping)
             );
             var mapper = (FlattenedFieldMapper) ms.documentMapper().mappers().getMapper("field");
-            assertThat("default layout is ROW", mapper.fieldType().layout(), equalTo(FlattenedFieldMapper.Layout.ROW));
+            assertThat(
+                "default layout is COLUMNAR in mode " + mode,
+                mapper.fieldType().layout(),
+                equalTo(FlattenedFieldMapper.Layout.COLUMNAR)
+            );
             // Default must not be written to the serialized mapping.
             assertThat(ms.documentMapper().mappingSource().string(), not(containsString("layout")));
         }
 
-        // layout: columnar is accepted in strict columnar modes.
+        // Default is ROW in standard mode and must not be serialized.
+        MapperService msStandard = createMapperService(fieldMapping(this::minimalMapping));
+        var standardMapper = (FlattenedFieldMapper) msStandard.documentMapper().mappers().getMapper("field");
+        assertThat("default layout is ROW", standardMapper.fieldType().layout(), equalTo(FlattenedFieldMapper.Layout.ROW));
+        assertThat(msStandard.documentMapper().mappingSource().string(), not(containsString("layout")));
+
+        // An explicit layout: columnar matches the default in strict columnar modes and is not serialized.
         for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             MapperService ms = createMapperService(
                 Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
@@ -815,7 +825,21 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 mapper.fieldType().layout(),
                 equalTo(FlattenedFieldMapper.Layout.COLUMNAR)
             );
-            assertThat(ms.documentMapper().mappingSource().string(), containsString("\"layout\":\"columnar\""));
+            assertThat(ms.documentMapper().mappingSource().string(), not(containsString("layout")));
+        }
+
+        // An explicit layout: row deviates from the default in strict columnar modes and is serialized.
+        for (var mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            MapperService ms = createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build(),
+                fieldMapping(b -> {
+                    b.field("type", "flattened");
+                    b.field("layout", "row");
+                })
+            );
+            var mapper = (FlattenedFieldMapper) ms.documentMapper().mappers().getMapper("field");
+            assertThat("row layout is accepted in mode " + mode, mapper.fieldType().layout(), equalTo(FlattenedFieldMapper.Layout.ROW));
+            assertThat(ms.documentMapper().mappingSource().string(), containsString("\"layout\":\"row\""));
         }
 
         // layout: columnar is rejected in standard mode (missing usesArrayOrderBinaryDocValues).
@@ -838,6 +862,30 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             )
         );
         assertThat(e2.getMessage(), containsString("[layout: columnar] requires"));
+
+        // In columnar mode the layout defaults to columnar, so preserve_leaf_arrays: lossy is rejected
+        // unless layout: row is set explicitly.
+        MapperParsingException e2Default = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+                fieldMapping(b -> {
+                    b.field("type", "flattened");
+                    b.field("preserve_leaf_arrays", "lossy");
+                })
+            )
+        );
+        assertThat(e2Default.getMessage(), containsString("[layout: columnar] requires"));
+        MapperService msLossyRow = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("preserve_leaf_arrays", "lossy");
+                b.field("layout", "row");
+            })
+        );
+        var lossyRowMapper = (FlattenedFieldMapper) msLossyRow.documentMapper().mappers().getMapper("field");
+        assertThat(lossyRowMapper.fieldType().layout(), equalTo(FlattenedFieldMapper.Layout.ROW));
 
         // Unknown value produces a clear error message.
         MapperParsingException e3 = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

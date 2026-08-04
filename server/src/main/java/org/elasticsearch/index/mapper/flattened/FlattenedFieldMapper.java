@@ -188,7 +188,18 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
-    /** Controls the on-disk layout of the {@code ._keyed} binary doc-values column. */
+    /**
+     * Controls the on-disk layout of the {@code ._keyed} binary doc-values column.
+     * <p>
+     * The default is {@link #COLUMNAR} when the index mode is strictly columnar and the index uses the time
+     * series doc values format (a prerequisite for binary doc values), and {@link #ROW} otherwise. The default
+     * is never serialized into the mapping; an explicit value is serialized only when it deviates from it.
+     * <p>
+     * {@link #COLUMNAR} additionally requires {@code preserve_leaf_arrays: exact}, which is enforced at build
+     * time. Since {@code exact} is also the default in strictly columnar index modes, this only surfaces when
+     * {@code preserve_leaf_arrays: lossy} is set explicitly, in which case {@code layout: row} must be set as
+     * well.
+     */
     public enum Layout {
         ROW,
         COLUMNAR;
@@ -390,8 +401,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     && indexSettings.getMode().isStrictColumnar() == false ? PreserveLeafArrays.LOSSY : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class
             );
-            layout = Parameter.enumParam("layout", false, m -> builder(m).layout.get(), Layout.ROW, Layout.class)
-                .setSerializerCheck((includeDefaults, isConfigured, v) -> v != Layout.ROW);
+            // Default selection is documented on the Layout enum. Columnar layout requires binary doc values
+            // (see the [layout: columnar] check in build()), hence the row fallback when they are unavailable.
+            Layout defaultLayout = usesBinaryDocValues && indexSettings.getMode().isStrictColumnar() ? Layout.COLUMNAR : Layout.ROW;
+            layout = Parameter.enumParam("layout", false, m -> builder(m).layout.get(), defaultLayout, Layout.class)
+                .setSerializerCheck((includeDefaults, isConfigured, v) -> v != defaultLayout);
             this.indexDisabledByDefault = indexDisabledByDefault;
         }
 

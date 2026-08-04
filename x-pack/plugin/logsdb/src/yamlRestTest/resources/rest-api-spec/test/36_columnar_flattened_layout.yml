@@ -22,7 +22,8 @@ setup:
             properties:
               labels:
                 type: flattened
-                # layout defaults to row; must NOT appear in the serialized mapping
+                # layout defaults to columnar in columnar mode, so row must be requested explicitly
+                layout: row
 
   - do:
       indices.create:
@@ -34,7 +35,7 @@ setup:
             properties:
               labels:
                 type: flattened
-                layout: columnar
+                # layout: columnar is the default in columnar mode; must NOT appear in the serialized mapping
 
   - do:
       bulk:
@@ -76,16 +77,16 @@ teardown:
         ignore_unavailable: true
 
 ---
-"mapping round-trip: columnar is serialized, row default is not":
+"mapping round-trip: row is serialized, columnar default is not":
   - do:
       indices.get_mapping:
         index: flat_columnar
-  - match: { flat_columnar.mappings.properties.labels.layout: columnar }
+  - is_false: flat_columnar.mappings.properties.labels.layout
 
   - do:
       indices.get_mapping:
         index: flat_row
-  - is_false: flat_row.mappings.properties.labels.layout
+  - match: { flat_row.mappings.properties.labels.layout: row }
 
 ---
 "rejection: layout: columnar requires columnar index mode":

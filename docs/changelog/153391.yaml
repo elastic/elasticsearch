@@ -1,0 +1,6 @@
+pr: 153391
+summary: Fix `LIKE`/`RLIKE` with a list of patterns on `wildcard` fields
+area: ES|QL
+type: bug
+issues:
+ - 152512

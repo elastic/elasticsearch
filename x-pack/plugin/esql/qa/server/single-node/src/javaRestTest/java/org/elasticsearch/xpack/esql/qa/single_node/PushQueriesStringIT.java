@@ -387,7 +387,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveLikeList() throws IOException {
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -398,12 +397,11 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=true";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -429,7 +427,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testLikeList() throws IOException {
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -440,12 +437,11 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -471,7 +467,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testRLikeList() throws IOException {
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """
@@ -482,12 +477,11 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
-            case WILDCARD -> throw new AssertionError("unreachable");
+            case WILDCARD -> ":RLIKE(\"%value.*\", \"abc.*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
-            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
             case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
-            case WILDCARD -> throw new AssertionError("unreachable");
         };
         testPushQuery(value, differentValue, esqlQuery, List.of(luceneQuery), dataNodeSignature, hasItem(List.of(value)));
     }
@@ -515,7 +509,6 @@ public class PushQueriesStringIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveRLikeList() throws IOException {
-        assumeFalse("WILDCARD field type does not support automaton queries", type == Type.WILDCARD);
         String value = "v".repeat(between(1, 256));
         String differentValue = randomValueOtherThan(value, () -> randomAlphaOfLength(value.length()));
         String esqlQuery = """

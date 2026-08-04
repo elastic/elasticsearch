@@ -174,7 +174,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
     public void testElasticFleetServerPrivileges() {
         final String allowedApplicationActionPattern = "example/custom/action/*";
-        final String apmActionPattern = "apm:event:write";
+        final String apmActionPattern = "event:write";
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final Role role = Role.buildFromRoleDescriptor(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
@@ -186,8 +186,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                     "reserved_fleet-setup",
                     Set.of(allowedApplicationActionPattern),
                     Map.of()
-                ),
-                new ApplicationPrivilegeDescriptor("apm", "event:write", Set.of(apmActionPattern), Map.of())
+                )
             )
         );
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();

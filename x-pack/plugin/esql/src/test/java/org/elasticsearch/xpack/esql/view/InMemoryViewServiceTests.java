@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -1382,15 +1383,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     public void testDescriptionLengthExceeded() {
         String tooLong = "x".repeat(ViewService.MAX_VIEW_DESCRIPTION_LENGTH + 1);
-        Exception e = expectThrows(Exception.class, () -> addView("view1", "FROM a", tooLong));
-        assertThat(
-            e.getMessage(),
+        expectThrows(
+            Exception.class,
             containsString(
                 "view description is too large: "
                     + tooLong.length()
                     + " characters, the maximum allowed is "
                     + ViewService.MAX_VIEW_DESCRIPTION_LENGTH
-            )
+            ),
+            () -> addView("view1", "FROM a", tooLong)
         );
     }
 
@@ -2841,8 +2842,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addView(String name, String query, String description, ViewService viewService) {
         PutViewAction.Request request = new PutViewAction.Request(
-            TimeValue.ONE_MINUTE,
-            TimeValue.ONE_MINUTE,
+            ESTestCase.TEST_REQUEST_TIMEOUT,
+            ESTestCase.TEST_REQUEST_TIMEOUT,
             new View(name, query, description)
         );
         CountDownLatch latch = new CountDownLatch(1);

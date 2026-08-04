@@ -722,7 +722,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             for (ShardRouting unpromotableReplica : List.copyOf(assignedShards(failedPrimary.shardId()))) {
                 assert unpromotableReplica.primary() == false : unpromotableReplica;
                 assert unpromotableReplica.isPromotableToPrimary() == false : unpromotableReplica;
-                moveFailedShardToUnassigned( // okay, this is not directly failed, but it is in response to a failure and is unexpected
+                moveFailedShardToUnassigned(
+                    // okay, this is not directly failed, but it is in response to a failure and is unexpected
                     unpromotableReplica,
                     new UnassignedInfo(
                         UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,

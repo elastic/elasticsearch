@@ -57,6 +57,8 @@ GET /_cluster/health?wait_for_status=green&timeout=10s
 GET my-index-000001/_ilm/explain?human
 ```
 
+To include hidden indices when using wildcard expressions, set `expand_wildcards` to include `hidden` (for example, `open,hidden`).
+
 When management of the index is first taken over by {{ilm-init}}, `explain` shows that the index is managed and in the `new` phase:
 
 ```console-result

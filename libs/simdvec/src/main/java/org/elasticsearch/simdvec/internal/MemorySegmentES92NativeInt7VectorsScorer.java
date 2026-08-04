@@ -11,7 +11,7 @@ package org.elasticsearch.simdvec.internal;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections.
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 

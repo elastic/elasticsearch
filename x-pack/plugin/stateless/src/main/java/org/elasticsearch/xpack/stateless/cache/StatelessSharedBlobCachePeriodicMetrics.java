@@ -83,22 +83,33 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
      */
     public static final String BLOB_CACHE_REGIONS_TOTAL = "es.blob_cache.regions.total.current";
 
-    public static final String PROTECTED_METRIC = "es.blob_cache.protected.current";
-    public static final String PROTECTED_FREQ_0_METRIC = "es.blob_cache.protected.freq_0.current";
-    public static final String PROTECTED_FREQ_POSITIVE_METRIC = "es.blob_cache.protected.freq_positive.current";
+    /**
+     * Counts occupied regions for which {@link EvictionPolicy#isProtected} is true.
+     */
+    public static final String PROTECTED_METRIC = "es.blob_cache.regions.protected.current";
+    /**
+     * Counts protected regions at LFU frequency level 0. Together with
+     * {@link #PROTECTED_FREQ_POSITIVE_METRIC}, partitions {@link #PROTECTED_METRIC}.
+     */
+    public static final String PROTECTED_FREQ_0_METRIC = "es.blob_cache.regions.protected.freq_0.current";
+    /**
+     * Counts protected regions at a positive LFU frequency level. Together with
+     * {@link #PROTECTED_FREQ_0_METRIC}, partitions {@link #PROTECTED_METRIC}.
+     */
+    public static final String PROTECTED_FREQ_POSITIVE_METRIC = "es.blob_cache.regions.protected.freq_positive.current";
     /**
      * Counts occupied regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP}, independent of
-     * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
+     * eviction-policy protection.
      */
     public static final String BACKFILL_METRIC = "es.blob_cache.regions.backfill_timestamp.current";
     /**
      * Counts occupied regions with {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP}, independent of
-     * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
+     * eviction-policy protection.
      */
     public static final String UNKNOWN_METRIC = "es.blob_cache.regions.unknown_timestamp.current";
     /**
      * Counts occupied regions with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP}, independent of
-     * eviction-policy protection (hence under {@code regions.*}, not {@code protected.*}).
+     * eviction-policy protection.
      */
     public static final String MINIMAL_METRIC = "es.blob_cache.regions.minimal_timestamp.current";
 

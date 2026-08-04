@@ -425,6 +425,44 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Keep HIGHLIGHT before an EVAL that replaces the generated column.
+highlightEvalShadowsGeneratedColumn
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL highlight_title = CONCAT(book_no, "-shadowed")
+| SORT highlight_title ASC
+| LIMIT 10
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | 2714-shadowed
+7350            | 7350-shadowed
+;
+
+
+# Keep HIGHLIGHT before an EVAL that replaces its ON field.
+highlightEvalShadowsOnField
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL title = CONCAT("!", title)
+| SORT title ASC
+| LIMIT 10
+| KEEP book_no, title, highlight_title
+;
+
+book_no:keyword | title:keyword                                                      | highlight_title:keyword
+2714            | !Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | !Return of the Shadow                                              | <em>Return</em> of the Shadow
+;
+
+
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
 required_capability: highlight_v6
@@ -1793,4 +1831,33 @@ ROW location = "New York City"
 
 highlight_location:keyword
 null
+;
+
+
+# A full-text function's analyzer option resolves when it names the highlight analyzer.
+highlightAnalyzerMatchQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+highlightAnalyzerMatchPhraseQueryWithMatchingAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_phrase_runtime_analyzer
+
+ROW title = to_text("A fox-like creature")
+| HIGHLIGHT MATCH_PHRASE(title, "fox-like creature", { "analyzer": "whitespace" }) ON title WITH { "analyzer": "whitespace" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+A <em>fox-like creature</em>
 ;

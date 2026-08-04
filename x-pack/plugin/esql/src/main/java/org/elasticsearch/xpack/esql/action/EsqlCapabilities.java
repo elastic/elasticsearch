@@ -1488,6 +1488,20 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
+        /**
+         * Fixed a bug where a FORK or UnionAll preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree
+         * traversal triggered by FORK skipped the subquery's right child during field-caps resolution.
+         */
+        WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2128,7 +2142,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V6(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2363,6 +2377,12 @@ public class EsqlCapabilities {
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * Support constant expressions on the RHS of LIKE/RLIKE, e.g. {@code WHERE x LIKE CONCAT("prefix", "*")}.
+         * https://github.com/elastic/elasticsearch/issues/147671
+         */
+        LIKE_RLIKE_CONSTANT_EXPRESSION,
 
         /**
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
@@ -3369,6 +3389,11 @@ public class EsqlCapabilities {
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
+         */
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V6.isEnabled()),
+
+        /**
          * Fix TopN encoding/decoding of {@code long_range} values.
          * <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>
          */
@@ -3548,6 +3573,11 @@ public class EsqlCapabilities {
         PROMQL_TOPK,
 
         /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3586,6 +3616,15 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>
          */
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
+
+        /**
+         * A {@code TS} aggregation whose time bucket is named after the timestamp field, e.g.
+         * {@code TS metrics | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, no longer fails with
+         * {@code optimized incorrectly due to missing references [@timestamp]}: the internal first-pass bucket alias no
+         * longer shadows the field that the per-time-series aggregation reads.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
+         */
+        FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
 
         /**
          * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a

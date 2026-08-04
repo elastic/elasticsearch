@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
@@ -151,7 +152,16 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     record ConnectionProviderKey(@Nullable ProjectId projectId, AzureStorageSettings settings) {}
 
-    volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
+    private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
+
+    void clearCache() {
+        synchronized (this) {
+            // TODO: We could do smarter things here ... such as see the new settings we get and see which clients do not appear in the new
+            // settings anymore and we can only clean up the connectionProviders for those cases ...
+            IOUtils.closeWhileHandlingException(connectionProvidersCache.values()); // for doing the disposeLater on `ConnectionProvider`s
+            connectionProvidersCache = Collections.emptyMap();
+        }
+    }
 
     private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
         final var connectionProviderRef = connectionProvidersCache.get(key);

@@ -592,3 +592,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testRandomWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/155784
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardMovedAway
+  issue: https://github.com/elastic/elasticsearch/issues/155833

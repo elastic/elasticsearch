@@ -265,7 +265,6 @@ import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETT
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
 public class StatelessPlugin extends Plugin
@@ -841,6 +840,11 @@ public class StatelessPlugin extends Plugin
             warmingRatioProvider
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
+
+        var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
+        clusterService.addListener(clusterStateCleanupService);
+        // Allow wrapping non-Guiced version for testing
+
         var commitService = createStatelessCommitService(
             settings,
             objectStoreService,
@@ -853,9 +857,6 @@ public class StatelessPlugin extends Plugin
             services.telemetryProvider()
         );
         components.add(commitService);
-        var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
-        clusterService.addListener(clusterStateCleanupService);
-        // Allow wrapping non-Guiced version for testing
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
@@ -1315,7 +1316,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
-            STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,

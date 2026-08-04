@@ -1,0 +1,7 @@
+area: Vector Search
+issues:
+ - 155783
+ - 155784
+pr: 155795
+summary: Produce byte centroids in flat-threshold path for byte fields
+type: bug

@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import org.elasticsearch.inference.InferenceString;
 
 import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EmbeddingRequestChunkerBatchRequestTests extends InferenceObjectRamBytesUsedTest<EmbeddingRequestChunker.BatchRequest> {
 
@@ -51,5 +55,19 @@ public class EmbeddingRequestChunkerBatchRequestTests extends InferenceObjectRam
         // RamUsageTester inside testRamBytesUsed_DoesNotUnderAccount measures the whole object disregarding, that we only need to account
         // for the chunking overhead. Therefore, checking for do not under account doesn't make sense in this case.
         return false;
+    }
+
+    public void testRamBytesUsed_CoversMaterializedInputs() {
+        var batch = objectToEstimate();
+        assertThat(batch.ramBytesUsed(), greaterThanOrEqualTo(RamUsageTester.ramUsed(batch.inputs().get())));
+    }
+
+    public void testRamBytesUsed_CoversMaterializedInputsForManySmallChunks() {
+        var input = new InferenceString(DataType.TEXT, randomAlphaOfLength(200_000));
+        var requests = IntStream.range(0, 1_000)
+            .mapToObj(i -> new EmbeddingRequestChunker.Request(0, i, new Chunker.ChunkOffset(i * 200, (i + 1) * 200), input))
+            .toList();
+        var batch = new EmbeddingRequestChunker.BatchRequest(requests);
+        assertThat(batch.ramBytesUsed(), greaterThanOrEqualTo(RamUsageTester.ramUsed(batch.inputs().get())));
     }
 }

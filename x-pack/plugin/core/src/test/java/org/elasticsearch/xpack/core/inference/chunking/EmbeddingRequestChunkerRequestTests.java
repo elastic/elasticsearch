@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 
 import java.util.List;
 
@@ -17,7 +19,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytesUsedTest<EmbeddingRequestChunker.Request> {
 
-    private static final String INPUT = "document";
+    private static final String INPUT = "document_test";
 
     @Override
     public EmbeddingRequestChunker.Request objectToEstimate() {
@@ -27,10 +29,10 @@ public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytes
     @Override
     public List<EmbeddingRequestChunker.Request> objectsToEstimateWithLargerInput() {
         return List.of(
-            // Larger chunk
-            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 7), new InferenceString(DataType.TEXT, INPUT)),
+            // Larger chunk — chunkChars=10 crosses the 8-byte alignment boundary versus chunkChars=5
+            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 10), new InferenceString(DataType.TEXT, INPUT)),
             // Whole-input chunk
-            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 8), new InferenceString(DataType.TEXT, INPUT))
+            new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 13), new InferenceString(DataType.TEXT, INPUT))
         );
     }
 
@@ -39,6 +41,11 @@ public class EmbeddingRequestChunkerRequestTests extends InferenceObjectRamBytes
         var request = new EmbeddingRequestChunker.Request(0, 0, new Chunker.ChunkOffset(0, 0), emptyInput);
 
         assertThat(request.ramBytesUsed(), greaterThanOrEqualTo(emptyInput.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsed_CoversMaterializedChunk() {
+        var request = objectToEstimate();
+        assertThat(request.ramBytesUsed(), greaterThanOrEqualTo(RamUsageTester.ramUsed(new InferenceStringGroup(request.chunkText()))));
     }
 
     @Override

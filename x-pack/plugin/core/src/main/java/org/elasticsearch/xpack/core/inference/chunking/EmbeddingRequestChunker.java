@@ -52,6 +52,12 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
     record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) implements Accountable {
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Request.class);
+        private static final long CHUNK_OFFSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(ChunkOffset.class);
+        private static final long CHUNK_WRAPPER_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceStringGroup.class)
+            + RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+                    + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
 
         public InferenceString chunkText() {
             if (chunkContainsWholeInput()) {
@@ -61,12 +67,15 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
+        /**
+         * Accounts for what chunking actually allocates: the substring copy that {@link #chunkText()} creates plus the
+         * {@link InferenceStringGroup} wrapper that {@link BatchRequest#inputs()} puts it in. The original input String is
+         * owned by the caller and deliberately not charged here.
+         */
         @Override
         public long ramBytesUsed() {
-            int chunkChars = chunk.end() - chunk.start();
-            int length = input.value().length();
-            double fraction = length == 0 ? 1.0 : (double) chunkChars / (double) length;
-            return SHALLOW_SIZE + (long) (input.ramBytesUsed() * fraction);
+            var chunkChars = chunk.end() - chunk.start();
+            return SHALLOW_SIZE + CHUNK_OFFSET_SIZE + CHUNK_WRAPPER_SIZE + InferenceString.estimateRamBytesUsed(chunkChars);
         }
 
         private boolean chunkContainsWholeInput() {
@@ -84,8 +93,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
         @Override
         public long ramBytesUsed() {
-            var requestsRamBytesUsed = requests().stream().mapToLong(Request::ramBytesUsed).sum();
-            return SHALLOW_SIZE + requestsRamBytesUsed;
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(requests());
         }
     }
 

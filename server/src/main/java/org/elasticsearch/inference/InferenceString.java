@@ -47,6 +47,14 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     // class.
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:[^/]+/[^,]+;base64,");
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceString.class);
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+    // Conservative overhead for the DataType and DataFormat enum instances that every InferenceString references.
+    // These are shared singletons, but they do occupy heap. Including their shallow sizes here makes
+    // estimateRamBytesUsed safe for circuit-breaker callers that need a ≥-actual bound without a
+    // full deep traversal.
+    private static final long ENUM_OVERHEAD = RamUsageEstimator.shallowSizeOf(DataType.TEXT) + RamUsageEstimator.shallowSizeOf(
+        DataFormat.TEXT
+    );
 
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
@@ -195,9 +203,24 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         return inferenceString.value();
     }
 
+    /**
+     * Estimates the retained size of an {@link InferenceString} holding a value of {@code valueLength} characters,
+     * for callers that need the estimate before the String exists (e.g. chunking).
+     * <p>
+     * The estimate is intentionally conservative (may over-count) so that circuit-breaker callers
+     * obtain a guaranteed ≥-actual bound. Two sources of conservatism: (1) each character is charged
+     * {@link Character#BYTES} = 2 bytes even though compact strings use 1 byte/char for ASCII;
+     * (2) {@link #ENUM_OVERHEAD} covers the shared {@link DataType} and {@link DataFormat} enum instances.
+     */
+    public static long estimateRamBytesUsed(int valueLength) {
+        return SHALLOW_SIZE + ENUM_OVERHEAD + RamUsageEstimator.alignObjectSize(
+            STRING_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * valueLength
+        );
+    }
+
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(value());
+        return estimateRamBytesUsed(value().length());
     }
 
     @Override

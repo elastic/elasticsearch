@@ -483,7 +483,7 @@ public class MetadataUpdateSettingsService {
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
-    private static boolean maybeUpdateClusterBlock(
+    static boolean maybeUpdateClusterBlock(
         ProjectId projectId,
         String[] actualIndices,
         ClusterBlocks.Builder blocks,
@@ -501,6 +501,7 @@ public class MetadataUpdateSettingsService {
                     if (blocks.hasIndexBlock(projectId, index, block) == false) {
                         blocks.addIndexBlock(projectId, index, block);
                         changed = true;
+                        logger.info("updating [{}] to [{}] for index [{}]", setting.getKey(), updateBlock, index);
                         if (block.contains(ClusterBlockLevel.WRITE)) {
                             var isVerifiedReadOnly = verifiedReadOnlyBeforeBlockChanges.apply(index);
                             if (isVerifiedReadOnly) {
@@ -520,6 +521,7 @@ public class MetadataUpdateSettingsService {
                     if (blocks.hasIndexBlock(projectId, index, block)) {
                         blocks.removeIndexBlock(projectId, index, block);
                         changed = true;
+                        logger.info("updating [{}] to [{}] for index [{}]", setting.getKey(), updateBlock, index);
                         if (block.contains(ClusterBlockLevel.WRITE)) {
                             if (blocks.hasIndexBlockLevel(projectId, index, ClusterBlockLevel.WRITE) == false) {
                                 var indexMetadata = metadataBuilder.get(index);

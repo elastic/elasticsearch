@@ -620,7 +620,12 @@ public class SharedBlobCacheWarmingService {
         } else {
             boolean success = false;
             try {
-                WarmingRun warmingRun = new WarmingRun(type, shardId, "merge=" + mergeId, Map.of("prewarming_type", type.name()));
+                WarmingRun warmingRun = new WarmingRun(
+                    type,
+                    shardId,
+                    "merge=" + mergeId,
+                    Map.of("prewarming_type", type.name(), WARMING_TYPE_ATTRIBUTE_KEY, "merge")
+                );
                 Set<String> filesToWarm = new HashSet<>();
                 final Map<String, BlobLocation> fileLocations = new HashMap<>();
 
@@ -857,7 +862,7 @@ public class SharedBlobCacheWarmingService {
                     type,
                     indexShard.shardId(),
                     "generation=" + commit.generation(),
-                    warmingLabels(indexShard, type)
+                    warmingLabels(indexShard, type, "headerFooter")
                 );
                 boolean preWarmForIdLookupRequested = preWarmForIdLookup && (type == Type.INDEXING_EARLY || type == Type.INDEXING);
                 if (preWarmForIdLookupRequested) {
@@ -884,8 +889,15 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    private static Map<String, Object> warmingLabels(IndexShard indexShard, Type type) {
-        return Map.of("primary", indexShard.routingEntry().primary(), "prewarming_type", type.name());
+    private static Map<String, Object> warmingLabels(IndexShard indexShard, Type type, String warmerType) {
+        return Map.of(
+            "primary",
+            indexShard.routingEntry().primary(),
+            "prewarming_type",
+            type.name(),
+            WARMING_TYPE_ATTRIBUTE_KEY,
+            warmerType
+        );
     }
 
     /**
@@ -1039,8 +1051,7 @@ public class SharedBlobCacheWarmingService {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final Type warmingType = Type.INDEXING_BCC_HEADER_PREWARM;
-        final var bccPrewarmLabels = warmingLabels(indexShard, warmingType);
-        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", Collections.unmodifiableMap(bccPrewarmLabels));
+        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", warmingLabels(indexShard, warmingType, "region0PreWarm"));
         if (store.isClosing()) {
             listener.onFailure(
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
@@ -1189,7 +1200,7 @@ public class SharedBlobCacheWarmingService {
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
-        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
+        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name(), WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
         if (store.isClosing()) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
@@ -1273,7 +1284,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "headerFooter"));
+            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
@@ -1514,7 +1525,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "merge"));
+            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "merge warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
@@ -1561,7 +1572,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
+            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
@@ -1612,7 +1623,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "region0PreWarm"));
+            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",

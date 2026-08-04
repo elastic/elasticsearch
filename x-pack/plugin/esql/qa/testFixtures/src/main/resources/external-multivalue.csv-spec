@@ -6,7 +6,7 @@
 // `multi_value_syntax` key (ConfigKeyValidator), so this spec carries the SAME queries WITHOUT the
 // WITH clause — each format reads its native MV representation.
 //
-// SISTER FILE: csv-multivalue.csv-spec carries the identical 9 query shapes with the brackets opt-in
+// SISTER FILE: csv-multivalue.csv-spec carries the identical employees query shapes with the brackets opt-in
 // for the CSV reader path. When adding / changing a query here, mirror it there (or vice versa).
 //
 // EsqlSpecTestCase (single-node / mixed-cluster / multi-cluster / multi-node, no AbstractExternalSource
@@ -227,4 +227,58 @@ FROM books_ds
 
 book_no:keyword|title:keyword                        |description:keyword                                                                                 |score:double
 9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
+;
+
+// mv_like / mv_rlike over a dataset: FROM <dataset> has no Lucene index, so the predicate runs on the
+// compute-engine evaluator — the path these functions take in production for datasets, exercised here
+// across every native-array format reader. Must agree with the index-backed mvLikeField/mvRLikeField
+// tests over the identical data. Sister shapes with the brackets opt-in live in csv-multivalue.csv-spec.
+mvLikeFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10002 AND mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+// The two-valued contract on the dataset path: emp 10003 has no job_positions, so mv_like is false (never
+// null) and NOT includes it; emp 10004's values are all non-Senior, so NOT includes it too.
+mvLikeNotFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10004 AND NOT mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10003
+10004
+;
+
+mvRLikeFromDataset
+required_capability: fn_mv_rlike
+required_capability: dataset_in_from_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE emp_no <= 10004 AND mv_rlike(job_positions, "Senior.*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
 ;

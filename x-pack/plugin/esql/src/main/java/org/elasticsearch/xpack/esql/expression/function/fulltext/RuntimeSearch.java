@@ -11,20 +11,38 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 
 /**
  * Runtime (per-row) evaluation of full-text functions on {@code text} expressions that are not index-mapped fields,
@@ -38,7 +56,7 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
  */
 public final class RuntimeSearch {
 
-    private static final String CONTENT_FIELD = "content_field";
+    public static final String CONTENT_FIELD = "content_field";
 
     private RuntimeSearch() {}
 
@@ -122,6 +140,25 @@ public final class RuntimeSearch {
         return terms;
     }
 
+    /**
+     * Exact (unanalyzed) value equality, shared by the runtime full-text functions for types that a pushed-down
+     * query matches as a single term: {@code keyword} for {@code match} and {@code match_phrase} (and {@code ip},
+     * {@code version} etc. for {@code match}, whose query value is converted up front).
+     */
+    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
+    static boolean processBytesRef(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed BytesRef queryStringBytesRef,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return false;
+        }
+
+        return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
+    }
+
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
         @Position int position,
@@ -149,6 +186,88 @@ public final class RuntimeSearch {
                 stream.end();
             }
             if (foundMatch) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Builds an {@link ExpressionEvaluator.Factory} for runtime {@code text} matching when the caller supplies an
+     * ES|QL {@link org.elasticsearch.xpack.esql.core.querydsl.query.Query} (e.g. a {@code MatchQuery} with options).
+     * The query is compiled once into a Lucene {@link Query} against a synthetic
+     * {@link RuntimeSearchExecutionContext}, and each row is then matched by indexing its value into a transient
+     * {@link MemoryIndex}. The same {@code analyzer} ({@code null} selects the standard analyzer) is used for both
+     * query compilation and per-row indexing, so tokenization stays consistent.
+     */
+    public static ExpressionEvaluator.Factory textEvaluatorForQuery(
+        Source source,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
+        @Nullable NamedAnalyzer analyzer
+    ) {
+        NamedAnalyzer namedAnalyzer = analyzer == null ? Lucene.STANDARD_ANALYZER : analyzer;
+        Query luceneQuery;
+        try {
+            luceneQuery = query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD), namedAnalyzer));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        if (luceneQuery instanceof MatchAllDocsQuery) {
+            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
+        }
+        if (luceneQuery instanceof MatchNoDocsQuery) {
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+        }
+        return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
+            source,
+            fieldEvaluator,
+            namedAnalyzer,
+            luceneQuery,
+            context -> new BytesRef()
+        );
+    }
+
+    /**
+     * Resolves the {@code analyzer} entry of a full-text function's options map into a {@link NamedAnalyzer}
+     * through the evaluator context's registry lookup. Returns {@code null} when no analyzer was requested.
+     * Option map values are untyped ({@code Options.populateMap} does not guarantee {@code String} for keyword
+     * options), so the conversion is centralized here.
+     */
+    @Nullable
+    public static NamedAnalyzer resolveNamedAnalyzer(Map<String, Object> options, EvaluatorMapper.ToEvaluator toEvaluator) {
+        Object analyzerName = options.get(ANALYZER_FIELD.getPreferredName());
+        if (analyzerName == null) {
+            return null;
+        }
+        String name = BytesRefs.toString(analyzerName);
+        Analyzer analyzer = toEvaluator.getAnalyzer(name);
+        // Registry lookups return NamedAnalyzer in practice, but the interface only promises Analyzer
+        return analyzer instanceof NamedAnalyzer namedAnalyzer ? namedAnalyzer : new NamedAnalyzer(name, AnalyzerScope.GLOBAL, analyzer);
+    }
+
+    @Evaluator(extraName = "TextWithLuceneQuery", warnExceptions = { IOException.class }, allNullsIsNull = false)
+    static boolean processText(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed Analyzer analyzer,
+        @Fixed Query query,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) throws IOException {
+        if (fieldBlock == null) {
+            return false;
+        }
+        final var valueCount = fieldBlock.getValueCount(position);
+        final var startIndex = fieldBlock.getFirstValueIndex(position);
+
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            MemoryIndex index = new MemoryIndex();
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            index.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
+            IndexSearcher searcher = index.createSearcher();
+
+            TopDocs topDocs = searcher.search(query, 1);
+            if (topDocs.scoreDocs.length > 0) {
                 return true;
             }
         }

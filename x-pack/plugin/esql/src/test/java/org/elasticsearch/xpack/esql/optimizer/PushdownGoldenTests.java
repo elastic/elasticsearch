@@ -63,6 +63,15 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | WHERE mapped_on_data_node == "Disconnection error"
+            """;
+        runTestsLoadOnly(query, STAGES);
+    }
+
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -81,6 +90,16 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 5
             """;
         runUnmappedTests(query);
+    }
+
+    public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | SORT mapped_on_data_node
+            | LIMIT 5
+            """;
+        runTestsLoadOnly(query, STAGES);
     }
 
     public void testFilterConjunctionPushableAndNonPushable() {
@@ -238,6 +257,46 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
+    }
+
+    public void testMvContainsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_contains(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvContainsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_contains(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_intersects(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsWithFoldableLeftArgument() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(["Alice", "Anna", "Peter"], first_name)
+            """;
+        runGoldenTest(query, STAGES);
     }
 
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */

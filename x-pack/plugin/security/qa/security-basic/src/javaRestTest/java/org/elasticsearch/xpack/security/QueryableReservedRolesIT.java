@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -18,8 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AnnotationTestOrdering;
-import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -55,7 +51,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class QueryableReservedRolesIT extends ESRestTestCase {
 
     protected static final String REST_USER = "security_test_user";
@@ -97,8 +92,8 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         .plugin("queryable-reserved-roles-test")
         .build();
 
-    private static Set<String> PREVIOUS_RESERVED_ROLES;
-    private static Set<String> CONFIGURED_RESERVED_ROLES;
+    private Set<String> previousReservedRoles;
+    private Set<String> configuredReservedRoles;
 
     @Override
     protected String getTestRestCluster() {
@@ -117,8 +112,17 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Order(10)
-    public void testQueryDeleteOrUpdateReservedRoles() throws Exception {
+    public void testQueryableReservedRolesLifecycle() throws Exception {
+        queryDeleteOrUpdateReservedRoles();
+        getReservedRoles();
+        restartForConfiguringReservedRoles();
+        assertConfiguredReservedRoles();
+        restartForConfiguringReservedRolesAndClosingIndex();
+        assertConfiguredReservedRolesAfterClosingAndOpeningIndex();
+        assertDeletingAndCreatingSecurityIndexTriggersSynchronization();
+    }
+
+    private void queryDeleteOrUpdateReservedRoles() throws Exception {
         waitForMigrationCompletion(adminClient(), SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
 
         final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
@@ -145,8 +149,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertCannotCreateOrUpdateReservedRole(roleName);
     }
 
-    @Order(11)
-    public void testGetReservedRoles() throws Exception {
+    private void getReservedRoles() throws Exception {
         final String[] allReservedRoles = ReservedRolesStore.names().toArray(new String[0]);
         final String roleName = randomFrom(allReservedRoles);
         Request request = new Request("GET", "/_security/role/" + roleName);
@@ -157,25 +160,22 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertThat(responseMap.containsKey(roleName), is(true));
     }
 
-    @Order(20)
-    public void testRestartForConfiguringReservedRoles() throws Exception {
+    private void restartForConfiguringReservedRoles() throws Exception {
         configureReservedRoles(List.of("editor", "viewer", "kibana_system", "apm_system", "beats_system", "logstash_system"));
-        cluster.restart(false);
-        closeClients();
+        restartClusterAndReinitializeClients();
     }
 
-    @Order(30)
-    public void testConfiguredReservedRoles() throws Exception {
-        assert CONFIGURED_RESERVED_ROLES != null;
+    private void assertConfiguredReservedRoles() throws Exception {
+        assert configuredReservedRoles != null;
 
         // Test query roles API
         assertBusy(() -> {
             assertQuery(client(), """
                 { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
-                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
-                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                """, configuredReservedRoles.size(), roles -> {
+                assertThat(roles, iterableWithSize(configuredReservedRoles.size()));
                 for (var role : roles) {
-                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                    assertThat((String) role.get("name"), is(oneOf(configuredReservedRoles.toArray(new String[0]))));
                 }
             });
         }, 30, TimeUnit.SECONDS);
@@ -185,26 +185,23 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
             final Response response = adminClient().performRequest(new Request("GET", "/_security/role"));
             assertOK(response);
             final Map<String, Object> responseMap = responseAsMap(response);
-            assertThat(responseMap.keySet(), equalTo(CONFIGURED_RESERVED_ROLES));
+            assertThat(responseMap.keySet(), equalTo(configuredReservedRoles));
         });
     }
 
-    @Order(40)
-    public void testRestartForConfiguringReservedRolesAndClosingIndex() throws Exception {
+    private void restartForConfiguringReservedRolesAndClosingIndex() throws Exception {
         configureReservedRoles(List.of("editor", "viewer"));
         closeSecurityIndex();
-        cluster.restart(false);
-        closeClients();
+        restartClusterAndReinitializeClients();
     }
 
-    @Order(50)
-    public void testConfiguredReservedRolesAfterClosingAndOpeningIndex() throws Exception {
-        assert CONFIGURED_RESERVED_ROLES != null;
-        assert PREVIOUS_RESERVED_ROLES != null;
-        assertThat(PREVIOUS_RESERVED_ROLES, is(not(equalTo(CONFIGURED_RESERVED_ROLES))));
+    private void assertConfiguredReservedRolesAfterClosingAndOpeningIndex() throws Exception {
+        assert configuredReservedRoles != null;
+        assert previousReservedRoles != null;
+        assertThat(previousReservedRoles, is(not(equalTo(configuredReservedRoles))));
 
         // Test configured roles did not get updated because the security index is closed
-        assertMetadataContainsBuiltInRoles(PREVIOUS_RESERVED_ROLES);
+        assertMetadataContainsBuiltInRoles(previousReservedRoles);
 
         // Open the security index
         openSecurityIndex();
@@ -213,18 +210,17 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertBusy(() -> {
             assertQuery(client(), """
                 { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
-                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
-                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                """, configuredReservedRoles.size(), roles -> {
+                assertThat(roles, iterableWithSize(configuredReservedRoles.size()));
                 for (var role : roles) {
-                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                    assertThat((String) role.get("name"), is(oneOf(configuredReservedRoles.toArray(new String[0]))));
                 }
             });
         }, 30, TimeUnit.SECONDS);
 
     }
 
-    @Order(60)
-    public void testDeletingAndCreatingSecurityIndexTriggersSynchronization() throws Exception {
+    private void assertDeletingAndCreatingSecurityIndexTriggersSynchronization() throws Exception {
         deleteSecurityIndex();
 
         assertBusy(this::assertSecurityIndexDeleted, 30, TimeUnit.SECONDS);
@@ -236,10 +232,10 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertBusy(() -> {
             assertQuery(client(), """
                 { "query": { "bool": { "must": { "term": { "metadata._reserved": true } } } }, "size": 100 }
-                """, CONFIGURED_RESERVED_ROLES.size(), roles -> {
-                assertThat(roles, iterableWithSize(CONFIGURED_RESERVED_ROLES.size()));
+                """, configuredReservedRoles.size(), roles -> {
+                assertThat(roles, iterableWithSize(configuredReservedRoles.size()));
                 for (var role : roles) {
-                    assertThat((String) role.get("name"), is(oneOf(CONFIGURED_RESERVED_ROLES.toArray(new String[0]))));
+                    assertThat((String) role.get("name"), is(oneOf(configuredReservedRoles.toArray(new String[0]))));
                 }
             });
         }, 30, TimeUnit.SECONDS);
@@ -278,12 +274,18 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         assertThat(securityIndexMetadata, is(nullValue()));
     }
 
-    private void configureReservedRoles(List<String> reservedRoles) throws Exception {
-        PREVIOUS_RESERVED_ROLES = CONFIGURED_RESERVED_ROLES;
-        CONFIGURED_RESERVED_ROLES = new HashSet<>();
-        CONFIGURED_RESERVED_ROLES.add("superuser"); // superuser must always be included
-        CONFIGURED_RESERVED_ROLES.addAll(reservedRoles);
-        clusterSettings.put("xpack.security.reserved_roles.include", Strings.collectionToCommaDelimitedString(CONFIGURED_RESERVED_ROLES));
+    private void configureReservedRoles(List<String> reservedRoles) {
+        previousReservedRoles = configuredReservedRoles;
+        configuredReservedRoles = new HashSet<>();
+        configuredReservedRoles.add("superuser"); // superuser must always be included
+        configuredReservedRoles.addAll(reservedRoles);
+        clusterSettings.put("xpack.security.reserved_roles.include", Strings.collectionToCommaDelimitedString(configuredReservedRoles));
+    }
+
+    private void restartClusterAndReinitializeClients() throws Exception {
+        cluster.restart(false);
+        closeClients();
+        initClient();
     }
 
     private void closeSecurityIndex() throws Exception {

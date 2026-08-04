@@ -938,3 +938,40 @@ Connection error
 Connection error
 Disconnected
 ;
+
+// MV tests: mv_sample_data has 7 rows, each with message = [something, Banana].
+// With CATEGORIZE in STATS the MV field is unrolled → 4 distinct categories.
+// With CATEGORIZE in LIMIT BY the MV field is treated as an ordered tuple → 3 distinct groups:
+//   [cat(Banana), cat(Connected to ...)], [cat(Banana), cat(Connection error)], [cat(Banana), cat(Disconnected)]
+
+limitByCategorizeMultivalue
+required_capability: categorize_v6
+required_capability: esql_limit_by
+required_capability: categorize_in_limit_by
+
+FROM mv_sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message)
+  | STATS count = COUNT()
+;
+
+count:long
+3
+;
+
+sortLimitByCategorizeMultivalue
+required_capability: categorize_v6
+required_capability: esql_topn_by
+required_capability: categorize_in_limit_by
+
+// Top 2 per group: 2 (Connected to) + 1 (Disconnected) + 2 (Connection error) = 5 rows
+FROM mv_sample_data
+  | SORT @timestamp ASC
+  | LIMIT 2 BY CATEGORIZE(message)
+  | STATS count = COUNT()
+;
+
+count:long
+5
+;

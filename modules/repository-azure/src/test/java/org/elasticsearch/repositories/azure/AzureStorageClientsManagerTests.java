@@ -411,11 +411,12 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
     static class TestAzureClientProvider extends AzureClientProvider {
 
         TestAzureClientProvider(int multipartUploadMaxConcurrency) {
-            super(null, null, null, null, null, multipartUploadMaxConcurrency);
+            super(null, null, null, null, null, null, multipartUploadMaxConcurrency);
         }
 
         @Override
         TestAzureBlobServiceClient createClient(
+            String clientName,
             AzureStorageSettings settings,
             LocationMode locationMode,
             RequestRetryOptions retryOptions,
@@ -431,7 +432,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
         final AzureStorageSettings settings;
 
         TestAzureBlobServiceClient(AzureStorageSettings settings) {
-            super(null, null, settings.getMaxRetries(), null);
+            super(null, null, settings.getMaxRetries(), null, null);
             this.settings = settings;
         }
     }

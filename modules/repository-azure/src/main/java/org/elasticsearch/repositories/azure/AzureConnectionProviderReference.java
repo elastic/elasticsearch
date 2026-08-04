@@ -24,6 +24,10 @@ class AzureConnectionProviderReference extends AbstractRefCounted implements Rel
         this.connectionProvider = connectionProvider;
     }
 
+    public ConnectionProvider getConnectionProvider() {
+        return connectionProvider;
+    }
+
     @Override
     public void close() {
         decRef();

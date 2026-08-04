@@ -38,12 +38,15 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
@@ -51,6 +54,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -109,34 +114,74 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final String reactorExecutorName;
     private final EventLoopGroup eventLoopGroup;
-    private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final LoopResources nioLoopResources;
     private final int multipartUploadMaxConcurrency;
     private volatile boolean closed = false;
 
+    private final TimeValue openConnectionTimeout;
+    private final TimeValue maxIdleTime;
+
     AzureClientProvider(
         ThreadPool threadPool,
         String reactorExecutorName,
         EventLoopGroup eventLoopGroup,
-        ConnectionProvider connectionProvider,
+        TimeValue openConnectionTimeout,
+        TimeValue maxIdleTime,
         ByteBufAllocator byteBufAllocator,
         int multipartUploadMaxConcurrency
     ) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
-        this.connectionProvider = connectionProvider;
+        this.openConnectionTimeout = openConnectionTimeout;
+        this.maxIdleTime = maxIdleTime;
         this.byteBufAllocator = byteBufAllocator;
         // The underlying http client uses this as part of the connection pool key,
         // hence we need to use the same instance across all the client instances
         // to avoid creating multiple connection pools.
         this.nioLoopResources = useNative -> eventLoopGroup;
         this.multipartUploadMaxConcurrency = multipartUploadMaxConcurrency;
+
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
+    }
+
+    record ConnectionProviderKey(@Nullable ProjectId projectId, AzureStorageSettings settings) {}
+
+    volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
+
+    private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
+        final var connectionProviderRef = connectionProvidersCache.get(key);
+        if (connectionProviderRef != null && connectionProviderRef.tryIncRef()) {
+            return connectionProviderRef;
+        }
+
+        synchronized (this) {
+            final var existing = connectionProvidersCache.get(key);
+            if (existing != null && existing.tryIncRef()) {
+                return existing;
+            }
+
+            if (closed) {
+                // Not adding a new provider once the AzureClientProvider is closed since there won't be anything to close it
+                throw new AlreadyClosedException("AzureClientProvider is already closed");
+            }
+
+            ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
+                .maxConnections(key.settings().getMaxConnections())
+                .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
+                .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
+                .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
+                .build();
+
+            final var newConnectionProviderRef = new AzureConnectionProviderReference(provider);
+            newConnectionProviderRef.incRef();
+            connectionProvidersCache = Maps.copyMapWithAddedEntry(connectionProvidersCache, key, newConnectionProviderRef);
+            return newConnectionProviderRef;
+        }
     }
 
     static AzureClientProvider create(ThreadPool threadPool, Settings settings) {
@@ -146,23 +191,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // execution of privileged code
         final EventLoopGroup eventLoopGroup = new NioEventLoopGroup(eventLoopThreadsFromSettings(settings), eventLoopExecutor);
 
-        final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
-        final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
-
-        ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
-            .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
-            .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
-            .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
-            .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
-            .build();
-
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
         return new AzureClientProvider(
             threadPool,
             REPOSITORY_THREAD_POOL_NAME,
             eventLoopGroup,
-            provider,
+            OPEN_CONNECTION_TIMEOUT.get(settings),
+            MAX_IDLE_TIME.get(settings),
             NettyAllocator.getAllocator(),
             threadPool.info(REPOSITORY_THREAD_POOL_NAME).getMax()
         );
@@ -180,7 +216,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
-        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
+        // get the key ... construct connectionpProvider
+        ConnectionProviderKey key = new ConnectionProviderKey(null, settings);
+        AzureConnectionProviderReference ref = acquireConnectionProvider(key);
+
+        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(ref.getConnectionProvider());
         nettyHttpClient = nettyHttpClient.port(80)
             .wiretap(false)
             .resolver(DefaultAddressResolverGroup.INSTANCE)
@@ -261,7 +301,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         closed = true;
         // Dispose of the connection provider first and wait for it to complete before we close the event loop.
         try {
-            connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+            // FIXME: connectionProvider.disposeLater().block(Duration.ofSeconds(5));
         } catch (RuntimeException e) {
             logger.warn("Error disposing connection provider", e);
         } finally {
@@ -282,11 +322,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     public int getMultipartUploadMaxConcurrency() {
         return multipartUploadMaxConcurrency;
-    }
-
-    // visible for testing
-    ConnectionProvider getConnectionProvider() {
-        return connectionProvider;
     }
 
     static class RequestMetrics {

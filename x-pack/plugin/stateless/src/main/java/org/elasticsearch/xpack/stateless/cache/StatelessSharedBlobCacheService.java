@@ -155,6 +155,16 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Setting.Property.NodeScope
     );
 
+    /// Setting gating force-eviction of a deleted index's cache regions (see [SharedBlobCacheService#forceEvictAsync]). The regions of a
+    /// deleted index can never be read again, so they are dropped as soon as the index is removed rather than left for the LFU to
+    /// reclaim. A flip takes effect on the next index removal; an eviction already submitted still runs.
+    public static final Setting<Boolean> STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache.evict_deleted_index_regions.enabled",
+        false,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -165,6 +175,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
     private volatile boolean demoteClosedShardRegionsEnabled;
+    private volatile boolean evictDeletedIndexRegionsEnabled;
 
     private final int evictionDegradationThreshold;
     private final long evictionDegradationDurationMillis;
@@ -222,6 +233,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
             enabled -> this.demoteClosedShardRegionsEnabled = enabled
+        );
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
+            enabled -> this.evictDeletedIndexRegionsEnabled = enabled
         );
     }
 
@@ -421,5 +436,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// Whether to asynchronously demote the cache regions of a shard whose store was closed, making them the first eviction candidates.
     public boolean isDemoteClosedShardRegionsEnabled() {
         return demoteClosedShardRegionsEnabled;
+    }
+
+    /// Whether to asynchronously force-evict the cache regions of a deleted index's shards.
+    public boolean isEvictDeletedIndexRegionsEnabled() {
+        return evictDeletedIndexRegionsEnabled;
     }
 }

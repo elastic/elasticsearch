@@ -225,7 +225,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     private void testIndexingThrottlingWhenSubmittingMerges(boolean withDiskIOThrottlingEnabled) {
         final int maxThreadCount = randomIntBetween(1, 5);
-        // settings validation requires maxMergeCount >= maxThreadCount
+        // keep maxMergeCount >= maxThreadCount so the test exercises the configured thread count
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
@@ -293,7 +293,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testIndexingThrottlingWhileMergesAreRunning() {
         final int maxThreadCount = randomIntBetween(1, 5);
-        // settings validation requires maxMergeCount >= maxThreadCount
+        // keep maxMergeCount >= maxThreadCount so the test exercises the configured thread count
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         List<MergeTask> scheduledToRunMergeTasks = new ArrayList<>();

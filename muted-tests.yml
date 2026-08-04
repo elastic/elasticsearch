@@ -224,6 +224,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/155669
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test10ArchiveAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/155685
 
 # Examples:
 #

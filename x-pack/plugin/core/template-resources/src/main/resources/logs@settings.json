@@ -3,7 +3,7 @@
     "settings": {
       "index": {
         "lifecycle": {
-          "name": "logs"
+          "name": "logs@lifecycle"
         },
         "codec": "best_compression",
         "mapping": {

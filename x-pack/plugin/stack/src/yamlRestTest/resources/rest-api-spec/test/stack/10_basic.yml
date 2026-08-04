@@ -80,6 +80,10 @@ setup:
 
 ---
 "Test logs index auto creation":
+  - requires:
+      cluster_features: ["logs.ilm_policy_name"]
+      reason: "the logs index template refers to the logs@lifecycle policy from this version onwards"
+
   - do:
       index:
         index: logs-foo-bar
@@ -110,7 +114,7 @@ setup:
 
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.mappings
-  - match: { .$idx0name.settings.index.lifecycle.name: "logs" }
+  - match: { .$idx0name.settings.index.lifecycle.name: "logs@lifecycle" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.type.type: "constant_keyword" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.type.value: "logs" }
   - match: { .$idx0name.mappings.properties.data_stream.properties.dataset.type: "constant_keyword" }

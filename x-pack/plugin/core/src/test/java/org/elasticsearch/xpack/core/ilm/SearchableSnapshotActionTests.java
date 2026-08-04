@@ -73,7 +73,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     /**
-     * Validate that the {@link ResizeIndexStep} used to clone the index for force merging configures the target index with 0 replicas.
+     * Validate that the {@link ResizeIndexStep} used to clone the index for force merging configures the target index with 0 replicas
+     * and stamps {@link LifecycleSettings#LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID} with the source index's UUID.
      */
     private void validateForceMergeClone(boolean isForceMergeIndex, Boolean isForceMergeOnClone, List<Step> steps) {
         if (isForceMergeIndex == false || (isForceMergeOnClone != null && isForceMergeOnClone == false)) {
@@ -89,6 +90,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             .build();
         Settings cloneIndexSettings = cloneStep.getTargetIndexSettingsSupplier().apply(indexMetadata);
         assertThat(cloneIndexSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, -1), is(0));
+        assertThat(cloneIndexSettings.get(LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID), is(indexMetadata.getIndexUUID()));
     }
 
     public void testPrefixAndStorageTypeDefaults() {

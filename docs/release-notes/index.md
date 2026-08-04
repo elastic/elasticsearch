@@ -539,7 +539,6 @@ Vector Search:
 * Add AVX-512 f32 dot product and squared L2 kernels [#145674](https://github.com/elastic/elasticsearch/pull/145674)
 * Advise MADV_RANDOM on blob cache regions backing vector data files [#150066](https://github.com/elastic/elasticsearch/pull/150066)
 * BF16 bulk AVX-512 K-unroll for sequential paths [#147672](https://github.com/elastic/elasticsearch/pull/147672)
-* Cache little-endian float layout in DiskBBQ scalar corrections loop [#154373](https://github.com/elastic/elasticsearch/pull/154373)
 * DiskBBQ - add symmetric 1-bit OSQ vector scorer [#149339](https://github.com/elastic/elasticsearch/pull/149339)
 * DiskBBQ - wire auto calibration at merge time [#152894](https://github.com/elastic/elasticsearch/pull/152894)
 * DiskBBQ Bulk collect knn docs to improve query latency [#146588](https://github.com/elastic/elasticsearch/pull/146588)
@@ -592,7 +591,6 @@ Distributed:
 ES|QL:
 * Add error message for SPARKLINE after TS [#149015](https://github.com/elastic/elasticsearch/pull/149015)
 * Adds type to message on wrong mutation of attributes [#150981](https://github.com/elastic/elasticsearch/pull/150981)
-* Allow GC of closed search contexts in ES|QL [#155418](https://github.com/elastic/elasticsearch/pull/155418)
 * Avoid MAX_INT loop on Repeat [#154295](https://github.com/elastic/elasticsearch/pull/154295)
 * Avoid implicit cast for `dense_vector` under LOAD [#152349](https://github.com/elastic/elasticsearch/pull/152349) (issue: [#152184](https://github.com/elastic/elasticsearch/issues/152184))
 * Clearer error message on nested aggregations [#149385](https://github.com/elastic/elasticsearch/pull/149385)
@@ -600,7 +598,6 @@ ES|QL:
 * Corrects bug with LOOKUP JOIN, empty scopes and security enabled [#153825](https://github.com/elastic/elasticsearch/pull/153825)
 * Don't accidentally add flattened subfields [#154508](https://github.com/elastic/elasticsearch/pull/154508) (issues: [#154743](https://github.com/elastic/elasticsearch/issues/154743), [#154484](https://github.com/elastic/elasticsearch/issues/154484), [#154011](https://github.com/elastic/elasticsearch/issues/154011))
 * FORK: Fix error handling for unsupported types [#152210](https://github.com/elastic/elasticsearch/pull/152210) (issue: [#147603](https://github.com/elastic/elasticsearch/issues/147603))
-* Fix BUCKET with very large bucket counts [#153392](https://github.com/elastic/elasticsearch/pull/153392) (issue: [#153389](https://github.com/elastic/elasticsearch/issues/153389))
 * Fix COUNT on an unmapped field [#153013](https://github.com/elastic/elasticsearch/pull/153013) (issue: [#152884](https://github.com/elastic/elasticsearch/issues/152884))
 * Fix LOOKUP JOIN index scope in subqueries [#151850](https://github.com/elastic/elasticsearch/pull/151850)
 * Fix NPE in `bucket_sort` on unresolvable sort path [#149390](https://github.com/elastic/elasticsearch/pull/149390) (issue: [#136418](https://github.com/elastic/elasticsearch/issues/136418))
@@ -724,7 +721,6 @@ Search:
 * Fix fetch-phase `store_bytes_read` miscount [#152953](https://github.com/elastic/elasticsearch/pull/152953)
 * Fix inner hits overwrite when collapse and nested query both set inner hits [#148915](https://github.com/elastic/elasticsearch/pull/148915) (issue: [#148905](https://github.com/elastic/elasticsearch/issues/148905))
 * Fix multiple exclusion query rules not removing documents from results [#144990](https://github.com/elastic/elasticsearch/pull/144990) (issue: [#141384](https://github.com/elastic/elasticsearch/issues/141384))
-* Parse scroll id from a bounded byte array [#154542](https://github.com/elastic/elasticsearch/pull/154542)
 * Refund per-iteration CB memory in percolator [#150181](https://github.com/elastic/elasticsearch/pull/150181)
 * Reserve regexp automaton memory on the circuit breaker before building it [#155076](https://github.com/elastic/elasticsearch/pull/155076)
 * Return 400 for sorts on unsortable fields [#154433](https://github.com/elastic/elasticsearch/pull/154433) (issue: [#154354](https://github.com/elastic/elasticsearch/issues/154354))
@@ -6246,4 +6242,3 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
-

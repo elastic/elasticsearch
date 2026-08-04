@@ -1,6 +1,6 @@
 version: 9.5.0
 released: false
-generated: 2026-07-30T15:29:54.242481Z
+generated: 2026-08-04T09:14:00.025843Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -2353,12 +2353,6 @@ changelogs:
       - 149619
       - 153030
       - 145445
-  - pr: 153392
-    summary: Fix BUCKET with very large bucket counts
-    area: ES|QL
-    type: bug
-    issues:
-      - 153389
   - pr: 153410
     summary: Use atomic reference counting for blocks and vectors
     area: ES|QL
@@ -2480,11 +2474,6 @@ changelogs:
     area: Search
     type: bug
     issues: []
-  - pr: 154373
-    summary: Cache little-endian float layout in DiskBBQ scalar corrections loop
-    area: Vector Search
-    type: enhancement
-    issues: []
   - pr: 154433
     summary: Return 400 for sorts on unsortable fields
     area: Search
@@ -2503,11 +2492,6 @@ changelogs:
     summary: "[Fleet] Add `policy_base_id` field to fleet-agents and fleet-policies index templates"
     area: Infra/Plugins
     type: enhancement
-    issues: []
-  - pr: 154542
-    summary: Parse scroll id from a bounded byte array
-    area: Search
-    type: bug
     issues: []
   - pr: 154577
     summary: Fix pending inference request count double decrement
@@ -2605,10 +2589,5 @@ changelogs:
   - pr: 155251
     summary: Prevent setting `frozen_after` on failure store lifecycle policy both directly and via templates as this is not supported by the DLM lifecycle service
     area: Data streams
-    type: bug
-    issues: []
-  - pr: 155418
-    summary: Allow GC of closed search contexts in ES|QL
-    area: ES|QL
     type: bug
     issues: []

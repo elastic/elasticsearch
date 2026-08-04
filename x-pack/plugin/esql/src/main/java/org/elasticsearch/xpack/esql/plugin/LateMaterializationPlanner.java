@@ -75,13 +75,12 @@ import java.util.function.Function;
 *      └── Filter [x > 10]
 *          └── EsRelation [index]
 *  </pre>
-*  Now even if there's a pushdown, the <i>final</i> plan would be:
+*  If there's a pushdown, the <i>final</i> plan would be:
 *  <pre>
-*  Project [_doc, foo, x]
+*  Project [_doc, foo]
 *  └── EsQuery [index with some TopN pushdown]
 *  </pre>
-*  The above actually reads the {@code x} field "unnecessarily", since it's only needed to conform to the output schema of the original
-*  plan. See #134363 for a way to optimize this little problem.
+*  Note the above does not project the {@code x} field anymore (this was a enhancement made by #137920)
 */
 public class LateMaterializationPlanner {
     /**

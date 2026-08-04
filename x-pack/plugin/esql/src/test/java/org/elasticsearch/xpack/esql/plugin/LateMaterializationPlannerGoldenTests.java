@@ -109,6 +109,17 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES); // default stats are indexed.
     }
 
+    public void testPushedDownTopNWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | keep emp_no, height
+            | SORT height
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES); // default stats are indexed.
+    }
+
     public void testTopNWithMissingSortField() {
         String query = """
             FROM employees

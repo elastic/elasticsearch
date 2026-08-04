@@ -3113,7 +3113,6 @@ public class EsqlCapabilities {
 
         /**
          * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
-         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
          */
         LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
 
@@ -3533,6 +3532,14 @@ public class EsqlCapabilities {
          * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
          */
         FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
+
+        /**
+         * Support for {@code CATEGORIZE} as a grouping key in {@code LIMIT ... BY} and
+         * {@code SORT ... | LIMIT ... BY} ({@code TopNBy}). Unlike {@code STATS BY CATEGORIZE},
+         * this mode preserves multivalued field order — {@code [a, b]} and {@code [b, a]} are
+         * distinct groups.
+         */
+        CATEGORIZE_IN_LIMIT_BY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

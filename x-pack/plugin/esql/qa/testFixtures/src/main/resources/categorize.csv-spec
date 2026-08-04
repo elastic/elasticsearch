@@ -895,3 +895,46 @@ count:long | category:keyword
 1          | Connected to 10.1.0.3
 1          | Disconnected
 ;
+
+//
+// LIMIT BY CATEGORIZE
+//
+
+limitByCategorize
+required_capability: categorize_v6
+required_capability: esql_limit_by
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message)
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.3
+Connection error
+Disconnected
+;
+
+sortLimitByCategorize
+required_capability: categorize_v6
+required_capability: esql_topn_by
+required_capability: categorize_in_limit_by
+
+FROM sample_data
+  | SORT @timestamp DESC
+  | LIMIT 2 BY CATEGORIZE(message)
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.1
+Connected to 10.1.0.2
+Connection error
+Connection error
+Disconnected
+;

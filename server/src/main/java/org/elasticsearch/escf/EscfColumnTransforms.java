@@ -37,7 +37,7 @@ public final class EscfColumnTransforms {
             throw new IllegalArgumentException("beforeDoc (" + beforeDoc + ") exceeds source docCount (" + source.docCount() + ")");
         }
         // We could always reach down and copy offsets and data directly. We don't need to use cursors.
-        final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source);
+        final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source, false);
         for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
             dest.setString(d, replayCursor.value());
         }
@@ -50,12 +50,17 @@ public final class EscfColumnTransforms {
      * Numbers use canonical {@code toString}; BINARY and KEY_VALUE throw.
      *
      * @param column the source ESCF column
+     * @param retainValues {@code false} when each value is consumed before the next {@link
+     *                     ObjectTupleCursor#nextDoc()}, {@code true} when values are held past it (for
+     *                     example buffered per-document before being encoded). Only affects the STRING
+     *                     fast path: the stringifying branch below always produces fresh {@link BytesRef}s
+     *                     over immutable bytes, so its values are retainable either way.
      * @return a forward-only cursor over stringified values
      */
-    public static ObjectTupleCursor<BytesRef> utf8Cursor(EscfColumn column) {
+    public static ObjectTupleCursor<BytesRef> utf8Cursor(EscfColumn column, boolean retainValues) {
         // STRING columns have a native BytesRef cursor with no per-row dispatch needed.
         if (column.kind() == EscfColumnKind.STRING) {
-            return column.bytesRefCursor();
+            return column.bytesRefCursor(retainValues);
         }
         return new ObjectTupleCursor<>() {
 

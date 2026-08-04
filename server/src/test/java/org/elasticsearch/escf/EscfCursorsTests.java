@@ -267,7 +267,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addString(utf8("gamma"));
         EscfColumn col = EscfColumn.from(b.finish(3));
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(3, tuples.size());
         assertBytesRefTuple(0, "alpha", tuples.get(0));
         assertBytesRefTuple(1, "beta", tuples.get(1));
@@ -282,7 +282,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addString(utf8("c"));
         EscfColumn col = EscfColumn.from(b.finish(3));
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertBytesRefTuple(0, "a", tuples.get(0));
         assertBytesRefTuple(2, "c", tuples.get(1));
@@ -297,7 +297,7 @@ public class EscfCursorsTests extends ESTestCase {
         // All-absent column has kind LONG (the default), so we use a raw column
         // to get a string column with all absent. Build directly.
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, absentAll(2), new int[] { 0, 0, 0 }, BytesArray.EMPTY);
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumn.from(data).bytesRefCursor().nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumn.from(data).bytesRefCursor(randomBoolean()).nextDoc());
     }
 
     public void testStringValuesCursorDense() {
@@ -307,7 +307,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addString(utf8("abc"));
         AbstractVarColumn col = (AbstractVarColumn) EscfColumn.from(b.finish(3));
 
-        BytesRefValuesCursor cursor = col.bytesRefValuesCursor();
+        BytesRefValuesCursor cursor = col.bytesRefValuesCursor(randomBoolean());
         assertEquals(3, cursor.size());
         assertEquals(new BytesRef("x"), BytesRef.deepCopyOf(cursor.nextValue()));
         assertEquals(new BytesRef("yz"), BytesRef.deepCopyOf(cursor.nextValue()));
@@ -319,7 +319,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addString(utf8("only"));
         AbstractVarColumn col = (AbstractVarColumn) EscfColumn.from(b.finish(1));
 
-        BytesRefValuesCursor cursor = col.bytesRefValuesCursor();
+        BytesRefValuesCursor cursor = col.bytesRefValuesCursor(randomBoolean());
         cursor.nextValue();
         expectThrows(IllegalStateException.class, cursor::nextValue);
     }
@@ -330,7 +330,7 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 2, null, offs, new BytesArray(rawData));
         EscfColumn col = EscfColumn.from(data);
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertEquals(0, tuples.get(0)[0]);
         assertArrayEquals(new byte[] { 0x01, 0x02 }, bytesOf((BytesRef) tuples.get(0)[1]));
@@ -348,7 +348,7 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 3, validity, offs, new BytesArray(rawData));
         EscfColumn col = EscfColumn.from(data);
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertEquals(0, tuples.get(0)[0]);
         assertArrayEquals(new byte[] { 0x01 }, bytesOf((BytesRef) tuples.get(0)[1]));
@@ -362,7 +362,7 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 3, null, offs, new BytesArray(rawData));
         AbstractVarColumn col = (AbstractVarColumn) EscfColumn.from(data);
 
-        BytesRefValuesCursor cursor = col.bytesRefValuesCursor();
+        BytesRefValuesCursor cursor = col.bytesRefValuesCursor(randomBoolean());
         assertEquals(3, cursor.size());
         assertArrayEquals(new byte[] { 0x0A }, bytesOf(cursor.nextValue()));
         assertArrayEquals(new byte[] { 0x0B }, bytesOf(cursor.nextValue()));
@@ -380,7 +380,7 @@ public class EscfCursorsTests extends ESTestCase {
         int[] rowOffsets = { 0, 2, 3, 3 };
         EscfArrayColumn array = new EscfArrayColumn(3, null, childCol, intsRef(rowOffsets));
 
-        List<Object[]> tuples = drainBytesRefTuples(array.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(array.bytesRefCursor(randomBoolean()));
         // Row 0: ["hello", "world"] → (0,"hello"), (0,"world")
         // Row 1: ["!"] → (1,"!")
         // Row 2: [] → skipped
@@ -396,7 +396,7 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData childData = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 0, null, new int[] { 0 }, BytesArray.EMPTY);
         EscfArrayColumn array = new EscfArrayColumn(2, null, EscfColumn.from(childData), intsRef(rowOffsets));
 
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, array.bytesRefCursor().nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, array.bytesRefCursor(randomBoolean()).nextDoc());
     }
 
     public void testStringArrayTupleCursorWrongChildKindThrows() {
@@ -407,7 +407,7 @@ public class EscfCursorsTests extends ESTestCase {
         );
         EscfArrayColumn array = new EscfArrayColumn(1, null, longChild, intsRef(rowOffsets));
 
-        expectThrows(UnsupportedOperationException.class, array::bytesRefCursor);
+        expectThrows(UnsupportedOperationException.class, () -> array.bytesRefCursor(randomBoolean()));
     }
 
     public void testLongTupleCursorZeroDocs() {
@@ -417,7 +417,7 @@ public class EscfCursorsTests extends ESTestCase {
 
     public void testVarTupleCursorZeroDocs() {
         EscfColumnData data = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 0, null, new int[] { 0 }, BytesArray.EMPTY);
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumn.from(data).bytesRefCursor().nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, EscfColumn.from(data).bytesRefCursor(randomBoolean()).nextDoc());
     }
 
     public void testArrayLongCursorZeroDocs() {
@@ -435,7 +435,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addString(utf8("world"));
         EscfColumn col = EscfColumn.from(b.finish(4));
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertBytesRefTuple(2, "hello", tuples.get(0));
         assertBytesRefTuple(3, "world", tuples.get(1));
@@ -450,7 +450,7 @@ public class EscfCursorsTests extends ESTestCase {
         b.addAbsent();
         EscfColumn col = EscfColumn.from(b.finish(4));
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertBytesRefTuple(0, "a", tuples.get(0));
         assertBytesRefTuple(1, "b", tuples.get(1));
@@ -471,7 +471,7 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumnData colData = EscfColumnData.ofVarWidth(EscfColumnKind.BINARY, 4, validity, offs, data);
         EscfColumn col = EscfColumn.from(colData);
 
-        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor());
+        List<Object[]> tuples = drainBytesRefTuples(col.bytesRefCursor(randomBoolean()));
         assertEquals(2, tuples.size());
         assertEquals(0, tuples.get(0)[0]);
         assertArrayEquals(chunk1, bytesOf((BytesRef) tuples.get(0)[1]));
@@ -502,7 +502,8 @@ public class EscfCursorsTests extends ESTestCase {
             }
         }
         EscfColumn longCol = EscfColumn.from(longBuilder.finish(docCount));
-        EscfColumn strCol = EscfColumn.from(strBuilder.finish(docCount));
+        EscfColumnData strData = strBuilder.finish(docCount);
+        EscfColumn strCol = EscfColumn.from(strData);
 
         // Build reference lists
         List<long[]> expectedLong = new ArrayList<>();
@@ -520,7 +521,14 @@ public class EscfCursorsTests extends ESTestCase {
             assertLongTuple((int) expectedLong.get(i)[0], expectedLong.get(i)[1], actualLong.get(i));
         }
 
-        List<Object[]> actualStr = drainBytesRefTuples(strCol.bytesRefCursor());
+        // A zero-doc or all-absent column falls back to the builder's default LONG kind and has no
+        // BytesRef cursor, so there is nothing left to compare (same guard as
+        // testArrayCursorsMatchRandomShape).
+        if (strData.kind() != EscfColumnKind.STRING) {
+            return;
+        }
+
+        List<Object[]> actualStr = drainBytesRefTuples(strCol.bytesRefCursor(randomBoolean()));
         assertEquals("str cursor doc count", expectedStr.size(), actualStr.size());
         for (int i = 0; i < expectedStr.size(); i++) {
             assertEquals("doc id at " + i, expectedStr.get(i)[0], actualStr.get(i)[0]);
@@ -528,11 +536,6 @@ public class EscfCursorsTests extends ESTestCase {
         }
     }
 
-    /**
-     * Slicing an ARRAY column leaves the child full/unsliced; the new window starts at
-     * {@code startElem = rowOffsets[0] > 0}. The cursors must {@code skip(startElem)} at construction so
-     * elements from the earlier rows are not emitted.
-     */
     public void testArrayCursorsOnSlicedColumn() {
         // 4 rows: [[1, 2], [3], [], [4, 5, 6]] — then slice rows 1..3
         int[] rowOffsets = { 0, 2, 3, 3, 6 };
@@ -562,7 +565,7 @@ public class EscfCursorsTests extends ESTestCase {
         assertLongTuple(2, 6L, longTuples.get(3));
 
         // String cursor on slice: row 0→"C", row 1→(empty/skipped), row 2→"D","E","F"
-        List<Object[]> strTuples = drainBytesRefTuples(strSlice.bytesRefCursor());
+        List<Object[]> strTuples = drainBytesRefTuples(strSlice.bytesRefCursor(randomBoolean()));
         assertEquals(4, strTuples.size());
         assertBytesRefTuple(0, "C", strTuples.get(0));
         assertBytesRefTuple(2, "D", strTuples.get(1));
@@ -570,10 +573,6 @@ public class EscfCursorsTests extends ESTestCase {
         assertBytesRefTuple(2, "F", strTuples.get(3));
     }
 
-    /**
-     * The child data is split across two {@link CompositeBytesReference} chunks. For the var-width cursor
-     * this exercises {@code nextValueRetained}'s scratch-buffer branch when a value straddles the boundary.
-     */
     public void testArrayCursorsSpanChunkBoundary() {
         // Long: 3 elements split at a chunk boundary mid-array
         // row 0: [1, 2], row 1: [3] — chunk1 = [1, 2], chunk2 = [3]
@@ -602,16 +601,16 @@ public class EscfCursorsTests extends ESTestCase {
         EscfColumn strChild = EscfColumn.from(strChildData);
         EscfArrayColumn strArray = new EscfArrayColumn(2, null, strChild, intsRef(new int[] { 0, 1, 2 }));
 
-        List<Object[]> strTuples = drainBytesRefTuples(strArray.bytesRefCursor());
-        assertEquals(2, strTuples.size());
-        assertBytesRefTuple(0, "ab", strTuples.get(0));
-        assertBytesRefTuple(1, "cd", strTuples.get(1));
+        // Both lifetimes must read the straddling value correctly: retaining copies out of scratch, while
+        // non-retaining returns the scratch-backed ref that drainBytesRefTuples reads before advancing.
+        for (boolean retainValues : new boolean[] { true, false }) {
+            List<Object[]> strTuples = drainBytesRefTuples(strArray.bytesRefCursor(retainValues));
+            assertEquals("retainValues=" + retainValues, 2, strTuples.size());
+            assertBytesRefTuple(0, "ab", strTuples.get(0));
+            assertBytesRefTuple(1, "cd", strTuples.get(1));
+        }
     }
 
-    /**
-     * Randomized consistency check: cursors driven by streaming child reads must emit exactly the same
-     * {@code (doc, value)} pairs as a reference walk that reads the child by element index.
-     */
     public void testArrayCursorsMatchRandomShape() {
         // Build an ARRAY column via EscfColumnBuilder so the child is a real composite reference.
         int docCount = between(0, 20);
@@ -669,7 +668,7 @@ public class EscfCursorsTests extends ESTestCase {
             assertLongTuple((int) expectedLong.get(i)[0], expectedLong.get(i)[1], actualLong.get(i));
         }
 
-        List<Object[]> actualStr = drainBytesRefTuples(strArray.bytesRefCursor());
+        List<Object[]> actualStr = drainBytesRefTuples(strArray.bytesRefCursor(randomBoolean()));
         assertEquals("str cursor element count", expectedStr.size(), actualStr.size());
         for (int i = 0; i < expectedStr.size(); i++) {
             assertEquals("doc id at " + i, expectedStr.get(i)[0], actualStr.get(i)[0]);
@@ -677,26 +676,13 @@ public class EscfCursorsTests extends ESTestCase {
         }
     }
 
-    /**
-     * Retains all {@link BytesRef} objects from an array cursor and asserts their contents after
-     * the cursor is fully drained. Guards the ownership invariant that {@code value()} returns a
-     * fresh, non-shared reference that remains valid past subsequent {@code nextDoc()} calls.
-     */
     public void testArrayBytesRefValuesAreRetained() {
-        // 3 rows: [["hello", "world"], ["!"], []]
-        byte[] bytes = "helloworld!".getBytes(StandardCharsets.UTF_8);
-        int[] childOffsets = { 0, 5, 10, 11 };
-        EscfColumnData childData = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 3, null, childOffsets, new BytesArray(bytes));
-        EscfColumn childCol = EscfColumn.from(childData);
-
-        int[] rowOffsets = { 0, 2, 3, 3 };
-        EscfArrayColumn array = new EscfArrayColumn(3, null, childCol, intsRef(rowOffsets));
+        EscfArrayColumn array = helloWorldBangArray();
 
         // Collect without copying — each BytesRef must stay valid after the cursor advances.
         List<BytesRef> retained = new ArrayList<>();
-        ObjectTupleCursor<BytesRef> cursor = array.bytesRefCursor();
-        int doc;
-        while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+        ObjectTupleCursor<BytesRef> cursor = array.bytesRefCursor(true);
+        while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
             retained.add(cursor.value()); // intentionally no deepCopyOf
         }
 
@@ -704,6 +690,33 @@ public class EscfCursorsTests extends ESTestCase {
         assertEquals(new BytesRef("hello"), retained.get(0));
         assertEquals(new BytesRef("world"), retained.get(1));
         assertEquals(new BytesRef("!"), retained.get(2));
+    }
+
+    public void testArrayBytesRefValuesAreReusedWhenNotRetained() {
+        EscfArrayColumn array = helloWorldBangArray();
+
+        ObjectTupleCursor<BytesRef> cursor = array.bytesRefCursor(false);
+        List<String> values = new ArrayList<>();
+        BytesRef first = null;
+        while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            BytesRef value = cursor.value();
+            if (first == null) {
+                first = value;
+            } else {
+                assertSame("non-retaining cursor must reuse one BytesRef instance", first, value);
+            }
+            values.add(value.utf8ToString()); // read before advancing, as the contract requires
+        }
+
+        assertEquals(List.of("hello", "world", "!"), values);
+    }
+
+    /** 3 rows over a dense STRING child: {@code [["hello", "world"], ["!"], []]}. */
+    private static EscfArrayColumn helloWorldBangArray() {
+        byte[] bytes = "helloworld!".getBytes(StandardCharsets.UTF_8);
+        int[] childOffsets = { 0, 5, 10, 11 };
+        EscfColumnData childData = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 3, null, childOffsets, new BytesArray(bytes));
+        return new EscfArrayColumn(3, null, EscfColumn.from(childData), intsRef(new int[] { 0, 2, 3, 3 }));
     }
 
     private static List<long[]> drainLongTuples(LongTupleCursor cursor) {

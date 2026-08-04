@@ -46,23 +46,34 @@ abstract class AbstractVarColumn extends EscfColumn {
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
      * row of this column's window. Absent rows (clear bits in the {@link #validity} bitset) are skipped;
-     * present rows are yielded in ascending order. The returned {@link BytesRef} is valid only until
-     * the next {@link ObjectTupleCursor#nextDoc()} call.
+     * present rows are yielded in ascending order.
+     *
+     * @param retainValues when {@code false} every {@link ObjectTupleCursor#value()} returns the cursor's
+     *                     single reusable {@link BytesRef}, valid only until the next
+     *                     {@link ObjectTupleCursor#nextDoc()} call — the plain {@code ObjectTupleCursor}
+     *                     contract, and allocation-free. When {@code true} each value is a fresh
+     *                     {@link BytesRef} that stays valid indefinitely; pass {@code true} only when the
+     *                     values must outlive the cursor position.
      */
     @Override
-    public final ObjectTupleCursor<BytesRef> bytesRefCursor() {
-        return new BytesRefTupleCursor(this);
+    public final ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
+        return new BytesRefTupleCursor(this, retainValues);
     }
 
     /**
      * Returns a dense {@link BytesRefValuesCursor} positioned before the first row of this column's
      * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
-     * dense columns. The returned {@link BytesRef} per {@link BytesRefValuesCursor#nextValue()} is
-     * valid only until the next call to {@code nextValue()}.
+     * dense columns.
+     *
+     * @param retainValues when {@code false} every {@link BytesRefValuesCursor#nextValue()} returns the
+     *                     cursor's single reusable {@link BytesRef}, valid only until the next
+     *                     {@code nextValue()} call — the {@code BytesRefValuesCursor} contract, and
+     *                     allocation-free. When {@code true} each value is a fresh {@link BytesRef} that
+     *                     stays valid indefinitely.
      */
-    final DenseBytesRefValuesCursor bytesRefValuesCursor() {
+    final DenseBytesRefValuesCursor bytesRefValuesCursor(boolean retainValues) {
         assert validity == null : "values cursor is only valid for dense (fully-present) columns";
-        return new DenseBytesRefValuesCursor(docCount, this);
+        return new DenseBytesRefValuesCursor(docCount, this, retainValues);
     }
 
     @Override
@@ -90,9 +101,9 @@ abstract class AbstractVarColumn extends EscfColumn {
         private int lastRow = -1;
         private BytesRef currentValue;
 
-        BytesRefTupleCursor(AbstractVarColumn column) {
+        BytesRefTupleCursor(AbstractVarColumn column, boolean retainValues) {
             this.present = column.presentDocs();
-            this.values = new DenseBytesRefValuesCursor(column.docCount, column);
+            this.values = new DenseBytesRefValuesCursor(column.docCount, column, retainValues);
         }
 
         @Override
@@ -105,7 +116,7 @@ abstract class AbstractVarColumn extends EscfColumn {
             if (toSkip > 0) {
                 values.skip(toSkip);
             }
-            currentValue = values.nextValueRetained();
+            currentValue = values.nextValue();
             lastRow = doc;
             return doc;
         }
@@ -121,6 +132,7 @@ abstract class AbstractVarColumn extends EscfColumn {
         private final BytesRefIterator iter;
         private final int[] offsets;
         private final BytesRef value = new BytesRef();
+        private final boolean retainValues;
         private byte[] currentBytes = BytesRef.EMPTY_BYTES;
         private byte[] scratch = BytesRef.EMPTY_BYTES;
         private int currentBytesOffset;
@@ -129,12 +141,13 @@ abstract class AbstractVarColumn extends EscfColumn {
         private int valueOffset;
         private int pos;
 
-        DenseBytesRefValuesCursor(int count, AbstractVarColumn column) {
+        DenseBytesRefValuesCursor(int count, AbstractVarColumn column, boolean retainValues) {
             super(count);
             this.iter = sliceData(column.offsets, column.data, count).iterator();
             this.offsets = column.offsets.ints;
             this.nextOffsetIndex = column.offsets.offset + 1;
             this.valueOffset = offsets[column.offsets.offset];
+            this.retainValues = retainValues;
         }
 
         private void nextChunk() {
@@ -162,14 +175,17 @@ abstract class AbstractVarColumn extends EscfColumn {
                 nextChunk();
             }
             int remaining = currentBytesEnd - currentBytesOffset;
-            if (valueSize <= remaining) {
-                value.bytes = currentBytes;
-                value.offset = currentBytesOffset;
-                value.length = valueSize;
-                currentBytesOffset += valueSize;
-                return value;
+            if (valueSize > remaining) {
+                return readStraddlingValue(valueSize);
             }
+            value.bytes = currentBytes;
+            value.offset = currentBytesOffset;
+            value.length = valueSize;
+            currentBytesOffset += valueSize;
+            return value;
+        }
 
+        private BytesRef readStraddlingValue(int valueSize) {
             scratch = ArrayUtil.growNoCopy(scratch, valueSize);
             int copied = 0;
             while (copied < valueSize) {
@@ -213,18 +229,10 @@ abstract class AbstractVarColumn extends EscfColumn {
             int valueSize = nextOffset - valueOffset;
             valueOffset = nextOffset;
             pos++;
-            return readNextValue(valueSize);
-        }
-
-        /**
-         * Like {@link #nextValue()}, but the returned {@link BytesRef} stays valid after later calls to
-         * this cursor: it is a fresh header over the immutable payload rather than the shared instance.
-         * Use this when the returned value must be retained across a subsequent {@code nextValue()} or
-         * {@link #skip} call — for example when emitting a {@link org.apache.lucene.document.Field}
-         * that must outlive the next {@link org.apache.lucene.document.column.ObjectTupleCursor#nextDoc()}.
-         */
-        BytesRef nextValueRetained() {
-            BytesRef v = nextValue();
+            BytesRef v = readNextValue(valueSize);
+            if (retainValues == false) {
+                return v;
+            }
             // The contiguous fast path points straight into a data chunk, which never changes, so a new
             // header is enough. A straddling value lives in the reusable scratch buffer and must be copied.
             return v.bytes == scratch ? BytesRef.deepCopyOf(v) : new BytesRef(v.bytes, v.offset, v.length);

@@ -88,7 +88,7 @@ abstract class AbstractFixed64Column extends EscfColumn {
             if (doc == DocIdSetIterator.NO_MORE_DOCS) {
                 return doc;
             }
-            int toSkip = doc - lastRow - 1; // absent rows between the previous present row and this one
+            int toSkip = doc - lastRow - 1;
             if (toSkip > 0) {
                 values.skip(toSkip);
             }

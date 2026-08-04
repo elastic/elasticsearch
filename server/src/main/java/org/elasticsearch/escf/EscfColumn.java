@@ -190,8 +190,13 @@ public abstract class EscfColumn implements SliceableColumn {
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
      * row. Subtypes that hold byte-string values override this; the default throws.
+     *
+     * @param retainValues {@code false} to reuse a single {@link BytesRef} across the whole scan (valid
+     *                     only until the next {@link ObjectTupleCursor#nextDoc()}, and allocation-free);
+     *                     {@code true} to hand back a fresh {@link BytesRef} per value, for callers that
+     *                     keep values past the cursor position
      */
-    public ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
         throw notA("binary");
     }
 

@@ -74,7 +74,8 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public LuceneColumn.RowFieldCursor rowFieldCursor() {
-        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor();
+        // retainValues=true: see appendCurrentFields below — the emitted Fields outlive the cursor position.
+        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
         return new LuceneColumn.RowFieldCursor() {
             @Override
             public int nextDoc() {
@@ -86,9 +87,7 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
                 // A distinct Field per element: for multi-valued (array) rows appendCurrentFields is
                 // called more than once for the same document and every emitted field is retained in
                 // the caller's list, so a single reused field object would collapse all values to the
-                // last one. cursor.value() returns a fresh BytesRef per element (a new header over the
-                // immutable column payload, or a copy when the value straddles chunk boundaries), so it
-                // is safe to store by reference in the Field and retain past subsequent nextDoc() calls.
+                // last one. cursor.value() already returns a fresh BytesRef per element.
                 out.add(new Field(name(), cursor.value(), fieldType()));
             }
         };
@@ -96,7 +95,9 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
 
     @Override
     public ObjectTupleCursor<BytesRef> tuples() {
-        return data.bytesRefCursor();
+        // retainValues=false: Lucene's indexing chain consumes each tuple value before advancing the
+        // cursor, which is all ObjectTupleCursor#value() promises, so the shared BytesRef is enough.
+        return data.bytesRefCursor(false);
     }
 
     @Override
@@ -104,6 +105,6 @@ public final class LuceneBinaryColumn extends BinaryColumn implements LuceneColu
         if (density() == Density.SPARSE) {
             return super.values();
         }
-        return ((AbstractVarColumn) data).bytesRefValuesCursor();
+        return ((AbstractVarColumn) data).bytesRefValuesCursor(false);
     }
 }

@@ -256,16 +256,6 @@ public class LuceneBinaryColumnTests extends ESTestCase {
         assertSame(col, col.toLuceneColumn());
     }
 
-    /**
-     * Regression test for the {@link LuceneBinaryColumn#rowFieldCursor()} retention contract.
-     * {@link org.elasticsearch.sourcebatch.MappedColumns.RowCursor#advance()} calls
-     * {@code appendCurrentFields} and then {@code nextDoc()} <em>before</em> reading the assembled
-     * fields, so the {@link BytesRef} stored inside each {@link org.apache.lucene.document.Field}
-     * must remain valid past subsequent cursor advances.
-     *
-     * <p>The existing {@link #drainRowCursor} helper stringifies before advancing and therefore
-     * cannot catch this bug; this test deliberately mirrors the advance-first order.
-     */
     public void testRowFieldCursorValuesSurviveAdvance() {
         // Dense STRING column — exercises the BytesRefTupleCursor path in AbstractVarColumn.
         {

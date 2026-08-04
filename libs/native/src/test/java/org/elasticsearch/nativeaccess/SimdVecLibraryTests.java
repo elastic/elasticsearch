@@ -61,7 +61,11 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     public static void setup() {
-        arena = Arena.ofConfined();
+        // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
+        // instead of silently returning a wrong score. Sampled rather than always on: the guard costs a couple
+        // of syscalls per allocation and this suite allocates a lot, while the regression guarantee for the
+        // over-read bug class is carried by JDKVectorLibraryBBQGuardPageTests.
+        arena = GuardPageAllocator.isSupported() && rarely() ? GuardPageAllocator.ofConfined() : Arena.ofConfined();
     }
 
     public static void cleanup() {

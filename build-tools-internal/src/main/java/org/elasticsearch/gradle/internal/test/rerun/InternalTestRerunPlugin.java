@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.internal.test.rerun.model.FailedTestsReport;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.logging.Logger;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -25,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +41,8 @@ import java.util.Set;
  * <ul>
  *   <li>Skips entire test tasks listed in {@code successfulTasks}</li>
  *   <li>Excludes individual passing tests listed in {@code successfulTests}
- *       from partially-failed tasks</li>
+ *       from partially-failed tasks, unless the project disabled that via
+ *       {@link SmartRetryExtension#getPruneIndividualTests()}</li>
  *   <li>Runs everything else normally</li>
  * </ul>
  * If no history file exists, all tests run normally.
@@ -54,15 +57,22 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
     public void apply(Project project) {
         File settingsRoot = project.getLayout().getSettingsDirectory().getAsFile();
 
+        SmartRetryExtension extension = project.getExtensions().create("smartRetry", SmartRetryExtension.class);
+        extension.getPruneIndividualTests().convention(true);
+
         Provider<RetryTestsBuildService> retryTestsProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("retryTests", RetryTestsBuildService.class, spec -> {
                 spec.getParameters().getInfoPath().set(settingsRoot);
             });
-        project.getTasks().withType(Test.class).configureEach(task -> configureTestTask(task, retryTestsProvider));
+        project.getTasks().withType(Test.class).configureEach(task -> configureTestTask(task, retryTestsProvider, extension));
     }
 
-    private static void configureTestTask(Test test, Provider<RetryTestsBuildService> testsBuildServiceProvider) {
+    private static void configureTestTask(
+        Test test,
+        Provider<RetryTestsBuildService> testsBuildServiceProvider,
+        SmartRetryExtension extension
+    ) {
         FailedTestsReport report = testsBuildServiceProvider.get().getReport();
         if (report == null) {
             test.getLogger().info("No failed test history found, running all tests");
@@ -82,7 +92,32 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
 
         List<String> suitesToExclude = testsBuildServiceProvider.get().getSuccessfulSuitesForTask(test.getPath());
         List<String> testsToExclude = testsBuildServiceProvider.get().getSuccessfulTestsForTask(test.getPath());
-        if (suitesToExclude.isEmpty() == false || testsToExclude.isEmpty() == false) {
+        if (suitesToExclude.isEmpty() && testsToExclude.isEmpty()) {
+            test.getLogger().lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
+            return;
+        }
+
+        if (extension.getPruneIndividualTests().get() == false && testsToExclude.isEmpty() == false) {
+            int rerunTestCount = testsToExclude.size();
+            testsToExclude = List.of();
+            if (suitesToExclude.isEmpty()) {
+                test.getLogger()
+                    .lifecycle(
+                        "Smart retry: rerunning {} successful tests in {} (project opted out of individual test pruning)",
+                        rerunTestCount,
+                        test.getPath()
+                    );
+                return;
+            }
+            test.getLogger()
+                .lifecycle(
+                    "Smart retry: excluding {} successful suites from {} and rerunning {} successful tests "
+                        + "(project opted out of individual test pruning)",
+                    suitesToExclude.size(),
+                    test.getPath(),
+                    rerunTestCount
+                );
+        } else {
             test.getLogger()
                 .lifecycle(
                     "Smart retry: excluding {} successful suites and {} successful tests from {} (rerunning failures)",
@@ -90,24 +125,48 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
                     testsToExclude.size(),
                     test.getPath()
                 );
-            test.filter(filter -> {
-                for (String className : suitesToExclude) {
-                    filter.excludeTestsMatching(className + ".*");
-                }
-                for (String testRef : testsToExclude) {
-                    int hashIdx = testRef.indexOf('#');
-                    if (hashIdx < 0) {
-                        test.getLogger().warn("Skipping malformed test reference in smart retry: {}", testRef);
-                        continue;
-                    }
-                    String className = testRef.substring(0, hashIdx);
-                    String methodName = testRef.substring(hashIdx + 1);
-                    filter.excludeTestsMatching(className + "." + methodName);
-                }
-            });
-        } else {
-            test.getLogger().lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
         }
+
+        Set<String> methodExcludePatterns = buildMethodExcludePatterns(testsToExclude, test.getLogger());
+        test.filter(filter -> {
+            for (String className : suitesToExclude) {
+                filter.excludeTestsMatching(className + ".*");
+            }
+            for (String pattern : methodExcludePatterns) {
+                filter.excludeTestsMatching(pattern);
+            }
+        });
+    }
+
+    /**
+     * Translates {@code Class#method} references into Gradle test filter patterns.
+     * <p>
+     * Tests run by the randomized runner with a {@code @ParametersFactory} are reported with their parameters appended, for
+     * example {@code test {yaml=analysis-common/30_tokenizers/letter}}. Such a test is only excluded when both its
+     * parameterized name and its bare method name match an exclude pattern, because
+     * {@code RandomizedRunner#applyFilters} keeps a candidate as soon as either description is allowed to run. So for a
+     * parameterized reference we emit the bare method name in addition to the parameterized one. That does not
+     * over-exclude the method's other parameters: those keep a parameterized name no pattern matches, which is enough to
+     * keep them running.
+     */
+    static Set<String> buildMethodExcludePatterns(List<String> testRefs, Logger logger) {
+        Set<String> patterns = new LinkedHashSet<>();
+        for (String testRef : testRefs) {
+            int hashIdx = testRef.indexOf('#');
+            if (hashIdx < 0) {
+                logger.warn("Skipping malformed test reference in smart retry: {}", testRef);
+                continue;
+            }
+            String className = testRef.substring(0, hashIdx);
+            String methodName = testRef.substring(hashIdx + 1);
+            patterns.add(className + "." + methodName);
+
+            int paramsIdx = methodName.indexOf(" {");
+            if (paramsIdx >= 0) {
+                patterns.add(className + "." + methodName.substring(0, paramsIdx));
+            }
+        }
+        return patterns;
     }
 
     public abstract static class RetryTestsBuildService implements BuildService<RetryTestsBuildService.Params> {

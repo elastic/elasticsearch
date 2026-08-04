@@ -32,7 +32,7 @@ public class ThreadUtilizationTracker {
      *                   time since the last poll, which is used as the denominator for calculating utilization.
      */
     public ThreadUtilizationTracker(LongSupplier timeSupplierNanos, LongAdder executionTimeNanosAdder, int numThreads) {
-        assert numThreads > 0: "expect the thread pool to have at least one thread";
+        assert numThreads > 0 : "expect the thread pool to have at least one thread";
         this.timeSupplierNanos = timeSupplierNanos;
         this.lastPollTimeNanos = timeSupplierNanos.getAsLong();
         this.executionTimeNanosAdder = executionTimeNanosAdder;

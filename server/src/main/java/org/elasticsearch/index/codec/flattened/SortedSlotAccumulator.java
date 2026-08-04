@@ -141,6 +141,7 @@ final class SortedSlotAccumulator implements Closeable {
     // External sort (data exceeds maxBufferBytes)
     // -----------------------------------------------------------------------
 
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private SortedCursor externalSort(int[] lexRankOf) throws IOException {
         final List<String> runFiles = new ArrayList<>();
         int pos = 0;

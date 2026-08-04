@@ -202,9 +202,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
                     }
                     return theBlock;
                 } else {
-                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(
-                        nullsMask
-                    );
+                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
                     blockFactory.adjustBreaker(overhead);
                     theBlock = new BooleanBigArrayBlock(vector, positionCount, firstValueIndexes, nullsMask, mvOrdering);
                     vector = null; // ownership transferred to theBlock

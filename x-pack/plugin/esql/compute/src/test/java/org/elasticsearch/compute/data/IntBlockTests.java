@@ -141,9 +141,7 @@ public class IntBlockTests extends BlockTestCase<IntBlock, IntBlock.Builder, Int
     }
 
     public void testEmptyArrayBlockFactory() {
-        try (
-            IntBlock block = blockFactory().newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), Block.MvOrdering.UNORDERED)
-        ) {
+        try (IntBlock block = blockFactory().newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), Block.MvOrdering.UNORDERED)) {
             assertThat(block, instanceOf(IntArrayBlock.class));
             assertBlock(block, List.of());
         }

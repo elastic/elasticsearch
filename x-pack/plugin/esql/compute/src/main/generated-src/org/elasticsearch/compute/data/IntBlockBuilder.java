@@ -200,9 +200,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
                     }
                     return theBlock;
                 } else {
-                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(
-                        nullsMask
-                    );
+                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
                     blockFactory.adjustBreaker(overhead);
                     theBlock = new IntBigArrayBlock(vector, positionCount, firstValueIndexes, nullsMask, mvOrdering);
                     vector = null; // ownership transferred to theBlock

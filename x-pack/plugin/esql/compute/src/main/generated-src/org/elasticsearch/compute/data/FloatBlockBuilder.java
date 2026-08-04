@@ -200,9 +200,7 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
                     }
                     return theBlock;
                 } else {
-                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(
-                        nullsMask
-                    );
+                    final long overhead = BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
                     blockFactory.adjustBreaker(overhead);
                     theBlock = new FloatBigArrayBlock(vector, positionCount, firstValueIndexes, nullsMask, mvOrdering);
                     vector = null; // ownership transferred to theBlock

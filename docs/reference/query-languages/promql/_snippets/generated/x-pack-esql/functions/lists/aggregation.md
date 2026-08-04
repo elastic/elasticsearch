@@ -3,6 +3,9 @@
 :::{include} ../avg.md
 :::
 
+:::{include} ../bottomk.md
+:::
+
 :::{include} ../count.md
 :::
 

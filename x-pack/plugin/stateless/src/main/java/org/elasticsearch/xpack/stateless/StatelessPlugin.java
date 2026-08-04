@@ -1272,6 +1272,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS,
             ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING,
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
+            ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
@@ -1337,6 +1338,7 @@ public class StatelessPlugin extends Plugin
             EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
             SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
+            SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
             SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
             SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
@@ -1398,6 +1400,7 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
@@ -1578,7 +1581,7 @@ public class StatelessPlugin extends Plugin
                     if (reason == IndexRemovalReason.DELETED) {
                         // Evict cache regions of shards of the deleted index
                         final var cacheService = sharedBlobCacheService.get();
-                        if (cacheService.isCacheBoostPreferenceEnabled() && commitService.isNodeShuttingDown() == false) {
+                        if (cacheService.isEvictDeletedIndexRegionsEnabled() && commitService.isNodeShuttingDown() == false) {
                             cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
                         }
                     }

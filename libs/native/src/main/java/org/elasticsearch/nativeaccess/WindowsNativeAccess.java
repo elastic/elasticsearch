@@ -221,7 +221,7 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         return Optional.empty(); // not supported yet
     }
 

@@ -34,6 +34,16 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Base class for rolling upgrade suites. Each suite is run once per upgrade phase, from a fully old cluster through to a
+ * fully upgraded one, driving the shared cluster one node further with every phase. Phases therefore build on each other:
+ * an early phase typically indexes the documents or creates the resources a later phase asserts on.
+ * <p>
+ * Because of that, a project hosting such a suite must opt out of smart retry's individual test pruning in its
+ * {@code build.gradle}, otherwise a phase that passed in an earlier build attempt is skipped on retry and the later phase
+ * it was setting up fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ */
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     protected static final int NODE_NUM = 3;
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");

@@ -53,6 +53,15 @@ final class ComputeListener implements Releasable {
     }
 
     /**
+     * Collects response headers (warnings) from the current thread. Call this eagerly on the driver thread when the driver
+     * completes but before any async hand-off to a different thread, so that warnings are captured before the thread context
+     * is lost (e.g. when a completion listener fires later on a transport thread with a blank context).
+     */
+    void collectHeaders() {
+        responseHeaders.collect();
+    }
+
+    /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {

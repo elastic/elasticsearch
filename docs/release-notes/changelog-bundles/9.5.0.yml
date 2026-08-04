@@ -1,6 +1,6 @@
 version: 9.5.0
-released: false
-generated: 2026-08-04T09:14:00.025843Z
+released: true
+generated: 2026-08-04T12:05:50.191328199Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -198,6 +198,11 @@ changelogs:
     type: enhancement
     issues:
       - 48432
+  - pr: 145191
+    summary: Add file metadata virtual columns for external sources
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 145230
     summary: Include target indices and query in profiled search results
     area: Search
@@ -281,6 +286,16 @@ changelogs:
     area: Infra/Metrics
     type: enhancement
     issues: []
+  - pr: 145885
+    summary: Add DataSourceValidator SPI for CRUD-time validation of external data source settings
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 145924
+    summary: Fix filter pushdown review nits
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 145939
     summary: Flush OTel traces at shutdown
     area: Infra/Metrics
@@ -312,9 +327,19 @@ changelogs:
     type: enhancement
     issues:
       - 146045
+  - pr: 146063
+    summary: Add cluster state metadata for data sources and datasets
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146069
     summary: "[Native] AVX-512 BBQ vector operations"
     area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 146076
+    summary: Cleanup post-merge nits in DataSourceValidator SPI
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 146077
@@ -358,12 +383,23 @@ changelogs:
     area: Distributed
     type: bug
     issues: []
+  - pr: 146288
+    summary: Wire native async reads for S3 and Azure
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146353
     summary: Fix `testConcurrentEquals` for TDigest-based aggregations
     area: Aggregations
     type: bug
     issues:
       - 146113
+  - pr: 146373
+    summary: "ESQL:DS: fix single file splitting and bzip2 bytes counting"
+    area: ES|QL
+    type: bug
+    issues:
+      - 146330
   - pr: 146378
     summary: Wait for shard readiness before executing search on data node
     area: Search
@@ -375,10 +411,21 @@ changelogs:
     area: Infra/Metrics
     type: enhancement
     issues: []
+  - pr: 146433
+    summary: "ESQL:DS: have NDJSON plugin respect error policy"
+    area: ES|QL
+    type: bug
+    issues:
+      - 146331
   - pr: 146440
     summary: Adding a check to verify that `BlobContainer::listBlobsByPrefix` works as expected
     area: Snapshot/Restore
     type: enhancement
+    issues: []
+  - pr: 146491
+    summary: "ESQL:DS: NDJSON plugin fixes"
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 146503
     summary: Heap attack tests and fixes for SPARKLINE
@@ -395,12 +442,27 @@ changelogs:
     area: Vector Search
     type: enhancement
     issues: []
+  - pr: 146589
+    summary: "Remove `FilterPushdownRegistry,` use `FormatReader`"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146595
     summary: Adding a check to verify that `BlobContainer::blobExists` works as expected in the repository analysis tool
     area: Snapshot/Restore
     type: enhancement
     issues:
       - 119303
+  - pr: 146597
+    summary: Filtered aggregate pushdown for external sources
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 146600
+    summary: Add CRUD REST API for data sources and datasets
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146666
     summary: "ES|QL - Add timeout to inference operations COMPLETION, RERANK and TEXT_EMBEDDING"
     area: ES|QL
@@ -417,6 +479,17 @@ changelogs:
     area: Codec
     type: bug
     issues: []
+  - pr: 146718
+    summary: Grant file read entitlement for Snappy musl detection
+    area: ES|QL
+    type: bug
+    issues:
+      - 146717
+  - pr: 146745
+    summary: '`SplitStats` compact serialization and typed API'
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146801
     summary: Enable ES|QL EMBEDDING function for calculating dense vector embeddings on multimodal input
     area: ES|QL
@@ -428,6 +501,11 @@ changelogs:
     type: bug
     issues:
       - 146741
+  - pr: 146811
+    summary: Support numeric range expansion in glob patterns
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 146868
     summary: Pool `ClientHit` PIT hits via ref-counting
     area: Search
@@ -470,6 +548,40 @@ changelogs:
     area: ES|QL
     type: enhancement
     issues: []
+  - pr: 147148
+    summary: Fix Windows path separators in fixture loading
+    area: ES|QL
+    type: bug
+    issues:
+      - 147015
+      - 147012
+      - 147013
+      - 147027
+      - 147029
+      - 147036
+      - 147037
+      - 147040
+      - 146982
+      - 147046
+      - 146983
+      - 147044
+      - 147050
+      - 147051
+      - 147048
+      - 146985
+      - 147049
+      - 146990
+      - 146991
+      - 147055
+      - 147053
+      - 146993
+      - 146999
+      - 146997
+      - 147000
+      - 147001
+      - 147006
+      - 147007
+      - 147004
   - pr: 147151
     summary: Expand index pressure on update expansion
     area: CRUD
@@ -492,6 +604,17 @@ changelogs:
     type: enhancement
     issues:
       - 144941
+  - pr: 147158
+    summary: Fix misleading error for missing external files
+    area: ES|QL
+    type: bug
+    issues:
+      - 146715
+  - pr: 147162
+    summary: Add Rust FFI foundation using Panama for Parquet metadata
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147166
     summary: Fix Sparkline generating extra bucket bug
     area: ES|QL
@@ -527,6 +650,16 @@ changelogs:
     area: Codec
     type: enhancement
     issues: []
+  - pr: 147253
+    summary: Suppress `ColumnIndexFilter` INFO log spam
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147266
+    summary: Fix row over-read and lost-wakeup hang on external source
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 147293
     summary: Fix false-positive duplicate time-bucket in TS aggregate
     area: ES|QL
@@ -550,6 +683,21 @@ changelogs:
     area: Audit
     type: enhancement
     issues: []
+  - pr: 147353
+    summary: Disable optional S3 response checksum validation
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147358
+    summary: Fix wrong stats pushdown for multi-file glob queries
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147359
+    summary: Port Parquet I/O coalescing and row-group prefetch pipeline
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147367
     summary: Set `locationToSync` for no-op FAILURE results
     area: Distributed
@@ -559,6 +707,11 @@ changelogs:
     summary: Add analyzer option in ES|QL `TOP_SNIPPETS` function
     area: ES|QL
     type: enhancement
+    issues: []
+  - pr: 147404
+    summary: Disable sliding-window cache in Parquet adapter
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 147418
     summary: Add `EncryptionService` for encrypt/decrypt operations using PEK
@@ -570,15 +723,35 @@ changelogs:
     area: Data streams
     type: bug
     issues: []
+  - pr: 147470
+    summary: Fix Parquet sliding-window cache corruption
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 147481
     summary: Preserve emit size in `AdaptiveBlockHash`
     area: ES|QL
     type: bug
     issues:
       - 147361
+  - pr: 147493
+    summary: Shared metadata byte cache for Parquet and ORC
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147496
     summary: Create settings for platform architecture
     area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 147500
+    summary: Surface skipped/null-filled external rows as response `Warning` headers
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147502
+    summary: Widen numeric stats values during merge for UNION_BY_NAME
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 147504
@@ -604,6 +777,11 @@ changelogs:
     type: enhancement
     issues:
       - 112680
+  - pr: 147562
+    summary: ES|QL — route FROM dataset through the EXTERNAL pipeline (Phase 1)
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147566
     summary: Include index and shard id in shard failure exception message
     area: Search
@@ -616,6 +794,21 @@ changelogs:
     type: enhancement
     issues:
       - 133322
+  - pr: 147584
+    summary: Deduplicate Parquet iterator decode logic
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147586
+    summary: Integrate circuit breaker with Parquet prefetch
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147598
+    summary: Add per-query concurrency budget for S3 connections
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147606
     summary: Fix up FTF error after MV_EXPAND
     area: ES|QL
@@ -642,6 +835,11 @@ changelogs:
     area: Vector Search
     type: enhancement
     issues: []
+  - pr: 147691
+    summary: Filtered prefetch custom Parquet reader
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 147698
     summary: Check cluster state block in `_resolve/index`
     area: Security
@@ -657,6 +855,11 @@ changelogs:
     summary: "ES-14041: Lock APM-agent trace contract in regression test"
     area: Infra/Metrics
     type: enhancement
+    issues: []
+  - pr: 147738
+    summary: Stop sharing decode buffers between Parquet pages
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 147759
     summary: Log entitlement agent attach timing
@@ -679,6 +882,11 @@ changelogs:
     area: Security
     type: enhancement
     issues: []
+  - pr: 147782
+    summary: Add ES|QL datasource and dataset index privileges
+    area: Security
+    type: enhancement
+    issues: []
   - pr: 147797
     summary: Return 400 for malformed OTLP protobuf
     area: TSDB
@@ -687,6 +895,11 @@ changelogs:
   - pr: 147811
     summary: Enable OTLP logs and traces by default
     area: Logs
+    type: enhancement
+    issues: []
+  - pr: 147829
+    summary: "Parquet decode-in-place: eliminate scratch-to-block copy"
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 147855
@@ -704,6 +917,16 @@ changelogs:
     summary: '`SampleProbabilityPlaceHolder` to have Nullability.FALSE'
     area: ES|QL
     type: bug
+    issues: []
+  - pr: 147936
+    summary: Adaptive S3 prefetch depth and zero-copy strings
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 147962
+    summary: Eliminate redundant S3 HEAD calls via suffix range and object reuse
+    area: ES|QL
+    type: enhancement
     issues: []
   - pr: 147964
     summary: "Caching: Prefetch from blob storage, if local prefetching fails"
@@ -730,6 +953,26 @@ changelogs:
     area: Inference
     type: bug
     issues: []
+  - pr: 148028
+    summary: Add remote fetch transport and context-retention plumbing
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148072
+    summary: Parallel split discovery and provider caching
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148086
+    summary: Skip split discovery for aggregate pushdown
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148093
+    summary: Add streaming parallel parsing for gzip-compressed files
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148121
     summary: Support wildcard application names in implicit privilege SPI
     area: Security
@@ -738,6 +981,16 @@ changelogs:
   - pr: 148140
     summary: "[Inference API] Add product use case and origin to telemetry"
     area: Inference
+    type: enhancement
+    issues: []
+  - pr: 148143
+    summary: Tune NDJSON parallel parsing throughput
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148162
+    summary: "Resilient CSV parsing, COUNT(*) fast path, and 400-status malformed-data errors"
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 148198
@@ -756,14 +1009,34 @@ changelogs:
     area: Downsampling
     type: enhancement
     issues: []
+  - pr: 148242
+    summary: Emit ordinal blocks for dictionary parquet strings
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148255
+    summary: Bulk-decode Parquet definition levels
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148256
     summary: Prune non-top-N groups during aggregation
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148259
+    summary: Prune `NotEq` pages where min == max == value
     area: ES|QL
     type: enhancement
     issues: []
   - pr: 148260
     summary: "Painless: honor search timeout in score scripts"
     area: Infra/Scripting
+    type: enhancement
+    issues: []
+  - pr: 148261
+    summary: Skip filter eval when row group stats prove all rows pass
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 148273
@@ -787,6 +1060,11 @@ changelogs:
     area: Security
     type: feature
     issues: []
+  - pr: 148332
+    summary: Dictionary short-circuit for late-mat filters
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148333
     summary: Ordinal fast path for `BytesRefTopNBlockHash`
     area: ES|QL
@@ -802,6 +1080,11 @@ changelogs:
     area: Security
     type: bug
     issues: []
+  - pr: 148349
+    summary: Cache parquet dictionary array across batches
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148354
     summary: Cache `FilterOperator/EvalOperator` `toString`
     area: ES|QL
@@ -811,6 +1094,16 @@ changelogs:
     summary: Use lat/lon ordering for DECAY `geo_point` origin
     area: ES|QL
     type: bug
+    issues: []
+  - pr: 148360
+    summary: Pre-warm dictionary/bloom for predicate columns
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148410
+    summary: Surface external source operator's emitted rows as `documents_found`
+    area: ES|QL
+    type: enhancement
     issues: []
   - pr: 148411
     summary: Closing async instrument removes it from registry
@@ -827,6 +1120,21 @@ changelogs:
     area: ES|QL
     type: bug
     issues: []
+  - pr: 148434
+    summary: Push LIKE to Parquet late materialization
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148439
+    summary: Two-phase I/O for Parquet on remote storage
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148453
+    summary: Fix double-release in two-phase parquet path
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 148470
     summary: No re-sync for paused or re-assigned shard snapshot
     area: Snapshot/Restore
@@ -837,6 +1145,11 @@ changelogs:
     area: ES|QL
     type: feature
     issues: []
+  - pr: 148474
+    summary: "Drop late-mat byte-ratio gate, fix trivially-passes shortcut"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 148493
     summary: Add max_field_bytes to attachment processor and ingest.attachment.max_field_size node setting
     area: Ingest Node
@@ -846,6 +1159,16 @@ changelogs:
     summary: Support `-remote:index`-style exclusion syntax
     area: CCS
     type: enhancement
+    issues: []
+  - pr: 148500
+    summary: Decouple Parquet late materialization from two-phase byte-ratio gate
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 148501
+    summary: Fix Parquet trivially-passes shortcut leaking rows when LIKE is AND'd with a stats-trivial conjunct
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 148509
     summary: Return an empty response for scrolls with no shard contexts
@@ -864,6 +1187,11 @@ changelogs:
     type: bug
     issues:
       - 148500
+  - pr: 148529
+    summary: "Two-phase I/O fixes — sparse read, mask short-circuit, coalesce gap"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148539
     summary: Add `chat_completion` task type to the Anthropic inference service
     area: Inference
@@ -978,6 +1306,11 @@ changelogs:
     type: enhancement
     issues:
       - 147428
+  - pr: 148756
+    summary: Thread per-file planner-resolved read schema to runtime readers
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 148786
     summary: Improved reindex resilience and new reindex management APIs
     area: Reindex
@@ -1000,6 +1333,16 @@ changelogs:
         tasks APIs. Read more about these changes in the blog at
         https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.
       pr: 148786
+  - pr: 148797
+    summary: Yield producer-loop when streaming-parallel iterator not ready
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 148846
+    summary: "[ESQLDS - Parquet] Speed up allocations and remove array copies"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148865
     summary: Cache `FieldInfo` instances per shard Directory
     area: Mapping
@@ -1036,9 +1379,19 @@ changelogs:
     type: bug
     issues:
       - 148905
+  - pr: 148918
+    summary: "Parquet: dictionary filter fast paths and per-row-group memo"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 148920
     summary: Add distinct storage class settings for S3
     area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 148935
+    summary: "Parquet: nested-And short-circuit + filter eval cleanups"
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 148937
@@ -1076,8 +1429,18 @@ changelogs:
     area: ES|QL
     type: bug
     issues: []
+  - pr: 149018
+    summary: Cache parsed Parquet and ORC footers across producers
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149022
     summary: Bulk-grow TopN UTF-8 string encoding
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149023
+    summary: Pool S3 async receive buffers via Netty allocator
     area: ES|QL
     type: enhancement
     issues: []
@@ -1086,8 +1449,18 @@ changelogs:
     area: ES|QL
     type: enhancement
     issues: []
+  - pr: 149030
+    summary: Generic byte matchers for pushdown predicates
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149033
     summary: Speed up REPLACE on constant regex
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149045
+    summary: Tighten parsed-footer cache after review feedback
     area: ES|QL
     type: enhancement
     issues: []
@@ -1126,6 +1499,40 @@ changelogs:
     area: ES|QL
     type: enhancement
     issues: []
+  - pr: 149176
+    summary: Default external source schema resolution to `UNION_BY_NAME`
+    area: ES|QL
+    type: enhancement
+    issues: []
+    highlight:
+      notable: true
+      title: Default ES|QL external source schema resolution to `UNION_BY_NAME`
+      body: |-
+        Multi-file ES|QL external source globs (the Tech Preview `EXTERNAL` command) now default
+        to `schema_resolution = union_by_name` instead of `first_file_wins`. Files in the same
+        glob no longer have to share the exact schema of the lex-smallest file: columns are merged
+        by name across all matched files, missing columns are null-filled per file, and types are
+        reconciled via conservative widening (`INTEGER` -> `LONG`, `INTEGER` -> `DOUBLE`,
+        `DATETIME` -> `DATE_NANOS`). Schemas that genuinely disagree on a column's type now fail
+        at planning time with a clear error instead of silently coercing data at read time.
+
+        To restore the previous behavior on a per-query basis, pass
+        `WITH { "schema_resolution": "first_file_wins" }` on the `EXTERNAL` command. Performance
+        note: the `UNION_BY_NAME` path reads every matched file's metadata in parallel (the FFW
+        path already did this for stats aggregation when more than one file matched) and
+        currently bypasses the listing/schema cache, so first-time and repeat-query latency is
+        higher for very large globs; this is being tracked as a follow-up.
+      pr: 149176
+  - pr: 149185
+    summary: Introduce `ExternalOptimizerContext`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149190
+    summary: Encrypt data-source secret settings at rest
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149202
     summary: Use appropriate rerank code path for validation call
     area: Inference
@@ -1143,6 +1550,16 @@ changelogs:
     type: enhancement
     issues:
       - 149072
+  - pr: 149248
+    summary: Cut S3 download + Snappy copies on hot path
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149279
+    summary: Fix UBN COUNT/MIN/MAX pushdown for absent columns
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149287
     summary: Close `GeoIp` `configDatabases` to release open file locks
     area: Ingest Node
@@ -1197,6 +1614,11 @@ changelogs:
     type: bug
     issues:
       - 149371
+  - pr: 149380
+    summary: Aggregate metadata pushdown for external text formats
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149385
     summary: Clearer error message on nested aggregations
     area: ES|QL
@@ -1213,6 +1635,11 @@ changelogs:
     type: bug
     issues:
       - 136418
+  - pr: 149405
+    summary: Support Parquet unsigned integer types
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 149421
     summary: Add IP_LOCATION command
     area: ES|QL
@@ -1220,6 +1647,16 @@ changelogs:
     issues:
       - 150231
       - 132489
+  - pr: 149454
+    summary: Reject ES|QL requests for datasets with DLS or FLS
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 149463
+    summary: "[ESQLDS] `NdJsonPageDecoder:` schema-aware fast-skip, improve string decoding"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149466
     summary: Expose `_clusters` metadata in open point-in-time response for CCS
     area: Search
@@ -1229,6 +1666,11 @@ changelogs:
   - pr: 149484
     summary: Log BCC upload progress and BCC queueing time
     area: Engine
+    type: enhancement
+    issues: []
+  - pr: 149491
+    summary: Tighten async external source coverage
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 149505
@@ -1248,9 +1690,64 @@ changelogs:
     type: bug
     issues:
       - 149513
+  - pr: 149532
+    summary: Parquet reader support for legacy LZ4 codec
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149533
+    summary: Anchor CSV row errors on the parser fault offset
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149541
+    summary: Nullable defaults for ORC and Parquet attributes
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149572
+    summary: Snappy codec accepts Hadoop and xerial framings
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149576
+    summary: NDJSON keyword decode reuses one `BytesRef` scratch
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149577
+    summary: Fast-path CSV datetime parsing
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149591
     summary: Handle OTLP explicit-bounds histograms without buckets in tdigest and exponential histogram conversion paths
     area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 149592
+    summary: Per-query nullability for partition columns on external sources
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149598
+    summary: "Snappy codec follow-up: override read(byte[])"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149600
+    summary: CSV datetime fast path follow-ups
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149613
+    summary: Bulk decode dictionary indices in parquet reader
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149618
+    summary: Parquet zstd page decompress via Panama FFI
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 149637
@@ -1258,9 +1755,30 @@ changelogs:
     area: Transform
     type: enhancement
     issues: []
+  - pr: 149642
+    summary: Make DOC partitioning universally applicable
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149645
     summary: Early publish `DesiredBalance` when newly created replicas are assigned
     area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 149660
+    summary: Anchor CSV row errors in fused fast path too
+    area: ES|QL
+    type: bug
+    issues:
+      - 149567
+  - pr: 149662
+    summary: Parquet/ORC nested STRUCT subfield projection
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149664
+    summary: Parquet/ORC nested STRUCT pushdown
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 149668
@@ -1305,16 +1823,56 @@ changelogs:
     type: bug
     issues:
       - 149694
+  - pr: 149767
+    summary: Add Workload Identity Issuer Client
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 149809
+    summary: "ESQL|DS: Panama FFI streaming zstd for `.csv.zst` / `.ndjson.zstd`"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149816
+    summary: Add `PartitionConfig.CONFIG_KEYS` and thread into `FileSourceFactory.COORDINATOR_KEYS`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149833
+    summary: Enlarge GZIPInputStream raw buffer to 64 KiB
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149841
+    summary: Specialize TopN for numeric keys on external sources
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149859
     summary: Rollover ignoring active shards can ignore reroute
     area: Indices APIs
     type: enhancement
     issues:
       - 149730
+  - pr: 149870
+    summary: Parquet pushdown for CONTAINS and ENDS_WITH
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149881
+    summary: "ESQL|DS: remove zstd-jni from Parquet codec via Panama FFI"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 149885
     summary: Adding support for IPinfo Plus database
     area: Ingest Node
     type: enhancement
+    issues: []
+  - pr: 149886
+    summary: Fix TSV record-boundary scanner livelock on literal quotes
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 149889
     summary: Wire internal refresh listeners on `SearchEngine`
@@ -1343,12 +1901,31 @@ changelogs:
     area: PromQL
     type: enhancement
     issues: []
+  - pr: 149976
+    summary: "[ESQLDS] Parquet: Fix deferred extraction for struct leaf columns"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 149985
     summary: "ES|QL PromQL: implicit type coercion for counter/gauge"
     area: PromQL
     type: enhancement
     issues:
       - 140035
+  - pr: 149992
+    summary: "ES|QL|DS: ndjson - avoid String allocation in KEYWORD value decoder"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 149996
+    summary: Introduce `RecordSplitter` SPI
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 150009
+    summary: "ES|QL: default CSV/TSV `multi_value_syntax` to `none` (RFC 4180-compliant; faster on bracket-free input; brackets remain opt-in)"
+    area: ES|QL
+    type: enhancement
   - pr: 150016
     summary: Skip unrelated files when scanning config dir for log4j2.properties
     area: Infra/Core
@@ -1374,6 +1951,11 @@ changelogs:
     area: ES|QL
     type: enhancement
     issues: []
+  - pr: 150048
+    summary: Extract CSV record splitter
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 150066
     summary: Advise MADV_RANDOM on blob cache regions backing vector data files
     area: Vector Search
@@ -1395,6 +1977,16 @@ changelogs:
     area: Infra/Scripting
     type: enhancement
     issues: []
+  - pr: 150107
+    summary: DOC partitioning by default for COUNT
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 150114
+    summary: Add NDJSON record splitter
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 150115
     summary: Add circuit breaker to `TransportMultiSearchAction`
     area: Search
@@ -1408,6 +2000,11 @@ changelogs:
   - pr: 150138
     summary: Optimize sorted numeric field data loading for dense fields
     area: Logs
+    type: enhancement
+    issues: []
+  - pr: 150141
+    summary: Hot-reload workload-identity client SSL
+    area: Security
     type: enhancement
     issues: []
   - pr: 150148
@@ -1435,6 +2032,11 @@ changelogs:
     area: Snapshot/Restore
     type: bug
     issues: []
+  - pr: 150204
+    summary: "ES|QL|DS: self-heal external object-store reads on transient faults"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 150220
     summary: Rewire FUSE to use FIRST for passthrough columns
     area: ES|QL
@@ -1453,15 +2055,30 @@ changelogs:
     area: PromQL
     type: enhancement
     issues: []
+  - pr: 150240
+    summary: Enforce datasource record caps
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 150266
     summary: Introduce params support for query logging (ESQL & SQL)
     area: Infra/Logging
+    type: enhancement
+    issues: []
+  - pr: 150277
+    summary: Add GCS keyless auth via workload identity
+    area: Security
     type: enhancement
     issues: []
   - pr: 150324
     summary: More tests and bug fix for In Subquery with TS
     area: ES|QL
     type: bug
+    issues: []
+  - pr: 150326
+    summary: Add async AWS workload-identity provider
+    area: Security
+    type: enhancement
     issues: []
   - pr: 150332
     summary: Honor WITHOUT exclusion for wildcard TSDB dims
@@ -1527,6 +2144,16 @@ changelogs:
     type: enhancement
     issues:
       - 146350
+  - pr: 150499
+    summary: Support short-lived credentials for EXTERNAL cloud reads
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 150531
+    summary: "[ES|QL|DS] Add \"datetime_format\" to ndjson reader settings"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 150545
     summary: Add points memory estimate to tier heap estimate
     area: Search
@@ -1565,11 +2192,55 @@ changelogs:
     area: Infra/Metrics
     type: enhancement
     issues: []
+  - pr: 150656
+    summary: Fix JDK 21 FFM regressions in zstd native binding
+    area: ES|QL
+    type: bug
+    issues:
+      - 149943
+      - 150156
+  - pr: 150665
+    summary: "[ES|QL|DS] Parquet reader: handle TIME, INTERVAL & BSON types"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 150677
     summary: Add ENRICH to bytes counting
     area: ES|QL
     type: enhancement
     issues: []
+  - pr: 150746
+    summary: "ES|QL|DS: release the S3 read buffer when onComplete loses the completion race"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 150775
+    summary: "Reconcile external source statistics by coverage range, not scan count"
+    area: ES|QL
+    type: bug
+    issues:
+      - 150571
+      - 150594
+      - 150595
+      - 150599
+      - 150614
+      - 150615
+      - 150616
+      - 150620
+      - 150628
+      - 150642
+      - 150643
+      - 150653
+      - 150657
+      - 150670
+      - 150678
+      - 150705
+      - 150710
+      - 150723
+      - 150744
+      - 150758
+      - 150771
+      - 150783
   - pr: 150802
     summary: |
       Throttle concurrent downsampling operations in data stream lifecycle. A new dynamic cluster setting, `data_streams.lifecycle.downsampling.max_indices_in_progress` (default 10), caps the number of backing indices per data stream that data stream lifecycle will submit to downsampling in a single run. Indices that are deferred are recorded in the error store with a warning and will be retried in a subsequent run.
@@ -1577,6 +2248,11 @@ changelogs:
     type: enhancement
     issues:
       - 150624
+  - pr: 150824
+    summary: Add keyless workload-identity auth to ESQL Azure
+    area: Security
+    type: enhancement
+    issues: []
   - pr: 150834
     summary: Preserve `dimensions_set_by_user` for SageMaker text embeddings
     area: Inference
@@ -1588,6 +2264,11 @@ changelogs:
     area: Snapshot/Restore
     type: enhancement
     issues: []
+  - pr: 150845
+    summary: Add keyless workload-identity auth to S3 datasource
+    area: Security
+    type: enhancement
+    issues: []
   - pr: 150876
     summary: Setting for trace sampling and batch processor
     area: Infra/Metrics
@@ -1596,6 +2277,11 @@ changelogs:
   - pr: 150906
     summary: Use panama bulk methods for bulk vector scoring
     area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 150920
+    summary: Add canonical-stripe statistics for warm COUNT/MIN/MAX over external text formats
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 150948
@@ -1659,6 +2345,11 @@ changelogs:
     area: Infra/Scripting
     type: enhancement
     issues: []
+  - pr: 151102
+    summary: Enforce read authorization on `FROM <dataset>`
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 151103
     summary: Make the worker queue dynamic
     area: ES|QL
@@ -1711,6 +2402,16 @@ changelogs:
     summary: Emit Painless compile-time allocation pre-checks
     area: Infra/Scripting
     type: enhancement
+    issues: []
+  - pr: 151377
+    summary: Surface external read failures with typed exceptions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 151393
+    summary: Restore CSV/TSV/NDJSON read perf after cap enforcement
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 151405
     summary: "[Encryption] Graceful degradation when no password configured"
@@ -1847,6 +2548,11 @@ changelogs:
     area: ES|QL
     type: bug
     issues: []
+  - pr: 151868
+    summary: Prune row groups for string TopN sources
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 151885
     summary: Make FUSE command GA
     area: ES|QL
@@ -1885,6 +2591,11 @@ changelogs:
     type: bug
     issues:
       - 150224
+  - pr: 151977
+    summary: "Allow heterogeneous `FROM idx, ds` and pushdown optimizations"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 151987
     summary: Track search phase request/result bytes at coordinator
     area: Search
@@ -1903,6 +2614,17 @@ changelogs:
   - pr: 152012
     summary: Support multimodal (image) rerank for the Elastic Inference Service
     area: Inference
+    type: enhancement
+    issues: []
+  - pr: 152021
+    summary: Bound and cancel external-source resolution
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 960
+  - pr: 152043
+    summary: Shadow Hive partition column collisions
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 152065
@@ -1966,12 +2688,27 @@ changelogs:
       body: |-
         You can now query exponential_histogram fields with PromQL syntax for native histograms.
         The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
+  - pr: 152176
+    summary: Lenient truncate on `max_record_size` cap-hit
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152179
     summary: Add timeout support to the update inference endpoint API
     area: Inference
     type: enhancement
     issues:
       - 140501
+  - pr: 152180
+    summary: "Rebuild the indices lookup when a cluster-state diff changes only ES|QL datasets, so a newly created dataset resolves on every node"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152181
+    summary: "[Encryption] Add datasources destructive reset"
+    area: Security
+    type: enhancement
+    issues: []
   - pr: 152186
     summary: Add necessary attribute for internal JVM metrics
     area: Infra/Metrics
@@ -1983,12 +2720,22 @@ changelogs:
     type: feature
     issues:
       - 144121
+  - pr: 152203
+    summary: Enforce NDJSON `max_record_size` in the decode loop
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152210
     summary: "FORK: Fix error handling for unsupported types"
     area: ES|QL
     type: bug
     issues:
       - 147603
+  - pr: 152221
+    summary: NDJSON field-name identity cache
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152225
     summary: Upgrade qa/vector opentelemetry dependency for security vulnerability
     area: Search
@@ -2016,14 +2763,14 @@ changelogs:
     issues: []
     highlight:
       notable: true
-      title: ES|QL Data Federation
+      title: Encryption at rest for sensitive cluster state
       body: |-
-        [**ES|QL Data Federation** (experimental)](elasticsearch://reference/query-languages/esql/esql-data-federation.md) is now available. This feature enables you to create and manage external
-        data sources (Amazon S3 initially) and query datasets using {{esql}}.
-
-        This is an experimental feature and is not enabled by default. To try it out, set
-        `esql.federation.enabled: true` in your Elasticsearch configuration and
-        `xpack.dataFederation.enabled: true` in your Kibana configuration.
+        Elasticsearch provides encryption at rest for sensitive credentials stored in cluster state,
+        starting with credentials (for example, access key and secret key pairs) for ES|QL external
+        data sources. Credentials are encrypted using a project-scoped primary encryption key before
+        being written to cluster state, and are decrypted only when needed, such as during query
+        execution. The primary encryption key itself is generated automatically and is protected at
+        rest using a password configured through secure settings or the keystore.
   - pr: 152293
     summary: Fix aggregation filters in TS group by all queries
     area: ES|QL
@@ -2037,6 +2784,11 @@ changelogs:
   - pr: 152326
     summary: Emit Painless static-type string concat allocation pre-checks
     area: Infra/Scripting
+    type: enhancement
+    issues: []
+  - pr: 152328
+    summary: Defer FFW footer reads when stats unneeded
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 152349
@@ -2060,12 +2812,22 @@ changelogs:
     area: Mapping
     type: enhancement
     issues: []
+  - pr: 152391
+    summary: Make external split discovery cancellable
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152405
     summary: Fix empty `DocIdSetIterator` behaviour for `exponential_histogram` field type
     area: Mapping
     type: bug
     issues:
       - 152318
+  - pr: 152435
+    summary: "[ESQLDS] Move config validation to `ExternalSourceResolver`"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152481
     summary: Columnar index modes available as Tech Preview
     area: Mapping
@@ -2115,6 +2877,21 @@ changelogs:
 
         Improved columnar storage: An optimized doc values format is used by default,
         further reducing storage footprint, especially when combined with index sorting.
+  - pr: 152493
+    summary: Document and slim `ExternalSourceExec` field layering
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152499
+    summary: Bump `OpenTelemetry` to 1.62.0 in GCS modules
+    area: ES|QL
+    type: upgrade
+    issues: []
+  - pr: 152501
+    summary: "[Datasources] Add TV Guard for new global datasource privileges"
+    area: Security
+    type: enhancement
+    issues: []
   - pr: 152515
     summary: Two-phase iterator for TSDB numeric range doc values
     area: TSDB
@@ -2136,6 +2913,26 @@ changelogs:
     area: Infra/Metrics
     type: bug
     issues: []
+  - pr: 152551
+    summary: Encode external Parquet `unsigned_long` reads
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152577
+    summary: Add operational telemetry for ES|QL external data sources
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152583
+    summary: Decode Parquet temporal footer stats to epoch-millis
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152585
+    summary: Async STOP / cancel / DELETE contract for EXTERNAL queries
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152611
     summary: Fixing too-eager IP-location DB deletion
     area: Ingest Node
@@ -2146,15 +2943,41 @@ changelogs:
     area: Data streams
     type: enhancement
     issues: []
+  - pr: 152625
+    summary: Fix null-leading concat in Parquet sparse reads
+    area: ES|QL
+    type: bug
+    issues:
+      - 152592
+  - pr: 152627
+    summary: Route source resolver off SEARCH pool
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152635
+    summary: Fix NDJSON NPE on null nested objects
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 152639
     summary: "[PromQL] Fix wrong window filter boundaries"
     area: PromQL
     type: bug
     issues:
       - 151971
+  - pr: 152651
+    summary: "[ESQLDS] Add multi-key TopN pushdown for external sources"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152684
     summary: Introduce feature flag for keyless auth
     area: Authentication
+    type: enhancement
+    issues: []
+  - pr: 152691
+    summary: Async external source metadata discovery
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 152697
@@ -2199,14 +3022,69 @@ changelogs:
     type: bug
     issues:
       - 152518
+  - pr: 152759
+    summary: Fix Parquet COUNT(col) missing `null_count` stat
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152771
+    summary: Unify external blob-store read concurrency under a single per-scheme permit knob and isolate blocking external I/O on a dedicated thread pool
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152780
     summary: Report `vectordb_document` usage in _xpack/usage
     area: Vector Search
     type: enhancement
     issues: []
+  - pr: 152783
+    summary: Sanitize external UTF-8 at source boundary
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 152793
     summary: Enable the adaptive replica selection formula adjustment
     area: Search
+    type: enhancement
+    issues: []
+  - pr: 152835
+    summary: Fix Zstd DStream `VarHandle` offset on JDK 21
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152837
+    summary: Normalize local `StorageObject` path for stats reconcile
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152838
+    summary: Fix Parquet TopN early-termination race and error detail
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152847
+    summary: Fix multi-file range-split schema reconciliation
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 152854
+    summary: Preserve secrets on data source PUT
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152855
+    summary: Preserve Parquet micros/nanos timestamp precision
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152857
+    summary: Fix Parquet list-under-struct read as null
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 152859
+    summary: Reconcile temporal stat units in cross-file merge
+    area: ES|QL
     type: enhancement
     issues: []
   - pr: 152861
@@ -2223,6 +3101,11 @@ changelogs:
         driven by `@timestamp` (up to 90% smaller) and floating-point gauges and counters
         via adaptive floating-point encoding, at no indexing or query cost. Existing
         indices keep their codec; opt out with `index.time_series.es95_codec.enabled: false`.
+  - pr: 152864
+    summary: Fix `COUNT` and `IS NOT NULL` over top-level external Parquet list columns
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 152869
     summary: Update the rerank endpoint for the Elastic inference service
     area: Inference
@@ -2256,6 +3139,11 @@ changelogs:
         the `match` function on-the-fly by analyzing the value of the expression
         for each row and checking whether any of the analyzed tokens match the
         analyzed tokens of the given query string.
+  - pr: 152951
+    summary: "[ESQLDS] Fix Parquet footer-stats MIN/MAX for FLOAT16/DECIMAL"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 152953
     summary: Fix fetch-phase `store_bytes_read` miscount
     area: Search
@@ -2294,6 +3182,21 @@ changelogs:
     type: bug
     issues:
       - 152884
+  - pr: 153038
+    summary: "Release external-Parquet page decompress buffers per page, not per row group"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153074
+    summary: Fix external text-read drain deadlock
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 153085
+    summary: "[ESQLDS] Fix external multi-file warm COUNT/MIN/MAX re-scanning under schema-cache eviction"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 153090
     summary: Unmatched DROP wildcard no-op if unmapped
     area: ES|QL
@@ -2309,6 +3212,21 @@ changelogs:
     summary: Change federated feature flag to cluster config
     area: Authentication
     type: enhancement
+    issues: []
+  - pr: 153100
+    summary: Honest `waitForReady` for seekable parse drain
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 153120
+    summary: Bound concurrent streaming segmentators
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 153129
+    summary: "[ESQLDS] Fix CSV/TSV declared string columns rejecting literal null"
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 153135
     summary: Correctly detect is sub-query is performing remote lookup join
@@ -2327,6 +3245,21 @@ changelogs:
     type: bug
     issues:
       - 146835
+  - pr: 153244
+    summary: "[ESQLDS] Fix escaped CSV/TSV double-decode when `_rowPosition` is projected"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153252
+    summary: "[ES|QL|DS] Parse CSV file-level `datetime_format` with the ES `DateFormatter`"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153258
+    summary: Restore compressed multi-file warm-fold IT
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 153268
     summary: Implicit cast based on widened type
     area: ES|QL
@@ -2366,24 +3299,60 @@ changelogs:
     area: Search
     type: enhancement
     issues: []
+  - pr: 153485
+    summary: "Fix declared-schema read correctness on external datasets (Parquet filter-pushdown unit, scale, and rounding mismatches)"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153579
+    summary: Fix `SORT` crash and partition-column `WHERE` wrong answers on Hive-partitioned external datasets
+    area: ES|QL
+    type: bug
+    issues:
+      - 153503
+  - pr: 153580
+    summary: "ES|QL: NDJSON `error_mode` treats every unrepresentable cell the same for declared and inferred columns — `skip_row` drops the row (like CSV/TSV), `null_field` nulls the cell, strict fails"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 153582
     summary: Fix wildcard queries on keyword fields whose normalizer rewrites wildcard characters
     area: Mapping
     type: bug
     issues:
       - 150699
+  - pr: 153641
+    summary: Abort external read backoff on hard cancel
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 153675
     summary: Fix off-by-one in `ZeroBucket.index()` due to rounding errors
     area: ES|QL
     type: bug
     issues:
       - 153270
+  - pr: 153682
+    summary: Fix hint-blind external-dataset listing cache and rewrite-to-empty throw
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153686
+    summary: Bypass permits for storage metadata ops
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 153688
     summary: "[Inference API] Fix associating an inference endpoint to an ML node deployment"
     area: Inference
     type: bug
     issues:
       - 144860
+  - pr: 153715
+    summary: "Cache single-file metadata, skip warm probe"
+    area: ES|QL
+    type: enhancement
+    issues: []
   - pr: 153771
     summary: Fix `json_extract` execution with foldable MV
     area: ES|QL
@@ -2396,6 +3365,16 @@ changelogs:
     type: enhancement
     issues:
       - 153643
+  - pr: 153785
+    summary: "[ESQLDS] Separate the external dataset-aggregate cache so warm dataset COUNT stops decaying under per-file eviction"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 153809
+    summary: Fix Parquet MAP column footer-stats crash
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 153825
     summary: "Corrects bug with LOOKUP JOIN, empty scopes and security enabled"
     area: ES|QL
@@ -2407,12 +3386,28 @@ changelogs:
     type: bug
     issues:
       - 137475
+  - pr: 153836
+    summary: "[ES|QL|DS] One unit rule for temporal declarations: `date` and `date_nanos` reachable from every temporal shape"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 153886
     summary: "[Inference API] Deploy text embedding models before validation call"
     area: Inference
     type: bug
     issues:
       - 144871
+  - pr: 153946
+    summary: Skip read when external prune removes all files
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 153873
+  - pr: 154000
+    summary: ESQLDS/NDJSON - Null whole position on array item coercion failure
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 154016
     summary: Fix one of the causes of losing warnings
     area: ES|QL
@@ -2473,6 +3468,11 @@ changelogs:
     area: Search
     type: bug
     issues: []
+  - pr: 154409
+    summary: "[ESQLDS] Fix COUNT(*) over a Hive-partitioned text dataset crashing on a zero-column projection"
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 154433
     summary: Return 400 for sorts on unsortable fields
     area: Search
@@ -2487,10 +3487,20 @@ changelogs:
       - 154743
       - 154484
       - 154011
+  - pr: 154519
+    summary: Size NDJSON lenient scratch builders per record instead of per page
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 154521
     summary: "[Fleet] Add `policy_base_id` field to fleet-agents and fleet-policies index templates"
     area: Infra/Plugins
     type: enhancement
+    issues: []
+  - pr: 154526
+    summary: Honour the resolved schema and split position on external text reads
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 154577
     summary: Fix pending inference request count double decrement
@@ -2559,6 +3569,11 @@ changelogs:
     type: bug
     issues:
       - 154866
+  - pr: 155038
+    summary: Fix off-heap memory growth when reading external Parquet datasets
+    area: ES|QL
+    type: bug
+    issues: []
   - pr: 155076
     summary: Reserve regexp automaton memory on the circuit breaker before building it
     area: Search

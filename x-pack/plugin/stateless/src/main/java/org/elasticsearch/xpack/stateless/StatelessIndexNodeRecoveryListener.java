@@ -162,6 +162,7 @@ class StatelessIndexNodeRecoveryListener implements IndexEventListener {
                 BlobStoreCacheDirectory.unwrapDirectory(store.directory())
                     .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
 
+                assert indexShard.routingEntry().isSearchable() == false;
                 var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
                 if (IndexReshardingMetadata.isSplitTarget(shardId, indexSettings.getIndexMetadata().getReshardingMetadata())) {
                     splitTargetService.startSplitTargetShardRecovery(

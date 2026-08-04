@@ -540,7 +540,6 @@ public class StatelessPlugin extends Plugin
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
     );
-    private final SetOnce<NodeShutdownFlagHolder> nodeShutdownFlagHolder = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -563,6 +562,8 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
     private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
+
+    private volatile boolean isNodeShuttingDown = false;
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -840,11 +841,6 @@ public class StatelessPlugin extends Plugin
             warmingRatioProvider
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
-
-        var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
-        clusterService.addListener(clusterStateCleanupService);
-        // Allow wrapping non-Guiced version for testing
-
         var commitService = createStatelessCommitService(
             settings,
             objectStoreService,
@@ -857,6 +853,9 @@ public class StatelessPlugin extends Plugin
             services.telemetryProvider()
         );
         components.add(commitService);
+        var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
+        clusterService.addListener(clusterStateCleanupService);
+        // Allow wrapping non-Guiced version for testing
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
@@ -1052,8 +1051,11 @@ public class StatelessPlugin extends Plugin
                 )
             );
 
-            var nodeShutdownFlagHolder = setAndGet(this.nodeShutdownFlagHolder, new NodeShutdownFlagHolder());
-            clusterService.addListener(nodeShutdownFlagHolder);
+            clusterService.addListener(event -> {
+                if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+                    isNodeShuttingDown = true;
+                }
+            });
         }
 
         if (statelessServicesConsumerProviders.get() != null) {
@@ -1588,7 +1590,6 @@ public class StatelessPlugin extends Plugin
             );
         }
         if (hasSearchRole) {
-            final var nodeShutdownFlagHolder = this.nodeShutdownFlagHolder.get();
             final var collector = searchShardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1602,7 +1603,7 @@ public class StatelessPlugin extends Plugin
                     if (reason == IndexRemovalReason.DELETED) {
                         // Evict cache regions of shards of the deleted index
                         final var cacheService = sharedBlobCacheService.get();
-                        if (cacheService.isCacheBoostPreferenceEnabled() && nodeShutdownFlagHolder.isNodeShuttingDown() == false) {
+                        if (cacheService.isCacheBoostPreferenceEnabled() && isNodeShuttingDown == false) {
                             cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
                         }
                     }
@@ -1614,14 +1615,14 @@ public class StatelessPlugin extends Plugin
 
                     // Demote cache regions of the closed shard, so they can be more easily evicted
                     final var cacheService = sharedBlobCacheService.get();
-                    if (cacheService.isDemoteClosedShardRegionsEnabled() && nodeShutdownFlagHolder.isNodeShuttingDown() == false) {
+                    if (cacheService.isDemoteClosedShardRegionsEnabled() && isNodeShuttingDown == false) {
                         final var hasShard = indicesService.get().hasShardPredicate();
                         // Index deletion also ultimately closes the store, but there is no point demoting regions of an index
                         // that no longer exists: beforeIndexRemoved above enqueues them for eviction when that is enabled, and
                         // otherwise they are left to the regular LFU. We check index existence in the predicate because
                         // onStoreClosed can run on the cluster state applier thread, where querying the ClusterService#state()
                         // is not allowed.
-                        final Predicate<ShardId> shouldDemote = id -> nodeShutdownFlagHolder.isNodeShuttingDown() == false
+                        final Predicate<ShardId> shouldDemote = id -> isNodeShuttingDown == false
                             && clusterService.get().state().metadata().lookupProject(id.getIndex()).isPresent()
                             && hasShard.test(id) == false;
                         cacheService.demoteAllAsync(shardId, shouldDemote);

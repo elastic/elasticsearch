@@ -86,6 +86,11 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        assert indexShard.routingEntry().isSearchable();
+        beforeSearchShardRecovery(indexShard, listener);
+    }
+
+    private void beforeSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
         final Store store = indexShard.store();
         try {
             store.incRef();
@@ -299,7 +304,7 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("warming failed: " + e.getMessage(), e);
+                            logger.warn("warming failed: {}", e.getMessage(), e);
                             onResponse(null);
                         }
                     };

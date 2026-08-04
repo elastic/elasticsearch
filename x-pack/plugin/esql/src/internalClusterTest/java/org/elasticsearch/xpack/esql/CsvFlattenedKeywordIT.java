@@ -1319,7 +1319,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
-        "FROM_BASE64:string is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
@@ -1343,6 +1342,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "TEXT_EMBEDDING:text is missing",
+        // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
+        // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its
+        // dimension nature, and TS tests are skipped by the coverage check entirely (see the ts_info_command
+        // / metrics_info_command guard above), so this slot can never be exercised via field extraction.
         "WITHOUT:dimension is missing"
     );
 

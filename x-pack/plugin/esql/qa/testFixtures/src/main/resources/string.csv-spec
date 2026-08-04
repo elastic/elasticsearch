@@ -2967,6 +2967,19 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10031          | null               | null         | null
 ;
 
+base64DecodeFromField
+required_capability: base64_decode_encode
+// FROM_BASE64's string argument is a genuine keyword field reference here (not a literal),
+// so the keyword→flattened coverage check in CsvFlattenedKeywordIT exercises FROM_BASE64:string.
+FROM conv_from_keyword
+| EVAL decoded = FROM_BASE64(base64_str)
+| KEEP base64_str, decoded
+;
+
+base64_str:keyword | decoded:keyword
+ZWxhc3RpYw==       | elastic
+;
+
 repeat
 required_capability: repeat 
 // tag::repeat[]

@@ -118,6 +118,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.keyword.doc_values_case_insensitive_regexp"
     );
     public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
+    public static final NodeFeature COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE = new NodeFeature("mapper.columnar.accepts_subobjects_false");
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
@@ -135,6 +136,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+    }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -214,6 +220,7 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_DV_CASE_INSENSITIVE_REGEXP,
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
+            COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
@@ -224,8 +231,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
-            DOC_VALUES_NULLABILITY,
-            TSDB_METRIC_TEMPORALITY_SUPPORT
+            DOC_VALUES_NULLABILITY
         );
     }
 }

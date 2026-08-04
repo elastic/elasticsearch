@@ -127,7 +127,7 @@ public final class CsvTestUtils {
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
-            if (value == null || value instanceof List) {
+            if (value == null || "null".equals(value) || value instanceof List) {
                 return false;
             }
             return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
@@ -863,6 +863,7 @@ public final class CsvTestUtils {
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
                 case TDIGEST -> TDIGEST;
                 case LONG_RANGE -> DATE_RANGE;
+                case DOUBLE_RANGE -> throw new IllegalArgumentException("DOUBLE_RANGE not yet supported in csv tests");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

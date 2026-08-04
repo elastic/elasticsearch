@@ -110,6 +110,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationEstimator;
@@ -412,18 +413,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         boolean instanceCancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
         boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
+        boolean staticScriptCapture = irFunctionNode.hasCondition(IRCStaticScriptCapture.class);
+        boolean hasThis = irFunctionNode.hasCondition(IRCStatic.class) == false;
+        long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
-        if (instanceCancellation || staticCancellation) {
-            Variable scriptThis;
-            if (instanceCancellation) {
-                scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
-                methodWriter.loadThis();
-                methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
-            } else {
-                scriptThis = writeScope.getInternalVariable("scriptThis");
-            }
+        // Define #scriptThis (= `this`) for instance functions under cancellation or tracking, so a nested static lambda
+        // can capture it at its construction site. Static lambdas instead receive it as parameter 0.
+        if (hasThis && (instanceCancellation || maxAllocationBytes > 0L)) {
+            Variable scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
+            methodWriter.loadThis();
+            methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
+        }
 
+        // Cancellation entry poll via #scriptThis (defined above, or parameter 0 for static cancellation lambdas).
+        if (instanceCancellation || staticCancellation) {
+            Variable scriptThis = writeScope.getInternalVariable("scriptThis");
             Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
             methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
@@ -432,25 +437,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skipEntry = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skipEntry);
-            methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
+            methodWriter.writeCancellationPoll(scriptThis.getSlot(), cancelRunnable.getSlot());
             methodWriter.mark(skipEntry);
         }
 
         // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh.
         // The entry method is the single non-static method named "execute"; user functions are mangled and lambdas are static.
-        long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
-        if (maxAllocationBytes > 0L && irFunctionNode.hasCondition(IRCStatic.class) == false && "execute".equals(method.getName())) {
+        if (maxAllocationBytes > 0L && hasThis && "execute".equals(method.getName())) {
             methodWriter.loadThis();
             methodWriter.push(0L);
             methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
         }
 
-        // Define the #allocLimit marker when allocation tracking is on and a script pointer is reachable from this function:
-        // either `this` (instance methods and instance-capturing lambdas) or the captured #scriptThis (static lambdas that
-        // already capture it for cancellation). Its presence is the per-function signal that allocation pre-checks should be
-        // emitted at allocation sites (see writeAllocationCheck); the limit itself is baked into $checkAllocBytes.
-        boolean hasThis = irFunctionNode.hasCondition(IRCStatic.class) == false;
-        if (maxAllocationBytes > 0L && (hasThis || staticCancellation)) {
+        // Define the #allocLimit marker when tracking is on and a script pointer is reachable: `this` (instance functions)
+        // or the captured #scriptThis (static lambdas, see IRCStaticScriptCapture). Its presence signals allocation sites to
+        // emit pre-checks (see writeAllocationCheck); the limit itself is baked into $checkAllocBytes.
+        if (maxAllocationBytes > 0L && (hasThis || staticScriptCapture)) {
             Variable allocLimit = writeScope.defineInternalVariable(long.class, "allocLimit");
             methodWriter.push(maxAllocationBytes);
             methodWriter.visitVarInsn(Opcodes.LSTORE, allocLimit.getSlot());

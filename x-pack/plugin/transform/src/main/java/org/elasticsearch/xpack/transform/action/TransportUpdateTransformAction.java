@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
@@ -117,10 +120,20 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        // A no-op when this doExecute re-runs on the master with an already-deserialized request
+        // carrying the credential from the coordinating node's extraction.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        final ActionListener<Response> releasingListener = ActionListener.releaseAfter(listener, request);
+
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
-            listener.onFailure(
+            releasingListener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot update any Transform while the Transform feature is upgrading.",
                     RestStatus.CONFLICT
@@ -134,13 +147,13 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         if (nodes.isLocalNodeElectedMaster() == false) {
             // Delegates update transform to elected master node so it becomes the coordinating node.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException());
+                releasingListener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    new ActionListenerResponseHandler<>(releasingListener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
             return;
@@ -173,6 +186,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     destIndexSettings,
                     cloudCredentialManager,
                     true, // mintCloudCredential
+                    request.getCloudCredential(),
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();
@@ -199,7 +213,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         // prior credential here — the indexer will never see the new config to do it.
                         // For running tasks, the indexer's onStart hook handles the swap on next reload.
                         ActionListener<Response> afterCredentialCleanup = wrapWithPriorCredentialCleanupIfNeeded(
-                            listener,
+                            releasingListener,
                             originalConfig.getCredentialId(),
                             updatedConfig.getCredentialId(),
                             updatedConfig.getId(),
@@ -242,6 +256,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                 request.setNodes(transformTask.getExecutorNode());
                                 request.setConfig(updatedConfig);
                                 request.setAuthState(authState);
+                                // Mint/validate (if any) already consumed their own copies of the
+                                // credential; avoid re-shipping it to the task's executor node, which
+                                // has no releaseAfter to close it.
+                                IOUtils.closeWhileHandlingException(request.setCloudCredential(null));
                                 super.doExecute(task, request, taskUpdateListener);
                                 return;
                             } else if (updateChangesHeaders) {
@@ -261,9 +279,9 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         } else {
                             afterCredentialCleanup.onResponse(new Response(updatedConfig));
                         }
-                    }, listener::onFailure)
+                    }, releasingListener::onFailure)
                 ),
-                listener::onFailure
+                releasingListener::onFailure
             )
         );
     }
@@ -273,7 +291,20 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             var originalProjectRouting = originalConfig.getSource().getProjectRouting();
             var updatedProjectRouting = updatedConfig.getSource().getProjectRouting();
 
-            if (originalProjectRouting == null) {
+            boolean migratedToUiam = originalConfig.getCredentialId() == null && updatedConfig.getCredentialId() != null;
+            if (migratedToUiam && originalProjectRouting == null && ProjectRoutingResolver.LOCAL_ONLY.equals(updatedProjectRouting)) {
+                auditor.info(
+                    updatedConfig.getId(),
+                    "project_routing defaulted to ["
+                        + ProjectRoutingResolver.LOCAL_ONLY
+                        + "] to preserve local search scope. Use the update API to change the scope."
+                );
+                logger.info(
+                    "[{}] project_routing defaulted to [{}] to preserve local search scope.",
+                    updatedConfig.getId(),
+                    updatedProjectRouting
+                );
+            } else if (originalProjectRouting == null) {
                 auditor.info(updatedConfig.getId(), format("project_routing has been set to [%s].", updatedProjectRouting));
                 logger.info("[{}] project_routing has been set to [{}].", updatedConfig.getId(), updatedProjectRouting);
             } else if (updatedProjectRouting == null) {

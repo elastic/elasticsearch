@@ -1651,7 +1651,6 @@ public class StatelessPlugin extends Plugin
                     sharedBlobCacheWarmingService.get(),
                     projectResolver.get(),
                     bccHeaderReadExecutor.get(),
-                    clusterService.get().getClusterSettings(),
                     clusterService.get()
                 )
             );

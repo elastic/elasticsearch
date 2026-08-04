@@ -172,7 +172,6 @@ public class TestUtils {
         SharedBlobCacheWarmingService warmingService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings,
         ClusterService clusterService
     ) {
         return new StatelessSearchNodeRecoveryListener(
@@ -181,7 +180,6 @@ public class TestUtils {
             warmingService,
             projectResolver,
             bccHeaderReadExecutor,
-            clusterSettings,
             clusterService
         );
     }

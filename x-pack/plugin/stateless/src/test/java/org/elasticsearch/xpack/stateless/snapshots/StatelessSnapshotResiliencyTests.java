@@ -1007,7 +1007,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheWarmingService,
                         projectResolver,
                         bccHeaderReadExecutor,
-                        clusterService.getClusterSettings(),
                         clusterService
                     )
                 );

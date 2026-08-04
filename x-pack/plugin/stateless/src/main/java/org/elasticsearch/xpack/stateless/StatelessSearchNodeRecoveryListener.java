@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
@@ -73,7 +72,6 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
         SharedBlobCacheWarmingService warmingService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings,
         ClusterService clusterService
     ) {
         this.objectStoreService = objectStoreService;
@@ -81,9 +79,8 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
         this.warmingService = warmingService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
-        this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
-            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
-        );
+        this.useInternalFilesReplicatedContentForSearchShards = clusterService.getClusterSettings()
+            .get(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
         this.clusterService = clusterService;
     }
 

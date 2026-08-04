@@ -339,7 +339,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = testHarness.objectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                 dir,
-                false,
+                dir.createMetadataReadDirectory(false),
                 1
             );
             if (commit != null) {
@@ -605,7 +605,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         testHarness.objectStoreService.readSearchShardState(
                             testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                             SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()),
-                            false,
+                            SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()).createMetadataReadDirectory(false),
                             finalLatestBcc != null ? finalLatestBcc.primaryTermAndGeneration().primaryTerm() : 1
                         ),
                         equalTo(finalLatestBcc)
@@ -865,7 +865,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = node2.objectStoreService.readSearchShardState(
                 node2.objectStoreService.getProjectBlobContainer(destinationShardId),
                 dir,
-                false,
+                dir.createMetadataReadDirectory(false),
                 primaryTerm
             );
             if (commit != null) {

@@ -688,7 +688,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
-            var metadataReadDirectory = searchDirectory.createNewBlobStoreCacheDirectoryForMetadataRead(true);
+            var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
             metadataReadDirectory.updateMetadata(
                 Map.of(
                     metadataBlobName,
@@ -714,7 +714,7 @@ public class SearchDirectoryTests extends ESTestCase {
         final var regionSize = ByteSizeValue.ofBytes(4096);
         final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
 
-        // Time-based shard with default eviction policy: metadata-read clones inherit the shard terminal fallback.
+        // Time-based shard with default eviction policy: metadata-read directories inherit the shard terminal fallback.
         try (var node = createFakeStatelessNode(regionSize, cacheSize, true, false)) {
             final var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
             assertThat(
@@ -735,13 +735,13 @@ public class SearchDirectoryTests extends ESTestCase {
             );
             assertThat("range should resolve to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
-                "metadata-read clone should inherit shard terminal fallback when backfill is disabled",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
+                "metadata-read directory should inherit shard terminal fallback when backfill is disabled",
+                directory.createMetadataReadDirectory(false).fallbackRegionTimestampMillis(),
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
             assertThat(
-                "metadata-read clone should stamp BACKFILL_IN_PROGRESS when backfill is enabled",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead(true).fallbackRegionTimestampMillis(),
+                "metadata-read directory should stamp BACKFILL_IN_PROGRESS when backfill is enabled",
+                directory.createMetadataReadDirectory(true).fallbackRegionTimestampMillis(),
                 equalTo(BACKFILL_IN_PROGRESS_TIMESTAMP)
             );
             assertThat(
@@ -771,8 +771,8 @@ public class SearchDirectoryTests extends ESTestCase {
             );
             assertThat("range should resolve to its midpoint", directory.resolveRegionTimestampMillis(range), equalTo(rangeMidpoint));
             assertThat(
-                "metadata-read clone should inherit shard terminal fallback when backfill is disabled",
-                directory.createNewBlobStoreCacheDirectoryForMetadataRead(false).fallbackRegionTimestampMillis(),
+                "metadata-read directory should inherit shard terminal fallback when backfill is disabled",
+                directory.createMetadataReadDirectory(false).fallbackRegionTimestampMillis(),
                 equalTo(UNKNOWN_TIMESTAMP)
             );
             assertThat("backfill should be disabled on non-time-based shards", directory.timestampBackfillEnabled(), equalTo(false));

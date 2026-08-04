@@ -821,12 +821,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private static BatchedCompoundCommit readBatchedCompoundCommitUsingCache(
         BlobStoreCacheDirectory directory,
         IOContext context,
-        boolean backfillMetadataReads,
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
-        var blobReader = getBlobReader(directory, context, backfillMetadataReads, blobTermAndGen, maxBlobLength);
+        var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
 
@@ -844,18 +843,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private static Iterator<StatelessCompoundCommit> readBatchedCompoundCommitIncrementallyUsingCache(
         BlobStoreCacheDirectory directory,
         IOContext context,
-        boolean backfillMetadataReads,
         BlobFile blobFile,
         long maxBlobLength
     ) {
-        var blobReader = getBlobReader(directory, context, backfillMetadataReads, blobFile.termAndGeneration(), maxBlobLength);
+        var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
         return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
     }
 
     private static BatchedCompoundCommit.BlobReader getBlobReader(
         BlobStoreCacheDirectory directory,
         IOContext context,
-        boolean backfillMetadataReads,
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) {
@@ -870,7 +867,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewBlobStoreCacheDirectoryForMetadataRead(backfillMetadataReads);
+        var dir = directory.createNestedMetadataReadDirectory();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -895,7 +892,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Find the latest batched compound commit in the provided map and read it using
-     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, boolean, PrimaryTermAndGeneration, long)}
+     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long)}
      *
      * @param directory the {@link BlobStoreCacheDirectory} to use for reading the blob
      * @param blobs     a sorted map of batched compound commit blobs
@@ -922,7 +919,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobMetadata bccBlobMetadata
     ) throws IOException {
         assert startsWithBlobPrefix(bccBlobMetadata.name()) : bccBlobMetadata;
-        return readBatchedCompoundCommitUsingCache(directory, context, false, bccBlobTermAndGen, bccBlobMetadata.length());
+        return readBatchedCompoundCommitUsingCache(directory, context, bccBlobTermAndGen, bccBlobMetadata.length());
     }
 
     // Package private for testing
@@ -982,7 +979,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public @Nullable BatchedCompoundCommit readSearchShardState(
         BlobContainer shardContainer,
         SearchDirectory searchDirectory,
-        boolean backfillMetadataReads,
+        BlobStoreCacheDirectory metadataReadDirectory,
         long primaryTerm
     ) throws IOException {
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
@@ -997,9 +994,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 var foundTermAndGen = new PrimaryTermAndGeneration(term, latestBlob.v1());
                 searchDirectory.updateLatestUploadedBcc(foundTermAndGen);
                 return readBatchedCompoundCommitUsingCache(
-                    searchDirectory,
+                    metadataReadDirectory,
                     IOContext.DEFAULT,
-                    backfillMetadataReads,
                     foundTermAndGen,
                     latestBlob.v2().length()
                 );
@@ -1079,7 +1075,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         directory,
                         context,
                         bccHeaderReadExecutor,
-                        false,
                         referencedCompoundCommit -> {
                             blobFileRanges.putAll(
                                 computeBlobFileRanges(
@@ -1289,10 +1284,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public static void readReferencedCompoundCommitsUsingCache(
         Map<String, BlobLocation> commitFiles,
         @Nullable BatchedCompoundCommit bcc,
-        BlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory metadataReadDirectory,
         IOContext context,
         Executor bccHeaderReadExecutor,
-        boolean backfillMetadataReads,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
         ActionListener<Void> listener
     ) {
@@ -1301,13 +1295,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             bccHeaderReadExecutor,
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
-                : readBatchedCompoundCommitIncrementallyUsingCache(
-                    directory,
-                    context,
-                    backfillMetadataReads,
-                    referencedBlob,
-                    maxBlobOffset
-                ),
+                : readBatchedCompoundCommitIncrementallyUsingCache(metadataReadDirectory, context, referencedBlob, maxBlobOffset),
             referencedCCsConsumer,
             listener
         );

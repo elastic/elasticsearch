@@ -421,12 +421,13 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert blobContainer != null : indexShard.routingEntry();
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
-        final boolean backfillMetadataReads = useInternalFilesReplicatedContentForSearchShards
+        final boolean timestampBackfillEnabled = useInternalFilesReplicatedContentForSearchShards
             && searchDirectory.timestampBackfillEnabled();
+        final var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(timestampBackfillEnabled);
         final var batchedCompoundCommit = objectStoreService.readSearchShardState(
             blobContainer,
             searchDirectory,
-            backfillMetadataReads,
+            metadataReadDirectory,
             indexShard.getOperationPrimaryTerm()
         );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
@@ -481,10 +482,9 @@ class StatelessIndexEventListener implements IndexEventListener {
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
-                            searchDirectory,
+                            metadataReadDirectory,
                             IOContext.DEFAULT,
                             bccHeaderReadExecutor,
-                            backfillMetadataReads,
                             referencedCompoundCommit -> {
                                 blobFileRanges.putAll(
                                     computeBlobFileRanges(
@@ -513,7 +513,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         entry.getValue().timestampMillis()
                                     );
                                 }
-                                if (backfillMetadataReads) {
+                                if (timestampBackfillEnabled) {
                                     // This backfill also handles the initial BCC read in readSearchShardState.
                                     searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
                                 }

@@ -584,14 +584,14 @@ public class SearchEngine extends Engine {
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
                     final Map<FileCacheKey, Long> backfillTimestampsByCacheKey = ConcurrentCollections.newConcurrentMap();
-                    final boolean backfillMetadataReads = searchDirectory.timestampBackfillEnabled();
+                    final boolean timestampBackfillEnabled = searchDirectory.timestampBackfillEnabled();
+                    final var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(timestampBackfillEnabled);
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
-                        searchDirectory,
+                        metadataReadDirectory,
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
-                        backfillMetadataReads,
                         referencedCompoundCommit -> {
                             newBlobFileRanges.putAll(
                                 computeBlobFileRanges(
@@ -613,7 +613,7 @@ public class SearchEngine extends Engine {
                             );
                         },
                         listenableFuture.map(aVoid -> {
-                            if (backfillMetadataReads) {
+                            if (timestampBackfillEnabled) {
                                 // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's
                                 // timestamp, else the directory terminal fallback. Mirrors the prefetch path so both stamp regions
                                 // consistently.

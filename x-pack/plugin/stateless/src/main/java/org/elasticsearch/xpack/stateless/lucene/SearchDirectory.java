@@ -529,17 +529,21 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Creates a metadata-read clone that stamps regions according to {@code backfillMetadataReads}, which must be snapshotted once per
-     * metadata-read operation and reused for nested clones and completion backfill.
+     * Creates a metadata-read directory that stamps regions according to {@code timestampBackfillEnabled}.
+     * Caller should ensure that {@code backfillMetadataReads} is called after the reads are done if backfill was enabled.
      */
+    public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
+        return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
+    }
+
     @Override
-    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead(boolean backfillMetadataReads) {
-        return createNewInstance(blobContainer.get(), backfillMetadataReads);
+    public BlobStoreCacheDirectory createNestedMetadataReadDirectory() {
+        return createMetadataReadDirectory(false);
     }
 
     private BlobStoreCacheDirectory createNewInstance(
         @Nullable LongFunction<BlobContainer> blobContainerFunction,
-        boolean backfillMetadataReads
+        boolean timestampBackfillEnabled
     ) {
         return new BlobStoreCacheDirectory(
             cacheService,
@@ -550,7 +554,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected long fallbackRegionTimestampMillis() {
-                return backfillMetadataReads
+                return timestampBackfillEnabled
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
                     : SearchDirectory.this.fallbackRegionTimestampMillis();
             }
@@ -577,8 +581,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead(boolean ignored) {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer, backfillMetadataReads);
+            public BlobStoreCacheDirectory createNestedMetadataReadDirectory() {
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
             }
         };
     }

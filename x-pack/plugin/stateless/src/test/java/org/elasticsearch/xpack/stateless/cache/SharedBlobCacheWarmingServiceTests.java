@@ -502,7 +502,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.searchDirectory,
                 randomFrom(IOContext.DEFAULT, BlobCacheIndexInput.WARMING),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
                 referencedCC -> {},
                 readReferencedCommitsListener
             );
@@ -616,7 +615,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 directory,
                 IOContext.DEFAULT,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
                 referencedCC -> {},
                 readReferencedCommitsListener
             );

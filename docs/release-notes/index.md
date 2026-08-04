@@ -760,6 +760,10 @@ Vector Search:
 
 ## 9.4.4 [elasticsearch-9.4.4-release-notes]
 
+::::{important} 
+The 9.4.4 release contains fixes for potential security vulnerabilities. For details, go to [security announcements](https://discuss.elastic.co/c/announcements/security-announcements/31).
+::::
+
 ### Features and enhancements [elasticsearch-9.4.4-features-enhancements]
 
 Authentication:
@@ -853,6 +857,10 @@ Transform:
 
 
 ## 9.3.8 [elasticsearch-9.3.8-release-notes]
+
+::::{important} 
+The 9.3.8 release contains fixes for potential security vulnerabilities. For details, go to [security announcements](https://discuss.elastic.co/c/announcements/security-announcements/31).
+::::
 
 ### Features and enhancements [elasticsearch-9.3.8-features-enhancements]
 

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
@@ -245,6 +246,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+        PackDimsAgg.class,
 
         // Histograms are not suitable for approximation.
         HistogramMerge.class,

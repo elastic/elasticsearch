@@ -343,7 +343,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(freshNodeId)))
             .build();
         clusterState = withRoutingAllocation(clusterState, allocation -> {
-            final var initializing = allocation.routingTable().index("idx").shard(0).shard(0);
+            final var initializing = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
             allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes());
             final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
             unassignedIterator.next();
@@ -385,6 +385,86 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(updatedInfo.reason(), equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED));
         assertThat(routingAfterCancellation.state(), equalTo(INITIALIZING));
         assertThat("No expected changes to failedNodeIds", updatedInfo.failedNodeIds(), equalTo(failedNodeIdsBeforeCancellation));
+    }
+
+    public void testRecoveryCancellationDuringRelocation() {
+        ClusterState clusterState = createInitialClusterState();
+        final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        // Burn through maxRetries - 1 genuine relocation failures.
+        for (int i = 0; i < maxRetries - 1; i++) {
+            clusterState = withRoutingAllocation(clusterState, allocation -> {
+                var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+                var targetNodeId = "node1".equals(source.currentNodeId()) ? "node2" : "node1";
+                assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
+                allocation.routingNodes().relocateShard(source, targetNodeId, 0, "test", allocation.changes());
+            });
+            final var targetShard = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0).getTargetRelocatingShard();
+            clusterState = applyShardFailure(clusterState, targetShard, "failure-" + i);
+        }
+
+        final int failedRelocationsBeforeCancellation = clusterState.globalRoutingTable()
+            .routingTable(ProjectId.DEFAULT)
+            .index("idx")
+            .shard(0)
+            .shard(0)
+            .relocationFailureInfo()
+            .failedRelocations();
+        assertThat(failedRelocationsBeforeCancellation, equalTo(maxRetries - 1));
+
+        // Start another relocation onto a fresh node, then cancel it via RecoveryCancelledException.
+        final String freshNodeId = randomIdentifier("node");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(freshNodeId)))
+            .build();
+        clusterState = withRoutingAllocation(clusterState, allocation -> {
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
+            allocation.routingNodes().relocateShard(source, freshNodeId, 0, "test", allocation.changes());
+        });
+
+        final var relocatingSource = clusterState.routingTable().index("idx").shard(0).shard(0);
+        assertTrue(relocatingSource.relocating());
+        final var relocationTarget = relocatingSource.getTargetRelocatingShard();
+        assertThat(relocationTarget.currentNodeId(), equalTo(freshNodeId));
+
+        clusterState = applyShardCancellation(clusterState, relocationTarget);
+
+        final var afterCancellation = clusterState.routingTable().index("idx").shard(0).shard(0);
+        assertThat(afterCancellation.state(), equalTo(STARTED));
+        assertFalse(afterCancellation.relocating());
+        assertThat(
+            "cancellation should not increment failedRelocations",
+            afterCancellation.relocationFailureInfo().failedRelocations(),
+            equalTo(failedRelocationsBeforeCancellation)
+        );
+
+        // Still one retry remaining, so another relocation must be allowed.
+        withRoutingAllocation(clusterState, allocation -> {
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
+        });
+
+        // Consume the last retry with a genuine failure, relocation must then be blocked.
+        clusterState = withRoutingAllocation(clusterState, allocation -> {
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            var targetNodeId = "node1".equals(source.currentNodeId()) ? "node2" : "node1";
+            allocation.routingNodes().relocateShard(source, targetNodeId, 0, "test", allocation.changes());
+        });
+        final var lastTarget = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0).getTargetRelocatingShard();
+        clusterState = applyShardFailure(clusterState, lastTarget, "final-failure");
+
+        final var afterFinalFailure = clusterState.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+        assertThat(afterFinalFailure.relocationFailureInfo().failedRelocations(), equalTo(maxRetries));
+        withRoutingAllocation(clusterState, allocation -> {
+            allocation.debugDecision(true);
+            var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
+            final var decision = decider.canAllocate(source, allocation);
+            assertThat(decision.type(), equalTo(Decision.Type.NO));
+            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+        });
     }
 
     private ClusterState applyShardCancellation(ClusterState clusterState, ShardRouting shardRouting) {

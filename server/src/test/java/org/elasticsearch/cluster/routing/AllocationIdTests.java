@@ -105,7 +105,7 @@ public class AllocationIdTests extends ESTestCase {
         allocationId = shard.allocationId();
 
         logger.info("-- cancel relocation");
-        shard = shard.cancelRelocation();
+        shard = randomBoolean() ? shard.cancelRelocation() : shard.failRelocation();
         assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
         assertThat(shard.allocationId().getRelocationId(), nullValue());
     }

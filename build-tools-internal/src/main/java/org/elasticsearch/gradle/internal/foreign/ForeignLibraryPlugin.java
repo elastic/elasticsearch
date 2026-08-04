@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.foreign;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -36,6 +35,12 @@ import javax.inject.Inject;
  * modules that contain {@code @LibrarySpecification} interfaces from {@code libs/foreign-library}.
  * The augment step injects {@code provides org.elasticsearch.foreign.LibraryProvider with ...}
  * directives that reference generated classes the source {@code module-info.java} cannot name.
+ *
+ * <p>All non-main source sets are processed too, so bindings that only make sense in tests
+ * can live next to the tests that use them instead of adding production surface. Those source sets need
+ * no {@code module-info.class} augmentation: tests run on the classpath, where {@code ServiceLoader}
+ * discovers the generated providers through the {@code META-INF/services} file the annotation processor
+ * emits.
  */
 public class ForeignLibraryPlugin implements Plugin<Project> {
 
@@ -65,15 +70,10 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
         Configuration processorConfiguration = addDependencies(project);
 
-        SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-        FileCollection compileClasspath = mainSourceSet.getCompileClasspath();
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        SourceSet mainSourceSet = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
 
-        TaskProvider<JavaCompile> processAnnotations = registerProcessAnnotationsTask(
-            project,
-            mainSourceSet,
-            compileClasspath,
-            processorConfiguration
-        );
+        TaskProvider<JavaCompile> processAnnotations = registerProcessAnnotationsTask(project, mainSourceSet, processorConfiguration);
         TaskProvider<AugmentForeignModuleInfoTask> augmentModuleInfo = registerAugmentModuleInfoTask(
             project,
             processAnnotations,
@@ -83,6 +83,13 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         mainSourceSet.getOutput().dir(processAnnotations.flatMap(JavaCompile::getDestinationDirectory));
 
         swapModuleInfoInJar(project, augmentModuleInfo);
+
+        // All non-main source sets get the same annotation processing, but no module-info augmentation
+        // and no jar swap: they are non-modular and run on the classpath.
+        sourceSets.matching(sourceSet -> SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName()) == false).all(sourceSet -> {
+            TaskProvider<JavaCompile> task = registerProcessAnnotationsTask(project, sourceSet, processorConfiguration);
+            sourceSet.getOutput().dir(task.flatMap(JavaCompile::getDestinationDirectory));
+        });
     }
 
     private Configuration addDependencies(Project project) {
@@ -102,18 +109,24 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
     private TaskProvider<JavaCompile> registerProcessAnnotationsTask(
         Project project,
-        SourceSet mainSourceSet,
-        FileCollection compileClasspath,
+        SourceSet sourceSet,
         Configuration processorConfiguration
     ) {
         JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         Provider<String> releaseVersion = project.provider(() -> javaExtension.getTargetCompatibility().getMajorVersion());
 
-        TaskProvider<JavaCompile> task = project.getTasks().register(PROCESS_ANNOTATIONS_TASK_NAME, JavaCompile.class, t -> {
-            t.setSource(mainSourceSet.getJava());
-            t.setClasspath(compileClasspath);
+        String taskName = sourceSet.getTaskName("process", "ForeignAnnotations");
+        // Sibling directories rather than one nested under main's: nesting would pull the generated test
+        // classes into main's output.
+        String destinationDir = SourceSet.MAIN_SOURCE_SET_NAME.equals(sourceSet.getName())
+            ? GENERATED_CLASSES_DIR
+            : GENERATED_CLASSES_DIR + "-" + sourceSet.getName();
+
+        TaskProvider<JavaCompile> task = project.getTasks().register(taskName, JavaCompile.class, t -> {
+            t.setSource(sourceSet.getJava());
+            t.setClasspath(sourceSet.getCompileClasspath());
             t.getOptions().setAnnotationProcessorPath(processorConfiguration);
-            t.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir(GENERATED_CLASSES_DIR));
+            t.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir(destinationDir));
             t.getOptions().getCompilerArgs().add("-proc:only");
             t.getOptions().getCompilerArgumentProviders().add(() -> List.of("-AjavaVersion=" + releaseVersion.get()));
         });

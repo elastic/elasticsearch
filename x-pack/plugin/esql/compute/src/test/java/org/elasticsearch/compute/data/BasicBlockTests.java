@@ -274,120 +274,18 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testToStringSmall() {
+        // Types on BlockTestCase cover toString via BlockTestCase#testToStringSmall.
+        // Keep Float here until it is migrated.
         final int estimatedSize = randomIntBetween(1024, 4096);
-
         try (
-            var boolBlock = blockFactory.newBooleanBlockBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
-            var boolVector = blockFactory.newBooleanVectorBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build()
+            var floatBlock = blockFactory.newFloatBlockBuilder(estimatedSize).appendFloat(1.1f).appendFloat(2.2f).build();
+            var floatVector = blockFactory.newFloatVectorBuilder(estimatedSize).appendFloat(1.1f).appendFloat(2.2f).build()
         ) {
-            for (Object obj : List.of(boolVector, boolBlock, boolBlock.asVector())) {
+            for (Object obj : List.of(floatVector, floatBlock, floatBlock.asVector())) {
                 String s = obj.toString();
-                assertThat(s, containsString("[true, false]"));
+                assertThat(s, containsString("[1.1, 2.2]"));
                 assertThat(s, containsString("positions=2"));
             }
-        }
-
-        try (
-            var intBlock = blockFactory.newIntBlockBuilder(estimatedSize).appendInt(1).appendInt(2).build();
-            var intVector = blockFactory.newIntVectorBuilder(estimatedSize).appendInt(1).appendInt(2).build()
-        ) {
-            for (Object obj : List.of(intVector, intBlock, intBlock.asVector())) {
-                String s = obj.toString();
-                assertThat(s, containsString("[1, 2]"));
-                assertThat(s, containsString("positions=2"));
-            }
-            for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                try (var filter = block.filter(false, 0)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
-                }
-                try (var filter = block.filter(false, 1)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
-                }
-                try (var filter = block.filter(false, 0, 1)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
-                }
-                try (var filter = block.filter(false)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
-                }
-            }
-            for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                try (var filter = vector.filter(false, 0)) {
-                    assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
-                }
-                try (IntVector filter = vector.filter(false, 1)) {
-                    assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
-                }
-                try (IntVector filter = vector.filter(false, 0, 1)) {
-                    assertThat(filter.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
-                }
-                try (IntVector filter = vector.filter(false)) {
-                    assertThat(filter.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
-                }
-            }
-            for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                try (var sliced = block.slice(0, 1)) {
-                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
-                }
-                try (var sliced = block.slice(1, 2)) {
-                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
-                }
-                try (var sliced = block.slice(0, 2)) {
-                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
-                }
-                try (var sliced = block.slice(0, 0)) {
-                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
-                }
-            }
-            for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                try (IntVector sliced = vector.slice(0, 1)) {
-                    assertThat(sliced.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
-                }
-                try (IntVector sliced = vector.slice(1, 2)) {
-                    assertThat(sliced.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
-                }
-                try (IntVector sliced = vector.slice(0, 2)) {
-                    assertThat(sliced.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
-                }
-                try (IntVector sliced = vector.slice(0, 0)) {
-                    assertThat(sliced.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
-                }
-            }
-        }
-
-        try (
-            var longBlock = blockFactory.newLongBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
-            var longVector = blockFactory.newLongVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build()
-        ) {
-            for (Object obj : List.of(longVector, longBlock, longBlock.asVector())) {
-                String s = obj.toString();
-                assertThat(s, containsString("[10, 20]"));
-                assertThat(s, containsString("positions=2"));
-            }
-        }
-
-        try (
-            var doubleBlock = blockFactory.newDoubleBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
-            var doubleVector = blockFactory.newDoubleVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build()
-        ) {
-            for (Object obj : List.of(doubleVector, doubleBlock, doubleBlock.asVector())) {
-                String s = obj.toString();
-                assertThat(s, containsString("[3.3, 4.4]"));
-                assertThat(s, containsString("positions=2"));
-            }
-        }
-
-        assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("2b").toString().equals("[32 62]");
-        try (
-            var blockBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
-            var vectorBuilder = blockFactory.newBytesRefVectorBuilder(estimatedSize)
-        ) {
-            var bytesRefBlock = blockBuilder.appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("2b")).build();
-            var bytesRefVector = vectorBuilder.appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("2b")).build();
-            for (Object obj : List.of(bytesRefVector, bytesRefVector, bytesRefBlock.asVector())) {
-                String s = obj.toString();
-                assertThat(s, containsString("positions=2"));
-            }
-            Releasables.close(bytesRefBlock, bytesRefVector);
         }
     }
 

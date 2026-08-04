@@ -417,6 +417,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT)
         )) {
             assertCircuitBreakingFailureLoggedAtDebug(failure);
+        }
+    }
+
+    /**
      * Regression test for the spurious "Closing with incomplete batches" WARN that fired on every
      * cancellation or error. Root cause: {@code StreamingLookupFromIndexOperator.cleanupBatchResources}
      * discards in-flight batches without calling {@link BidirectionalBatchExchangeClient#markBatchCompleted},

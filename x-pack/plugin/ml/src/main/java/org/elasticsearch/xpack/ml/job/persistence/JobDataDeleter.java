@@ -310,9 +310,9 @@ public class JobDataDeleter {
             client.execute(DeleteByQueryAction.INSTANCE, dbqRequest).get();
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
-                logger.warn("[{}] An error occurred while deleting interim results", jobId, e);
+                logger.warn("[" + jobId + "] An error occurred while deleting interim results", e);
             } else {
-                logger.error("[{}] An error occurred while deleting interim results", jobId, e);
+                logger.error("[" + jobId + "] An error occurred while deleting interim results", e);
             }
         }
     }

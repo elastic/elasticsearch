@@ -23,9 +23,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -100,6 +106,19 @@ public class ThrottlingAllocationTests extends ElasticsearchTestCase {
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(10));
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(10));
+    }
+
+    @Test
+    public void testRelocatingPrimaryDoesNotThrottleLocalPrimaryRecovery() {
+        Settings settings = settingsBuilder()
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
+                .build();
+        ThrottlingAllocationDecider decider = new ThrottlingAllocationDecider(settings, new NodeSettingsService(settings));
+        RoutingNode node = new RoutingNode("node2", newNode("node2"));
+        node.add(new MutableShardRouting("test", 0, "node2", "node1", true, INITIALIZING, 0));
+        MutableShardRouting localPrimary = new MutableShardRouting("test", 1, null, true, UNASSIGNED, 0);
+
+        assertThat(decider.canAllocate(localPrimary, node, null), equalTo(Decision.YES));
     }
 
     @Test

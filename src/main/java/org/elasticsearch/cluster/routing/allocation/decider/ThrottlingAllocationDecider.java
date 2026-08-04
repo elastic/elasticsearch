@@ -53,7 +53,7 @@ import java.util.List;
 public class ThrottlingAllocationDecider extends AllocationDecider {
 
     public static final String CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = "cluster.routing.allocation.node_initial_primaries_recoveries";
-    public static final String CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = "cluster.routing.allocation.node_concurrent_recoveries";
+    public static final String CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = "cluster.routing.alocation.node_concurrent_recoveries";
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES = 2;
     public static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES = 4;
 
@@ -82,7 +82,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 List<MutableShardRouting> shards = node.shards();
                 for (int i = 0; i < shards.size(); i++) {
                     MutableShardRouting shard = shards.get(i);
-                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary()) {
+                    // Initializing primaries with a relocating node recover from another node, not the local gateway.
+                    if (shard.state() == ShardRoutingState.INITIALIZING && shard.primary() && shard.relocatingNodeId() == null) {
                         primariesInRecovery++;
                     }
                 }

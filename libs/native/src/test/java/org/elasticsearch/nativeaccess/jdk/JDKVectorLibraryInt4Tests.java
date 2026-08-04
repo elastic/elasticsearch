@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -33,20 +33,20 @@ import static org.hamcrest.Matchers.containsString;
  * (two nibbles per byte). The third argument to native functions is {@code packedLen},
  * not the logical dimension count.
  */
-public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt4Tests extends SimdVecLibraryTests {
 
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt4Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // Int4 only supports dot product
-        baseParams.removeIf(os -> os[0] != VectorSimilarityFunctions.Function.DOT_PRODUCT);
+        baseParams.removeIf(os -> os[0] != SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
         // Int4 requires even dimensions (two nibbles per packed byte)
         baseParams.removeIf(os -> (Integer) os[1] % 2 != 0);
         return baseParams;
@@ -54,12 +54,12 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt4BinaryVectors() {

@@ -85,18 +85,12 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
 
     /**
-     * Resource attribute keys every exporter implementation must produce. These are the legacy
-     * APM-agent metadata keys that downstream consumers depend on today; the OTel SDK swap is
-     * meant to be a drop-in replacement, so any future exporter must continue producing them or
-     * fail this assertion.
+     * Resource attribute keys this exporter must produce on the {@code GET /_nodes/stats} resource.
+     * Subclasses override to match their export path.
      */
-    static final Set<String> REQUIRED_RESOURCE_KEYS = Set.of(
-        "service.name",
-        "service.version",
-        "service.language.name",
-        "service.agent.name",
-        "service.agent.version"
-    );
+    protected Set<String> requiredResourceKeys() {
+        return Set.of("service.name", "service.version", "service.language.name", "service.agent.name", "service.agent.version");
+    }
 
     /**
      * Returns a cluster builder with settings common to all traces integration tests:
@@ -204,8 +198,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
 
     /**
      * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
-     * carries every entry in {@link #REQUIRED_RESOURCE_KEYS}. Locks in the service / sdk attribute
-     * set every exporter must produce; the APM-agent path produces these via its
+     * carries every entry in {@link #requiredResourceKeys()}. The APM-agent path produces these via its
      * {@code metadata} intake event, the OTel SDK path produces them via the Resource on each
      * {@code ResourceSpans} batch.
      *
@@ -215,7 +208,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     protected void assertNodeStatsResourceAttributes() throws Exception {
         assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 5, TimeUnit.SECONDS);
         ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
-        assertContainsAll("nodes_stats resource attributes", REQUIRED_RESOURCE_KEYS, resource.attributes().keySet());
+        assertContainsAll("nodes_stats resource attributes", requiredResourceKeys(), resource.attributes().keySet());
     }
 
     /** Fail with a sorted list of the required keys missing from {@code observed}. */

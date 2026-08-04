@@ -126,6 +126,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             indexSettings(1, 1)
                 // Start with the shard replica on searchNodeA.
                 .put("index.routing.allocation.exclude._name", searchNodeB)
+                // disable background refresh, so we can accurately control the creation of new VBCC and the dependencies between them
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
         ensureGreen(indexName);

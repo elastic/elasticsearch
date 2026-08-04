@@ -472,8 +472,15 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 recoveryPriority = RecoveryPriority.readFrom(in);
             } else {
                 // When the ShardRouting is too old to have the recoveryPriority field, it must have been created with master-side recovery
-                // throttling in place, so the priority is of limited significance. We might as well use the highest which makes sense:
-                recoveryPriority = highestAllowedRecoveryPriority(state, relocatingNodeId != null);
+                // throttling in place, so the priority is of limited significance. So use an arbitrary value which is valid for its state:
+                recoveryPriority = switch (state) {
+                    case UNASSIGNED -> RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                    case INITIALIZING -> relocatingNodeId != null
+                        ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                    case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+                    case STARTED -> null;
+                };
             }
         } else {
             recoveryPriority = null;
@@ -498,15 +505,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         role = Role.readFrom(in);
         targetRelocatingShard = initializeTargetRelocatingShard();
-    }
-
-    private static RecoveryPriority highestAllowedRecoveryPriority(ShardRoutingState state, boolean isRelocation) {
-        return switch (state) {
-            case UNASSIGNED -> RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
-            case INITIALIZING -> isRelocation ? RecoveryPriority.RELOCATION_CAN_REMAIN_NO : RecoveryPriority.UNASSIGNED_NEW_PRIMARY;
-            case RELOCATING -> RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
-            case STARTED -> null;
-        };
     }
 
     public ShardRouting(StreamInput in) throws IOException {

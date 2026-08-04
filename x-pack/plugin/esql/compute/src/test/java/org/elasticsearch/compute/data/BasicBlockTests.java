@@ -82,12 +82,47 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSmallSingleValueDenseGrowthAggregateMetricDouble() {
+        // AggregateMetricDouble has no Vector view and a composite getTotalValueCount(), so it cannot
+        // use assertSingleValueDenseBlock. This only checks builder growth + basic dense properties.
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
-                IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
-                BooleanBlock block = blockBuilder.build();
-                assertSingleValueDenseBlock(block);
-                block.close();
+            try (var blockBuilder = blockFactory.newAggregateMetricDoubleBlockBuilder(initialSize)) {
+                IntStream.range(0, 10)
+                    .forEach(
+                        i -> blockBuilder.appendLiteral(
+                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                                (double) i,
+                                (double) i + 1,
+                                (double) (i * 2),
+                                i
+                            )
+                        )
+                    );
+                try (AggregateMetricDoubleBlock block = blockBuilder.build()) {
+                    assertThat(block.getPositionCount(), is(10));
+                    assertThat(block.asVector(), nullValue());
+                    assertThat(block.mayHaveNulls(), is(false));
+                    assertThat(block.areAllValuesNull(), is(false));
+                    assertThat(block.mayHaveMultivaluedFields(), is(false));
+                    assertThat(block.doesHaveMultivaluedFields(), is(false));
+                    for (int p = 0; p < 10; p++) {
+                        assertThat(block.isNull(p), is(false));
+                        assertThat(block.getValueCount(p), is(1));
+                        assertThat(block.minBlock().getDouble(p), is((double) p));
+                        assertThat(block.maxBlock().getDouble(p), is((double) p + 1));
+                        assertThat(block.sumBlock().getDouble(p), is((double) (p * 2)));
+                        assertThat(block.countBlock().getInt(p), is(p));
+                    }
+                    assertDeepCopy(block);
+                    try (Block filtered = block.filter(false)) {
+                        assertThat(filtered.getPositionCount(), is(0));
+                    }
+                    try (Block sliced = block.slice(0, 10)) {
+                        assertThat(sliced.getPositionCount(), is(10));
+                        for (int p = 0; p < 10; p++) {
+                            assertEquals(BlockUtils.toJavaObject(block, p), BlockUtils.toJavaObject(sliced, p));
+                        }
+                    }
+                }
             }
         }
     }

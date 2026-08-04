@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -454,6 +456,148 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             allocation.debugDecision(true);
             var source = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
             final var decision = decider.canAllocate(source, allocation);
+            assertThat(decision.type(), equalTo(Decision.Type.NO));
+            assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
+        });
+    }
+
+    public void testPrimaryRelocationDoesNotConsumeReplicaRelocationRetryBudget() {
+        final var testStrategy = new AllocationService(
+            new AllocationDeciders(List.of(decider, new ReplicaAfterPrimaryActiveAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
+
+        final var metadata = Metadata.builder()
+            .put(IndexMetadata.builder("idx").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("idx")).build()
+            )
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
+            .build();
+
+        clusterState = testStrategy.reroute(clusterState, "initial", ActionListener.noop());
+        clusterState = startInitializingShardsAndReroute(testStrategy, clusterState); // start primary
+        clusterState = startInitializingShardsAndReroute(testStrategy, clusterState); // start replica
+
+        final var initialShard = clusterState.routingTable().index("idx").shard(0);
+        final var shardId = initialShard.shardId();
+        final var initialPrimary = initialShard.primaryShard();
+        final var initialReplicas = initialShard.replicaShards();
+        assertThat(initialPrimary.state(), equalTo(STARTED));
+        assertThat(initialReplicas.getFirst().state(), equalTo(STARTED));
+
+        final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+
+        final String primaryNodeId = initialPrimary.currentNodeId();
+        final String replicaNodeId = initialReplicas.getFirst().currentNodeId();
+        final String replicaAllocationId = initialReplicas.getFirst().allocationId().getId();
+
+        // Pick a target node that is neither the primary's nor the replica's current node.
+        final String tempTarget = Stream.of("node1", "node2", "node3", "node4")
+            .filter(n -> n.equals(primaryNodeId) == false && n.equals(replicaNodeId) == false)
+            .findFirst()
+            .get();
+
+        // Burn through maxRetries - 1 genuine relocation failures on the replica.
+        for (int i = 0; i < maxRetries - 1; i++) {
+            clusterState = withRoutingAllocation(clusterState, alloc -> {
+                final var replica = alloc.routingNodes().getByAllocationId(shardId, replicaAllocationId);
+                alloc.routingNodes().relocateShard(replica, tempTarget, 0, "test", alloc.changes());
+            });
+            clusterState = withRoutingAllocation(clusterState, alloc -> {
+                final var target = alloc.routingNodes()
+                    .assignedShards(shardId)
+                    .stream()
+                    .filter(ShardRouting::isRelocationTarget)
+                    .toList()
+                    .getFirst();
+                alloc.routingNodes()
+                    .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure"), alloc.changes());
+            });
+        }
+
+        final var shardBeforePrimaryRelocation = clusterState.routingTable().index("idx").shard(0);
+        final var replicaBeforePrimaryRelocation = shardBeforePrimaryRelocation.replicaShards().getFirst();
+        assertThat(replicaBeforePrimaryRelocation.relocationFailureInfo().failedRelocations(), equalTo(maxRetries - 1));
+        assertThat(replicaBeforePrimaryRelocation.allocationId().getId(), equalTo(replicaAllocationId));
+
+        final String freshPrimaryNode = "fresh-primary-target";
+        final String freshReplicaNode = "fresh-replica-target";
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(freshPrimaryNode)).add(newNode(freshReplicaNode)))
+            .build();
+
+        // Relocate both the primary and the replica to the fresh nodes.
+        final String primaryAllocationId = shardBeforePrimaryRelocation.primaryShard().allocationId().getId();
+        clusterState = withRoutingAllocation(clusterState, alloc -> {
+            final var primary = alloc.routingNodes().getByAllocationId(shardId, primaryAllocationId);
+            final var replica = alloc.routingNodes().getByAllocationId(shardId, replicaAllocationId);
+            alloc.routingNodes().relocateShard(primary, freshPrimaryNode, 0, "test", alloc.changes());
+            alloc.routingNodes().relocateShard(replica, freshReplicaNode, 0, "test", alloc.changes());
+        });
+
+        final String primaryTargetAllocationId = clusterState.routingTable()
+            .index("idx")
+            .shard(0)
+            .primaryShard()
+            .getTargetRelocatingShard()
+            .allocationId()
+            .getId();
+
+        // Start the primary's relocation target. This triggers reinitiation of the replica's relocation.
+        clusterState = withRoutingAllocation(clusterState, alloc -> {
+            final var primaryTarget = alloc.routingNodes().getByAllocationId(shardId, primaryTargetAllocationId);
+            alloc.routingNodes().startShard(primaryTarget, alloc.changes(), primaryTarget.getExpectedShardSize());
+        });
+
+        // The replica's relocation should have been restarted without incrementing failedRelocations.
+        final var replicaAfterPrimaryStart = clusterState.routingTable().index("idx").shard(0).replicaShards().getFirst();
+        assertThat(
+            "restarting replica relocation due to primary moving should not increment failedRelocations",
+            replicaAfterPrimaryStart.relocationFailureInfo().failedRelocations(),
+            equalTo(maxRetries - 1)
+        );
+
+        // One retry remains, so the decider must still allow relocation.
+        withRoutingAllocation(clusterState, alloc -> {
+            final var replicaSource = alloc.routingNodes()
+                .assignedShards(shardId)
+                .stream()
+                .filter(ShardRouting::relocating)
+                .findFirst()
+                .orElseThrow();
+            assertThat(decider.canAllocate(replicaSource, alloc).type(), equalTo(Decision.Type.YES));
+        });
+
+        // Consume the last retry with a genuine relocation failure.
+        clusterState = withRoutingAllocation(clusterState, alloc -> {
+            final var target = alloc.routingNodes()
+                .assignedShards(shardId)
+                .stream()
+                .filter(ShardRouting::isRelocationTarget)
+                .toList()
+                .getFirst();
+            alloc.routingNodes()
+                .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "final-failure"), alloc.changes());
+        });
+
+        // All retries exhausted: the decider must block further relocation.
+        withRoutingAllocation(clusterState, alloc -> {
+            alloc.debugDecision(true);
+            final var replicaSource = alloc.routingNodes()
+                .assignedShards(shardId)
+                .stream()
+                .filter(s -> s.primary() == false && s.started())
+                .toList()
+                .getFirst();
+            final var decision = decider.canAllocate(replicaSource, alloc);
             assertThat(decision.type(), equalTo(Decision.Type.NO));
             assertThat(decision.getExplanation(), containsString("shard has exceeded the maximum number of retries"));
         });

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148439
-summary: Two-phase I/O for Parquet on remote storage
-type: enhancement

@@ -84,6 +84,7 @@ public final class Reasoning implements Accountable, ToXContentObject, NamedWrit
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Reasoning.class);
+    private static final long BOOLEAN_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
 
     @Nullable
     private final ReasoningEffort effort;
@@ -197,7 +198,7 @@ public final class Reasoning implements Accountable, ToXContentObject, NamedWrit
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.shallowSizeOf(exclude) + RamUsageEstimator.shallowSizeOf(enabled);
+        return SHALLOW_SIZE + (exclude == null ? 0L : BOOLEAN_SHALLOW_SIZE) + (enabled == null ? 0L : BOOLEAN_SHALLOW_SIZE);
     }
 
     @Override

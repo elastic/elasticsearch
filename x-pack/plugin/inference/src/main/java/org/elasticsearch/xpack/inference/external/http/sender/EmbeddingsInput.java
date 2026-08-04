@@ -23,11 +23,13 @@ import java.util.stream.Collectors;
 public class EmbeddingsInput extends InferenceInputs {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EmbeddingsInput.class);
+    private static final long INPUT_TYPE_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InputType.class);
 
     private final Supplier<List<InferenceStringGroup>> inputListSupplier;
     private final InputType inputType;
     private final AtomicBoolean supplierInvoked = new AtomicBoolean();
     private final long estimatedSizeInBytes;
+    private final long supplierShallowSize;
 
     public EmbeddingsInput(List<InferenceStringGroup> input, @Nullable InputType inputType, boolean stream) {
         this(() -> input, estimateSizeInBytes(input), inputType, stream);
@@ -51,6 +53,7 @@ public class EmbeddingsInput extends InferenceInputs {
         this.inputListSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
         this.estimatedSizeInBytes = estimatedSizeInBytes;
+        this.supplierShallowSize = RamUsageEstimator.shallowSizeOf(inputSupplier);
     }
 
     public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
@@ -111,8 +114,7 @@ public class EmbeddingsInput extends InferenceInputs {
 
     @Override
     public long ramBytesUsed() {
-        var inputTypeRamBytesUsed = inputType == null ? 0L : RamUsageEstimator.shallowSizeOf(inputType);
-        var lambdaRamBytesUsed = RamUsageEstimator.shallowSizeOf(inputListSupplier);
-        return SHALLOW_SIZE + inputTypeRamBytesUsed + lambdaRamBytesUsed + estimatedSizeInBytes;
+        var inputTypeRamBytesUsed = inputType == null ? 0L : INPUT_TYPE_SHALLOW_SIZE;
+        return SHALLOW_SIZE + inputTypeRamBytesUsed + supplierShallowSize + estimatedSizeInBytes;
     }
 }

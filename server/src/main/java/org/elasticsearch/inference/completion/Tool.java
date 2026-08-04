@@ -88,6 +88,7 @@ public record Tool(String type, FunctionField function) implements Accountable, 
         );
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FunctionField.class);
+        private static final long BOOLEAN_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
@@ -130,7 +131,7 @@ public record Tool(String type, FunctionField function) implements Accountable, 
                 ? 0L
                 : RamUsageEstimator.sizeOfMap(parameters()) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) parameters().size()
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-            var strictRamBytesUsed = RamUsageEstimator.shallowSizeOf(strict());
+            var strictRamBytesUsed = strict() == null ? 0L : BOOLEAN_SHALLOW_SIZE;
 
             return SHALLOW_SIZE + descriptionRamBytesUsed + nameRamBytesUsed + parametersRamBytesUsed + strictRamBytesUsed;
         }

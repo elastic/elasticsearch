@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -54,14 +56,43 @@ public final class VectorBinarySet extends VectorBinaryOperator {
     }
 
     /**
-     * A set operator combines series from both operands, so its output schema is the union of both label sets
-     * (deduplicated by name, left operand first). This differs from arithmetic/comparison operators, which
-     * require matching label sets. Only {@code or} (UNION) is currently translated; {@code and}/{@code unless}
-     * are rejected by the verifier before reaching translation.
+     * {@code or} combines series from both operands, so its output schema is the union of both label sets
+     * (deduplicated by name, left operand first). {@code and} keeps (a subset of) the left operand's series and
+     * carries its labels; {@code unless} is rejected by the verifier before reaching translation.
      */
     @Override
     public List<Attribute> output() {
-        return unionOutputByName(List.of(left(), right()));
+        // `or` combines series from both sides, so its schema is the union of both label sets. `and`/`unless` keep (a subset of) the
+        // left operand's series, so they carry only the left operand's labels - plus the on(...) match keys, which the
+        // translation guarantees as concrete columns even when the left operand is opaque (identity packed into
+        // `_timeseries`); keys no operand declares are synthesized references, mirroring VectorBinaryOperator.output.
+        return switch (op) {
+            case UNION -> unionOutputByName(List.of(left(), right()));
+            case INTERSECT, SUBTRACT -> {
+                if (match() == null || match().filter() != VectorMatch.Filter.ON) {
+                    yield left().output();
+                }
+                List<Attribute> result = new ArrayList<>(left().output());
+                Set<String> names = new HashSet<>();
+                result.forEach(attr -> names.add(attr.name()));
+                for (String label : match().filterLabels()) {
+                    if (names.add(label)) {
+                        Attribute attr = findByName(label, right().output());
+                        result.add(attr != null ? attr : new ReferenceAttribute(source(), label, DataType.KEYWORD));
+                    }
+                }
+                yield result;
+            }
+        };
+    }
+
+    private static Attribute findByName(String name, List<Attribute> attributes) {
+        for (Attribute attr : attributes) {
+            if (attr.name().equals(name)) {
+                return attr;
+            }
+        }
+        return null;
     }
 
     /**

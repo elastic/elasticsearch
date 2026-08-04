@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
@@ -95,12 +98,38 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return left().output();
         }
         Set<String> outputLabels;
+        // Labels the translation guarantees as result columns even when no operand declares them as attributes (an
+        // operand can be opaque - its identity packed into `_timeseries` - and the translation materializes or
+        // null-fills the columns): the match keys named by on(...) and the group modifier labels. Ones that resolve
+        // against neither operand are declared as synthesized references.
+        Set<String> guaranteed = new HashSet<>();
         List<Attribute> leftAttrs = left().output();
         List<Attribute> rightAttrs = right().output();
         Set<String> leftLabels = extractLabelNames(leftAttrs);
         Set<String> rightLabels = extractLabelNames(rightAttrs);
-        if (matchFilter() == VectorMatch.Filter.ON) {
+        if (match != null && match.grouping() == VectorMatch.Joining.LEFT) {
+            // group_left: the left ("many") side keeps its full label set plus the match keys; group_left(labels)
+            // additionally copies those labels from the right ("one") side onto the result.
+            outputLabels = new HashSet<>(leftLabels);
+            outputLabels.addAll(matchKeyLabels(leftLabels, rightLabels));
+            outputLabels.addAll(match.groupingLabels());
+            guaranteed.addAll(match.groupingLabels());
+            if (matchFilter() == VectorMatch.Filter.ON) {
+                guaranteed.addAll(match.filterLabels());
+            }
+        } else if (match != null && match.grouping() == VectorMatch.Joining.RIGHT) {
+            // group_right: the right ("many") side keeps its full label set plus the match keys; group_right(labels)
+            // additionally copies those labels from the left ("one") side onto the result.
+            outputLabels = new HashSet<>(rightLabels);
+            outputLabels.addAll(matchKeyLabels(leftLabels, rightLabels));
+            outputLabels.addAll(match.groupingLabels());
+            guaranteed.addAll(match.groupingLabels());
+            if (matchFilter() == VectorMatch.Filter.ON) {
+                guaranteed.addAll(match.filterLabels());
+            }
+        } else if (matchFilter() == VectorMatch.Filter.ON) {
             outputLabels = new HashSet<>(match.filterLabels());
+            guaranteed.addAll(match.filterLabels());
         } else if (matchFilter() == VectorMatch.Filter.IGNORING) {
             outputLabels = new HashSet<>(leftLabels);
             outputLabels.addAll(rightLabels);
@@ -122,10 +151,24 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             Attribute attr = findAttribute(label, leftAttrs, rightAttrs);
             if (attr != null) {
                 result.add(attr);
+            } else if (guaranteed.contains(label)) {
+                result.add(new ReferenceAttribute(source(), label, DataType.KEYWORD));
             }
         }
 
         return result;
+    }
+
+    /** The label names the match keys on: the on(...) labels, or both sides' declared labels minus the ignoring(...) ones. */
+    private Set<String> matchKeyLabels(Set<String> leftLabels, Set<String> rightLabels) {
+        if (matchFilter() == VectorMatch.Filter.ON) {
+            return match.filterLabels();
+        }
+        Set<String> keys = new HashSet<>(leftLabels);
+        keys.addAll(rightLabels);
+        keys.removeAll(match.filterLabels());
+        keys.removeIf(MetadataAttribute::isTimeSeriesAttributeName);
+        return keys;
     }
 
     private VectorMatch.Filter matchFilter() {

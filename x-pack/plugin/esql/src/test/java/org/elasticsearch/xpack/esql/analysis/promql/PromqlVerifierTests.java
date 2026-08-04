@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json")
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
 
@@ -106,12 +105,9 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLogicalSetBinaryOperators() {
+        // `unless` (anti-join) has no physical executor yet and is rejected outright.
+        tsdb.error("PROMQL index=test step=5m foo unless bar", containsString("set operator [unless] is not supported at this time"));
         List.of("and", "unless").forEach(op -> {
-            // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
-            tsdb.error(
-                "PROMQL index=test step=5m foo " + op + " bar",
-                containsString("set operator [" + op + "] is not supported at this time")
-            );
             // Any scalar operand is illegal in PromQL itself; this takes precedence over the unsupported-op message.
             // scalar op scalar
             tsdb.error(
@@ -200,7 +196,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlBucketsWithTimestampBoundsFromContext() {
         var now = Instant.now();
         var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
-        var plan = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json")
             .timestampBounds(bounds)
             .query("PROMQL index=test buckets=10 avg(network.bytes_in)");
         assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
@@ -381,11 +377,9 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testGroupModifiersNotSupported() {
-        tsdb.error(
-            "PROMQL index=test step=5m foo / on(bar) baz",
-            containsString("queries with group modifiers are not supported at this time")
-        );
+    public void testVectorMatchingRequiresInstantVectors() {
+        // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
+        tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
     public void testNonScalarComparison() {

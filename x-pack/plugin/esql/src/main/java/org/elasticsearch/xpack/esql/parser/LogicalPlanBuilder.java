@@ -1541,12 +1541,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> applyDenseVectorOptions(new DenseVector(source, p, rowLimit, fields), ctx.commandNamedParameters());
     }
 
-    private DenseVector applyDenseVectorOptions(DenseVector embed, EsqlBaseParser.CommandNamedParametersContext ctx) {
+    private DenseVector applyDenseVectorOptions(DenseVector denseVector, EsqlBaseParser.CommandNamedParametersContext ctx) {
         MapExpression optionsExpression = (ctx == null) ? null : visitCommandNamedParameters(ctx);
 
         if (optionsExpression == null || optionsExpression.containsKey(DenseVector.INFERENCE_ID_OPTION_NAME) == false) {
             throw new ParsingException(
-                embed.source(),
+                denseVector.source(),
                 "Missing mandatory option [{}] in DENSE_VECTOR",
                 DenseVector.INFERENCE_ID_OPTION_NAME
             );
@@ -1555,12 +1555,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
         Expression inferenceId = optionsMap.remove(DenseVector.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {
-            embed = applyInferenceId(embed, inferenceId);
+            denseVector = applyInferenceId(denseVector, inferenceId);
         }
 
         Expression timeoutExpr = optionsMap.remove(DenseVector.TIMEOUT_OPTION_NAME);
         if (timeoutExpr != null) {
-            embed = embed.withTimeout(parseTimeoutOption(timeoutExpr, DenseVector.TIMEOUT_OPTION_NAME, "DENSE_VECTOR"));
+            denseVector = denseVector.withTimeout(parseTimeoutOption(timeoutExpr, DenseVector.TIMEOUT_OPTION_NAME, "DENSE_VECTOR"));
         }
 
         if (optionsMap.isEmpty() == false) {
@@ -1568,11 +1568,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 source(ctx),
                 "Invalid option [{}] in DENSE_VECTOR, expected one of [{}]",
                 optionsMap.keySet().stream().findAny().get(),
-                embed.validOptionNames()
+                denseVector.validOptionNames()
             );
         }
 
-        return embed;
+        return denseVector;
     }
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {

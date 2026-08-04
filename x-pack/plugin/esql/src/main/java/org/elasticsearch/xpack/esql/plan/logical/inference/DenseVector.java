@@ -223,7 +223,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
                 return false;
             }
         }
-        // An empty field list is a resolved no-op: every wildcard pattern matched nothing (DECISION-014), so the
+        // An empty field list is a resolved no-op: every wildcard pattern matched nothing, so the
         // command generates no columns. Non-empty results always have generatedFields populated 1:1 with fields.
         return true;
     }

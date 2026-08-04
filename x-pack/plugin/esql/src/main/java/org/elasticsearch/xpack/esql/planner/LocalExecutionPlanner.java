@@ -415,8 +415,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
-        } else if (node instanceof DenseVectorExec embed) {
-            return planDenseVector(embed, context);
+        } else if (node instanceof DenseVectorExec denseVector) {
+            return planDenseVector(denseVector, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {

@@ -1251,8 +1251,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
             // Expand the field patterns once. Re-running is a no-op and the plan converges: after the first pass either
-            // generatedFields is populated (non-empty result) or the field list is empty (every pattern matched nothing ->
-            // a silent no-op, DECISION-014); either way we return the same instance, even while the inference id resolves.
+            // generatedFields is populated (non-empty result) or the field list is empty (every pattern matched nothing which is
+            // a silent no-op); either way we return the same instance, even while the inference id resolves.
             if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
                 return p;
             }
@@ -1270,8 +1270,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                     }
                 } else if (field instanceof UnresolvedNamePattern up) {
-                    // wildcard pattern -> keep resolved text matches only; a no-match or a non-text match is silently
-                    // skipped for now (DECISION-014: wildcard-matches-nothing is silent, final behavior deferred)
+                    // wildcard pattern -> keep resolved text matches only
+                    // a no-match or a non-text match is skipped silently
                     for (Attribute a : resolveAgainstList(up, childrenOutput)) {
                         if (a.resolved() && DataType.isString(a.dataType()) && seen.add(a.id())) {
                             resolvedFields.add(a);

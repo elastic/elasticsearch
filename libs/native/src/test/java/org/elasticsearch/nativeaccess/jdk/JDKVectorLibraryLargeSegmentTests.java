@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess.jdk;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -49,7 +49,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
                 || (arch.equals("amd64") && osName.equals("Linux")));
     }
 
-    static VectorSimilarityFunctions functions;
+    static SimdVecLibrary functions;
 
     @BeforeClass
     public static void setup() {

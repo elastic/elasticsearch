@@ -371,6 +371,42 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
         assertArrayEquals(new Boolean[] { false }, result);
     }
 
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Fox"), KEYWORD, mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Fox jumped"));
+                builder.appendBytesRef(new BytesRef("the fox jumped"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("brown fox"), KEYWORD, mapOptions("analyzer", "keyword")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("brown fox"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndOperatorCombined() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Quick Fox"), KEYWORD, mapOptions("analyzer", "whitespace", "operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("Quick brown Fox"));
+                builder.appendBytesRef(new BytesRef("quick brown fox"));
+                builder.appendBytesRef(new BytesRef("Quick brown dog"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
     /**
      * The {@code bytes_ref} evaluator uses a per-evaluator scratch {@link BytesRef} (created per {@link DriverContext}
      * via a {@code THREAD_LOCAL}-scoped {@code @Fixed}). Many threads sharing one factory must each get an independent

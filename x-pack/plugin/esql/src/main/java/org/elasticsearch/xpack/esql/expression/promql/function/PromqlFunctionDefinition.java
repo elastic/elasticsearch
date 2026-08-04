@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -588,19 +589,21 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
-        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduction(
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortDesc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.DESC);
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortAsc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.ASC);
+        }
+
+        private PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSort(
             PromqlParamInfo paramInfo,
-            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+            Order.OrderDirection orderDirection
         ) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
             this.arity = PromqlFunctionArity.TWO;
-            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
-                source,
-                target,
-                Literal.TRUE,
-                ctx.window(),
-                extraParams.getFirst()
-            );
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
             this.params = List.of(paramInfo, INSTANT_VECTOR);
             return this;
         }

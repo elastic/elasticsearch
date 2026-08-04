@@ -31,8 +31,8 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongHistogram cacheMissLoadTimes;
-    private LongCounter cachePopulationBytes;
     private final DoubleHistogram cachePopulationThroughput;
+    private final LongCounter cachePopulationBytes;
     private final LongCounter cachePopulationTime;
 
     public enum CachePopulationReason {

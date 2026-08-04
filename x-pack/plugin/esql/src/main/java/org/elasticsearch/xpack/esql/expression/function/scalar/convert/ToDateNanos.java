@@ -124,7 +124,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     ),
                     Map.entry(
@@ -132,7 +132,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE))
                         )
                     )
                 )

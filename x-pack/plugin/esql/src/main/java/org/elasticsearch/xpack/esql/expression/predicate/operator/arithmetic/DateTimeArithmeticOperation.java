@@ -180,7 +180,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
+        ZoneId zoneId = configuration().setting(QuerySettings.TIME_ZONE);
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;

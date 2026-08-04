@@ -183,7 +183,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                                     + "endTimestamp=Attribute[channel=2], zoneId="
-                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                                    + configuration.setting(QuerySettings.TIME_ZONE)
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -214,7 +214,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffNanosEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                                     + "endTimestamp=Attribute[channel=2], zoneId="
-                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                                    + configuration.setting(QuerySettings.TIME_ZONE)
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -245,7 +245,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffNanosMillisEvaluator[unit=Attribute[channel=0], startTimestampNanos=Attribute[channel=1], "
                                     + "endTimestampMillis=Attribute[channel=2], zoneId="
-                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                                    + configuration.setting(QuerySettings.TIME_ZONE)
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)
@@ -276,7 +276,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 ),
                                 "DateDiffMillisNanosEvaluator[unit=Attribute[channel=0], startTimestampMillis=Attribute[channel=1], "
                                     + "endTimestampNanos=Attribute[channel=2], zoneId="
-                                    + QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())
+                                    + configuration.setting(QuerySettings.TIME_ZONE)
                                     + "]",
                                 DataType.INTEGER,
                                 equalTo(expected)

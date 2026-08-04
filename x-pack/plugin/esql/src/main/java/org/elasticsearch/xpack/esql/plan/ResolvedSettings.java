@@ -21,7 +21,7 @@ import java.util.Map;
 
 /**
  * Immutable typed view of resolved query setting values, produced by {@link QuerySettings#resolve}.
- * Read via {@link QuerySettingDef#get(ResolvedSettings)} on each setting's constant.
+ * Read via {@code Configuration.setting} on each setting's constant.
  *
  * <p>Travels with {@link org.elasticsearch.xpack.esql.session.Configuration} across the wire to data
  * nodes; every node and driver that holds a Configuration also holds the full resolved view.

@@ -441,7 +441,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             Object lower = null;
             Object upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
+            ZoneId zoneId = ctx.configuration().setting(QuerySettings.TIME_ZONE);
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
                 // build predicates and range queries for RoundTo ranges

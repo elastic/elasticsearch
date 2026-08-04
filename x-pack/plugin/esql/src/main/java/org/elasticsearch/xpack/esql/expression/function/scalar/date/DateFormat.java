@@ -187,7 +187,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
                 source(),
                 fieldEvaluator,
                 formatEvaluator,
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().setting(QuerySettings.TIME_ZONE),
                 configuration().locale()
             );
         }
@@ -195,7 +195,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             source(),
             fieldEvaluator,
             formatEvaluator,
-            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().setting(QuerySettings.TIME_ZONE),
             configuration().locale()
         );
     }
@@ -207,8 +207,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return getConstantEvaluator(
                 field().dataType(),
                 fieldEvaluator,
-                DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
-                    .withLocale(configuration().locale())
+                DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().setting(QuerySettings.TIME_ZONE)).withLocale(configuration().locale())
             );
         }
         if (DataType.isString(format.dataType()) == false) {
@@ -217,7 +216,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(
                 format.fold(toEvaluator.foldCtx()),
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().setting(QuerySettings.TIME_ZONE),
                 configuration().locale()
             );
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);

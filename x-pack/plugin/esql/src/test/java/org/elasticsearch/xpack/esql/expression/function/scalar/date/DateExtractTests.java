@@ -130,8 +130,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
     public void testAllChronoFields() {
         long epochMilli = 1687944333123L;
-        ZonedDateTime date = Instant.ofEpochMilli(epochMilli)
-            .atZone(QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings()));
+        ZonedDateTime date = Instant.ofEpochMilli(epochMilli).atZone(EsqlTestUtils.TEST_CFG.setting(QuerySettings.TIME_ZONE));
         for (ChronoField value : ChronoField.values()) {
             DateExtract instance = new DateExtract(
                 Source.EMPTY,
@@ -142,11 +141,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
             assertThat(instance.fold(FoldContext.small()), is(date.getLong(value)));
             assertThat(
-                DateExtract.processMillis(
-                    epochMilli,
-                    new BytesRef(value.name()),
-                    QuerySettings.TIME_ZONE.get(EsqlTestUtils.TEST_CFG.resolvedSettings())
-                ),
+                DateExtract.processMillis(epochMilli, new BytesRef(value.name()), EsqlTestUtils.TEST_CFG.setting(QuerySettings.TIME_ZONE)),
                 is(date.getLong(value))
             );
         }

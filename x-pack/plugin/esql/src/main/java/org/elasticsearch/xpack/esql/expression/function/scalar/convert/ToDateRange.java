@@ -91,7 +91,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
-            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()));
+            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.setting(QuerySettings.TIME_ZONE));
             BuildFactory fromString = (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter);
             lazyEvaluators = Map.ofEntries(
                 Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),

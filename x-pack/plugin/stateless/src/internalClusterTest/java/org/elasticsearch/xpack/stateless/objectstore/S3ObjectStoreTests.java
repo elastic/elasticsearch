@@ -464,7 +464,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     public void testUploadIndicesDataWithRetries() throws Exception {
         s3HttpHandler.setInterceptor(new Interceptor() {
-            private final int errorsPerRequest = randomIntBetween(3, 5);
+            private final int errorsPerRequest = maxRetries + randomIntBetween(2, 3);
             private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -521,8 +521,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             final String indexName = randomIdentifier();
             createIndex(indexName, indexSettings(1, 0).build());
             ensureGreen(indexName);
-            IndexShard indexShard = findIndexShard(indexName);
-            IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
 
             // Index enough 1 MiB documents to produce a >5MiB Lucene compound segment file, to ensure S3 multi-part upload
             int numDocs = randomIntBetween(8, 10);
@@ -533,7 +531,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             flush(indexName);
 
             setReplicaCount(1, indexName);
-            ensureGreen(indexName);
+            ensureGreen(TimeValue.ONE_MINUTE, indexName);
             // we are setting size to 0 because we don't want to retrieve the documents (which are heavy in this test case) as it can cause
             // suite timeouts when the cache is very small
             assertHitCount(prepareSearch(indexName).setSize(0), numDocs);

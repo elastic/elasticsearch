@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -242,14 +243,15 @@ public class DimsPackerTests extends ComputeTestCase {
             }
             var block1 = builder.build();
             var block2 = new OrdinalBytesRefBlock(ordinals.build(), dict);
-            var encoded1 = DimsPacker.packBytesValues(driverContext, block1);
-            var encoded2 = DimsPacker.packBytesValues(driverContext, block2);
-            var decoded1 = DimsPacker.unpackBytesValues(driverContext, encoded1);
-            var decoded2 = DimsPacker.unpackBytesValues(driverContext, encoded2);
+            var encoded1 = DimsPacker.packSingleColumn(driverContext, block1);
+            var encoded2 = DimsPacker.packSingleColumn(driverContext, block2);
+            BytesRefBlock decoded1 = (BytesRefBlock) DimsPacker.unpackSingleColumn(driverContext, encoded1, ElementType.BYTES_REF);
+            BytesRefBlock decoded2 = (BytesRefBlock) DimsPacker.unpackSingleColumn(driverContext, encoded2, ElementType.BYTES_REF);
             try {
                 assertTrue(BytesRefBlock.equals(block1, block2));
                 assertTrue(BytesRefVector.equals(encoded1, encoded2));
                 assertTrue(BytesRefBlock.equals(decoded1, decoded2));
+                assertNotNull(decoded2.asOrdinals());
             } finally {
                 Releasables.close(block1, encoded1, decoded1, block2, encoded2, decoded2);
             }
@@ -293,7 +295,13 @@ public class DimsPackerTests extends ComputeTestCase {
             blocks2[i] = buildBlock(blockFactory, types[i], columns2.get(i));
         }
         BytesRefVector encoded1 = DimsPacker.packMultiColumns(driverContext, blocks1);
+        if (randomBoolean()) {
+            encoded1 = new OrdinalBytesRefVector(blockFactory.newIntRangeVector(0, encoded1.getPositionCount()), encoded1);
+        }
         BytesRefVector encoded2 = DimsPacker.packMultiColumns(driverContext, blocks2);
+        if (randomBoolean()) {
+            encoded2 = new OrdinalBytesRefVector(blockFactory.newIntRangeVector(0, encoded2.getPositionCount()), encoded2);
+        }
         Block[] decoded1 = DimsPacker.unpackMultiColumns(driverContext, encoded1, types);
         Block[] decoded2 = DimsPacker.unpackMultiColumns(driverContext, encoded2, types);
         try {

@@ -7,16 +7,19 @@ ColumNAR's JMH benchmarks live in the shared `:benchmarks` module, package
 
 These drive the full stack through plain Lucene (`IndexWriter`, `IndexSearcher`) and compare
 ColumNAR against the numeric codecs it aims to reach parity with. Each takes a `format`
-param (`COLUMNAR`, `ES819`, `ES95`).
+param (`LUCENE`, `ES819`, `ES95`, `COLUMNAR`).
 
 - `ColumnarNumericIngestBenchmark` — ingest cost and storage. `merge` selects no merges, natural
   merges, or a force-merge; secondary counters report bytes on disk and total bytes written.
+- `ColumnarNumericDecodeBenchmark` — full-scan sequential decode throughput. One segment is built
+  once per trial and decoded repeatedly; measures the average time per full pass.
 - `ColumnarNumericRangeSlicingBenchmark` — range-query latency under
   `DataPartitioning.DOC` slicing.
 
 ```
-./gradlew :benchmarks:run --args="ColumnarNumericIngestBenchmark -p format=COLUMNAR,ES819,ES95"
-./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=COLUMNAR,ES819 -p workload=RANDOM_FULL"
+./gradlew :benchmarks:run --args="ColumnarNumericIngestBenchmark -p format=LUCENE,ES819,ES95,COLUMNAR"
+./gradlew :benchmarks:run --args="ColumnarNumericDecodeBenchmark -p format=LUCENE,ES819,ES95,COLUMNAR"
+./gradlew :benchmarks:run --args="ColumnarNumericRangeSlicingBenchmark -p format=LUCENE,ES819,ES95,COLUMNAR -p workload=MONOTONIC_TIMESTAMPS,RANDOM_FULL"
 ```
 
 ## Per-stage encode/decode benchmarks

@@ -1628,7 +1628,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDoubleRangeUnsupportedOperations() {
-        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4.isEnabled());
+        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V6.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
@@ -2704,8 +2704,8 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
                     + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
-                    + "exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, "
-                    + "ip, keyword, long, tdigest, text, unsigned_long or version], "
+                    + "double_range, exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, "
+                    + "integer, ip, keyword, long, tdigest, text, unsigned_long or version], "
                     + "found value [\"3 days\"::date_period] type [date_period]"
             )
         );

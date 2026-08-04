@@ -376,4 +376,108 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             )
         );
     }
+
+    // -- IN subquery inside EVAL --
+
+    public void testInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testConstantInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = 10001 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryWithMultipleFieldsInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = 1, m = emp_no IN (FROM employees | KEEP emp_no), b = salary
+            """, STAGES);
+    }
+
+    public void testInSubqueryReferencingAnotherAttributeInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 1, m = a IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalAndReferencedInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+            | WHERE m
+            """, STAGES);
+    }
+
+    public void testInSubqueryEvalFieldRenamed() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | RENAME matches AS renamed_matches
+            """, STAGES);
+    }
+
+    public void testInSubqueryEvalFieldDropped() {
+        // validate pruneUnusedMarkJoin in PruneColumns
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | DROP matches
+            """, STAGES);
+    }
+
+    public void testCaseWithInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", "no")
+            """, STAGES);
+    }
+
+    public void testCoalesceWithInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testIsNullOfInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testDisjunctiveInSubqueriesInEvalOnOneField() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no) OR emp_no IN (FROM employees | WHERE salary > 50000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalReferencingView() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM emps_view)
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testInSubqueryInEvalInsideViewDefinition() {
+        runGoldenTest("""
+            FROM marked_emps
+            | KEEP emp_no, m
+            """, STAGES, Map.of("marked_emps", "FROM employees | EVAL m = emp_no IN (FROM employees | KEEP emp_no)"));
+    }
 }

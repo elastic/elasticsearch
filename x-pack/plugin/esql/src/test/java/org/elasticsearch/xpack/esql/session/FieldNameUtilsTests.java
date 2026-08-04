@@ -3587,6 +3587,186 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
     }
 
+    // EVAL IN subquery tests
+
+    public void testInSubqueryInEval() {
+        assertFieldNames(
+            "FROM employees | EVAL m = emp_no IN (FROM employees | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*")
+        );
+    }
+
+    public void testInSubqueryNoFieldReductionInEval() {
+        assertFieldNames("FROM employees | EVAL m = emp_no IN (FROM employees | KEEP emp_no)", ALL_FIELDS);
+    }
+
+    public void testInSubqueryWithMoreFieldsInEval() {
+        assertFieldNames(
+            "FROM employees | EVAL m = emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
+        );
+    }
+
+    public void testCaseWithInSubqueryInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = CASE(emp_no IN (FROM employees | WHERE first_name IS NOT NULL | KEEP first_name), "yes", "no")
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
+    }
+
+    public void testCoalesceWithInSubqueryInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = COALESCE(emp_no IN (FROM employees | WHERE languages > 2 | KEEP emp_no), false)
+            | KEEP first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "first_name", "first_name.*"));
+    }
+
+    public void testIsNullWithInSubqueryInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | WHERE hire_date IS NOT NULL | KEEP hire_date)) IS NULL
+            | KEEP languages
+            """, Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*", "languages", "languages.*"));
+    }
+
+    public void testIsNotNullWithInSubqueryInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | WHERE gender == "F" | KEEP emp_no)) IS NOT NULL
+            | KEEP first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "gender", "gender.*", "first_name", "first_name.*"));
+    }
+
+    public void testInSubqueryAndGreaterThanInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | WHERE first_name IS NOT NULL | KEEP emp_no) AND salary > 50000
+            | KEEP languages
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*"));
+    }
+
+    public void testInSubqueryOrGreaterThanInEval() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL m = emp_no IN (FROM employees | WHERE hire_date IS NOT NULL | KEEP emp_no) OR languages > 2
+                | KEEP first_name
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*", "languages", "languages.*", "first_name", "first_name.*")
+        );
+    }
+
+    public void testCaseWithInSubqueryAndGreaterThanInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = CASE(emp_no IN (FROM employees | WHERE first_name IS NOT NULL | KEEP emp_no) AND salary > 50000, "yes", "no")
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testCoalesceWithInSubqueryOrGreaterThanInEval() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL m = COALESCE(emp_no IN (FROM employees | WHERE hire_date IS NOT NULL | KEEP emp_no) OR languages > 2, false)
+                | KEEP first_name
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*", "languages", "languages.*", "first_name", "first_name.*")
+        );
+    }
+
+    public void testIsNullWithInSubqueryAndGreaterThanInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | WHERE last_name IS NOT NULL | KEEP emp_no) AND salary > 50000) IS NULL
+            | KEEP first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "last_name", "last_name.*", "salary", "salary.*", "first_name", "first_name.*"));
+    }
+
+    public void testIsNotNullWithInSubqueryOrGreaterThanInEval() {
+        assertFieldNames("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | WHERE gender == "F" | KEEP emp_no) OR languages > 2) IS NOT NULL
+            | KEEP first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "gender", "gender.*", "languages", "languages.*", "first_name", "first_name.*"));
+    }
+
+    public void testFromSubqueryBeforeEvalInSubquery() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees | WHERE last_name IS NOT NULL | KEEP emp_no, first_name),
+                  (FROM employees | WHERE salary > 50000 | KEEP emp_no, first_name)
+                | EVAL m = emp_no IN (FROM languages | WHERE language_id < 5 | KEEP language_id)
+                | KEEP emp_no, first_name
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "last_name",
+                "last_name.*",
+                "salary",
+                "salary.*",
+                "language_id",
+                "language_id.*"
+            )
+        );
+    }
+
+    public void testForkBeforeEvalInSubquery() {
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP emp_no, first_name
+                | FORK (WHERE last_name IS NOT NULL) (WHERE salary > 50000)
+                | EVAL m = emp_no IN (FROM languages | WHERE language_id < 5 | KEEP language_id)
+                | KEEP emp_no, first_name
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "last_name",
+                "last_name.*",
+                "salary",
+                "salary.*",
+                "language_id",
+                "language_id.*"
+            )
+        );
+    }
+
+    public void testForkAfterEvalInSubquery() {
+        assertFieldNames(
+            """
+                FROM employees
+                | EVAL m = emp_no IN (FROM languages | WHERE language_id < 5 | KEEP language_id)
+                | FORK (WHERE salary > 50000) (WHERE first_name IS NOT NULL)
+                | KEEP emp_no, last_name
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "last_name",
+                "last_name.*",
+                "salary",
+                "salary.*",
+                "language_id",
+                "language_id.*"
+            )
+        );
+    }
+
     /**
      * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
      * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an

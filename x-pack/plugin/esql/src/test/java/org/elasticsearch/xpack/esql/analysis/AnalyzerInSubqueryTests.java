@@ -180,26 +180,34 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- negative: IN subquery in EVAL --
+    // -- negative: IN subquery in EVAL (rejected shapes) --
 
     /**
-     * Verifies that an IN subquery inside EVAL is rejected.
+     * Verifies that an IN subquery with a complex (non-attribute, non-foldable) LHS inside EVAL is rejected.
      */
-    public void testRejectsInSubqueryInEval() {
-        errorInSubquery("""
-            FROM employees
-            | EVAL x = emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
+    public void testRejectsComplexLHSInSubqueryInEval() {
+        errorInSubquery(
+            """
+                FROM employees
+                | EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)
+                """,
+            containsString(
+                "Complicated IN subquery is not yet supported in " + "Eval [EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)]"
+            )
+        );
     }
 
     /**
-     * Verifies that a NOT IN subquery inside EVAL is rejected.
+     * Verifies that an IN subquery wrapped inside a non-allowlisted function in EVAL is rejected.
      */
-    public void testRejectsNotInSubqueryInEval() {
-        errorInSubquery("""
-            FROM employees
-            | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]"));
+    public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
+        errorInSubquery(
+            """
+                FROM employees
+                | EVAL x = TO_STRING(emp_no IN (FROM employees | KEEP emp_no))
+                """,
+            containsString("IN subquery is not supported within expression " + "[TO_STRING(emp_no IN (FROM employees | KEEP emp_no))]")
+        );
     }
 
     // -- approximation incompatibility tests --
@@ -591,66 +599,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | SORT emp_no
             | LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)
             """, containsString("IN subquery is not supported in [LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)]"));
-    }
-
-    /**
-     * Verifies that an IN subquery inside EVAL with multiple fields (one being the IN subquery) is rejected.
-     */
-    public void testRejectsInSubqueryInEvalAmongMultipleFields() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
-                """,
-            containsString("IN subquery is not supported in [EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary]")
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery as a function argument inside EVAL is rejected.
-     * The InSubquery inside COALESCE is unresolved, and the verifier reports
-     * that IN/NOT IN subquery is not supported in Eval.
-     */
-    public void testRejectsInSubqueryAsFunctionArgInEval() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
-                """,
-            containsString("IN subquery is not supported in [EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)]")
-        );
-    }
-
-    // -- IN subquery nested in WHERE expressions --
-
-    /**
-     * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside a function call.
-     */
-    public void testRejectsInSubqueryInCaseFunctionInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
-                """,
-            containsString(
-                "IN subquery is not supported within other expressions [CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery wrapped in IS NOT NULL in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside IS NULL expressions.
-     */
-    public void testRejectsInSubqueryInIsNullInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
-                """,
-            containsString("IN subquery is not supported within other expressions [(emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
-        );
     }
 
     @Override

@@ -374,17 +374,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         });
 
         logger.info("--> verify reserved state is cleared when missing file is processed at startup");
-        assertBusy(() -> {
-            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
-                .actionGet();
-            ReservedStateMetadata reservedState = clusterStateResponse.getState()
-                .metadata()
-                .reservedStateMetadata()
-                .get(FileSettingsService.NAMESPACE);
-            assertThat(reservedState, notNullValue());
-            assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
-            assertTrue(reservedState.handlers().isEmpty());
-        }, 20, TimeUnit.SECONDS);
+        awaitClusterState(FileSettingsServiceIT::reservedStateClearedAfterFileDelete);
 
         logger.info("--> verify settings are no longer reserved and can be modified");
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
@@ -497,9 +487,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         internalCluster().restartNode(masterNode);
         ensureGreen();
 
-        // we don't know the exact metadata version to wait for so rely on an assertBusy instead
-        assertBusy(() -> assertExpectedRecoveryBytesSettingAndVersion(metadataVersion, "50mb"));
-        assertBusy(() -> assertNoErrors(metadataVersion));
+        awaitClusterState(state -> hasRecoveryBytesAndNoErrors(state, metadataVersion, "50mb"));
+        assertExpectedRecoveryBytesSettingAndVersion(metadataVersion, "50mb");
+        assertNoErrors(metadataVersion);
     }
 
     public void testNewErrorOnRestartReprocessing() throws Exception {
@@ -542,7 +532,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         });
         ensureGreen();
 
-        assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));
+        awaitClusterState(state -> hasReservedStateError(state, metadataVersion, "bad_cluster_settings"));
+        assertHasErrors(metadataVersion, "bad_cluster_settings");
     }
 
     public void testSettingsAppliedOnMasterReElection() throws Exception {
@@ -720,5 +711,32 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(waitForMetadataVersion.get())
         ).actionGet();
         return clusterStateResponse.getState().getMetadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).errorMetadata();
+    }
+
+    private static boolean reservedStateClearedAfterFileDelete(ClusterState state) {
+        ReservedStateMetadata reservedState = state.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        return reservedState != null && reservedState.version() == EMPTY_VERSION && reservedState.handlers().isEmpty();
+    }
+
+    private static boolean hasRecoveryBytesAndNoErrors(ClusterState state, AtomicLong metadataVersion, String expectedBytesPerSec) {
+        if (state.metadata().version() < metadataVersion.get()) {
+            return false;
+        }
+        ReservedStateMetadata reservedState = state.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        if (reservedState == null || reservedState.errorMetadata() != null) {
+            return false;
+        }
+        return expectedBytesPerSec.equals(state.metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
+    }
+
+    private static boolean hasReservedStateError(ClusterState state, AtomicLong metadataVersion, String errorSubstring) {
+        if (state.metadata().version() < metadataVersion.get()) {
+            return false;
+        }
+        ReservedStateMetadata reservedState = state.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        if (reservedState == null || reservedState.errorMetadata() == null) {
+            return false;
+        }
+        return reservedState.errorMetadata().errors().stream().anyMatch(error -> error.contains(errorSubstring));
     }
 }

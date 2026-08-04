@@ -23,6 +23,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -95,6 +97,187 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                 assertTrue("reader should still be reusable for doc == last read after another read", columnReader.canReuse(2));
 
                 columnReader.close();
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Filtering-semantics tests for KeyedFlattenedBinaryDocValues
+    // -------------------------------------------------------------------------
+
+    /** Open a key-filtered binary doc-values view on the first (and only) leaf. */
+    private static SortedBinaryDocValues filteredBinaryView(LeafReaderContext leaf, String key) throws IOException {
+        MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(leaf.reader(), KEYED_FIELD);
+        return BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
+    }
+
+    /** Add a document with no values for the keyed field. */
+    private static void addEmptyBinaryDoc(RandomIndexWriter writer) throws IOException {
+        writer.addDocument(new Document());
+    }
+
+    /**
+     * Target key is the lexicographically first key in the doc.
+     * The single-pass path must not break early before seeing the first entry.
+     */
+    public void testKeyFilteredBinaryDvKeyFirstInDoc() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, KEY + "\0server-a", "zzz.z\0last");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.docValueCount());
+                assertEquals(new BytesRef("server-a"), dv.nextValue());
+                assertNull(dv.nextValue());
+            }
+        }
+    }
+
+    /**
+     * Target key is the lexicographically last key in the doc.
+     * The two-pass implementation would call advanceExact twice and re-walk all prior entries;
+     * the single-pass path buffers the value during the first scan.
+     */
+    public void testKeyFilteredBinaryDvKeyLastInDoc() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, "aaa.x\0first", KEY + "\0server-d");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.docValueCount());
+                assertEquals(new BytesRef("server-d"), dv.nextValue());
+            }
+        }
+    }
+
+    /**
+     * Target key is in the middle; other keys sort both below and above it.
+     */
+    public void testKeyFilteredBinaryDvKeyMiddleInDoc() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, "aaa.x\0before", KEY + "\0server-b", "zzz.z\0after");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.docValueCount());
+                assertEquals(new BytesRef("server-b"), dv.nextValue());
+            }
+        }
+    }
+
+    /**
+     * The target key appears twice in one doc.
+     * Both values must be returned in sorted order and docValueCount() must be 2.
+     */
+    public void testKeyFilteredBinaryDvMultipleMatchingValues() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, KEY + "\0server-e", KEY + "\0server-f", "zzz.z\0other");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertEquals(2, dv.docValueCount());
+                assertEquals(new BytesRef("server-e"), dv.nextValue());
+                assertEquals(new BytesRef("server-f"), dv.nextValue());
+                assertNull(dv.nextValue());
+            }
+        }
+    }
+
+    /**
+     * The target key is absent and all present keys sort above it.
+     * The single-pass loop breaks immediately on the first entry (comparison negative).
+     */
+    public void testKeyFilteredBinaryDvKeyAbsentBreaksEarly() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, "zzz.z\0only");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertFalse(dv.advanceExact(0));
+            }
+        }
+    }
+
+    /**
+     * The target key is absent and all present keys sort below it.
+     * The loop exhausts the doc's values without finding a match.
+     */
+    public void testKeyFilteredBinaryDvKeyAbsentAllSortBelow() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, "aaa.x\0val1", "aaa.y\0val2");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertFalse(dv.advanceExact(0));
+            }
+        }
+    }
+
+    /**
+     * A doc with no values for the keyed field at all; advanceExact must return false.
+     */
+    public void testKeyFilteredBinaryDvDocWithNoValues() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, KEY + "\0server-x");  // doc 0 has a value so the field exists in the segment
+            addEmptyBinaryDoc(writer);                  // doc 1 has no values
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertFalse(dv.advanceExact(1));
+            }
+        }
+    }
+
+    /**
+     * Advance over multiple docs with different match counts on the same reader instance to
+     * verify that count and index are correctly reset between advanceExact calls.
+     * Pattern: 2 matches → 1 match → 0 matches → 2 matches again.
+     */
+    public void testKeyFilteredBinaryDvBufferReuseAcrossDocs() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            addDoc(writer, true, KEY + "\0val-a", KEY + "\0val-b");  // doc 0: 2 matches
+            addDoc(writer, true, KEY + "\0val-c");                    // doc 1: 1 match
+            addDoc(writer, true, "aaa.x\0other");                     // doc 2: 0 matches
+            addDoc(writer, true, KEY + "\0val-d", KEY + "\0val-e");  // doc 3: 2 matches again
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+
+                assertTrue(dv.advanceExact(0));
+                assertEquals(2, dv.docValueCount());
+                assertEquals(new BytesRef("val-a"), dv.nextValue());
+                assertEquals(new BytesRef("val-b"), dv.nextValue());
+                assertNull(dv.nextValue());
+
+                assertTrue(dv.advanceExact(1));
+                assertEquals(1, dv.docValueCount());
+                assertEquals(new BytesRef("val-c"), dv.nextValue());
+                assertNull(dv.nextValue());
+
+                assertFalse(dv.advanceExact(2));
+
+                assertTrue(dv.advanceExact(3));
+                assertEquals(2, dv.docValueCount());
+                assertEquals(new BytesRef("val-d"), dv.nextValue());
+                assertEquals(new BytesRef("val-e"), dv.nextValue());
+            }
+        }
+    }
+
+    /**
+     * "host.name" is a strict prefix of "host.name.inner" stored in the same doc.
+     * Only the exact-key value must be returned, with the key prefix stripped.
+     * The entry for "host.name.inner" must not be matched — compare returns negative,
+     * triggering an early break.
+     */
+    public void testKeyFilteredBinaryDvPrefixStripping() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newRandomIndexWriter(dir, true)) {
+            // "host.name\0bare-value" sorts before "host.name.inner\0inner-value"
+            // because '\0' (0) < '.' (46) at position 9.
+            addDoc(writer, true, KEY + "\0bare-value", KEY + ".inner\0inner-value");
+            try (IndexReader reader = openReader(writer)) {
+                SortedBinaryDocValues dv = filteredBinaryView(reader.leaves().get(0), KEY);
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.docValueCount());
+                assertEquals(new BytesRef("bare-value"), dv.nextValue());
+                assertNull(dv.nextValue());
             }
         }
     }

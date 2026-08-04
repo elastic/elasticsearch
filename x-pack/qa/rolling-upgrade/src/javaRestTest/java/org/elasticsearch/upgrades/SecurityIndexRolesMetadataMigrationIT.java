@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SecurityIndexRolesMetadataMigrationIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
     @ClassRule
-    static final ElasticsearchCluster cluster = buildClusterWithSecurity();
+    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
 
     public SecurityIndexRolesMetadataMigrationIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

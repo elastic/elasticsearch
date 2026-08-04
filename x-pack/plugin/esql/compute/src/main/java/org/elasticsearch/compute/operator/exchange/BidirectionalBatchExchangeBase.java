@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -37,15 +38,22 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
     protected final Settings settings;
 
     /**
-     * Logs an exchange failure at {@code nonCancellationLevel}, unless it is a cancellation. Cancellations are
-     * expected teardown (for example the query reached its LIMIT and the exchange was closed early via a
-     * synthesized "client stopped" error, or the task was cancelled), so they are logged at DEBUG to keep
-     * genuine failures visible. Shared by the client, the server, and the operator driving them, so the caller
-     * supplies its own logger.
+     * Logs an exchange failure at {@code nonCancellationLevel}, unless it is one of the expected, transient
+     * conditions that are downgraded to keep genuine failures visible:
+     * <ul>
+     *     <li>Cancellations - expected teardown (for example the query reached its LIMIT and the exchange was
+     *     closed early via a synthesized "client stopped" error, or the task was cancelled) - are logged at DEBUG.</li>
+     *     <li>{@link IndexNotFoundException} - the lookup target index was not available on the routed node, for
+     *     example during a rolling restart, or before the index has recovered/propagated - is logged at WARN. This
+     *     is a transient, self-healing condition and the failure is still propagated to the coordinator, so logging
+     *     it at ERROR only produces spurious noise (and, in Serverless, trips promotion quality-gate log-error-rate
+     *     checks during routine node churn).</li>
+     * </ul>
+     * Shared by the client, the server, and the operator driving them, so the caller supplies its own logger.
      *
      * @param logger               the logger to log to (the caller's own logger)
-     * @param nonCancellationLevel the level to log at when the failure is not a cancellation
-     * @param failure              the failure that decides the log level (cancellations are logged at DEBUG)
+     * @param nonCancellationLevel the level to log at when the failure is not a cancellation or a missing index
+     * @param failure              the failure that decides the log level (cancellations at DEBUG, missing index at WARN)
      * @param message              a parameterized log message template
      * @param params               the parameters for the message template; a trailing {@link Throwable} is logged with its stack trace
      */
@@ -53,6 +61,8 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
     public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
         if (failure != null && ExceptionsHelper.isTaskCancelledException(failure)) {
             logger.debug(message, params);
+        } else if (failure != null && ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) != null) {
+            logger.warn(message, params);
         } else {
             logger.log(nonCancellationLevel, message, params);
         }

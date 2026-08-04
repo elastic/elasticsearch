@@ -9,11 +9,10 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.core.AbstractRefCounted;
-
-import org.elasticsearch.core.Releasable;
-
 import reactor.netty.resources.ConnectionProvider;
+
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
 
 import java.time.Duration;
 

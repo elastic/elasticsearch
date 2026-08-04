@@ -46,8 +46,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         "Generic query vector builder failure"
     );
 
-    boolean clustersConfigured = false;
-
     @Override
     protected boolean reuseClusters() {
         return true;
@@ -57,10 +55,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (clustersConfigured == false) {
-            configureClusters();
-            clustersConfigured = true;
-        }
+        configureClusters();
     }
 
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {

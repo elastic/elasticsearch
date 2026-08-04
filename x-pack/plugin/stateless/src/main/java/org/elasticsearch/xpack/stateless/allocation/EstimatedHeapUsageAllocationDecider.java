@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.RatioValue;
  * when the node's estimated heap usage exceeds the configured value. The decider as a whole can be disabled by
  * setting {@code cluster.routing.allocation.estimated_heap.threshold_enabled} to {@code false}.
  *
- * @see HostedShardsPartitionHeapAllocationDecider
  */
 public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAllocationDecider {
 

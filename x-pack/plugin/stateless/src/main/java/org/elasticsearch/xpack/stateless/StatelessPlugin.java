@@ -139,7 +139,6 @@ import org.elasticsearch.xpack.stateless.allocation.AbstractEstimatedHeapAllocat
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
-import org.elasticsearch.xpack.stateless.allocation.HostedShardsPartitionHeapAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
@@ -1339,10 +1338,6 @@ public class StatelessPlugin extends Plugin
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
             AbstractEstimatedHeapAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
-            HostedShardsPartitionHeapAllocationDecider.ENABLED_SETTING,
-            HostedShardsPartitionHeapAllocationDecider.LOW_WATERMARK_SETTING,
-            HostedShardsPartitionHeapAllocationDecider.HIGH_WATERMARK_SETTING,
-            HostedShardsPartitionHeapAllocationDecider.HIGH_WATERMARK_ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
@@ -2016,7 +2011,6 @@ public class StatelessPlugin extends Plugin
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
             new EstimatedHeapUsageAllocationDecider(clusterSettings),
-            new HostedShardsPartitionHeapAllocationDecider(clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );

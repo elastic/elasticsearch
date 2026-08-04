@@ -136,12 +136,12 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 
 
 `near_real_time` {applies_to}`stack: ga 9.5`
-:   (Optional, boolean) Controls whether approximate kNN search includes vectors from data that was indexed recently but not yet fully prepared for search.
-    When `true`, kNN search can include vectors from newly indexed data, even if {{es}} has not finished optimizing them yet.
-    When `false`, kNN search skips vectors that are not yet fully optimized. 
+:   (Optional, boolean) Controls whether approximate kNN search includes vectors from data that was indexed recently but not yet fully optimized for search.
     
-    Indexing runs faster on large vector workloads, but documents you just indexed may not appear in kNN results until preparation finishes.
-    Defaults to `true` for `standard` index mode and `false` for `vectordb_document`.
+    - When `true`, kNN search can include vectors from newly indexed data, even if {{es}} has not finished optimizing them yet.
+   -  When `false`, kNN search skips vectors that are not yet fully optimized. Indexing throughput is higher on large vector workloads, but newly indexed documents won't appear in kNN results immediately.
+    
+    Defaults to `true` for [`standard`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) index mode and `false` for [`vectordb_document`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
     Refer to [Near-real-time kNN](docs-content://solutions/search/vector/knn.md#near-real-time-knn) for an example of how to override the default behavior.
 
 

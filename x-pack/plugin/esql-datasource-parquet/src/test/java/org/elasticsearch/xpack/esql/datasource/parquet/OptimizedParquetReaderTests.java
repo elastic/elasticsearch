@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +61,9 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     @Before
     public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        // Every test here reads through the same in-memory path with different content, so the JVM-wide
+        // footer/tail caches must be reset between tests to avoid one test's bytes being served to another.
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
     public void testFormatUuidValidBytes() {
@@ -688,7 +692,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
             | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
         int footerStart = parquetData.length - 8 - footerLen;
-        java.util.Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);

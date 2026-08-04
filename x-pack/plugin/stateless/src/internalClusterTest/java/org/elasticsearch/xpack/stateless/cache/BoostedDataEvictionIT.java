@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -49,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static java.util.stream.IntStream.range;
@@ -237,7 +239,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // Stub absoluteTimeInMillis() on the spy thread pool so PinnedWindowEvictionPolicy sees a fixed "now",
         // making data timestamps independent of actual system time and fully reproducible.
         final var spyCachePlugin = findPlugin(searchNode, SpyCacheStatelessPlugin.class);
-        Mockito.doReturn(BOOST_WINDOW_END).when(spyCachePlugin.spyThreadPool).absoluteTimeInMillis();
+        spyCachePlugin.currentTimestamp.set(BOOST_WINDOW_END);
         // 12-hour pinned window: pinned data (< 6h old) is protected; unpinned data (> 14h old) is evictable. We use
         // these timestamps to leave some extra margins for both pinned and unpinned data so that they are not too close
         // to the time window boundaries which might lead to flaky tests.
@@ -624,7 +626,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
      */
     public static class SpyCacheStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        volatile ThreadPool spyThreadPool;
+        volatile AtomicLong currentTimestamp = new AtomicLong(0);
 
         public SpyCacheStatelessPlugin(Settings settings) {
             super(settings);
@@ -640,14 +642,18 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             IndicesService indicesService,
             PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            spyThreadPool = Mockito.spy(threadPool);
             final var real = new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
                 clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService, indicesService, spyThreadPool),
+                StatelessSharedBlobCacheService.createEvictionPolicy(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    TimeProviderUtils.create(currentTimestamp::get)
+                ),
                 System::nanoTime,
                 threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
                 metricHolder

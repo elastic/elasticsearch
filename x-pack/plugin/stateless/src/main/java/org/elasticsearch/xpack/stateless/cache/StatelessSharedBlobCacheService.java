@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
@@ -231,12 +232,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool
+        TimeProvider timeProvider
     ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         } else {
-            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         }
     }
 

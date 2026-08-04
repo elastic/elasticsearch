@@ -784,3 +784,6 @@ tests:
 - class: org.elasticsearch.gateway.GatewayServiceIT
   method: testSettingsAppliedBeforeReroute
   issue: https://github.com/elastic/elasticsearch/issues/155802
+- class: org.elasticsearch.compute.aggregation.HistogramMergeTDigestGroupingAggregatorFunctionTests
+  method: testManyInitialManyPartialFinal
+  issue: https://github.com/elastic/elasticsearch/issues/155818

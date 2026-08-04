@@ -18,7 +18,7 @@ import java.util.Objects;
 /// [#evaluate] is on the recovery dispatch path: it must be fast, non-blocking, and must not call back into recovery scheduling.
 public interface RecoveryGate {
 
-    /// Evaluates whether new recoveries may start now on this node.
+    /// Evaluates whether new recoveries may start now on this node. Must not throw: a throwing gate is ignored by the [RecoveryGateMonitor].
     Decision evaluate();
 
     enum Outcome {

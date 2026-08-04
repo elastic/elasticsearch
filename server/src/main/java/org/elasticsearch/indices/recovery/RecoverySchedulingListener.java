@@ -50,6 +50,7 @@ public interface RecoverySchedulingListener {
     /// [#onRecoveriesUnblocked].
     default void onRecoveriesBlocked(String gateName) {}
 
-    /// Called when this node stops holding recoveries back, reporting the gate that had been blocking and how long the block lasted (ms).
-    default void onRecoveriesUnblocked(String gateName, long blockedTimeMillis) {}
+    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate
+    /// that started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
+    default void onRecoveriesUnblocked(long blockedTimeMillis) {}
 }

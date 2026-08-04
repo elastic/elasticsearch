@@ -64,7 +64,7 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onRecoveriesUnblocked(String gateName, long blockedTimeMillis) {
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
         onRecoverySchedulingChange();
     }
 }

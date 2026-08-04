@@ -93,9 +93,9 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onRecoveriesUnblocked(String gateName, long blockedTimeMillis) {
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveriesUnblocked(gateName, blockedTimeMillis);
+            listener.onRecoveriesUnblocked(blockedTimeMillis);
         }
     }
 }

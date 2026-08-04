@@ -1161,7 +1161,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
 
         final var blockedGate = new AtomicReference<String>();
-        final var unblockedGate = new AtomicReference<String>();
         final var blockedCount = new AtomicInteger();
         final var unblockedCount = new AtomicInteger();
         final var reportedBlockedMillis = new AtomicLong(-1);
@@ -1173,8 +1172,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveriesUnblocked(String gateName, long blockedTimeMillis) {
-                unblockedGate.set(gateName);
+            public void onRecoveriesUnblocked(long blockedTimeMillis) {
                 unblockedCount.incrementAndGet();
                 reportedBlockedMillis.set(blockedTimeMillis);
             }
@@ -1224,14 +1222,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         assertThat(started.get(), equalTo(count));
         assertThat(unblockedCount.get(), equalTo(1));
-        assertThat(unblockedGate.get(), equalTo(gateName));
         assertThat(reportedBlockedMillis.get(), equalTo(taskQueue.getCurrentTimeMillis() - blockedSince));
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
     }
 
     /// Hammers the service from multiple real threads while the gate flaps, to catch races between dispatch, the monitor's
-    /// transitions, and the recheck listener: a missed wake-up leaves recoveries queued (failing the assertBusy below) and a
-    /// deadlock hangs the test. Unlike the deterministic tests above, this uses a real thread pool.
+    /// evaluations, and the resume callback: a missed wake-up leaves recoveries queued (the latch below never opens) and a deadlock
+    /// hangs the test. Unlike the deterministic tests above, this uses a real thread pool.
     public void testConcurrentEnqueuesWithFlappingGateEventuallyDispatchEverything() throws Exception {
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
         final RecoveryGate gate = gateDecision::get;
@@ -1254,7 +1251,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
         final Random flapperRandom = new Random(randomLong());
 
-        final var started = new AtomicInteger();
+        final var allCompleted = new CountDownLatch(totalRecoveries);
         final var enqueued = new AtomicInteger();
         startInParallel(enqueueThreads + 1, threadIndex -> {
             if (threadIndex == 0) {
@@ -1263,26 +1260,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     gateDecision.set(
                         flapperRandom.nextBoolean() ? RecoveryGate.Decision.RUN : RecoveryGate.Decision.block("flapper", "concurrency test")
                     );
-                    Thread.onSpinWait();
+                    Thread.yield();
                 }
                 gateDecision.set(RecoveryGate.Decision.RUN);
             } else {
                 for (int i = 0; i < recoveriesPerThread; i++) {
                     final RecoveryState recoveryState = recoveryStates.get((threadIndex - 1) * recoveriesPerThread + i);
                     service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, recoveryState, UUIDs.randomBase64UUID(), stats, l -> {
-                        started.incrementAndGet();
                         l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                        allCompleted.countDown();
                     });
                     enqueued.incrementAndGet();
                 }
             }
         });
 
-        // Whatever interleaving happened, once the gate settles on RUN every recovery must dispatch
-        assertBusy(() -> {
-            assertThat(started.get(), equalTo(totalRecoveries));
-            assertThat(service.currentQueueSize(), equalTo(0));
-        });
+        // Whatever interleaving happened, once the gate settles on RUN every recovery must dispatch and complete.
+        safeAwait(allCompleted);
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {

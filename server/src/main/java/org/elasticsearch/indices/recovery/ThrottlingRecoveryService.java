@@ -300,23 +300,21 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// release, and again by [#onRecoveriesUnblocked] once the gates allow recoveries after a block.
     private void fillSlots() {
         final RecoveryGate.Decision decision = recoveryGateMonitor.evaluate();
+        if (decision.mayRun() == false) {
+            onRecoveriesBlocked(decision);
+            return;
+        }
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (isClosed()) {
                 return;
             }
-            if (decision.mayRun()) {
-                while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
-                    final PendingRecovery recovery = pendingRecoveries.poll();
-                    recoveriesToDispatch.add(recovery);
-                    runningRecoveries++;
-                    recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
-                }
+            while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
+                final PendingRecovery recovery = pendingRecoveries.poll();
+                recoveriesToDispatch.add(recovery);
+                runningRecoveries++;
+                recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
-        }
-        if (decision.mayRun() == false) {
-            onRecoveriesBlocked(decision);
-            return;
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryListener wrapped = wrapListenerForExecution(recovery.listener, recovery);
@@ -329,15 +327,18 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     /// Handles a blocked decision observed by [#fillSlots]: a transition into blocked state reports the block and registers a
-    /// listener that resumes dispatch once the gates allow recoveries again.
+    /// callback that resumes dispatch once the gates allow recoveries again.
     private void onRecoveriesBlocked(RecoveryGate.Decision decision) {
         assert decision.mayRun() == false;
+        if (isClosed()) {
+            return;
+        }
         if (blockedState.compareAndSet(null, new BlockedState(decision.gateName(), threadPool.relativeTimeInMillis()))) {
             logger.info("recovery dispatch blocked by gate [{}]: {}", decision.gateName(), decision.reason());
             try {
                 schedulingListener.onRecoveriesBlocked(decision.gateName());
             } finally {
-                recoveryGateMonitor.addListener(RecoveryGate.Outcome.RUN, "fill-slots", this::onRecoveriesUnblocked);
+                recoveryGateMonitor.addCallback(RecoveryGate.Outcome.RUN, this::onRecoveriesUnblocked);
             }
         } else {
             logger.debug("recovery dispatch still blocked by gate [{}]: {}", decision.gateName(), decision.reason());
@@ -346,12 +347,19 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// Fired by the [RecoveryGateMonitor] once the gates allow recoveries again: reports how long dispatch was held and resumes it.
     private void onRecoveriesUnblocked() {
+        if (isClosed()) {
+            return;
+        }
         final BlockedState state = blockedState.getAndSet(null);
-        assert state != null : "resume listener fired without a recorded block";
+        assert state != null : "resume callback fired without a recorded block";
         try {
             final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceMillis();
-            logger.info("resuming recoveries held for [{}] by gate [{}]", TimeValue.timeValueMillis(blockedTimeMillis), state.gateName());
-            schedulingListener.onRecoveriesUnblocked(state.gateName(), blockedTimeMillis);
+            logger.info(
+                "resuming recoveries held for [{}] (initially blocked by gate [{}])",
+                TimeValue.timeValueMillis(blockedTimeMillis),
+                state.gateName()
+            );
+            schedulingListener.onRecoveriesUnblocked(blockedTimeMillis);
         } finally {
             fillSlots();
         }

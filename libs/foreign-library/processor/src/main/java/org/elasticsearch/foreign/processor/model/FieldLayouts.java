@@ -15,53 +15,63 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Layout arithmetic derived purely from a field's shape (a 64-bit ABI): its byte size and natural
- * alignment, the {@code ValueLayout}/sequence layout it contributes, and — given each field's
- * resolved absolute offset — the whole {@code MemoryLayout.structLayout(...)}. Kept off
- * {@link StructFieldModel} so that type stays plain shape data.
+ * Builds a struct's {@link MemoryLayout} from its field shapes plus resolved placement — a dense
+ * layout (fields laid out sequentially with explicit or natural-alignment padding) or a sparse layout
+ * (fields at absolute offsets). Each field's size and alignment come from its own member layout
+ * ({@link #memberLayout}), so they are never computed here.
  */
 final class FieldLayouts {
 
     private FieldLayouts() {}
 
-    /** Total size in bytes a field occupies in the struct layout. */
-    static long byteSize(StructFieldModel field) {
-        return switch (field) {
-            case ScalarFieldModel scalar -> scalar.type().byteSize();
-            case ArrayFieldModel array -> array.type().byteSize();
-            case InlineArrayFieldModel inlineArray -> (long) inlineArray.length() * inlineArray.elementType().byteSize();
-            case InlineStringFieldModel inlineString -> inlineString.length();
-        };
-    }
-
-    /** Natural alignment of a field, used to place it in dense mode. */
-    static long alignment(StructFieldModel field) {
-        return switch (field) {
-            case ScalarFieldModel scalar -> scalar.type().byteSize();
-            case ArrayFieldModel array -> array.type().byteSize();
-            case InlineArrayFieldModel inlineArray -> inlineArray.elementType().byteSize();
-            case InlineStringFieldModel ignored -> 1;
-        };
-    }
-
     /**
-     * Builds the struct's {@link MemoryLayout} for one platform: each field's named value/sequence
-     * layout at its resolved absolute offset, {@code paddingLayout} for the gaps between fields, and a
-     * trailing {@code paddingLayout} when {@code totalByteSize} exceeds the end of the last field.
+     * Builds a dense struct layout: fields laid out in order, each preceded by its explicit
+     * {@code @Padding} gap or, when that is {@code null}, by the natural-alignment gap derived from
+     * the field's own member layout. There is no trailing padding — the total size is the end of the
+     * last field.
      *
-     * @param offsets absolute byte offsets, index-aligned with {@code fields}
+     * @param paddingBefore explicit padding per field (index-aligned with {@code fields}); a
+     *        {@code null} entry means "align this field naturally"
      */
-    static MemoryLayout structLayout(List<StructFieldModel> fields, List<Long> offsets, long totalByteSize) {
+    static MemoryLayout denseStructLayout(List<StructFieldModel> fields, List<Long> paddingBefore) {
         List<MemoryLayout> members = new ArrayList<>();
         long cursor = 0;
         for (int i = 0; i < fields.size(); i++) {
             StructFieldModel field = fields.get(i);
-            long offset = offsets.get(i);
-            if (offset > cursor) {
-                members.add(MemoryLayout.paddingLayout(offset - cursor));
+            MemoryLayout member = memberLayout(field);
+            Long explicit = paddingBefore.get(i);
+            long pad = explicit != null ? explicit : naturalPadding(cursor, member.byteAlignment());
+            if (pad > 0) {
+                members.add(MemoryLayout.paddingLayout(pad));
+                cursor += pad;
             }
-            members.add(memberLayout(field).withName(field.name()));
-            cursor = offset + byteSize(field);
+            members.add(member.withName(field.name()));
+            cursor += member.byteSize();
+        }
+        return MemoryLayout.structLayout(members.toArray(MemoryLayout[]::new));
+    }
+
+    /**
+     * Builds a sparse struct layout: each field placed at its absolute {@code offset}, with the gap
+     * before it and any trailing padding derived from a running total of the member layouts added so
+     * far. The members carry their own sizes, so none are computed here.
+     *
+     * @param offsets absolute byte offsets, index-aligned with {@code fields}
+     * @param totalByteSize the struct's total size (its resolved {@code @StructSize})
+     */
+    static MemoryLayout sparseStructLayout(List<StructFieldModel> fields, List<Long> offsets, long totalByteSize) {
+        List<MemoryLayout> members = new ArrayList<>();
+        long cursor = 0;
+        for (int i = 0; i < fields.size(); i++) {
+            StructFieldModel field = fields.get(i);
+            long gap = offsets.get(i) - cursor;
+            if (gap > 0) {
+                members.add(MemoryLayout.paddingLayout(gap));
+                cursor += gap;
+            }
+            MemoryLayout member = memberLayout(field).withName(field.name());
+            members.add(member);
+            cursor += member.byteSize();
         }
         if (totalByteSize > cursor) {
             members.add(MemoryLayout.paddingLayout(totalByteSize - cursor));
@@ -69,8 +79,16 @@ final class FieldLayouts {
         return MemoryLayout.structLayout(members.toArray(MemoryLayout[]::new));
     }
 
-    /** The (unnamed) value or sequence layout a field contributes to the struct layout. */
-    private static MemoryLayout memberLayout(StructFieldModel field) {
+    private static long naturalPadding(long cursor, long alignment) {
+        return cursor % alignment == 0 ? 0 : alignment - cursor % alignment;
+    }
+
+    /**
+     * The (unnamed) value or sequence layout a field contributes to the struct layout. Its
+     * {@code byteSize()} and {@code byteAlignment()} are the field's size and natural alignment, so
+     * callers read those from the returned layout rather than computing them.
+     */
+    static MemoryLayout memberLayout(StructFieldModel field) {
         return switch (field) {
             case ScalarFieldModel scalar -> valueLayout(scalar.type());
             case ArrayFieldModel array -> valueLayout(array.type());
@@ -92,8 +110,8 @@ final class FieldLayouts {
             case FLOAT -> ValueLayout.JAVA_FLOAT;
             case DOUBLE -> ValueLayout.JAVA_DOUBLE;
             case ADDRESS -> ValueLayout.ADDRESS;
-            // Marshaling-only types, not struct-field layout types (the parser rejects them as fields
-            // before layout, so this is unreachable). Mirrors NativeType#byteSize.
+            // Marshaling-only types, not struct-field layout types; the parser rejects them as fields
+            // before layout, so this is unreachable.
             case VOID, STRING, ADDRESSABLE -> throw new AssertionError(type + " is not a struct field layout type");
         };
     }

@@ -123,7 +123,7 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ true, isSparse);
     }
 
     /**
@@ -261,25 +261,27 @@ class StructSpecParser {
         if (error) {
             return null;
         }
-        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false);
+        return buildStructModel(typeSimpleName, layout, byteSizes, supportedPlatforms, /* isRecord */ false, isSparse);
     }
 
     // --- Layout accumulation ---
 
     /**
-     * Accumulates the field shapes (identical across platforms, recorded once) and each field's
-     * resolved absolute offset per platform (parallel to the field list) while fields are placed.
+     * Accumulates the field shapes (recorded once, identical across platforms) and, per platform, the
+     * value each field contributes to layout building: its absolute {@code @Offset} in sparse mode, or
+     * its explicit {@code @Padding}-before ({@code null} = align naturally) in dense mode. The
+     * per-platform running end is tracked only for sparse offset validation.
      */
     private static final class LayoutBuilder {
         private final List<StructFieldModel> fields = new ArrayList<>();
-        private final Map<String, List<Long>> offsets = new LinkedHashMap<>();
+        private final Map<String, List<Long>> values = new LinkedHashMap<>();
         private final Map<String, Long> cursor = new LinkedHashMap<>();
         private final Set<String> seenNames = new LinkedHashSet<>();
 
         LayoutBuilder(Set<String> platforms) {
             for (String p : platforms) {
                 cursor.put(p, 0L);
-                offsets.put(p, new ArrayList<>());
+                values.put(p, new ArrayList<>());
             }
         }
 
@@ -295,15 +297,18 @@ class StructSpecParser {
             return cursor.get(platform);
         }
 
+        void advanceCursor(String platform, long newCursor) {
+            cursor.put(platform, newCursor);
+        }
+
         /** Records a field's shape once (shared across platforms). */
         void addField(StructFieldModel field) {
             fields.add(field);
         }
 
-        /** Records the just-added field's resolved offset on one platform and advances that cursor. */
-        void placeOffset(String platform, long offset, long newCursor) {
-            offsets.get(platform).add(offset);
-            cursor.put(platform, newCursor);
+        /** Appends a field's per-platform layout value (sparse offset, or dense padding / {@code null}). */
+        void addValue(String platform, Long value) {
+            values.get(platform).add(value);
         }
 
         /** Field shapes in declaration order — identical across platforms. */
@@ -311,17 +316,18 @@ class StructSpecParser {
             return fields;
         }
 
-        /** Absolute offsets for one platform, index-aligned with {@link #fields()}. */
-        List<Long> offsetsFor(String platform) {
-            return offsets.get(platform);
+        /** Per-field layout values for one platform, index-aligned with {@link #fields()}. */
+        List<Long> valuesFor(String platform) {
+            return values.get(platform);
         }
     }
 
     /**
-     * Places a field on every platform: records its shape once and resolves its absolute offset per
-     * platform. Validates the field's layout annotations against the struct mode (dense vs sparse)
-     * and, for sparse, that the offset does not overlap the previous field. Returns {@code true} if
-     * any error was emitted.
+     * Places a field on every platform: records its shape once and the per-platform value the layout
+     * builder needs. In sparse mode that is the absolute {@code @Offset} (also validating it does not
+     * overlap the previous field); in dense mode it is the explicit {@code @Padding}-before, or
+     * {@code null} to let the dense builder apply natural alignment. Returns {@code true} if any error
+     * was emitted.
      */
     private static boolean placeNewField(
         LayoutBuilder layout,
@@ -335,11 +341,11 @@ class StructSpecParser {
         Messager messager
     ) {
         String name = field.name();
-        long size = FieldLayouts.byteSize(field);
         boolean error = false;
         layout.addField(field);
 
         if (isSparse) {
+            long size = FieldLayouts.memberLayout(field).byteSize();
             if (paddingMirrors.isEmpty() == false) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -364,7 +370,8 @@ class StructSpecParser {
                 // cursor so later fields still validate, but report the failure.
                 for (String p : supportedPlatforms) {
                     long cursor = layout.cursor(p);
-                    layout.placeOffset(p, cursor, cursor + size);
+                    layout.addValue(p, cursor);
+                    layout.advanceCursor(p, cursor + size);
                 }
                 return true;
             }
@@ -386,7 +393,8 @@ class StructSpecParser {
                     );
                     error = true;
                 }
-                layout.placeOffset(p, offset, offset + size);
+                layout.addValue(p, offset);
+                layout.advanceCursor(p, offset + size);
             }
         } else {
             if (offsetMirrors.isEmpty() == false) {
@@ -407,17 +415,10 @@ class StructSpecParser {
             if (paddings == null && paddingMirrors.isEmpty() == false) {
                 error = true; // resolution error already reported
             }
-            long align = FieldLayouts.alignment(field);
+            // Record the explicit @Padding per platform, or null so the dense layout builder applies
+            // natural alignment.
             for (String p : supportedPlatforms) {
-                long cursor = layout.cursor(p);
-                long pad;
-                if (paddings != null) {
-                    pad = paddings.get(p);
-                } else {
-                    pad = (cursor % align == 0) ? 0 : (align - cursor % align);
-                }
-                long offset = cursor + pad;
-                layout.placeOffset(p, offset, offset + size);
+                layout.addValue(p, paddings == null ? null : (long) paddings.get(p));
             }
         }
 
@@ -425,9 +426,10 @@ class StructSpecParser {
     }
 
     /**
-     * Resolves the total byte size for each platform: the running cursor in dense mode, or the
-     * resolved {@code @StructSize} in sparse mode (also validating it is not smaller than the struct's
-     * content). Returns {@code null} if any error was emitted.
+     * Resolves the total struct size per platform in sparse mode: the resolved {@code @StructSize},
+     * validated to be no smaller than the struct's content (the running end tracked during placement).
+     * Dense structs carry no explicit size — the dense layout builder derives it — so this returns an
+     * empty map. Returns {@code null} if any error was emitted.
      */
     private static Map<String, Long> resolveByteSizes(
         LayoutBuilder layout,
@@ -438,12 +440,8 @@ class StructSpecParser {
         Element reportElement,
         Messager messager
     ) {
-        Map<String, Long> byteSizes = new LinkedHashMap<>();
         if (isSparse == false) {
-            for (String p : supportedPlatforms) {
-                byteSizes.put(p, layout.cursor(p));
-            }
-            return byteSizes;
+            return Map.of();
         }
         if (structSizeMirrors.isEmpty()) {
             // Missing @StructSize already reported by validateModeStructSize.
@@ -454,13 +452,14 @@ class StructSpecParser {
             return null;
         }
         boolean error = false;
+        Map<String, Long> byteSizes = new LinkedHashMap<>();
         for (String p : supportedPlatforms) {
             long total = sizes.get(p);
-            long cursor = layout.cursor(p);
-            if (total < cursor) {
+            long end = layout.cursor(p);
+            if (total < end) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@StructSize " + total + " in '" + typeSimpleName + "' is smaller than the end of the last field at " + cursor,
+                    "@StructSize " + total + " in '" + typeSimpleName + "' is smaller than the end of the last field at " + end,
                     reportElement
                 );
                 error = true;
@@ -472,21 +471,25 @@ class StructSpecParser {
 
     /**
      * Builds one {@link MemoryLayout} per platform from the shared field shapes and that platform's
-     * resolved offsets, then collapses platforms with an identical layout into a single
-     * {@link StructLayoutModel}. Groups (and the platforms within them) come out in {@code Platform}
-     * ordinal order because {@code supportedPlatforms} is iterated in that order.
+     * resolved values (offsets for sparse, paddings for dense), then collapses platforms with an
+     * identical layout into a single {@link StructLayoutModel}. Groups (and the platforms within them)
+     * come out in {@code Platform} ordinal order because {@code supportedPlatforms} is iterated in
+     * that order.
      */
     private static StructModel buildStructModel(
         String typeSimpleName,
         LayoutBuilder layout,
         Map<String, Long> byteSizes,
         Set<String> supportedPlatforms,
-        boolean isRecord
+        boolean isRecord,
+        boolean isSparse
     ) {
         List<StructFieldModel> fields = List.copyOf(layout.fields());
         Map<MemoryLayout, List<String>> platformsByLayout = new LinkedHashMap<>();
         for (String p : supportedPlatforms) {
-            MemoryLayout memoryLayout = FieldLayouts.structLayout(fields, layout.offsetsFor(p), byteSizes.get(p));
+            MemoryLayout memoryLayout = isSparse
+                ? FieldLayouts.sparseStructLayout(fields, layout.valuesFor(p), byteSizes.get(p))
+                : FieldLayouts.denseStructLayout(fields, layout.valuesFor(p));
             platformsByLayout.computeIfAbsent(memoryLayout, k -> new ArrayList<>()).add(p);
         }
         List<StructLayoutModel> layouts = new ArrayList<>();

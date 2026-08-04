@@ -23,7 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -637,7 +637,8 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             spyThreadPool = Mockito.spy(threadPool);
             final var real = new StatelessSharedBlobCacheService(
@@ -649,7 +650,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
                 StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService, indicesService, spyThreadPool),
                 System::nanoTime,
                 threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                metricHolder
             );
             final StatelessSharedBlobCacheService spy = Mockito.spy(real);
             // Mockito copies the real service's fields into the spy rather than delegating to it. Reference fields such as the LFU

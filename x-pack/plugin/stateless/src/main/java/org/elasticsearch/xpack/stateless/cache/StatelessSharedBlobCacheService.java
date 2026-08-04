@@ -223,6 +223,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
             enabled -> this.demoteClosedShardRegionsEnabled = enabled
         );
+        assert this.rangeSize >= this.regionSize : this.rangeSize + " < " + this.regionSize;
     }
 
     // package private for testing
@@ -322,10 +323,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean hasSearchRole() {
         return hasSearchRole;
-    }
-
-    public void assertInvariants() {
-        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
     }
 
     public Executor getShardReadThreadPoolExecutor() {

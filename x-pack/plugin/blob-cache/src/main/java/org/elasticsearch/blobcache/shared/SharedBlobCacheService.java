@@ -394,8 +394,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private final SharedBytes sharedBytes;
     private final long cacheSize;
-    private final int regionSize;
-    private final int rangeSize;
+    protected final int regionSize;
+    protected final int rangeSize;
     private final int recoveryRangeSize;
 
     protected final int numRegions;

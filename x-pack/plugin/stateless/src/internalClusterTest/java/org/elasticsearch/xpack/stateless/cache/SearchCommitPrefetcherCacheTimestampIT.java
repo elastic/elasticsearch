@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -177,9 +178,17 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, clusterService.getClusterSettings(), threadPool, blobCacheMetrics);
+            return new CapturingCacheService(
+                nodeEnvironment,
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool,
+                blobCacheMetrics,
+                metricHolder
+            );
         }
     }
 
@@ -192,9 +201,18 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             Settings settings,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            this(environment, settings, clusterSettings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+            this(
+                environment,
+                settings,
+                clusterSettings,
+                threadPool,
+                blobCacheMetrics,
+                metricHolder,
+                new TimestampCapturingEvictionPolicy()
+            );
         }
 
         private CapturingCacheService(
@@ -203,6 +221,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
             super(

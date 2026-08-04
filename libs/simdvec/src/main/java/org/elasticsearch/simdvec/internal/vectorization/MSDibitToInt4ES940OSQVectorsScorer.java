@@ -9,7 +9,6 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import jdk.incubator.vector.ByteVector;
-import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorOperators;
@@ -17,16 +16,12 @@ import jdk.incubator.vector.VectorOperators;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
-
-import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
-import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
@@ -249,7 +244,9 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
                     similarityFunction,
                     centroidDp,
                     scores,
-                    bulkSize
+                    bulkSize,
+                    FOUR_BIT_SCALE,
+                    TWO_BIT_SCALE
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 quantizeScore128Bulk(q, bulkSize, scores);
@@ -261,245 +258,13 @@ final class MSDibitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVect
                     similarityFunction,
                     centroidDp,
                     scores,
-                    bulkSize
+                    bulkSize,
+                    FOUR_BIT_SCALE,
+                    TWO_BIT_SCALE
                 );
             }
         }
         return Float.NEGATIVE_INFINITY;
     }
 
-    private float applyCorrections128Bulk(
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores,
-        int bulkSize
-    ) throws IOException {
-        return IndexInputUtils.withSlice(
-            in,
-            16L * bulkSize,
-            scratch::get,
-            memorySegment -> applyCorrections128BulkImpl(
-                memorySegment,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum
-            )
-        );
-    }
-
-    private float applyCorrections128BulkImpl(
-        MemorySegment memorySegment,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores,
-        int bulkSize,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum
-    ) {
-        int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
-        int i = 0;
-        float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
-        float y1 = queryComponentSum;
-        float maxScore = Float.NEGATIVE_INFINITY;
-        for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_128,
-                memorySegment,
-                4L * bulkSize + (long) i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).sub(ax).mul(TWO_BIT_SCALE);
-            var targetComponentSums = IntVector.fromMemorySegment(
-                INT_SPECIES_128,
-                memorySegment,
-                8L * bulkSize + (long) i * Integer.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.I2F, 0);
-            var additionalCorrections = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_128,
-                memorySegment,
-                12L * bulkSize + (long) i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            );
-            var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
-            // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly *
-            // qcDist;
-            var res1 = ax.mul(ay).mul(dimensions);
-            var res2 = lx.mul(ay).mul(targetComponentSums);
-            var res3 = ax.mul(ly).mul(y1);
-            var res4 = lx.mul(ly).mul(qcDist);
-            var res = res1.add(res2).add(res3).add(res4);
-            // For euclidean, we need to invert the score and apply the additional correction, which is
-            // assumed to be the squared l2norm of the centroid centered vectors.
-            if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
-                maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                res.intoArray(scores, i);
-            } else {
-                // For cosine and max inner product, we need to apply the additional correction, which is
-                // assumed to be the non-centered dot-product between the vector and the centroid
-                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                    res.intoArray(scores, i);
-                    // not sure how to do it better
-                    for (int j = 0; j < FLOAT_SPECIES_128.length(); j++) {
-                        scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
-                        maxScore = Math.max(maxScore, scores[i + j]);
-                    }
-                } else {
-                    res = res.add(1f).mul(0.5f).max(0);
-                    res.intoArray(scores, i);
-                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                }
-            }
-        }
-        if (limit < bulkSize) {
-            maxScore = applyCorrectionsIndividually(
-                memorySegment,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                TWO_BIT_SCALE,
-                scores,
-                bulkSize,
-                limit,
-                ay,
-                ly,
-                y1,
-                maxScore
-            );
-        }
-        return maxScore;
-    }
-
-    private float applyCorrections256Bulk(
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores,
-        int bulkSize
-    ) throws IOException {
-        return IndexInputUtils.withSlice(
-            in,
-            16L * bulkSize,
-            scratch::get,
-            memorySegment -> applyCorrections256BulkImpl(
-                memorySegment,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum
-            )
-        );
-    }
-
-    private float applyCorrections256BulkImpl(
-        MemorySegment memorySegment,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        float[] scores,
-        int bulkSize,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum
-    ) {
-        int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
-        int i = 0;
-        float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
-        float y1 = queryComponentSum;
-        float maxScore = Float.NEGATIVE_INFINITY;
-        for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_256,
-                memorySegment,
-                4L * bulkSize + (long) i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).sub(ax).mul(TWO_BIT_SCALE);
-            var targetComponentSums = IntVector.fromMemorySegment(
-                INT_SPECIES_256,
-                memorySegment,
-                8L * bulkSize + (long) i * Integer.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            ).convert(VectorOperators.I2F, 0);
-            var additionalCorrections = FloatVector.fromMemorySegment(
-                FLOAT_SPECIES_256,
-                memorySegment,
-                12L * bulkSize + (long) i * Float.BYTES,
-                ByteOrder.LITTLE_ENDIAN
-            );
-            var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
-            // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly *
-            // qcDist;
-            var res1 = ax.mul(ay).mul(dimensions);
-            var res2 = lx.mul(ay).mul(targetComponentSums);
-            var res3 = ax.mul(ly).mul(y1);
-            var res4 = lx.mul(ly).mul(qcDist);
-            var res = res1.add(res2).add(res3).add(res4);
-            // For euclidean, we need to invert the score and apply the additional correction, which is
-            // assumed to be the squared l2norm of the centroid centered vectors.
-            if (similarityFunction == EUCLIDEAN) {
-                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
-                maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                res.intoArray(scores, i);
-            } else {
-                // For cosine and max inner product, we need to apply the additional correction, which is
-                // assumed to be the non-centered dot-product between the vector and the centroid
-                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                    res.intoArray(scores, i);
-                    // not sure how to do it better
-                    for (int j = 0; j < FLOAT_SPECIES_256.length(); j++) {
-                        scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
-                        maxScore = Math.max(maxScore, scores[i + j]);
-                    }
-                } else {
-                    res = res.add(1f).mul(0.5f).max(0);
-                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                    res.intoArray(scores, i);
-                }
-            }
-        }
-        if (limit < bulkSize) {
-            // missing vectors to score
-            maxScore = applyCorrectionsIndividually(
-                memorySegment,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                TWO_BIT_SCALE,
-                scores,
-                bulkSize,
-                limit,
-                ay,
-                ly,
-                y1,
-                maxScore
-            );
-        }
-        return maxScore;
-    }
 }

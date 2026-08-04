@@ -738,6 +738,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 indexingMemoryController
             );
         }
+        indexService.getIndexSettings().warnIfMergeSchedulerMaxThreadCountClamped();
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {

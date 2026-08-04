@@ -1,5 +1,0 @@
-area: Recovery
-issues: []
-pr: 155091
-summary: Add blobs warmed count metric with warming ratio labels
-type: enhancement

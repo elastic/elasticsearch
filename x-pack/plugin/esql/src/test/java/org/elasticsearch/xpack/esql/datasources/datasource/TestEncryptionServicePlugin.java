@@ -11,7 +11,6 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.util.Collection;
 import java.util.List;
@@ -39,7 +38,7 @@ public class TestEncryptionServicePlugin extends Plugin {
                 return encryptedData.payload();
             }
         };
-        EncryptionServiceRegistry.setEncryptionService(svc);
+        services.sharedComponents().register(EncryptionService.class, svc);
         return List.of(new PluginComponentBinding<>(EncryptionService.class, svc));
     }
 }

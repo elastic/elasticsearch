@@ -139,7 +139,7 @@ public final class GroupingAggregatorPageBuilder {
     ) {
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
         PreparedForEvaluation prepared = new PreparedForEvaluation(ctx, ALL_KEYS);
-        Page[] result = new Page[partitionCount];
+        List<Page> result = new ArrayList<>();
         boolean success = false;
         try {
             IntVector allOrdinals = prepared.selected.keys;
@@ -147,26 +147,18 @@ public final class GroupingAggregatorPageBuilder {
             BlockFactory bf = ctx.blockFactory();
             for (int p = 0; p < partitionCount; p++) {
                 int start = layout.offsets[p], end = layout.offsets[p + 1];
-                if (start == end) {
-                    continue;
+                for (int chunkStart = start; chunkStart < end; chunkStart += maxPageSize) {
+                    int chunkCount = Math.min(maxPageSize, end - chunkStart);
+                    result.add(prepared.buildPageForPartition(aggBlockCounts, allOrdinals, layout.sorted, chunkStart, chunkCount, p, bf));
                 }
-                result[p] = prepared.buildPageForPartition(aggBlockCounts, allOrdinals, layout.sorted, start, end - start, p, bf);
             }
             success = true;
-            List<Page> pages = new ArrayList<>();
-            for (Page page : result) {
-                if (page != null) {
-                    pages.add(page);
-                }
-            }
-            return new PartitionedPageIterator(pages);
+            return new PartitionedPageIterator(result);
         } finally {
             prepared.close();
             if (success == false) {
                 for (Page page : result) {
-                    if (page != null) {
-                        page.releaseBlocks();
-                    }
+                    page.releaseBlocks();
                 }
             }
         }

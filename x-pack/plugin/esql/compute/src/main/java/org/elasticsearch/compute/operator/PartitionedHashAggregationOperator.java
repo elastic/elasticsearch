@@ -260,7 +260,7 @@ public class PartitionedHashAggregationOperator extends HashAggregationOperator 
             int numKeys = blockHash.numKeys();
             if (numKeys > 0) {
                 usePartitioning |= numKeys >= partitionThreshold;
-                var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, Integer.MAX_VALUE, this::customizeSelected);
+                var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, maxPageSize, this::customizeSelected);
                 var groupingAggEvaluationContext = new GroupingAggregatorEvaluationContext(driverContext);
                 if (usePartitioning) {
                     IntUnaryOperator partitioner = blockHash.partitioner(partitionCount);

@@ -646,8 +646,9 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     """
                         \\_LuceneSourceOperator[sourceStatus]
                         \\_ValuesSourceReaderOperator[fields = [pause_me, foo]]
-                        \\_HashAggregationOperator[mode = <not-needed>, aggs = max of longs]
-                        \\_ExchangeSinkOperator""".replace("sourceStatus", sourceStatus)
+                        \\_PartitionedHashAggregationOperator[partitionCount=8, emitKeysThreshold=400000, partitionThreshold=10000, aggs=max of longs]
+                        \\_ExchangeSinkOperator"""
+                        .replace("sourceStatus", sourceStatus)
 
                 )
             );

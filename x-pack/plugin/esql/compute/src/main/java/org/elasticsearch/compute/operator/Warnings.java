@@ -14,13 +14,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Utilities to collect warnings for running an executor.
- * <p>
- *     Registered warnings are written into the owning {@link DriverContext}'s per-driver sink rather than
- *     directly to the ambient {@link org.elasticsearch.common.logging.HeaderWarning} ThreadContext. The sink is
- *     snapshotted at {@link DriverContext#finish()}, shipped back with {@link DriverCompletionInfo}, and consumed
- *     once at the response chokepoint. This makes warning propagation independent of which worker thread a
- *     {@link Driver#schedule} re-submission happens to run on.
- * </p>
  */
 public class Warnings {
     static final int MAX_ADDED_WARNINGS = 20;

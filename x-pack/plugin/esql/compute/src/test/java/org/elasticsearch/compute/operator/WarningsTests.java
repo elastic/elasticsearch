@@ -18,9 +18,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
 /**
- * Warnings are written into the owning {@link DriverContext}'s per-driver sink and snapshotted at
- * {@link DriverContext#finish()}; these tests assert against that snapshot rather than the ambient
- * response headers, matching how warnings are actually propagated.
+ * Tests for {@link Warnings} and their collection into a {@link DriverContext}.
  */
 public class WarningsTests extends ESTestCase {
     public void testRegisterCollect() {

@@ -37,14 +37,6 @@ import static org.hamcrest.Matchers.stringContainsInOrder;
 /**
  * Regression test guarding against ESQL response warnings going missing when a {@link Driver}
  * hops between worker threads mid-execution.
- * <p>
- *     Warnings registered via {@link Warnings} are written into the per-driver
- *     {@link DriverContext#warnings() sink} rather than the ambient {@link ThreadContext}, so they are
- *     unaffected by which worker thread a {@link Driver#schedule} re-submission happens to run on. These
- *     tests deliberately force the driver to hop between distinct, never-shared executors between
- *     iterations and assert that every registered warning is still present in the driver's snapshotted
- *     sink once the driver completes.
- * </p>
  */
 public class DriverThreadContextWarningLossTests extends ESTestCase {
 

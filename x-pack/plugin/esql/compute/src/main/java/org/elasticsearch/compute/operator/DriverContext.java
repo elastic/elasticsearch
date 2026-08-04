@@ -60,14 +60,8 @@ public class DriverContext {
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
-     * Per-driver sink of fully-formatted warning strings, ready to hand to
-     * {@link org.elasticsearch.common.logging.HeaderWarning#addWarning} at the single response chokepoint.
-     * Accumulated by {@link Warnings} (and other compute-time warning producers) during the driver run and
-     * snapshotted at {@link #finish()} into {@link #warningsSnapshot}, mirroring the releasables/async-actions
-     * pattern. This replaces the old ambient {@code HeaderWarning.addWarning} write on whatever worker thread
-     * happened to be running, which lost warnings across {@link Driver#schedule} re-submissions. The list is
-     * synchronized because forked producer threads (e.g. external-source readers) may also contribute before
-     * their async action completes, which always happens-before {@link #finish()}.
+     * {@link Warnings} accumulated during the driver run and snapshotted at {@link #finish()}
+     * into {@link #warningsSnapshot}.
      */
     private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
 

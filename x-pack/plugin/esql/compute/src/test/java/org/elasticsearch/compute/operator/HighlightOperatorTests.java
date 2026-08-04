@@ -18,6 +18,7 @@ import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -372,6 +373,20 @@ public class HighlightOperatorTests extends OperatorTestCase {
         try {
             assertThat(value(result, 0), equalTo("<em>fox jumps</em> high"));
             assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    // FieldExistsQuery (QSTR "_exists_:content", KQL "content:*") matches through FieldInfos, so the
+    // per-row reader must expose fields indexed for that row.
+    public void testFieldExistsQueryHighlightsMatchingRow() {
+        Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.MUST)
+            .add(new FieldExistsQuery(CONTENT_FIELD), BooleanClause.Occur.MUST)
+            .build();
+        BytesRefBlock result = highlightSingle(config("fox AND _exists_:content", 5, 0, 0), query, "the quick fox");
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
         } finally {
             result.close();
         }

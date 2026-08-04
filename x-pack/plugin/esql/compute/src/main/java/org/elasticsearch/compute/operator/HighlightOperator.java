@@ -97,7 +97,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
     private final MemoryIndex memoryIndex;
-    private final LeafReader memoryIndexReader;
+    private LeafReader memoryIndexReader;
     private final CustomUnifiedHighlighter[] highlighters;
     private final CharArraySet termsToKeep;
 
@@ -129,9 +129,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             config.locale()
         );
         this.memoryIndex = new MemoryIndex(true); // true == store offsets, required by OffsetSource.POSTINGS
+        // Term extraction for the highlighters only.
         IndexSearcher searcher = memoryIndex.createSearcher();
-        // A MemoryIndex searcher always wraps a single reader over the one in-memory document.
-        this.memoryIndexReader = (LeafReader) searcher.getIndexReader();
         this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
         for (int i = 0; i < fieldNames.size(); i++) {
             UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
@@ -173,6 +172,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     }
 
     private static final class TermCollector extends QueryVisitor {
+        // Create terms set with an initial capacity.
         private final CharArraySet terms = new CharArraySet(8, false);
         private boolean unfilterable;
 
@@ -322,7 +322,12 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             }
         }
         // With filtering off keptToken stays false, so it says nothing about the row.
-        return termsToKeep == null || keptToken || config.noMatchSize() > 0;
+        if (termsToKeep != null && keptToken == false && config.noMatchSize() == 0) {
+            return false;
+        }
+        // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
+        memoryIndexReader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
+        return true;
     }
 
     /**

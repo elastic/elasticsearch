@@ -1326,6 +1326,20 @@ highlight_content:keyword
 ;
 
 
+# KQL "f:*" is a FieldExistsQuery; it matches on FieldInfos, so the memory-index reader must see the row's fields.
+highlightKqlExistsClause
+required_capability: highlight_v6
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT KQL("content:* AND content:fox") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
+;
+
+
 # MATCH_PHRASE wraps the whole matched phrase in a single span (weight-matches mode).
 highlightMatchPhraseFunction
 required_capability: highlight_v6

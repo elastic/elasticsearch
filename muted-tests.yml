@@ -373,9 +373,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/153891
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/153902
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -607,3 +604,12 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testSoarAssignmentsValidAfterEmptyClusterRemoval
   issue: https://github.com/elastic/elasticsearch/issues/155931
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments at the maximum should SUCCEED}
+  issue: https://github.com/elastic/elasticsearch/issues/155969
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155970
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155972

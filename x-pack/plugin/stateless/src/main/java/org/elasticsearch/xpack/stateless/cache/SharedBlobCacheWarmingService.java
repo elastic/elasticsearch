@@ -385,7 +385,7 @@ public class SharedBlobCacheWarmingService {
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final DoubleHistogram warmingDurationMetric;
     private final DoubleHistogram warmingRatioMetric;
-    private final LongCounter warmingOfflineByteRangeBytesTotalMetric;
+    private final LongCounter warmingRequestedBytesTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
@@ -485,7 +485,7 @@ public class SharedBlobCacheWarmingService {
                 "1",
                 List.of(0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0)
             );
-        this.warmingOfflineByteRangeBytesTotalMetric = telemetryProvider.getMeterRegistry()
+        this.warmingRequestedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 BLOB_CACHE_WARMING_REQUESTED_BYTES_TOTAL_METRIC,
                 "Total byte range length requested for offline blob cache warming, broken down by the ["
@@ -1621,7 +1621,7 @@ public class SharedBlobCacheWarmingService {
                 (double) byteRangeToWarm.length() / blobSize,
                 Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );
-            warmingOfflineByteRangeBytesTotalMetric.incrementBy(
+            warmingRequestedBytesTotalMetric.incrementBy(
                 byteRangeToWarm.length(),
                 Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );

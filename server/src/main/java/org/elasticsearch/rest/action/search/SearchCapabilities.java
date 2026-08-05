@@ -43,6 +43,9 @@ public final class SearchCapabilities {
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
     private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
 
+    /** {@code number_of_fragments} is bounded to reject oversized highlighter allocations. */
+    private static final String HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED = "highlight_number_of_fragments_bounded";
+
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
@@ -67,6 +70,7 @@ public final class SearchCapabilities {
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
+        capabilities.add(HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);

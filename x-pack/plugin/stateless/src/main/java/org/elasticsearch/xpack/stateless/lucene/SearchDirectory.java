@@ -147,7 +147,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             return clearOrphans ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : null;
         });
         logger.debug(
-            "{} backfilled [{}] timestamp (clearOrphans=[]) in [{}]",
+            "{} backfilled [{}] timestamps (clearOrphans=[]) in [{}]",
             shardId,
             timestampByCacheKey.size(),
             clearOrphans,

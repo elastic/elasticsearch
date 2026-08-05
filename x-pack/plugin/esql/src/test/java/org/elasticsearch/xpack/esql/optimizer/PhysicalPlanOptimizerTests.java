@@ -22,12 +22,15 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -80,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialGeometryFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
@@ -118,6 +122,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -151,6 +156,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -4516,6 +4522,184 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 equalTo(withDocValues)
             );
             assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+        }
+    }
+
+    /**
+     * Test that binary spatial geometry functions (ST_UNION, ST_INTERSECTION, ST_DIFFERENCE,
+     * ST_SYMDIFFERENCE) receive doc-values for both arguments when both are geo_point fields
+     * and a stats aggregation triggers doc-values extraction.
+     */
+    public void testSpatialBinaryGeometryFunctionsAndStatsUseDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            String query = """
+                FROM airports
+                | EVAL result = FUNCTION(location, city_location)
+                | STATS extent = ST_EXTENT_AGG(location) BY result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var limit = as(optimized, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+                assertThat(agg.groupings().size(), equalTo(1));
+                var exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // Below the exchange (in data node) the aggregation is using doc-values
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
+                var evalExec = as(agg.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                assertThat(function + ": expected leftDocValues=" + withDocValues, binaryFunction.leftDocValues(), equalTo(withDocValues));
+                assertThat(
+                    function + ": expected rightDocValues=" + withDocValues,
+                    binaryFunction.rightDocValues(),
+                    equalTo(withDocValues)
+                );
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
+        }
+    }
+
+    /**
+     * Test that when one of the binary spatial function's arguments (city_location) is used as
+     * a grouping key in the STATS BY clause, it must survive to the coordinator and therefore
+     * cannot be loaded from doc-values. Only the other argument (location) is consumed solely
+     * by the aggregation and can use doc-values.
+     */
+    public void testSpatialBinaryGeometryFunctionsGroupByFieldNotDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            String query = """
+                FROM airports
+                | EVAL result = FUNCTION(location, city_location)
+                | STATS extent = ST_EXTENT_AGG(location) BY city_location, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var locationPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var limit = as(optimized, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+                var exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // location uses doc-values for the aggregation; city_location does not (it's a grouping key)
+                assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, locationPreference);
+                var evalExec = as(agg.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // location (left) can use doc-values since it's consumed by the aggregation, not passed to the coordinator
+                assertThat(function + ": expected leftDocValues=" + withDocValues, binaryFunction.leftDocValues(), equalTo(withDocValues));
+                // city_location (right) cannot use doc-values since it's in the BY grouping clause
+                assertThat(
+                    function + ": expected rightDocValues=false (city_location is a grouping key)",
+                    binaryFunction.rightDocValues(),
+                    is(false)
+                );
+                // Verify the FieldExtractExec directly: location uses doc-values, city_location always uses source
+                var fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), hasItems("location", "city_location"));
+                if (withDocValues) {
+                    assertThat(
+                        function + ": only location should use doc-values",
+                        Expressions.names(fieldExtract.docValuesAttributes()),
+                        contains("location")
+                    );
+                } else {
+                    assertThat(function + ": no doc-values without index support", fieldExtract.docValuesAttributes(), is(empty()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that binary spatial geometry functions use doc-values for a geo_point argument
+     * even when the other argument is a geo_shape (which never uses doc-values). This covers
+     * the left-only and right-only doc-values paths, using a SORT to trigger doc-values
+     * extraction.
+     */
+    public void testSpatialBinaryGeometryFunctionsMixedTypesAndSortUseDocValues() {
+        for (String function : new String[] { "ST_UNION", "ST_INTERSECTION", "ST_DIFFERENCE", "ST_SYMDIFFERENCE" }) {
+            // Test left=geo_point (doc-values capable), right=geo_shape (never doc-values)
+            String query = """
+                FROM airport_city_boundaries
+                | EVAL result = FUNCTION(city_location, city_boundary)
+                | SORT abbrev
+                | KEEP abbrev, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoPointDocValues;
+                var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                assertThat(
+                    Expressions.names(project.projections()),
+                    allOf(hasItems("abbrev", "result"), not(hasItems("city_location", "city_boundary")))
+                );
+                // sort by keyword field 'abbrev' is pushed into EsQueryExec — no inner TopNExec
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                assertThat(
+                    Expressions.names(fieldExtract.attributesToExtract()),
+                    allOf(hasItems("abbrev"), not(hasItems("city_location", "city_boundary")))
+                );
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // city_location (left) is geo_point: uses doc-values when available
+                assertThat(
+                    function + " left(geo_point): expected leftDocValues=" + withDocValues,
+                    binaryFunction.leftDocValues(),
+                    equalTo(withDocValues)
+                );
+                // city_boundary (right) is geo_shape: never uses doc-values
+                assertThat(function + " right(geo_shape): expected rightDocValues=false", binaryFunction.rightDocValues(), is(false));
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
+
+            // Test left=geo_shape (never doc-values), right=geo_point (doc-values capable)
+            String queryReversed = """
+                FROM airport_city_boundaries
+                | EVAL result = FUNCTION(city_boundary, city_location)
+                | SORT abbrev
+                | KEEP abbrev, result
+                """.replace("FUNCTION", function);
+            for (boolean withDocValues : new boolean[] { false, true }) {
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoPointDocValues;
+                var plan = physicalPlan(queryReversed.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                // sort by keyword field 'abbrev' is pushed into EsQueryExec — no inner TopNExec
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                var binaryFunction = as(alias.child(), BinarySpatialGeometryFunction.class);
+                // city_boundary (left) is geo_shape: never uses doc-values
+                assertThat(function + " left(geo_shape): expected leftDocValues=false", binaryFunction.leftDocValues(), is(false));
+                // city_location (right) is geo_point: uses doc-values when available
+                assertThat(
+                    function + " right(geo_point): expected rightDocValues=" + withDocValues,
+                    binaryFunction.rightDocValues(),
+                    equalTo(withDocValues)
+                );
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+            }
         }
     }
 
@@ -9659,14 +9843,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
+            null,
+            null,
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
-                () -> 0L
+                () -> 0L,
+                QueryWarnings.EMIT
             ),
-            null  // OperatorFactoryRegistry - not needed for these tests
+            null,  // OperatorFactoryRegistry - not needed for these tests
+            null,  // parallelWorkerExecutor - not needed for these tests
+            0,     // esqlWorkerPoolSize - not needed for these tests
+            MatcherWatchdog.noop()
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
@@ -9768,6 +9958,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topN = as(reductionPlan, TopNExec.class);
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
+    }
+
+    public void testReductionPlanForTopNByUsesNonSortedOutput() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test
+            | sort salary
+            | limit %d by languages
+            """, limit));
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var reductionPlan = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topNBy = as(reductionPlan, TopNByExec.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(limit));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
     }
 
     public void testReductionPlanForAggs() {
@@ -10223,6 +10427,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("additionalAttribute"));
+        assertThat(e.getMessage(), containsString("[integer]"));
     }
 
     public void testVerifierOnAttributeDatatypeChanged() throws Exception {
@@ -10271,6 +10476,53 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
         Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+    }
+
+    public void testVerifierOnMultipleAttributeDatatypesChanged() throws Exception {
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary), b = max(salary)
+            """);
+
+        // The plan outputs two integer reference attributes: a (position 0) and b (position 1).
+        // Change both to different types to verify that all per-position diffs appear in the message.
+        Holder<Integer> appliedCount = new Holder<>(0);
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                newOutput.set(1, oldOutput.get(1).withDataType(DataType.KEYWORD));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+        assertThat(e.getMessage(), containsString("integer -> keyword"));
     }
 
     /**
@@ -10428,6 +10680,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sorts.size(), equalTo(1));
         assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[first_name{f}#6, languages{f}#12, salary{f}#14]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[... TopNBy ...]
+     * }
+     */
+    public void testTopNBySortOutputOnlyOnCoordinator() {
+        String query = """
+              from test
+            | sort salary desc
+            | limit 5 by languages
+            | keep first_name, salary, languages
+            """;
+        var plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNByExec = as(limit.child(), TopNByExec.class);
+        assertThat(topNByExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
+        var exchangeExec = as(topNByExec.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNBy = as(fragmentExec.fragment(), TopNBy.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(5));
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
     }
 
     /**

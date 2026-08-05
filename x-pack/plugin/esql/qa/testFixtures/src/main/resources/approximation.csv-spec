@@ -1444,6 +1444,7 @@ required_capability: approximation_v7
 required_capability: approximation_fork
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_put_serverless_scope
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1481,6 +1482,7 @@ required_capability: approximation_fork
 required_capability: subquery_in_from_command
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_put_serverless_scope
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1510,6 +1512,31 @@ null               | Russia          | 26                 | null                
 null               | United Kingdom  | 17                 | null                                                   | null                                            | [17, 17]                                               | true
 1                  | United States   | null               | [1, 1]                                                 | true                                            | null                                                   | null
 null               | United States   | 129                | null                                                   | null                                            | [129, 129]                                             | true
+;
+
+
+Include empty buckets
+required_capability: approximation_v7
+required_capability: bucket_include_empty_buckets
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| WHERE sv < 700
+| STATS count=count() BY bucket=BUCKET(sv, 11, -100, 1000, {"include_empty_buckets": true})
+;
+
+count:long     | bucket:double | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+0              | -100.0        | [0,0]                                          | true
+ 1000..10000   |    0.0        | [ 1000..10000, 1000..10000]                    | {any}
+ 5000..25000   |  100.0        | [ 5000..25000, 5000..25000]                    | {any}
+10000..40000   |  200.0        | [10000..40000,10000..40000]                    | {any}
+20000..50000   |  300.0        | [20000..50000,20000..50000]                    | {any}
+30000..60000   |  400.0        | [30000..60000,30000..60000]                    | {any}
+40000..70000   |  500.0        | [40000..70000,40000..70000]                    | {any}
+50000..80000   |  600.0        | [50000..80000,50000..80000]                    | {any}
+0              |  700.0        | [0,0]                                          | true
+0              |  800.0        | [0,0]                                          | true
+0              |  900.0        | [0,0]                                          | true
 ;
 
 

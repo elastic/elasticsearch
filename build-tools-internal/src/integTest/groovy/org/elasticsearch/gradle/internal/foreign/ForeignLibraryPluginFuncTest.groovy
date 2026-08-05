@@ -9,8 +9,9 @@
 
 package org.elasticsearch.gradle.internal.foreign
 
-import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 /**
  * Exercises the plugin's wiring in a real Gradle invocation. Validation of the actual processor's
@@ -19,10 +20,12 @@ import org.gradle.testkit.runner.TaskOutcome
  * locations. A dummy processor is supplied via the {@code foreignLibraryProcessor} configuration
  * so the test does not need any real {@code :libs:foreign-library} artifacts.
  */
-class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
+class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin
 
     def setup() {
-        internalBuild()
+        configureBwcVersions()
 
         settingsFile << """
             include ':fakeprocessor'
@@ -87,8 +90,17 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
             public class Lib {}
         """.stripIndent()
 
+        file('src/testFixtures/java/test/FixtureLib.java') << """
+            package test;
+            @fake.Marker
+            public class FixtureLib {}
+        """.stripIndent()
+
         buildFile << """
             apply plugin: 'elasticsearch.foreign-library'
+            // Applied after the plugin, as real consumers do: the testFixtures source set does not exist
+            // when the plugin is applied, so the plugin must register against it lazily.
+            apply plugin: 'java-test-fixtures'
 
             // The plugin pins processForeignAnnotations to JDK 25 because the real processor uses
             // java.lang.classfile (finalized in JDK 24). The dummy processor in this test only uses
@@ -96,7 +108,7 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
             // runtime, so override the toolchain to the current JVM. The JDK 25 pinning itself is
             // verified by ForeignLibraryPluginSpec — here we just exercise the wiring.
             def currentJavaVersion = JavaVersion.current().majorVersion
-            tasks.named('processForeignAnnotations').configure {
+            tasks.matching { it.name.endsWith('ForeignAnnotations') }.configureEach {
                 javaCompiler = javaToolchains.compilerFor {
                     languageVersion = org.gradle.jvm.toolchain.JavaLanguageVersion.of(currentJavaVersion.toInteger())
                 }
@@ -107,6 +119,7 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
             dependencies {
                 // compileOnly so the @Marker annotation (SOURCE retention) is visible during compile
                 compileOnly project(':fakeprocessor')
+                testFixturesCompileOnly project(':fakeprocessor')
                 foreignLibraryProcessor project(':fakeprocessor')
             }
         """.stripIndent()
@@ -114,7 +127,7 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     def "wires foreignLibraryProcessor onto the annotation processor path and runs it"() {
         when:
-        def result = gradleRunner('processForeignAnnotations', '-g', gradleUserHome).build()
+        def result = gradleRunner('processForeignAnnotations').build()
 
         then:
         result.task(":processForeignAnnotations").outcome == TaskOutcome.SUCCESS
@@ -125,4 +138,14 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
         file("build/generated-foreign-library-classes/fake-marker.txt").text == "processor ran"
     }
 
+    def "runs the processor against the testFixtures source set too"() {
+        when:
+        def result = gradleRunner('processTestFixturesForeignAnnotations').build()
+
+        then:
+        result.task(":processTestFixturesForeignAnnotations").outcome == TaskOutcome.SUCCESS
+        // Its own output dir, a sibling of main's rather than nested inside it.
+        file("build/generated-foreign-library-classes-testFixtures/fake-marker.txt").text == "processor ran"
+        file("build/generated-foreign-library-classes/fake-marker.txt").exists() == false
+    }
 }

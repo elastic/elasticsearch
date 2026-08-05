@@ -133,13 +133,8 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.id() >= 8_84_10_00 && (tv.id() % 100) > 90) {
-                fail(
-                    "Transport version "
-                        + tv
-                        + " is nearing the limit of available patch numbers."
-                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
-                );
+            if (tv.id() >= 8_84_10_00 && (tv.id() % 1000) >= 999) {
+                fail("Transport version " + tv + " has exhausted the available patch numbers for its base. A new base is needed.");
             }
         }
     }
@@ -296,6 +291,14 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
+
+        // Patch ids spanning past the hundred boundary within the same base: 1001002 is the backport,
+        // so 1001099-1001999 are all still on the same base and must be recognized as patches.
+        assertThat(new TransportVersion(null, 1001099, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1001100, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1001999, null).supports(test4), is(true));
+        // A different base (1002xxx) must not be recognized as a patch of 1001xxx.
+        assertThat(new TransportVersion(null, 1002000, null).supports(test4), is(false));
     }
 
     public void testComment() {

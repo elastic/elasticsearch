@@ -275,15 +275,15 @@ fork3         | null           | 100    | 10100     | 10001
 forkWithUnsupportedAttributes
 required_capability: fork_v9
 
-FROM heights
+FROM ages
 | FORK (SORT description DESC | LIMIT 1 | EVAL x = length(description) )
        (SORT description ASC | LIMIT 1)
 | SORT _fork
 ;
 
-description:keyword | height_range:unsupported | x:integer | _fork:keyword
-Very Tall           | null                     | 9         | fork1
-Medium Height       | null                     | null      | fork2
+age_range:unsupported | description:keyword | x:integer | _fork:keyword
+null                  | Young Adult         | 11        | fork1
+null                  | Adolescent          | null      | fork2
 ;
 
 

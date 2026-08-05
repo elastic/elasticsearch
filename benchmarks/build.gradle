@@ -51,6 +51,7 @@ dependencies {
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  api(project(':x-pack:plugin:esql:qa:testFixtures'))
   api(project(':x-pack:plugin:esql-datasource-csv'))
   api(project(':x-pack:plugin:esql-datasource-parquet'))
   api(project(':x-pack:plugin:esql-datasource-orc'))
@@ -85,6 +86,7 @@ dependencies {
   implementation project(path: ':libs:native')
   implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
+  implementation project(path: ':libs:columnar')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
   implementation project(path: ':libs:exponential-histogram')
@@ -103,6 +105,8 @@ dependencies {
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   nativeLib(project(':libs:native'))
+  implementation project(':modules:bitmap')
+  implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   annotationProcessor project(':benchmarks:processor')

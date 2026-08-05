@@ -46,12 +46,13 @@ public class ESVectorUtilByteOperationBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    @Param({ "SCALAR", "PANAMA" })
+    @Param({ "SCALAR", "PANAMA", "NATIVE" })
     public VectorImplementation implementation;
 
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
+    final int offset = 1;   // so it doesn't fall back on the full-array implementations
     byte[] a;
     byte[] b;
     byte[] normalizeSource;
@@ -64,14 +65,14 @@ public class ESVectorUtilByteOperationBenchmark {
     }
 
     public void setup(Random random) {
-        a = new byte[size];
-        b = new byte[size];
-        normalizeSource = new byte[size];
-        normalizeTarget = new byte[size];
+        a = new byte[size + offset];
+        b = new byte[size + offset];
+        normalizeSource = new byte[size + offset];
+        normalizeTarget = new byte[size + offset];
         random.nextBytes(a);
         random.nextBytes(b);
         random.nextBytes(normalizeSource);
-        for (int i = 0; i < size; i++) {
+        for (int i = offset; i < size; i++) {
             if (normalizeSource[i] == 0) {
                 normalizeSource[i] = 1;
             }
@@ -79,19 +80,25 @@ public class ESVectorUtilByteOperationBenchmark {
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
+            case NATIVE -> ESVectorizationProvider.lookup(true, true).getVectorUtilSupport();
             default -> throw new IllegalArgumentException(implementation.toString());
         };
     }
 
     @Benchmark
     public float dotProduct() {
-        return impl.dotProduct(a, b, 0, size);
+        return impl.dotProduct(a, b, offset, size);
+    }
+
+    @Benchmark
+    public float squareDistance() {
+        return impl.squareDistance(a, b, offset, size);
     }
 
     @Benchmark
     public float l2Normalize() {
-        System.arraycopy(normalizeSource, 0, normalizeTarget, 0, size);
-        impl.l2Normalize(normalizeTarget, 0, size);
+        System.arraycopy(normalizeSource, offset, normalizeTarget, offset, size);
+        impl.l2Normalize(normalizeTarget, offset, size);
         return normalizeTarget[0];
     }
 }

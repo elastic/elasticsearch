@@ -22,7 +22,6 @@ import io.opentelemetry.proto.resource.v1.Resource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
@@ -151,11 +150,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             assertThat(doc.evaluate("attributes.operation"), equalTo("test"));
             assertThat(doc.evaluate("attributes.environment"), equalTo("production"));
             assertThat(doc.evaluate("unit"), equalTo("{test}"));
-            if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-                assertThat(doc.evaluate("temporality"), equalTo("cumulative"));
-            } else {
-                assertThat(doc.evaluate("temporality"), equalTo(null));
-            }
+            assertThat(doc.evaluate("temporality"), equalTo("cumulative"));
             assertThat(doc.evaluate("metrics.system\\.cpu\\.usage"), isA(Number.class));
             assertThat(doc.evaluate("metrics.system\\.network\\.packets"), isA(Number.class));
             assertThat(dynamicTemplates, hasEntry("metrics.system.cpu.usage", "counter_double"));
@@ -170,9 +165,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             expectedTsidBuilder.addStringDimension("attributes.operation", "test");
             expectedTsidBuilder.addStringDimension("attributes.environment", "production");
             expectedTsidBuilder.addStringDimension("unit", "{test}");
-            if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-                expectedTsidBuilder.addStringDimension("temporality", "cumulative");
-            }
+            expectedTsidBuilder.addStringDimension("temporality", "cumulative");
             assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid(indexVersion)));
 
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));

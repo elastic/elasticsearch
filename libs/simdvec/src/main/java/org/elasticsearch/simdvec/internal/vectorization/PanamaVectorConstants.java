@@ -40,7 +40,7 @@ public final class PanamaVectorConstants {
                 .filter(Predicate.not(Set.of("", "default")::contains))
                 .mapToInt(Integer::parseInt)
                 .findAny();
-        } catch (SecurityException _) {
+        } catch (SecurityException ignored) {
             // ignored
         }
 

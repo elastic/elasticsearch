@@ -11,8 +11,9 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -274,7 +275,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
         // Set the node to 80% heap used, and add shard+index heap that would push the node to 90%. The low watermark percent is 85%.
         final ClusterInfo clusterInfo = createClusterInfoWithHeapUsage(
-            Map.of(NODE_ID, createNodeHeapUsage(NODE_ID, 80, totalHeap)),
+            Map.of(NODE_ID, createNodeHeapMetrics(NODE_ID, 80, totalHeap)),
             createShardAndIndexHeapUsageMap(shardRouting.shardId(), additionalBytes)
         );
 
@@ -297,7 +298,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
         // Set the node to 80% heap used, and add shard+index heap that would push the node to 83%. The low watermark percent is 85%.
         final ClusterInfo clusterInfo = createClusterInfoWithHeapUsage(
-            Map.of(NODE_ID, createNodeHeapUsage(NODE_ID, 80, totalHeap)),
+            Map.of(NODE_ID, createNodeHeapMetrics(NODE_ID, 80, totalHeap)),
             createShardAndIndexHeapUsageMap(shardRouting.shardId(), additionalBytes)
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
@@ -685,13 +686,13 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages
     ) {
         return ClusterInfo.builder()
-            .estimatedHeapUsages(
+            .nodeHeapMetrics(
                 nodeEstimatedHeapUsagePercent.entrySet()
                     .stream()
                     .collect(
                         Collectors.toUnmodifiableMap(
                             Map.Entry::getKey,
-                            entry -> createNodeHeapUsage(entry.getKey(), entry.getValue(), totalHeapSizeSupplier.get())
+                            entry -> createNodeHeapMetrics(entry.getKey(), entry.getValue(), totalHeapSizeSupplier.get())
                         )
                     )
             )
@@ -700,10 +701,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private ClusterInfo createClusterInfoWithHeapUsage(
-        Map<String, EstimatedHeapUsage> nodeHeapUsages,
+        Map<String, NodeHeapMetrics> nodeHeapMetrics,
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages
     ) {
-        return ClusterInfo.builder().estimatedHeapUsages(nodeHeapUsages).estimatedShardHeapUsages(shardHeapUsages).build();
+        return ClusterInfo.builder().nodeHeapMetrics(nodeHeapMetrics).estimatedShardHeapUsages(shardHeapUsages).build();
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider decider) {
@@ -778,10 +779,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             .add(newNode(SEARCH_NODE_ID, Set.of(DiscoveryNodeRole.SEARCH_ROLE)));
     }
 
-    private EstimatedHeapUsage createNodeHeapUsage(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
+    private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new EstimatedHeapUsage(nodeId, totalInBytes, usedInBytes);
+        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes)));
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

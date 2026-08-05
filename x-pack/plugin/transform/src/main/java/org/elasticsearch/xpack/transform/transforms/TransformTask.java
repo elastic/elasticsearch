@@ -559,6 +559,15 @@ public class TransformTask extends AllocatedPersistentTask
                 listener.onResponse(null);
                 return;
             }
+            // If we are aborting, this means a cancellation request (e.g. the node the task is on is going away) is already
+            // tearing the indexer down towards a clean completion. A failure racing that teardown (e.g. an in-flight search
+            // failing because of the same disconnect that triggered the cancellation) must not override it with FAILED,
+            // since FAILED is sticky and blocks the reassigned task from auto-starting on the new node.
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.ABORTING) {
+                logger.info("[{}] encountered a failure but indexer is ABORTING; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
 
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.

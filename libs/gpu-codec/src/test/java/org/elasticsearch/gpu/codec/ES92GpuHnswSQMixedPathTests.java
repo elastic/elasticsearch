@@ -110,6 +110,11 @@ public class ES92GpuHnswSQMixedPathTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Override
+    public void testWriterByteVectorRamEstimate() {
+        // No bytes support
+    }
+
+    @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
     }

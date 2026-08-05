@@ -23,9 +23,9 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
@@ -56,7 +56,8 @@ public class LuceneCountOperator extends LuceneOperator {
             List<ElementType> tagTypes,
             int limit,
             LongSupplier directoryBytesRead,
-            int minDocsPerSlice
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -65,7 +66,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 // the Weight.count() shortcut for sub-segment slices. The leaf-split guard below
                 // keeps shortcut-eligible leaves whole so the leaf-wide shortcut still fires.
                 dataPartitioning,
-                LuceneCountOperator::partitioningStrategyForCount,
+                (ctx, q) -> partitioningStrategyForCount(ctx, q, minDocsPerSlice),
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,
@@ -73,7 +74,8 @@ public class LuceneCountOperator extends LuceneOperator {
                 shardContext -> ScoreMode.COMPLETE_NO_SCORES,
                 directoryBytesRead,
                 minDocsPerSlice,
-                LuceneCountOperator::leafHasCountShortcut
+                LuceneCountOperator::leafHasCountShortcut,
+                singleValueQueryWarnings
             );
             this.shardRefCounters = contexts;
             this.tagTypes = tagTypes;
@@ -81,7 +83,15 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(shardRefCounters, driverContext, sliceQueue, tagTypes, limit, directoryBytesRead);
+            return new LuceneCountOperator(
+                shardRefCounters,
+                driverContext,
+                sliceQueue,
+                tagTypes,
+                limit,
+                directoryBytesRead,
+                singleValueQueryWarnings
+            );
         }
 
         @Override
@@ -110,9 +120,10 @@ public class LuceneCountOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         List<ElementType> tagTypes,
         int limit,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue, directoryBytesRead);
+        super(shardRefCounters, driverContext, Integer.MAX_VALUE, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
         this.driverContext = driverContext;
@@ -120,7 +131,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || remainingDocs == 0;
+        return doneCollecting || remainingDocs <= 0;
     }
 
     @Override
@@ -130,36 +141,19 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     protected Page getCheckedOutput() throws IOException {
-        if (isFinished()) {
-            assert remainingDocs <= 0 : remainingDocs;
-            return null;
-        }
         long start = System.nanoTime();
         try {
-            while (remainingDocs > 0) {
-                final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-                if (scorer == null) {
-                    remainingDocs = 0;
-                } else {
-                    count(scorer);
-                }
-
-                // Check if the query has been cancelled.
-                driverContext.checkForEarlyTermination();
-                // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-                if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
-                    break;
-                }
+            final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+            if (scorer != null && remainingDocs > 0) {
+                count(scorer);
             }
-
-            if (remainingDocs <= 0) {
+            if (isFinished()) {
                 return buildResult();
-            } else {
-                return null;
             }
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+        return null;
     }
 
     private void count(LuceneScorer scorer) throws IOException {
@@ -189,14 +183,18 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     private Page buildResult() {
-        return switch (tagsToState.size()) {
-            case 0 -> null;
-            case 1 -> {
-                Map.Entry<List<Object>, PerTagsState> e = tagsToState.entrySet().iterator().next();
-                yield buildConstantBlocksResult(e.getKey(), e.getValue());
-            }
-            default -> buildNonConstantBlocksResult();
-        };
+        try {
+            return switch (tagsToState.size()) {
+                case 0 -> null;
+                case 1 -> {
+                    Map.Entry<List<Object>, PerTagsState> e = tagsToState.entrySet().iterator().next();
+                    yield buildConstantBlocksResult(e.getKey(), e.getValue());
+                }
+                default -> buildNonConstantBlocksResult();
+            };
+        } finally {
+            tagsToState.clear();
+        }
     }
 
     private Page buildConstantBlocksResult(List<Object> tags, PerTagsState state) {
@@ -279,27 +277,24 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     /**
-     * Auto strategy for the count operator. Diverges from
-     * {@link LuceneSourceOperator.Factory#autoStrategy(int)}: count picks
-     * {@link LuceneSliceQueue.PartitioningStrategy#DOC} for any non-trivial query.
+     * Auto strategy for the count operator. Shares {@link LuceneSourceOperator.Factory#autoPartitioning} with the source
+     * and TopN operators: a scan-heavy count parallelizes with {@link LuceneSliceQueue.PartitioningStrategy#DOC}, a cheap
+     * one ({@code cost < minCostForDoc}) stays on the low-overhead {@link LuceneSliceQueue.PartitioningStrategy#SHARD}.
      *
-     * <p>Rationale: count's hot path is the leaf-wide {@link Weight#count(LeafReaderContext)}
-     * shortcut. When it returns a value, the {@link #leafHasCountShortcut leaf-split guard}
-     * keeps the leaf whole so the shortcut still fires. When it returns {@code -1} we must
-     * iterate the leaf to count, and at that point we want maximum parallelism — DOC. The
-     * "costly to build scorer" trade-off that pushes the source operator to SEGMENT does not
-     * apply here: count touches each matching doc at most once regardless of strategy.
-     *
-     * <p>{@link MatchAllDocsQuery} and {@link MatchNoDocsQuery} stay on SHARD as explicit fast
-     * paths (no Weight needed; the count is {@code maxDoc - deletedDocs} or {@code 0}).
+     * <p>A costly-to-build clause falls back to {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT}: for a leaf whose
+     * {@link Weight#count(LeafReaderContext)} shortcut fires the {@link #leafHasCountShortcut leaf-split guard} keeps it
+     * whole anyway, and for a leaf that must be iterated SEGMENT avoids re-building the full-segment scorer per slice.
+     * {@link MatchAllDocsQuery}/{@link MatchNoDocsQuery} stay on {@link LuceneSliceQueue.PartitioningStrategy#SHARD} (the
+     * count is {@code maxDoc - deletedDocs} or {@code 0}, no scan needed).
      */
-    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
-        final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
-        return switch (unwrapped) {
-            case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-            case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-            default -> LuceneSliceQueue.PartitioningStrategy.DOC;
-        };
+    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(ShardContext ctx, Query q, long minCostForDoc) {
+        return LuceneSourceOperator.Factory.autoPartitioning(
+            ctx,
+            q,
+            LuceneSliceQueue.PartitioningStrategy.SHARD, // matchAll: the count is maxDoc, no scan needed
+            minCostForDoc,
+            LuceneSliceQueue.PartitioningStrategy.SHARD  // cheap / empty
+        );
     }
 
     /**

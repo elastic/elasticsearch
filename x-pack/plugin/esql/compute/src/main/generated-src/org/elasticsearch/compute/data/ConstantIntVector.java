@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant int value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantIntVector extends AbstractVector implements IntVector {
+public final class ConstantIntVector extends AbstractVector implements IntVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 

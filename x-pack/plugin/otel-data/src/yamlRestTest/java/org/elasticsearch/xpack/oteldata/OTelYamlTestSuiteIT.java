@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -37,8 +36,6 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-stack")
         .module("mapper-version")
         .setting("ingest.geoip.downloader.enabled", "false")
-        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     public OTelYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 /**
  * Test metrics exported by Elasticsearch directly using the OTel SDK. Runs with
- * {@code telemetry.otel.metrics.disk_buffer_size=0b} so the inherited baseline assertions
+ * {@code telemetry.metrics.buffer.disk_size=0b} so the inherited baseline assertions
  * also exercise the buffering-disabled bypass in {@code OtelSdkExportMeterSupplier}.
  */
 public class OtelMetricsIT extends AbstractMetricsIT {
@@ -37,16 +37,16 @@ public class OtelMetricsIT extends AbstractMetricsIT {
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "100ms")
-        .setting("telemetry.otel.otlp.send_timeout", "80ms")
-        .setting("telemetry.otel.otlp.retry.initial_backoff", "20ms")
-        .setting("telemetry.otel.metrics.disk_buffer_size", "0b")
+        .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.export.interval", "1000ms")
+        .setting("telemetry.export.send_timeout", "600ms")
+        .setting("telemetry.metrics.buffer.disk_size", "0b")
         // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
-        // bridged here to the OTel resource via the telemetry.otel.resource.* affix.
-        .setting("telemetry.otel.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
-        .setting("telemetry.otel.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
-        .setting("telemetry.otel.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)
+        // bridged here to the OTel resource via the telemetry.resource.* affix.
+        .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
+        .setting("telemetry.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
+        .setting("telemetry.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)
         .build();
 
     @ClassRule

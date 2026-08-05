@@ -10,12 +10,10 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
-
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Generic centroid assignment and update operations for k-means clustering.
@@ -25,8 +23,6 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
  */
 public final class CentroidAssignment {
 
-    // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
-    private static final float SOAR_MIN_DISTANCE = 1e-16f;
     private static final int PREFIX_MIN_DIMENSIONS = 128;
     private static final float PREFIX_LENGTH_RATIO = 0.5f;
     private static final int PREFIX_MULTIPLE = 64;
@@ -53,7 +49,7 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet centroidChanged,
         int[] results
     ) throws IOException {
@@ -62,7 +58,7 @@ public final class CentroidAssignment {
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int translatedOrd = ordTranslator.apply(i);
+            final int translatedOrd = ordTranslator.applyAsInt(i);
             final int assignment = results[translatedOrd];
             final int bestCentroid = computeBestCentroid(vector, centroids, distances, prefixScratch, ops);
             if (bestCentroid != assignment) {
@@ -87,7 +83,7 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet centroidChanged,
         NeighborHood[] neighborhoods,
         int[] results
@@ -97,7 +93,7 @@ public final class CentroidAssignment {
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int translatedOrd = ordTranslator.apply(i);
+            final int translatedOrd = ordTranslator.applyAsInt(i);
             final int assignment = results[translatedOrd];
             assert assignment != -1 : "vector is not assigned to any cluster: ord=" + translatedOrd;
             final int bestCentroid = computeBestCentroidFromNeighbours(
@@ -121,15 +117,22 @@ public final class CentroidAssignment {
 
     /**
      * Recompute centroid positions as the mean of their assigned vectors.
+     * <p>
+     * The {@code accumulatorState} encapsulates type-specific accumulation logic:
+     * for float centroids it accumulates in place; for byte centroids it uses int-precision
+     * accumulators internally and rounds back on divide.
+     *
+     * @param accumulatorState reusable state from {@link CentroidOps#newAccumulatorState}.
+     *                         Callers should allocate once and reuse across iterations.
      */
     static <V> void updateCentroids(
         ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
         V[] centroids,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         FixedBitSet[] centroidChangedSlices,
         int[] centroidCounts,
-        int[] assignments
+        int[] assignments,
+        CentroidOps.AccumulatorState<V> accumulatorState
     ) throws IOException {
         Arrays.fill(centroidCounts, 0);
         FixedBitSet centroidChanged = centroidChangedSlices[0];
@@ -138,37 +141,14 @@ public final class CentroidAssignment {
         }
         int dim = vectors.dimension();
 
-        updateCentroidsFloat(
-            vectors,
-            (CentroidOps.FloatOps) ops,
-            centroids,
-            centroidChanged,
-            centroidCounts,
-            ordTranslator,
-            assignments,
-            dim
-        );
-    }
-
-    private static <V> void updateCentroidsFloat(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps.FloatOps ops,
-        V[] centroids,
-        FixedBitSet centroidChanged,
-        int[] centroidCounts,
-        IntToIntFunction ordTranslator,
-        int[] assignments,
-        int dim
-    ) throws IOException {
         for (int idx = 0; idx < vectors.size(); idx++) {
-            final int assignment = assignments[ordTranslator.apply(idx)];
+            final int assignment = assignments[ordTranslator.applyAsInt(idx)];
             if (centroidChanged.get(assignment)) {
-                float[] centroid = (float[]) centroids[assignment];
-                float[] vector = (float[]) vectors.vectorValue(idx);
+                V vector = vectors.vectorValue(idx);
                 if (centroidCounts[assignment]++ == 0) {
-                    ops.initCentroid(centroid, vector, dim);
+                    accumulatorState.init(assignment, vector, dim);
                 } else {
-                    ops.accumulate(centroid, vector, dim);
+                    accumulatorState.accumulate(assignment, vector, dim);
                 }
             }
         }
@@ -177,7 +157,7 @@ public final class CentroidAssignment {
             if (centroidChanged.get(clusterIdx)) {
                 float count = (float) centroidCounts[clusterIdx];
                 if (count > 0) {
-                    ops.divide((float[]) centroids[clusterIdx], count, dim);
+                    accumulatorState.divide(centroids, clusterIdx, count, dim);
                 }
             }
         }
@@ -210,13 +190,13 @@ public final class CentroidAssignment {
         int startOrd,
         int endOrd,
         V[] centroids,
-        IntToIntFunction assigner,
+        IntUnaryOperator assigner,
         NeighborHood[] neighborhoods,
         float[][] squaredDistances
     ) throws IOException {
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            int bestCentroid = assigner.apply(i);
+            int bestCentroid = assigner.applyAsInt(i);
 
             float[] ordDists = squaredDistances[i];
             ordDists[0] = ops.squareDistance(vector, centroids[bestCentroid]);
@@ -237,50 +217,6 @@ public final class CentroidAssignment {
             for (; j < neighbors.length; j++) {
                 ordDists[j + 1] = ops.squareDistance(vector, centroids[neighbors[j]]);
             }
-        }
-    }
-
-    /**
-     * Assign a secondary ("spilled") centroid to each vector using the SOAR adjusted distance.
-     */
-    static <V> void assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
-        int startOrd,
-        int endOrd,
-        V[] centroids,
-        NeighborHood[] neighborhoods,
-        float soarLambda,
-        int[] assignments,
-        int[] spilledAssignments
-    ) throws IOException {
-        float[] diffs = new float[vectors.dimension()];
-        final float[] distances = new float[4];
-        for (int i = startOrd; i < endOrd; i++) {
-            V vector = vectors.vectorValue(i);
-            final int currAssignment = assignments[i];
-            final int centroidCount;
-            final IntToIntFunction centroidOrds;
-            if (neighborhoods != null) {
-                assert neighborhoods[currAssignment] != null;
-                NeighborHood neighborhood = neighborhoods[currAssignment];
-                centroidCount = neighborhood.neighbors().length;
-                centroidOrds = c -> neighborhood.neighbors()[c];
-            } else {
-                centroidCount = centroids.length - 1;
-                centroidOrds = c -> c < currAssignment ? c : c + 1; // skip the current centroid
-            }
-            spilledAssignments[i] = computeSoarAssignment(
-                vector,
-                centroids,
-                currAssignment,
-                centroidCount,
-                centroidOrds,
-                soarLambda,
-                diffs,
-                distances,
-                ops
-            );
         }
     }
 
@@ -516,62 +452,6 @@ public final class CentroidAssignment {
         int computed = Math.round(dims * PREFIX_LENGTH_RATIO);
         int roundedToMultiple = ((computed + PREFIX_MULTIPLE - 1) / PREFIX_MULTIPLE) * PREFIX_MULTIPLE;
         return roundedToMultiple;
-    }
-
-    private static <V> int computeSoarAssignment(
-        V vector,
-        V[] centroids,
-        int currAssignment,
-        int centroidCount,
-        IntToIntFunction centroidOrds,
-        float soarLambda,
-        float[] diffs,
-        float[] distances,
-        CentroidOps<V> ops
-    ) {
-        V currentCentroid = centroids[currAssignment];
-        float vectorCentroidDist = ops.squareDistance(vector, currentCentroid);
-        if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
-            return NO_SOAR_ASSIGNMENT;
-        }
-
-        ops.computeDiffs(vector, currentCentroid, diffs);
-
-        final int limit = centroidCount - 3;
-        int bestAssignment = -1;
-        float minSoar = Float.MAX_VALUE;
-        int j = 0;
-        for (; j < limit; j += 4) {
-            ops.soarDistanceBulk(
-                vector,
-                centroids[centroidOrds.apply(j)],
-                centroids[centroidOrds.apply(j + 1)],
-                centroids[centroidOrds.apply(j + 2)],
-                centroids[centroidOrds.apply(j + 3)],
-                diffs,
-                soarLambda,
-                vectorCentroidDist,
-                distances
-            );
-            for (int k = 0; k < distances.length; k++) {
-                float soar = distances[k];
-                if (soar < minSoar) {
-                    minSoar = soar;
-                    bestAssignment = centroidOrds.apply(j + k);
-                }
-            }
-        }
-
-        for (; j < centroidCount; j++) {
-            int centroidOrd = centroidOrds.apply(j);
-            float soar = ops.soarDistance(vector, centroids[centroidOrd], diffs, soarLambda, vectorCentroidDist);
-            if (soar < minSoar) {
-                minSoar = soar;
-                bestAssignment = centroidOrd;
-            }
-        }
-        assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
-        return bestAssignment;
     }
 
     record PrefixScratch(float[] topPrefixDistances, int[] topPrefixIds, int prefixLength) {

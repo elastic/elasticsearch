@@ -1,0 +1,2 @@
+FROM employees, (ROW x = 1)
+| WHERE emp_no > 10000

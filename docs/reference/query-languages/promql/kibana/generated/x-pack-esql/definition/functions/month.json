@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "time",
   "name" : "month",
-  "description" : "returns the month of the year for each of those timestamps (in UTC). Returned values are from 1 to 12.",
+  "description" : "Returns the month of the year for each of the input timestamps (in UTC). Returned values are from 1 to 12.",
   "signatures" : [
     {
       "params" : [

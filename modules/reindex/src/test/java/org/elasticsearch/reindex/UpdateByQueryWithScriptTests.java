@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -71,6 +72,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             transportService,
             scriptService,
             clusterService,
+            mock(ProjectResolver.class),
             null,
             null,
             new ReindexSettings(),

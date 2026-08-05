@@ -15,7 +15,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,17 +46,15 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
     private ExecutorService exec;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startExecutor() {
         exec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "drain-test"));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopExecutor() throws Exception {
         exec.shutdown();
         assertTrue(exec.awaitTermination(30, TimeUnit.SECONDS));
-        super.tearDown();
     }
 
     private static Page createTestPage(int numColumns, int numRows) {
@@ -799,6 +800,99 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         assertNotNull(error.get());
         assertTrue(error.get().getMessage().contains("immediate hasNext failure"));
         assertEquals(0, buffer.size());
+        buffer.finish(true);
+    }
+
+    /**
+     * The drain installs {@code readCancelled} as the ambient {@link StorageRetryCancellation} scope around every
+     * page pull. A pull parked in a storage retry/throttle backoff (modeled here by
+     * {@link StorageRetryCancellation#sleepWithCancellationChecks}) must therefore abort promptly with
+     * {@link TaskCancelledException} when the signal flips — instead of sleeping out the full backoff, which is the
+     * long-lived post-cancel read this change fixes. Cooperative {@code noMoreInputs} cancellation only fires
+     * between pulls, so it cannot cut a pull already inside the backoff; the scope is what closes that gap.
+     */
+    public void testDrainAbortsPagePullBackoffOnCancel() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        CountDownLatch pullStarted = new CountDownLatch(1);
+        long backoffMillis = TimeUnit.SECONDS.toMillis(30);
+
+        CloseableIterator<Page> backoffIterator = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                pullStarted.countDown();
+                try {
+                    // Mirrors RetryPolicy.execute / RetryableStorageObject.reopenOrThrow parking in backoff.
+                    StorageRetryCancellation.sleepWithCancellationChecks(backoffMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        long startNanos = System.nanoTime();
+        // The first drain step runs synchronously on the caller, so dispatch it to a worker thread — otherwise the
+        // backoff sleep would block this test thread before it can flip the cancel signal.
+        exec.execute(
+            () -> ExternalSourceDrainUtils.drainPagesAsync(
+                backoffIterator,
+                buffer,
+                exec,
+                cancelled::get,
+                ActionListener.wrap(v -> done.countDown(), e -> {
+                    error.set(e);
+                    done.countDown();
+                })
+            )
+        );
+
+        assertTrue("the page pull must have entered the backoff", pullStarted.await(10, TimeUnit.SECONDS));
+        cancelled.set(true);
+        assertTrue("drain must abort after cancel rather than sleeping out the backoff", done.await(10, TimeUnit.SECONDS));
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        assertTrue(
+            "drain aborted well under the " + backoffMillis + "ms backoff (took " + elapsedMillis + "ms)",
+            elapsedMillis < backoffMillis / 2
+        );
+        assertNotNull("a cancelled pull must surface as a failure", error.get());
+        assertTrue("cancel must surface as TaskCancelledException, got " + error.get(), error.get() instanceof TaskCancelledException);
+        buffer.finish(true);
+    }
+
+    /**
+     * Sanity: threading a never-cancelled signal through the drain does not change normal completion — all pages
+     * are drained and success is reported.
+     */
+    public void testDrainWithCancellationSupplierCompletesNormally() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ExternalSourceDrainUtils.drainPagesAsync(
+            iteratorOf(pages),
+            buffer,
+            exec,
+            () -> false,
+            ActionListener.wrap(v -> latch.countDown(), e -> {
+                error.set(e);
+                latch.countDown();
+            })
+        );
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertNull("normal drain must not fail", error.get());
+        assertEquals("both pages must be buffered", 2, buffer.size());
         buffer.finish(true);
     }
 

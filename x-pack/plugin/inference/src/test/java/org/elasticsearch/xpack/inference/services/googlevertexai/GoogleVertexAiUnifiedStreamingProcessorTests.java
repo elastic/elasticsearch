@@ -15,6 +15,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+
+import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
 
@@ -214,5 +217,30 @@ public class GoogleVertexAiUnifiedStreamingProcessorTests extends ESTestCase {
         } catch (IOException e) {
             fail("IOException during test: " + e.getMessage());
         }
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r1"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "candidates": [],
+                "usageMetadata": {},
+                "modelVersion": "m",
+                "responseId": "r2"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var processor = new GoogleVertexAiUnifiedStreamingProcessor(RuntimeException::new);
+        var chunks = new ArrayList<>();
+        processor.parse(parserConfig, data).forEachRemaining(chunks::add);
+        assertThat(chunks.size(), is(2));
     }
 }

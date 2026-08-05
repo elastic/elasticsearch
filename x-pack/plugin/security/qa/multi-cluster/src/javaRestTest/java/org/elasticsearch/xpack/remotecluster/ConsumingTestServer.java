@@ -80,11 +80,14 @@ class ConsumingTestServer extends ExternalResource {
                         received.addAll(read);
                     }
                 }
-
+                // Respond only after a successful read. A request severed mid-stream (e.g. a node and its APM agent
+                // shutting down during an in-flight export) can leave the JDK HttpServer connection in REQUEST state, and
+                // responding then trips its dispatcher-thread assertion ("State is not RESPONSE"). On failure we instead
+                // fall through to the catch and let the connection close without a response.
+                exchange.sendResponseHeaders(201, 0);
             } catch (RuntimeException e) {
                 logger.warn("failed to parse request", e);
             }
-            exchange.sendResponseHeaders(201, 0);
         }
     }
 

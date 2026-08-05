@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -149,6 +150,10 @@ final class RequestDispatcher {
     }
 
     private void innerExecute() {
+        if (parentTask instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            onComplete.run();
+            return;
+        }
         final Map<String, List<ShardId>> nodeToSelectedShards = new HashMap<>();
         assert pendingRequests.get() == 0 : "pending requests = " + pendingRequests;
         final List<String> failedIndices = new ArrayList<>();

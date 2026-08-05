@@ -11,10 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -22,6 +21,9 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.parseObjects;
 
 class GoogleAiStudioStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, StreamingChatCompletionResults.Results> {
     private static final Logger log = LogManager.getLogger(GoogleAiStudioStreamingProcessor.class);
@@ -37,9 +39,12 @@ class GoogleAiStudioStreamingProcessor extends DelegatingProcessor<Deque<ServerS
         var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
         for (ServerSentEvent event : item) {
             if (event.hasData()) {
-                try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.data())) {
-                    var delta = content.apply(jsonParser);
-                    results.offer(new StreamingChatCompletionResults.Result(delta));
+                try {
+                    parseObjects(parserConfig, event.data(), p -> {
+                        try (var sub = new XContentSubParser(p)) {
+                            return Stream.of(new StreamingChatCompletionResults.Result(content.apply(sub)));
+                        }
+                    }).forEach(results::offer);
                 } catch (Exception e) {
                     log.warn("Failed to parse event from inference provider: {}", event);
                     throw e;

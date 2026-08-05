@@ -33,7 +33,7 @@ class CheckstylePrecommitPluginFuncTest extends AbstractGradleInternalPluginFunc
         """
         repository.configureBuild(buildFile)
         repository.generateJar("org.elasticsearch", "build-conventions", "unspecified", 'org.acme.CheckstyleStuff')
-        repository.generateJar("com.puppycrawl.tools", "checkstyle", "10.3", 'org.puppycral.CheckstyleStuff')
+        repository.generateJar("com.puppycrawl.tools", "checkstyle", "11.1", 'org.puppycral.CheckstyleStuff')
 
     }
 

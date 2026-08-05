@@ -144,7 +144,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testTsdsTemporalityFieldOverrideWithWrongType() throws Exception {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         final var service = getMetadataIndexTemplateService();
         ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
@@ -180,7 +179,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testTsdsTemporalityFieldOverrideWithoutDimension() throws Exception {
-        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         final var service = getMetadataIndexTemplateService();
         ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 

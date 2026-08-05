@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -98,7 +99,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
         // Collect birth refs to release after latch.await(), mirroring InboundHandler's
         // response.decRef() that runs after handleResponse returns.
-        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
@@ -107,7 +108,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {
@@ -324,7 +327,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
         // Collect birth refs to release after latch.await(), mirroring InboundHandler's
         // response.decRef() that runs after handleResponse returns.
-        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
@@ -333,7 +336,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
-                ActionListener<SearchPhaseResult> listener
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
             ) {
                 int shardId = request.shardId().id();
                 if (request.canReturnNullResponseIfMatchNoDocs()) {

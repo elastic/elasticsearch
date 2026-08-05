@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
@@ -69,11 +70,23 @@ record OrcPushedExpressions(List<Expression> expressions) {
      * @return the SearchArgument, or null if no expressions could be converted
      */
     SearchArgument toSearchArgument(TypeDescription schema) {
+        return toSearchArgument(schema, Set.of());
+    }
+
+    /**
+     * @param decodeCanNullColumns physical names whose declared coercion can turn a physically-present cell into
+     *                             {@code null} (a format parse failure, an out-of-range narrowing). {@code IS NULL}
+     *                             over such a column must NOT push: ORC's SargApplier prunes a stripe whose physical
+     *                             {@code nullCount == 0}, dropping the rows that decode to null — the same hole this
+     *                             work closed on the parquet side. {@code IS NOT NULL} stays pushable (it only
+     *                             over-includes, which the scan re-filters).
+     */
+    SearchArgument toSearchArgument(TypeDescription schema, Set<String> decodeCanNullColumns) {
         Map<String, TypeDescription.Category> columnTypes = buildColumnTypeMap(schema);
 
         List<Expression> convertible = new ArrayList<>();
         for (Expression filter : expressions) {
-            if (OrcPushdownFilters.canConvert(filter)) {
+            if (OrcPushdownFilters.canConvert(filter) && allLeavesPhysicallyCompatible(filter, columnTypes, decodeCanNullColumns)) {
                 convertible.add(filter);
             }
         }
@@ -194,6 +207,101 @@ record OrcPushedExpressions(List<Expression> expressions) {
             return new HiveDecimalWritable(HiveDecimal.create(BigDecimal.valueOf(d)));
         }
         return OrcPushdownFilters.convertLiteral(value, dataType);
+    }
+
+    /**
+     * True iff every value-comparing leaf in {@code expr} references a column whose physical ORC
+     * category is compatible with its declared ESQL type. A declared retype (e.g. {@code keyword}
+     * over a physical {@code LONG}) reaches the leaf builders, where a STRING {@link PredicateLeaf}
+     * over a LONG column <b>mis-prunes</b>: ORC's stripe evaluator stringifies the integer stats for
+     * the STRING comparison, so {@code == "42"} is tested lexicographically against stringified
+     * integer bounds — {@code "42" > "100"} lexicographically — and the stripe that actually holds
+     * {@code 42} is dropped, silently losing rows.
+     *
+     * <p>Since ORC pushdown is RECHECK ({@code OrcFilterPushdownSupport} → {@code Pushability.RECHECK}),
+     * declining such a conjunct only makes the SearchArgument less selective — never changes the
+     * answer — and {@code FilterExec} re-applies the real ESQL semantics. Genuine columns
+     * ({@code keyword}=STRING, {@code long}=LONG, {@code datetime}=TIMESTAMP/DATE, …) stay compatible,
+     * so no legitimate pushdown is lost. IS NULL / IS NOT NULL are type-independent (they consult the
+     * column's null stat, not its value bounds), so they never mis-prune and stay pushable. Mirrors
+     * the Parquet {@code physicalPrimitiveIs} guard.
+     */
+    private static boolean allLeavesPhysicallyCompatible(
+        Expression expr,
+        Map<String, TypeDescription.Category> columnTypes,
+        Set<String> decodeCanNullColumns
+    ) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof IsNull isNull) {
+            // Decode is PARTIAL under a declared coercion: it can null a physically-present cell, and those nulls are
+            // absent from the raw nullCount ORC prunes IS NULL on. Decline for such a column; a plain read still pushes.
+            return isNull.field() instanceof NamedExpression ne && decodeCanNullColumns.contains(ne.name()) == false;
+        }
+        if (expr instanceof IsNotNull) {
+            return true; // IS NOT NULL only over-includes (decode never turns a physical null into a value) — safe
+        }
+        if (expr instanceof And and) {
+            return allLeavesPhysicallyCompatible(and.left(), columnTypes, decodeCanNullColumns)
+                && allLeavesPhysicallyCompatible(and.right(), columnTypes, decodeCanNullColumns);
+        }
+        if (expr instanceof Or or) {
+            return allLeavesPhysicallyCompatible(or.left(), columnTypes, decodeCanNullColumns)
+                && allLeavesPhysicallyCompatible(or.right(), columnTypes, decodeCanNullColumns);
+        }
+        if (expr instanceof Not not) {
+            return allLeavesPhysicallyCompatible(not.field(), columnTypes, decodeCanNullColumns);
+        }
+        return true; // an unknown shape canConvert accepted — canConvert already vetted pushability
+    }
+
+    /**
+     * Whether the file's physical ORC category at {@code columnName} can back a pruning predicate
+     * for the declared ESQL {@code dataType} without the stat-stringification mis-prune described on
+     * {@link #allLeavesPhysicallyCompatible}. A column absent from this file's schema (an unconvertible
+     * leaf, or glob drift) has no stats, so the mis-prune this guard prevents cannot occur — ORC
+     * evaluates a leaf on an unknown column as {@code YES_NO} (no pruning). Treat it as compatible so a
+     * partial {@code AND} still pushes its convertible, in-schema leaves (the unconvertible side is
+     * dropped by {@code canConvert}/{@code buildPredicate}); declining here would drop the whole
+     * conjunction. The mis-prune guard only bites an <b>in-schema</b> column whose physical category
+     * disagrees with the declared type.
+     */
+    private static boolean leafPhysicallyCompatible(
+        DataType dataType,
+        String columnName,
+        Map<String, TypeDescription.Category> columnTypes
+    ) {
+        TypeDescription.Category cat = columnTypes.get(columnName);
+        if (cat == null) {
+            return true;
+        }
+        return switch (dataType) {
+            case BOOLEAN -> cat == TypeDescription.Category.BOOLEAN;
+            case INTEGER, LONG -> cat == TypeDescription.Category.BYTE
+                || cat == TypeDescription.Category.SHORT
+                || cat == TypeDescription.Category.INT
+                || cat == TypeDescription.Category.LONG;
+            case DOUBLE -> cat == TypeDescription.Category.FLOAT
+                || cat == TypeDescription.Category.DOUBLE
+                || cat == TypeDescription.Category.DECIMAL;
+            case KEYWORD, TEXT -> cat == TypeDescription.Category.STRING
+                || cat == TypeDescription.Category.CHAR
+                || cat == TypeDescription.Category.VARCHAR;
+            case DATETIME -> cat == TypeDescription.Category.TIMESTAMP
+                || cat == TypeDescription.Category.TIMESTAMP_INSTANT
+                || cat == TypeDescription.Category.DATE;
+            default -> false;
+        };
     }
 
     private static void buildPredicate(SearchArgument.Builder builder, Expression expr, Map<String, TypeDescription.Category> columnTypes) {

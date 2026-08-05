@@ -52,6 +52,11 @@ public class BufferingMetricExporter implements MetricExporter {
 
     private static final Logger logger = LogManager.getLogger(BufferingMetricExporter.class);
 
+    private static final String WRITE_WINDOW_SYSTEM_PROPERTY = "telemetry.metrics.buffer.write_window";
+
+    // Write window for the disk-buffering library: how long a writer keeps appending before its file is rotated.
+    private static final long DISK_BUFFER_WRITE_WINDOW_MILLIS = writeWindowMillis();
+
     private final MetricExporter delegate;
     private final BufferingMetrics bufferingMetrics;
 
@@ -71,20 +76,28 @@ public class BufferingMetricExporter implements MetricExporter {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, DISK_BUFFER_WRITE_WINDOW_MILLIS);
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis
+    ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
-        long maxDiskBytes = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes();
-        long ttlMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL.get(settings).millis();
-        long writeWindowMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW.get(settings).millis();
-        long readMinAgeMillis = OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE.get(settings).millis();
-        this.sendTimeout = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings);
+        long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
+        long ttlMillis = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL.get(settings).millis();
+        this.sendTimeout = OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
         this.diskDir = bufferPath;
 
         FileStorageConfiguration config = FileStorageConfiguration.builder()
             .setMaxFolderSize((int) maxDiskBytes)
             .setMaxFileAgeForReadMillis(ttlMillis)
             .setMaxFileAgeForWriteMillis(writeWindowMillis)
-            .setMinFileAgeForReadMillis(readMinAgeMillis)
             // drainFiles() removes items only after a successful replay.
             .setDeleteItemsOnIteration(false)
             .build();
@@ -234,6 +247,13 @@ public class BufferingMetricExporter implements MetricExporter {
     @SuppressForbidden(reason = "disk-buffering library exposes a java.io.File based API")
     private static SignalStorage.Metric createStorage(Path dir, FileStorageConfiguration config) {
         return FileMetricStorage.create(dir.toFile(), config);
+    }
+
+    private static long writeWindowMillis() {
+        String override = System.getProperty(WRITE_WINDOW_SYSTEM_PROPERTY);
+        return override == null
+            ? TimeValue.timeValueSeconds(30).millis()
+            : TimeValue.parseTimeValue(override, WRITE_WINDOW_SYSTEM_PROPERTY).millis();
     }
 
     private static final class BufferingMetrics {

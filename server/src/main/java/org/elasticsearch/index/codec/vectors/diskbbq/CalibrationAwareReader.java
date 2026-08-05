@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 
 /**
  * Implemented by {@link org.apache.lucene.codecs.KnnVectorsReader} implementations that
@@ -34,6 +33,6 @@ public interface CalibrationAwareReader {
      * Returns the quantization encoding selected by calibration for the given field,
      * or {@code null} if no calibration data is available.
      */
-    ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo);
+    QuantEncoding getQuantEncoding(FieldInfo fieldInfo);
 
 }

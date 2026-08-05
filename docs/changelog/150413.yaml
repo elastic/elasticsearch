@@ -1,5 +1,0 @@
-area: ILM
-issues: []
-pr: 150413
-summary: Truncate error for ILM's `step_info` instead of string
-type: bug

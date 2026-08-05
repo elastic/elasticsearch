@@ -80,6 +80,18 @@ public class DataSourceSettingTests extends ESTestCase {
         assertEquals("::es_redacted::", setting.presentationValue());
     }
 
+    public void testPresentationValueWipedSecret() {
+        var setting = new DataSourceSetting(null, true);
+        assertNull(setting.presentationValue());
+    }
+
+    public void testWipedSecretRoundTrip() throws IOException {
+        var setting = new DataSourceSetting(null, true);
+        assertEquals(setting, writeableRoundTrip(setting));
+        assertXContentRoundTrip(setting);
+        assertSmileRoundTrip(setting);
+    }
+
     public void testPresentationValuePlaintext() {
         var setting = new DataSourceSetting("us-east-1", false);
         assertEquals("us-east-1", setting.presentationValue());

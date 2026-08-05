@@ -12,6 +12,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import nmcp.NmcpAggregationExtension
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
@@ -64,8 +65,13 @@ version = VersionProperties.elasticsearch
  * indicating the artifact is meant for beeing published to maven central.
  * */
 nmcpAggregation {
-  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
-  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+def nmcpConsumerConfiguration = extensions.getByType(NmcpAggregationExtension).'getConsumerConfiguration$nmcp'()
+allprojects { publishedProject ->
+  publishedProject.pluginManager.withPlugin('maven-publish') {
+    rootProject.dependencies.add(nmcpConsumerConfiguration.name, rootProject.dependencies.project(path: publishedProject.path))
+  }
 }
 
 tasks.named('zipAggregation').configure {
@@ -91,11 +97,7 @@ tasks.named('zipAggregation').configure {
  * }
  *
  * */
-ext.testArtifact = { p, String name = "test" ->
-  p.capabilities {
-    requireCapabilities("${p.group}:${p.name}-${name}-artifacts")
-  };
-}
+
 
 class StepExpansion {
   String templatePath
@@ -287,7 +289,8 @@ def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
 }
 
 def isCiSplitTask = { String taskName ->
-  taskName.startsWith("checkPart") || taskName.startsWith("releaseTestCheck") || taskName == 'functionalTests'
+  taskName.startsWith("checkPart") || taskName.startsWith("releaseTestCheck")
+    || taskName == 'functionalTests' || taskName == 'checkBuildLogic'
 }
 
 // TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
@@ -311,8 +314,8 @@ allprojects {
 
   plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
-      compileOnly project(":server")
-      testImplementation project(":test:framework")
+      compileOnly project(path: ":server")
+      testImplementation project(path: ":test:framework")
     }
   }
 
@@ -491,7 +494,7 @@ tasks.register("branchConsistency") {
 }
 
 tasks.named("wrapper").configure {
-  distributionType = 'ALL'
+  distributionType = 'BIN'
   def minimumGradleVersionFile = project.file('build-tools-internal/src/main/resources/minimumGradleVersion')
   doLast {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
@@ -538,6 +541,9 @@ tasks.named("precommit") {
 }
 
 tasks.named("checkPart1").configure {
+}
+
+tasks.register("checkBuildLogic").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
 }
@@ -553,14 +559,26 @@ tasks.named("checkPart1").configure {
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',
   ],
-  releaseTestCheckEsqlQa: [
-    ':x-pack:plugin:esql:qa:action',
-    ':x-pack:plugin:esql:qa:server',
+  // The ESQL QA suite is sharded so no job exceeds the CI timeout. The three heaviest,
+  // independently-growing workloads are kept apart:
+  //   Qa1: single-node's csvSpecTests (~1h 10m) run in isolation.
+  //   Qa2: mixed-cluster runs the spec/yaml suites once per supported BWC version.
+  //   Qa3: single-node's REST tests plus the remaining lightweight QA projects.
+  releaseTestCheckEsqlQa1: [
+    // Explicit task path — the loop appends :releaseTestCheck only for plain project paths.
+    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckCsvSpec',
+  ],
+  releaseTestCheckEsqlQa2: [
     ':x-pack:plugin:esql:qa:server:mixed-cluster',
-    ':x-pack:plugin:esql:qa:server:multi-clusters',
-    ':x-pack:plugin:esql:qa:server:single-node',
     ':x-pack:plugin:esql:qa:server:multi-node',
     ':x-pack:plugin:esql:qa:security',
+  ],
+  releaseTestCheckEsqlQa3: [
+    ':x-pack:plugin:esql:qa:action',
+    ':x-pack:plugin:esql:qa:server',
+    // Explicit task path — runs only the REST variants (csvSpecTests runs in its own Qa1 job).
+    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckRest',
+    ':x-pack:plugin:esql:qa:server:multi-clusters',
   ],
   releaseTestCheckEsqlDatasourceCore: [
     ':x-pack:plugin:esql-datasource-azure',
@@ -590,11 +608,12 @@ tasks.named("checkPart1").configure {
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',
   ],
-].each { taskName, projectPaths ->
+].each { taskName, taskPaths ->
   tasks.register(taskName) {
     group = 'Verification'
     description = "Runs ${taskName} tasks."
-    dependsOn projectPaths.collect { "${it}:releaseTestCheck" }
+    // Plain project paths get :releaseTestCheck appended; explicit task paths are used as-is.
+    dependsOn taskPaths.collect { path -> path.contains(':releaseTestCheck') ? path : "${path}:releaseTestCheck" }
   }
 }
 

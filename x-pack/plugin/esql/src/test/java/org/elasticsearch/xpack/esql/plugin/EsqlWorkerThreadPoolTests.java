@@ -13,11 +13,14 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_SIZE;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
 
 public class EsqlWorkerThreadPoolTests extends ESTestCase {
 
@@ -25,7 +28,43 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
         EsqlPlugin plugin = new EsqlPlugin();
         Settings settings = Settings.EMPTY;
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
-        assertEquals(1, builders.size());
+        // Two pools: the esql_worker compute pool plus the dedicated esql_external_io pool that runs blocking
+        // external reads and the streaming parse pipeline. They are kept separate so the parse pipeline cannot
+        // starve the compute drivers that consume its output (the heap-attack external stall).
+        assertEquals(2, builders.size());
+    }
+
+    public void testExternalIoPoolRegistered() {
+        EsqlPlugin plugin = new EsqlPlugin();
+        Settings settings = Settings.EMPTY;
+        List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
+        ExecutorBuilder<?> externalIo = builders.stream()
+            .filter(b -> b instanceof ScalingExecutorBuilder)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io scaling pool not registered"));
+        Setting<?> maxSetting = externalIo.getRegisteredSettings()
+            .stream()
+            .filter(s -> s.getKey().equals("thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME + ".max"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io max setting not registered"));
+        // The pool max tracks the single external-concurrency knob (defaults to the CPU-scaled value).
+        assertEquals(ExternalSourceSettings.externalIoThreads(settings), maxSetting.getDefault(Settings.EMPTY));
+    }
+
+    public void testExternalIoPoolTracksConcurrencyOverride() {
+        EsqlPlugin plugin = new EsqlPlugin();
+        Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.getKey(), 37).build();
+        List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
+        ExecutorBuilder<?> externalIo = builders.stream()
+            .filter(b -> b instanceof ScalingExecutorBuilder)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io scaling pool not registered"));
+        Setting<?> maxSetting = externalIo.getRegisteredSettings()
+            .stream()
+            .filter(s -> s.getKey().equals("thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME + ".max"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io max setting not registered"));
+        assertEquals(37, maxSetting.getDefault(settings));
     }
 
     public void testCustomThreadPoolSize() {

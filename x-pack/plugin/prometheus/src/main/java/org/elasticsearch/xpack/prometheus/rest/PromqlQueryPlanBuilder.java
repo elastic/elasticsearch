@@ -160,9 +160,8 @@ class PromqlQueryPlanBuilder {
             int sentinelLimit = limit == Integer.MAX_VALUE ? limit : limit + 1;
             plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, sentinelLimit, DataType.INTEGER), plan);
         }
-
         String resultType = computeResultType(promqlPlan, mode);
-        return new PromqlStatementResult(new EsqlStatement(plan, List.of()), resultType);
+        return new PromqlStatementResult(new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS), resultType);
     }
 
     private static String computeResultType(LogicalPlan plan, QueryMode mode) {

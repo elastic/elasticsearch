@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -72,6 +73,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A registry for PromQL functions that maps function names to their respective definitions.
@@ -110,6 +113,14 @@ public class PromqlFunctionRegistry {
         //
         Percentile.PROMQL_DEFINITION,
         PromqlHistogramQuantile.PROMQL_DEFINITION,
+        //
+        PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
+        //
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -151,7 +162,8 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
-        PromqlBuiltinFunctionDefinitions.TIME, };
+        PromqlBuiltinFunctionDefinitions.TIME,
+        PromqlBuiltinFunctionDefinitions.TIMESTAMP, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -173,8 +185,6 @@ public class PromqlFunctionRegistry {
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
-        "topk",
         "group",
         "count_values",
 
@@ -190,20 +200,14 @@ public class PromqlFunctionRegistry {
         "sort",
         "sort_desc",
 
-        // Time functions
-        "timestamp",
-
         // Label manipulation functions
         "label_join",
         "label_replace",
 
         // Histogram functions
-        "histogram_avg",
-        "histogram_count",
         "histogram_fraction",
         "histogram_stddev",
-        "histogram_stdvar",
-        "histogram_sum"
+        "histogram_stdvar"
     );
 
     private String normalize(String name) {
@@ -228,6 +232,14 @@ public class PromqlFunctionRegistry {
      */
     public boolean isNotImplemented(String name) {
         return NOT_IMPLEMENTED.contains(normalize(name));
+    }
+
+    /**
+     * Returns the names of PromQL functions that are recognized but not yet implemented, sorted for deterministic
+     * output. Used by documentation generation to render the "Not yet supported" list straight from the registry.
+     */
+    public SortedSet<String> notImplementedFunctions() {
+        return new TreeSet<>(NOT_IMPLEMENTED);
     }
 
     public void checkFunction(Source source, String name) {

@@ -40,12 +40,6 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
         return List.of(LocalStateDiskBBQ.class);
     }
 
-    @Override
-    protected boolean enableIndexSlice() {
-        // DiskBBQ validates and enables the setting directly, overriding so that the test plugin doesn't conflict
-        return false;
-    }
-
     public void testSliceSearchUsesSlicedIVFQuery() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
@@ -89,6 +83,50 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
             assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         });
+    }
+
+    public void testKnnSearchWithoutSliceDefaultsToAllSlices() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        assertAcked(
+            prepareCreate("slice-knn-bbq-all").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.shard.check_on_startup", "false")
+                    .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                    .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            ).setMapping("""
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 64,
+                      "index": true,
+                      "similarity": "dot_product",
+                      "index_options": {
+                        "type": "bbq_disk",
+                        "bits": 4
+                      }
+                    }
+                  }
+                }""")
+        );
+        ensureGreen("slice-knn-bbq-all");
+
+        client().index(
+            new IndexRequest("slice-knn-bbq-all").id("1").source("vector", axisVector(0)).routing("s1").setRoutingFromSlice(true)
+        ).actionGet();
+        client().index(
+            new IndexRequest("slice-knn-bbq-all").id("2").source("vector", axisVector(1)).routing("s2").setRoutingFromSlice(true)
+        ).actionGet();
+        refresh("slice-knn-bbq-all");
+
+        // No _slice provided should default to _all and find documents from all slices
+        final KnnSearchBuilder knn = new KnnSearchBuilder("vector", axisVector(1), 10, 10, 100f, null, null);
+        final SearchRequestBuilder search = prepareSearch("slice-knn-bbq-all").setKnnSearch(List.of(knn));
+
+        assertResponse(search, response -> { assertThat(response.getHits().getTotalHits().value(), equalTo(2L)); });
     }
 
     private static float[] axisVector(int axis) {

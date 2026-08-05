@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -40,13 +41,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Clamps input values to have a lower limit of min.
  */
-public class ClampMin extends EsqlScalarFunction {
+public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMin.class).binary(ClampMin::new).name("clamp_min");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .binaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, ClampMin::new)
         .description("Clamps the sample values of all elements to have a lower limit of min.")
         .example("clamp_min(http_requests_total, 0)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("clamp_min");
 
     private DataType resolvedType;
@@ -56,6 +58,7 @@ public class ClampMin extends EsqlScalarFunction {
         briefSummary = "Clamps input values to a lower bound, raising any value below min to min.",
         description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMin(

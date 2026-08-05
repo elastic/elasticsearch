@@ -57,10 +57,17 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         .ternary(Increase::createWithImplicitTemporality)
         .name("increase");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(Increase::createWithImplicitTemporality)
+        .withinSeries(
+            (source, field, window, timestamp) -> field.resolved() && field.dataType().isHistogram()
+                ? new HistogramMergeOverTime(source, field, window, timestamp)
+                : createWithImplicitTemporality(source, field, window, timestamp)
+        )
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the increase in the time series in the range vector, adjusting for counter resets.")
+        .extendedDescription(PromqlFunctionDefinition.COUNTER_RATE_BEHAVIOR)
         .example("increase(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_INCREASE_NOTE)
         .name("increase");
 
     private final Expression timestamp;

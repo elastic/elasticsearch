@@ -117,6 +117,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -240,7 +241,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -741,6 +741,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove
+    public static final String LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING =
+        "A settings update to logger levels overrides child loggers with explicitly configured levels."
+            + " This behavior is deprecated and will change in a future major version.";
+
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
         filtered.add(
@@ -753,6 +758,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
         );
+        filtered.add(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING);
         return filtered;
     }
 
@@ -2403,8 +2409,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
-        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
-        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        assertEqualsPercent(expectedValue, actualValue, deltaPercent, DEFAULT_DELTA);
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent, float absoluteDelta) {
+        float error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+        float actualDelta = Math.abs(expectedValue - actualValue) - error;
         if (actualDelta > 0) {
             fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
@@ -2468,12 +2478,59 @@ public abstract class ESTestCase extends LuceneTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        Map<String, TokenFilterFactory> tokenFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers = analysisRegistry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters = analysisRegistry.buildCharFilterFactories(indexSettings);
+        assertValidSharingKeys(analysisRegistry, indexSettings, tokenFilters, tokenizers, charFilters);
         return new TestAnalysis(
             analysisRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettings),
-            analysisRegistry.buildTokenFilterFactories(indexSettings),
-            analysisRegistry.buildTokenizerFactories(indexSettings),
-            analysisRegistry.buildCharFilterFactories(indexSettings)
+            tokenFilters,
+            tokenizers,
+            charFilters
         );
+    }
+
+    /**
+     * Validates the {@code sharingKey()} contract that the node-level analyzer cache depends on, for
+     * every factory any analysis test builds (across all modules and plugins, not just
+     * analysis-common). Rebuilds an independent set of factories from the same recipe and asserts
+     * that a key is never {@code null} and that whenever two independently-built factories of the
+     * same recipe compare {@code equal} they also hash {@code equal}.
+     *
+     * <p>The {@code equals => hashCode} check catches the classic bug of placing a raw
+     * {@link org.apache.lucene.analysis.CharArraySet} in a key (content {@code equals} but identity
+     * {@code hashCode}) instead of {@code Analysis.StableCharArraySet}, which would silently corrupt
+     * the cache map. It is universal and free of false positives: identity-keyed factories (e.g.
+     * {@code multiplexer}, the ICU opaque-object keys) compare unequal across builds, so the
+     * implication holds vacuously for them.
+     */
+    private static void assertValidSharingKeys(
+        AnalysisRegistry registry,
+        IndexSettings indexSettings,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, CharFilterFactory> charFilters
+    ) throws IOException {
+        Map<String, TokenFilterFactory> tokenFilters2 = registry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers2 = registry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters2 = registry.buildCharFilterFactories(indexSettings);
+        tokenFilters.forEach(
+            (name, f) -> assertValidSharingKey("token filter [" + name + "]", f.sharingKey(), tokenFilters2.get(name).sharingKey())
+        );
+        tokenizers.forEach(
+            (name, f) -> assertValidSharingKey("tokenizer [" + name + "]", f.sharingKey(), tokenizers2.get(name).sharingKey())
+        );
+        charFilters.forEach(
+            (name, f) -> assertValidSharingKey("char filter [" + name + "]", f.sharingKey(), charFilters2.get(name).sharingKey())
+        );
+    }
+
+    private static void assertValidSharingKey(String what, Object key, Object rebuiltKey) {
+        assertNotNull(what + " returned a null sharingKey()", key);
+        assertNotNull(what + " returned a null sharingKey() on rebuild", rebuiltKey);
+        if (key.equals(rebuiltKey)) {
+            assertEquals(what + " sharingKey() is equal across builds but hashCode differs", key.hashCode(), rebuiltKey.hashCode());
+        }
     }
 
     /**
@@ -3060,6 +3117,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         var e = expectThrows(expectedType, reason, runnable);
         assertThat(reason, e.getMessage(), messageMatcher);
         return e;
+    }
+
+    /**
+     * Same as {@link #runInParallel(Runnable...)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(Runnable... tasks) {
+        startInParallel(tasks.length, i -> tasks[i].run());
     }
 
     /**

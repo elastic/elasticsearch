@@ -131,6 +131,48 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastMessage().getFormattedMessage(), equalTo("a trace message; element = [null]"));
     }
 
+    /**
+     * Verifies that setting a parent logger level with {@code warnOnChildLoggerOverrides=true} emits a deprecation warning
+     * for each explicitly-configured child logger whose level would be overridden, and that no warning is emitted when:
+     * <ul>
+     *   <li>the flag is {@code false}</li>
+     *   <li>no child loggers are explicitly configured</li>
+     *   <li>the child logger is already at the same level as the new level</li>
+     *   <li>the level is {@code null} (resetting the parent)</li>
+     * </ul>
+     */
+    public void testSetLevelWarnsOnChildLoggerOverride() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            Logger parent = LogManager.getLogger("test.parent");
+            Logger child = LogManager.getLogger("test.parent.child");
+
+            // Establish an explicit level on the child that differs from what we will set on the parent.
+            Loggers.setLevel(child, Level.TRACE);
+
+            // With the flag off, no warning is emitted even though the child would be overridden.
+            Loggers.setLevel(parent, Level.INFO, false);
+            assertWarnings(); // no warnings
+
+            // With the flag on, a single warning is emitted when any child logger's explicit level would be overridden.
+            Loggers.setLevel(child, Level.TRACE); // re-establish child level (it was just overridden by the parent update above)
+            Loggers.setLevel(parent, Level.INFO, true);
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
+
+            // No warning if the child already has the same level as the new parent level.
+            Loggers.setLevel(child, Level.DEBUG);
+            Loggers.setLevel(parent, Level.DEBUG, true); // child already at DEBUG — no override warning
+            assertWarnings(); // no warnings
+
+            // No warning when resetting the parent (null level).
+            Loggers.setLevel(child, Level.TRACE);
+            Loggers.setLevel(parent, (Level) null, true);
+            assertWarnings(); // no warnings
+        });
+    }
+
     private Throwable randomException() {
         return randomFrom(
             new IOException("file not found"),

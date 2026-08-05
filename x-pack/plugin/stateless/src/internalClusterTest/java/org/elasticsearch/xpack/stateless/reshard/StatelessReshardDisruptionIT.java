@@ -29,14 +29,23 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
     public void testReshardWithDisruption() throws InterruptedException, ExecutionException {
         var masterNode = startMasterOnlyNode();
 
+        String dedicatedCoordinatorNode = startSearchNode();
+        // Exclude coordinator from allocation.
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", dedicatedCoordinatorNode))
+            .get();
+
         int shards = randomIntBetween(1, 5);
 
-        int indexNodes = randomIntBetween(1, shards * 2);
+        // At least two of each role so we still have usable nodes when `ISOLATE_NODE` disruption is applied.
+        int indexNodes = randomIntBetween(2, shards * 2);
         startIndexNodes(indexNodes);
-        int searchNodes = randomIntBetween(1, shards * 2);
+        int searchNodes = randomIntBetween(2, shards * 2);
         startSearchNodes(searchNodes);
 
-        int clusterSize = indexNodes + searchNodes + 1;
+        int clusterSize = 1 + 1 + indexNodes + searchNodes;
         ensureStableCluster(clusterSize);
 
         final String indexName = randomIndexName();
@@ -61,7 +70,7 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
                 do {
                     Failure randomFailure = randomFrom(Failure.values());
                     try {
-                        induceFailure(randomFailure, index, null);
+                        induceFailure(randomFailure, index, dedicatedCoordinatorNode);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }

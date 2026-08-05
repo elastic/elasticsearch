@@ -125,6 +125,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
     );
 
+    public static final ClusterBlock PROJECT_UNDER_CREATION_BLOCK = new ClusterBlock(
+        16,
+        "project is under creation",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
+
     @SuppressWarnings("this-escape")
     private ProjectMetadata(
         ProjectId id,
@@ -1848,14 +1858,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
             if (duplicates.isEmpty() == false) {
-                // The preamble enumeration is gated by the ES|QL external data sources feature flag. When the flag is
-                // off, datasets are not user-visible (no CRUD API) and must not appear in messages users can hit during
-                // ordinary index/alias/data-stream/view operations. The specific duplicate strings above already mention
-                // "dataset" when a dataset is actually involved in a collision, but that can only happen after datasets
-                // exist in cluster state, which requires the feature flag to be on.
-                String preamble = DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-                    ? "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
-                    : "index, alias, data stream, and view names need to be unique, but the following duplicates were found [";
+                String preamble = "index, alias, data stream, view, and dataset names need to be unique, "
+                    + "but the following duplicates were found [";
                 throw new IllegalStateException(preamble + Strings.collectionToCommaDelimitedString(duplicates) + "]");
             }
         }
@@ -2459,7 +2463,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.customs(customs.apply(part.customs));
             if (part.indices == updatedIndices
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)
-                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)) {
+                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)
+                && builder.datasetMetadata() == part.custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);

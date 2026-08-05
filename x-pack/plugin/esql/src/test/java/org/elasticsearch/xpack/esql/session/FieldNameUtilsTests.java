@@ -10,12 +10,27 @@ package org.elasticsearch.xpack.esql.session;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -23,6 +38,8 @@ import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class FieldNameUtilsTests extends ESTestCase {
 
@@ -1953,95 +1970,6 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
-    public void testInsist_fieldIsMappedToNonKeywordSingleIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
-            Set.of("_index", "@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
-            Set.of()
-        );
-    }
-
-    public void testInsist_fieldIsMappedToKeywordSingleIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
-            Set.of("_index", "@timestamp", "@timestamp.*", "message", "message.*"),
-            Set.of()
-        );
-    }
-
-    public void testInsist_fieldDoesNotExistSingleIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
-            Set.of("_index", "@timestamp", "@timestamp.*", "foo", "foo.*"),
-            Set.of()
-        );
-    }
-
-    public void testInsist_fieldIsUnmappedSingleIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
-            Set.of("_index", "@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
-            Set.of()
-        );
-    }
-
-    public void testInsist_multiFieldTestSingleIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
-            Set.of(
-                "_index",
-                "@timestamp",
-                "@timestamp.*",
-                "message",
-                "message.*",
-                "unmapped_message",
-                "unmapped_message.*",
-                "client_ip",
-                "client_ip.*",
-                "foo",
-                "foo.*"
-            ),
-            Set.of()
-        );
-    }
-
-    public void testInsist_fieldIsMappedToDifferentTypesMultiIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
-            Set.of("_index", "@timestamp", "@timestamp.*"),
-            Set.of()
-        );
-    }
-
-    public void testInsist_multiFieldMappedMultiIndex() {
-        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-        assertFieldNames(
-            """
-                FROM sample_data_ts_long, sample_data METADATA _index
-                | INSIST_🐔 @timestamp, unmapped_message
-                | INSIST_🐔 message, foo
-                | KEEP _index, @timestamp, message, foo""",
-            Set.of(
-                "_index",
-                "@timestamp",
-                "@timestamp.*",
-                "message",
-                "message.*",
-                "unmapped_message",
-                "unmapped_message.*",
-                "foo",
-                "foo.*"
-            ),
-            Set.of()
-        );
-    }
-
     public void testJoinMaskingKeep() {
         Set<String> expected = Set.of(
             "_index",
@@ -2435,6 +2363,15 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score = round(_score, 4)
             | KEEP _score, _fork, emp_no
             | SORT _score, _fork, emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
+    }
+
+    public void testMatchWithMetadataAndKeepCollectsReferencedFields() {
+        assertFieldNames("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+            | WHERE MATCH(txt, "Faulkner") OR txt IS NULL
+            | KEEP _index, doc_id, txt
+            | SORT _index
+            """, Set.of("_index", "doc_id", "doc_id.*", "txt", "txt.*"));
     }
 
     public void testFuseWithMatchAndScore() {
@@ -3445,8 +3382,8 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testNestedInSubqueries() {
         assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
-        // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
+        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name.
+        // max_sal is a STATS-computed output column, not an index field — it should not appear in field_caps.
         assertFieldNames(
             """
                 FROM employees
@@ -3456,20 +3393,42 @@ public class FieldNameUtilsTests extends ESTestCase {
                     | KEEP emp_no
                   )
                 | KEEP emp_no, first_name""",
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "salary",
-                "salary.*",
-                "languages",
-                "languages.*",
-                "max_sal",
-                "max_sal.*"
-            )
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*")
         );
+    }
+
+    public void testInSubqueryFieldShadowedByMainQueryStatsAlias() {
+        assertFieldNames("""
+            FROM employees
+            | STATS hire_date = MAX(salary), x = MIN(salary)
+            | WHERE x IN (FROM languages | KEEP language_id, hire_date | STATS c = COUNT(hire_date) | KEEP c)
+            """, Set.of("_index", "salary", "salary.*", "language_id", "language_id.*", "hire_date", "hire_date.*"));
+    }
+
+    public void testSubqueryRenameDoesNotRemoveOuterQueryRef() {
+        // Regression: the subquery renames 'salary' to 'first_name'. With a shared referencesBuilder the
+        // alias-removal step would also strip 'first_name' from the outer query's field set, causing
+        // "Unknown column [first_name]" during analysis. The fix uses a separate referencesBuilder for the
+        // subquery traversal so the outer query's 'first_name' reference (from SORT) is preserved.
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no NOT IN (
+                FROM employees
+                | RENAME salary AS first_name
+                | KEEP emp_no
+              )
+            | SORT first_name
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no NOT IN (
+                FROM employees
+                | RENAME emp_no AS id
+                | KEEP id
+              )
+            | SORT first_name
+            | KEEP emp_no""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testNotInSubquery() {
@@ -3526,6 +3485,145 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, first_name
             | LIMIT 5
             """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "hire_date", "hire_date.*"));
+    }
+
+    public void testInSubqueryInsideForkBranch() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (WHERE emp_no IN (FROM employees | WHERE salary > 74000 | KEEP emp_no) | KEEP emp_no, salary)
+                   (WHERE emp_no IN (FROM employees | WHERE salary < 30000 | KEEP emp_no) | KEEP emp_no, salary)
+            | KEEP emp_no, salary""", Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testForkBeforeInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkBeforeNotInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryBeforeInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkWithNestedForkAndInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (
+                FROM employees
+                | FORK (WHERE last_name LIKE "A*") (WHERE last_name LIKE "Z*")
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testForkWithNestedFromSubqueryAndInSubquery() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, first_name
+            | FORK (WHERE emp_no < 10010) (WHERE emp_no > 10090)
+            | WHERE emp_no IN (
+                FROM
+                  (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no),
+                  (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no)
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryWithNestedForkAndInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (
+                FROM employees
+                | FORK (WHERE last_name LIKE "A*") (WHERE last_name LIKE "Z*")
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    public void testFromSubqueryWithNestedFromSubqueryAndInSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no, first_name),
+              (FROM employees | SORT emp_no DESC | LIMIT 50 | KEEP emp_no, first_name)
+            | WHERE emp_no IN (
+                FROM
+                  (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no),
+                  (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no)
+                | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+                | KEEP emp_no
+              )
+            | KEEP emp_no, first_name
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "salary", "salary.*"));
+    }
+
+    /**
+     * Both {@code FROM}-style source leaves are alias-safe: a source relation is a tree leaf and cannot shadow an
+     * alias defined above it, so {@link FieldNameUtils} must collect the same fields whether the leaf is an
+     * {@link UnresolvedRelation} or an {@link UnresolvedExternalRelation}. This pins the
+     * {@code couldOverrideAliases} marker switch: before it, an external leaf was treated as alias-overriding, which
+     * forced {@code canRemoveAliases=false} for the whole traversal and left the {@code EVAL}-defined alias {@code x}
+     * in the collected set — diverging from the index leaf. The two leaves must now produce an identical field set.
+     */
+    public void testExternalSourceLeafCollectsFieldsLikeIndexLeaf() {
+        Set<String> indexResult = collectFieldsAboveSourceLeaf(
+            new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "idx"), false, List.of(), IndexMode.STANDARD, null)
+        );
+        Set<String> externalResult = collectFieldsAboveSourceLeaf(
+            new UnresolvedExternalRelation(Source.EMPTY, Literal.keyword(Source.EMPTY, "s3://bucket/table"), Map.of())
+        );
+
+        // Absolute golden set: only the real fields (plus their multifields and the _index metadata) survive; the
+        // EVAL-defined alias 'x' is removed. Asserting the exact set (not just parity) guarantees the parity check
+        // below cannot pass on a synchronized-wrong collection that drops a needed field for both leaves.
+        Set<String> expected = Set.of("gender", "gender.*", "salary", "salary.*", "_index");
+        assertThat("index leaf field collection", indexResult, equalTo(expected));
+        assertThat("external leaf must collect the same fields as the index leaf", externalResult, equalTo(indexResult));
+        assertThat(indexResult, not(hasItem("x")));
+    }
+
+    /**
+     * Builds {@code <leaf> | EVAL x = salary | STATS m = max(x) BY gender} and returns the collected field names. This
+     * mirrors the documented alias-removal example in {@link FieldNameUtils}.
+     */
+    private Set<String> collectFieldsAboveSourceLeaf(LogicalPlan leaf) {
+        UnresolvedAttribute gender = new UnresolvedAttribute(Source.EMPTY, "gender");
+        Eval eval = new Eval(Source.EMPTY, leaf, List.of(new Alias(Source.EMPTY, "x", new UnresolvedAttribute(Source.EMPTY, "salary"))));
+        UnresolvedFunction max = new UnresolvedFunction(Source.EMPTY, "max", List.of(new UnresolvedAttribute(Source.EMPTY, "x")));
+        List<Expression> groupings = List.of(gender);
+        List<NamedExpression> aggregates = List.of(new Alias(Source.EMPTY, "m", max), gender);
+        Aggregate agg = new Aggregate(Source.EMPTY, eval, groupings, aggregates);
+        return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

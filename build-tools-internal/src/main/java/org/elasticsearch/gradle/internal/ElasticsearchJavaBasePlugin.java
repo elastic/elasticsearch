@@ -9,10 +9,10 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
+import groovy.lang.Closure;
+
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
@@ -20,6 +20,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -54,9 +55,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        // ElasticsearchBasePlugin ensures GlobalBuildInfoPlugin is applied to root and
+        // registers buildParams + versions as project extensions on every subproject.
+        project.getPluginManager().apply(ElasticsearchBasePlugin.class);
+        buildParams = project.getExtensions().getByType(BuildParameterExtension.class);
         project.getPluginManager().apply(JavaBasePlugin.class);
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
@@ -67,8 +69,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureInputNormalization(project);
         configureNativeLibraryPath(project);
 
-        // convenience access to common versions used in dependencies
-        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
+        // testArtifact(dep) / testArtifact(dep, name) — convenience for declaring a
+        // dependency on a project's test-artifact capability variant.
+        project.getExtensions().getExtraProperties().set("testArtifact", new Closure<ModuleDependency>(this, this) {
+            public ModuleDependency doCall(ModuleDependency dep) {
+                return doCall(dep, "test");
+            }
+
+            public ModuleDependency doCall(ModuleDependency dep, String name) {
+                return dep.capabilities(caps -> caps.requireCapability(dep.getGroup() + ":" + dep.getName() + "-" + name + "-artifacts"));
+            }
+        });
     }
 
     /**
@@ -119,6 +130,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO: this probably shouldn't apply to groovy at all?
             compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
         });
+
     }
 
     /**
@@ -131,10 +143,38 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private static void configureNativeLibraryPath(Project project) {
         String nativeProject = ":libs:native:native-libraries";
-        Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
-        nativeConfig.defaultDependencies(deps -> {
-            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
-        });
+        // Skip on the producer itself: that project already declares its own (consumable) `nativeLibs`
+        // configuration, and there is no test JVM in that project that needs `es.nativelibs.path`.
+        // Without this guard the names collide ("a configuration with that name already exists").
+        if (project.getPath().equals(nativeProject)) {
+            return;
+        }
+        // Gradle 9.x enforces strict configuration roles: a single configuration cannot both declare
+        // dependencies and be resolved. We therefore use a pair:
+        // - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
+        // - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
+        // We intentionally request the producer's dedicated `nativeLibs` consumable variant by name
+        // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
+        // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
+        // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
+        //
+        // The project-path dependency is added lazily via `defaultDependencies` so that builds which
+        // apply this plugin but do not contain `:libs:native:native-libraries` as a local project
+        // (e.g. the elasticsearch-serverless composite build, where the producer lives in an included
+        // build and is supplied via the module coordinate `org.elasticsearch:native-libraries`) can
+        // override the dependency before resolution. Adding it eagerly would fail at plugin-apply
+        // time with "Project with path ':libs:native:native-libraries' could not be found".
+        Configuration nativeLibsDeclared = project.getConfigurations()
+            .dependencyScope(
+                "nativeLibsDeclared",
+                c -> c.defaultDependencies(
+                    deps -> deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")))
+                )
+            )
+            .get();
+        Configuration nativeConfig = project.getConfigurations()
+            .resolvable("resolvedNativeLibs", c -> c.extendsFrom(nativeLibsDeclared))
+            .get();
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection nativeConfigFiles = nativeConfig;
 

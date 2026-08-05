@@ -124,7 +124,15 @@ public abstract class SortedNumericLongValues {
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
      */
     public static SortedNumericLongValues singleton(LongValues values) {
-        return new SortedNumericLongValues(true, null) {
+        return singleton(values, null);
+    }
+
+    /**
+     * Converts a {@link LongValues} to a {@link SortedNumericLongValues} and preserves
+     * the associated {@link DocIdSetIterator}.
+     */
+    public static SortedNumericLongValues singleton(LongValues values, DocIdSetIterator docIdSetIterator) {
+        return new SortedNumericLongValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -200,7 +208,7 @@ public abstract class SortedNumericLongValues {
                     }
                 };
             }
-            return singleton(longValues);
+            return singleton(longValues, singleton);
         } else {
             return wrap(values);
         }
@@ -216,18 +224,23 @@ public abstract class SortedNumericLongValues {
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
-            final LongValues longValues = new LongValues() {
+            // It's more efficient to access singleton doc values via the unwrapped singleton
+            return new SortedNumericLongValues(true, singleton) {
                 @Override
-                public long longValue() throws IOException {
-                    return singleton.longValue();
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
                 }
 
                 @Override
-                public boolean advanceExact(int doc) throws IOException {
-                    return singleton.advanceExact(doc);
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return singleton.longValue();
                 }
             };
-            return singleton(longValues);
         } else {
             return new SortedNumericLongValues(false, values) {
                 @Override

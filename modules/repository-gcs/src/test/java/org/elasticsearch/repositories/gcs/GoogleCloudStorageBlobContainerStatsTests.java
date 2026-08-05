@@ -12,9 +12,16 @@ package org.elasticsearch.repositories.gcs;
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.storage.StorageRetryStrategy;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
@@ -43,12 +50,17 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -66,6 +78,9 @@ import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
 
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
+    // TODO: To be removed once the mock HTTPServer SocketTimeoutException bug is fixed (#153748)
+    private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobContainerStatsTests.class);
+
     private static final String BUCKET = "bucket";
     private static final ByteSizeValue BUFFER_SIZE = ByteSizeValue.ofKb(128);
 
@@ -112,14 +127,42 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
+        // Override retry strategy to dump threads on SocketTimeoutException
         googleCloudStorageService = new GoogleCloudStorageService(
             ClusterServiceUtils.createClusterService(threadPool),
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
-        );
+        ) {
+            @Override
+            protected StorageRetryStrategy getRetryStrategy() {
+                return ShouldRetryDecorator.decorate(
+                    super.getRetryStrategy(),
+                    (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                        final boolean willRetry = delegate.shouldRetry(prevThrowable, prevResponse);
+                        gcpTestLogger.info(() -> "GCS storage retry decision willRetry=" + willRetry + " cause=[" + prevThrowable + "]");
+                        if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
+                            dumpThreadsOnReadTimeout(prevThrowable, willRetry);
+                        }
+                        return willRetry;
+                    }
+                );
+            }
+        };
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
-        httpServer.createContext("/", googleCloudStorageHttpHandler);
-        httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        httpServer.createContext("/", new RequestLoggingHttpHandler(googleCloudStorageHttpHandler));
+        httpServer.createContext("/token", new RequestLoggingHttpHandler(new FakeOAuth2HttpHandler()));
         containerAndStore = createBlobContainer(randomIdentifier());
+    }
+
+    // TODO: Remove once #153748 is resolved
+    private static void dumpThreadsOnReadTimeout(Throwable cause, boolean willRetry) {
+        final StringBuilder b = new StringBuilder(
+            "\n==== thread dump on GCS SocketTimeoutException (#153748), willRetry=" + willRetry + " ====\n"
+        );
+        for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+            b.append(ti);
+        }
+        b.append("^^==============================================\n");
+        gcpTestLogger.warn(b.toString(), cause);
     }
 
     @After
@@ -159,6 +202,14 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final int maxPartSize = GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
         final int size = (parts - 1) * maxPartSize + between(1, maxPartSize);
         assert size >= store.getLargeBlobThresholdInBytes();
+        gcpTestLogger.info(
+            "testResumableWrite starting upload blobName=[{}] purpose=[{}] size=[{}] parts=[{}] chunkSize=[{}]",
+            blobName,
+            purpose,
+            size,
+            parts,
+            maxPartSize
+        );
         final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(size));
         container.writeBlob(purpose, blobName, blobContents, true);
 
@@ -261,7 +312,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             null,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
-            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
+            OptionalInt.empty()
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
@@ -288,6 +340,47 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final InetSocketAddress address = server.getAddress();
         String host = InetAddresses.toUriString(address.getAddress());
         return "http://" + host + ":" + address.getPort();
+    }
+
+    /**
+     * Logs mock GCS request enter/exit with duration so a subsequent SocketTimeoutException
+     * can be correlated with a stuck or never-completed handler.
+     * TODO: Remove once #153748 is resolved
+     */
+    @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
+    private static final class RequestLoggingHttpHandler implements HttpHandler {
+        private final HttpHandler delegate;
+
+        RequestLoggingHttpHandler(HttpHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            final String method = exchange.getRequestMethod();
+            final String uri = exchange.getRequestURI().toString();
+            final String contentRange = exchange.getRequestHeaders().getFirst("Content-Range");
+            final long startNanos = System.nanoTime();
+            gcpTestLogger.info("mock GCS request start method=[{}] uri=[{}] contentRange=[{}]", method, uri, contentRange);
+            try {
+                delegate.handle(exchange);
+            } catch (Exception e) {
+                gcpTestLogger.warn(
+                    () -> "mock GCS request failed method=[" + method + "] uri=[" + uri + "] contentRange=[" + contentRange + "]",
+                    e
+                );
+                throw e;
+            } finally {
+                final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startNanos);
+                gcpTestLogger.info(
+                    "mock GCS request end method=[{}] uri=[{}] contentRange=[{}] took=[{}]",
+                    method,
+                    uri,
+                    contentRange,
+                    took
+                );
+            }
+        }
     }
 
     private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)

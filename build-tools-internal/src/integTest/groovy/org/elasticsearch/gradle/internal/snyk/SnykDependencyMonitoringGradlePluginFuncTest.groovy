@@ -27,7 +27,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
     Class<? extends Plugin> pluginClassUnderTest = SnykDependencyMonitoringGradlePlugin.class
 
     def setup() {
-        configurationCacheCompatible = false // configuration is not cc compliant
+        disableConfigurationCache("SnykDependencyMonitoringGradlePlugin configuration is not cc compliant")
     }
 
     @Unroll

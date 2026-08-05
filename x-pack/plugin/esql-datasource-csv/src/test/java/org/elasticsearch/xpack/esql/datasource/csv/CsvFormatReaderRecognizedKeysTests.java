@@ -41,6 +41,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("comment");
         expected.add("datetime_format");
         expected.add("delimiter");
+        expected.add("mode");
         expected.add("encoding");
         expected.add("escape");
         expected.add("header_row");
@@ -49,6 +50,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("null_value");
         expected.add("quote");
         expected.add("schema_sample_size");
+        expected.add("trim_spaces");
         assertEquals(expected, new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS));
     }
 
@@ -167,6 +169,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     private static Object sampleValueFor(String key) {
         return switch (key) {
             case "delimiter" -> "|";
+            case "mode" -> "escaped";
             case "quote" -> "\"";
             case "escape" -> "\\";
             case "comment" -> "#";
@@ -177,6 +180,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "multi_value_syntax" -> "brackets";
             case "header_row" -> false;
             case "column_prefix" -> "f_";
+            case "trim_spaces" -> true;
             case "schema_sample_size" -> 10;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };

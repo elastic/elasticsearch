@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,13 +93,41 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         assertEquals(0, budget.inFlight());
     }
 
-    public void testLengthReleasesBudget() throws Exception {
+    public void testLengthBypassesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.length()).thenReturn(42L);
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         assertEquals(42L, obj.length());
+        assertEquals(0, budget.inFlight());
+    }
+
+    /**
+     * Starvation regression for #1151: metadata ops (length/lastModified/exists) must not acquire a
+     * budget permit. With a single-permit budget already fully consumed by an open stream, a
+     * permit-taking metadata call would block forever (single-threaded here, so it would
+     * deadlock/time out). It must instead return immediately without changing the in-flight count.
+     */
+    public void testMetadataOpsBypassBudgetWhileStreamHoldsOnlyPermit() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        when(delegate.length()).thenReturn(42L);
+        when(delegate.lastModified()).thenReturn(Instant.ofEpochMilli(123L));
+        when(delegate.exists()).thenReturn(true);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        InputStream stream = obj.newStream();
+        assertEquals(1, budget.inFlight());
+
+        assertEquals(42L, obj.length());
+        assertEquals(Instant.ofEpochMilli(123L), obj.lastModified());
+        assertTrue(obj.exists());
+        assertEquals("metadata ops must not consume the held stream's budget slot", 1, budget.inFlight());
+
+        stream.close();
         assertEquals(0, budget.inFlight());
     }
 

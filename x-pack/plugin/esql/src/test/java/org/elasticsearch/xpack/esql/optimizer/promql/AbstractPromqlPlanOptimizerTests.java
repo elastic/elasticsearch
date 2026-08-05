@@ -34,6 +34,8 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
 
     protected static TestAnalyzer tsAnalyzer() {
         return analyzerWithEnrichPolicies().addK8s()
+            .addK8sDateNanos()
+            .addOtelMetrics()
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
             .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);

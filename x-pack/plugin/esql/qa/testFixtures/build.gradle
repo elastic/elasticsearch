@@ -1,4 +1,10 @@
 apply plugin: 'elasticsearch.java'
+
+processResources {
+    from(rootProject.file('docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions')) {
+        into('esql-functions')
+    }
+}
 apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 apply plugin: 'elasticsearch.esql-release'
 
@@ -19,6 +25,7 @@ dependencies {
   api project(':test:framework')
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
+  implementation project(':modules:ip-location')
   implementation project(xpackModule('kql'))
   implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

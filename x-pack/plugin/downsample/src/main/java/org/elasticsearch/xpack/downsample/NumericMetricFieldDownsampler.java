@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -32,15 +34,37 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue,
     NumericMetricFieldDownsampler.AggregateCounter {
 
+    // Downsamplers are shared across leaf collectors, but doc-values iterators are leaf-local and forward-only.
+    // Keep the active iterator and read its docID() when switching back to it instead of storing per-leaf positions.
+    private DocIdSetIterator leafDocIdIterator;
+    int leafDocIdIteratorDoc = -1;
+    boolean leafIteratorExhausted;
+
     NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         super(name, fieldData);
     }
 
     @Override
     public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-        if (isDone()) {
+        if (isDone() || docIdBuffer.isEmpty()) {
             return;
         }
+
+        DocIdSetIterator docIdIterator = docValues.docIdIterator();
+        if (docIdIterator == null) {
+            collectUsingAdvanceExact(docValues, docIdBuffer);
+            return;
+        }
+
+        resetLeafIteratorStateIfNeeded(docIdIterator);
+        if (leafIteratorExhausted) {
+            return;
+        }
+
+        collectUsingDocIdIterator(docValues, docIdBuffer);
+    }
+
+    private void collectUsingAdvanceExact(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
         for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
             int docId = docIdBuffer.get(i);
             if (docValues.advanceExact(docId) == false) {
@@ -48,6 +72,91 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             }
             collectCurrentValues(docValues);
         }
+    }
+
+    void resetLeafIteratorStateIfNeeded(DocIdSetIterator docIdIterator) {
+        if (leafDocIdIterator != docIdIterator) {
+            // If we see a previously used iterator again, its own docID() is the last position for that leaf.
+            leafDocIdIterator = docIdIterator;
+            leafDocIdIteratorDoc = docIdIterator.docID();
+            leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
+        }
+    }
+
+    /**
+     * Collects buffered docs by intersecting the ordered buffer with the numeric doc-values iterator.
+     * <p>
+     * This path is used only when the field exposes a {@link DocIdSetIterator}. The iterator is leaf-local
+     * and forward-only, so we never try to rewind it. When collection later returns to a previously seen
+     * leaf, {@link #resetLeafIteratorStateIfNeeded(DocIdSetIterator)} reads the iterator's own
+     * {@link DocIdSetIterator#docID()} and resumes from that position.
+     *
+     * <pre>
+     * buffered doc ids:  [ 3 ][ 7 ][ 9 ][ 15 ]
+     * doc-values docs:   [ 1 ][ 3 ][ 8 ][ 9 ][ 20 ]
+     *
+     * 1. Advance the doc-values iterator to the first buffered doc or beyond.
+     *
+     *    buffered doc ids:  [ 3 ][ 7 ][ 9 ][ 15 ]
+     *                         ^
+     *    doc-values docs:   [ 1 ][ 3 ][ 8 ][ 9 ][ 20 ]
+     *                         ^
+     *
+     * 2. Keep comparing the current doc-values doc to the current buffered target:
+     *
+     *    current doc &lt; target doc  -> advance doc-values to target doc
+     *    current doc == target doc -> collect current values, then move to the next buffered target
+     *    current doc &gt; target doc  -> binary-search the next buffered target that is >= current doc
+     *
+     * If the iterator is exhausted, the leaf is marked exhausted and later collections for the same iterator
+     * return without touching doc values. This turns the problem into a forward-only merge instead of probing
+     * every buffered doc with {@code advanceExact(docId)}.
+     * </pre>
+     */
+    private void collectUsingDocIdIterator(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+        int bufferedDocCount = docIdBuffer.size();
+        int[] bufferedDocIds = docIdBuffer.buffer;
+        if (leafDocIdIteratorDoc > bufferedDocIds[bufferedDocCount - 1]) {
+            return;
+        }
+
+        int firstBufferedDocId = bufferedDocIds[0];
+        if (leafDocIdIteratorDoc < firstBufferedDocId) {
+            // advance to the closest doc that >= firstBufferedDocId
+            advanceLeafDocIdIterator(firstBufferedDocId);
+            if (leafIteratorExhausted) {
+                return;
+            }
+        }
+
+        // find the closest index in bufferedDocIds that points to a doc that is >= leafDocIdIteratorDoc
+        int index = lowerBound(bufferedDocIds, 0, bufferedDocCount, leafDocIdIteratorDoc);
+        while (index < bufferedDocCount && leafIteratorExhausted == false && isDone() == false) {
+            int targetDocId = bufferedDocIds[index];
+            if (leafDocIdIteratorDoc < targetDocId) {
+                // advance to the closest doc that is >= targetDocId
+                advanceLeafDocIdIterator(targetDocId);
+                continue;
+            }
+
+            // found the intersection (means that the particular field exists for the current doc)
+            if (leafDocIdIteratorDoc == targetDocId) {
+                collectCurrentValues(docValues);
+                index++;
+                if (index < bufferedDocCount && isDone() == false) {
+                    advanceLeafDocIdIterator(bufferedDocIds[index]);
+                }
+                continue;
+            }
+
+            // move to the next buffered doc, which is the closest to the next doc of the particular field
+            index = lowerBound(bufferedDocIds, index + 1, bufferedDocCount, leafDocIdIteratorDoc);
+        }
+    }
+
+    void advanceLeafDocIdIterator(int targetDocId) throws IOException {
+        leafDocIdIteratorDoc = leafDocIdIterator.advance(targetDocId);
+        leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
     }
 
     @Override
@@ -194,21 +303,40 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void collect(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer,
             Temporality temporality
         ) throws IOException {
             assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
+            if (docIdBuffer.isEmpty()) {
+                return;
+            }
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestampBuffer and docIdBuffer should have the same size";
             if (temporalityCollector == null) {
                 temporalityCollector = switch (temporality) {
                     case DELTA -> deltaCollector;
                     case CUMULATIVE, DEFAULT -> cumulativeCollector;
                 };
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            DocIdSetIterator docIdIterator = counterDocValues.docIdIterator();
+            if (docIdIterator == null) {
+                collectCounterUsingAdvanceExact(counterDocValues, timestampBuffer, docIdBuffer);
+            } else {
+                resetLeafIteratorStateIfNeeded(docIdIterator);
+                if (leafIteratorExhausted == false) {
+                    collectCounterUsingDocIdIterator(counterDocValues, timestampBuffer, docIdBuffer);
+                }
+            }
+        }
+
+        private void collectCounterUsingAdvanceExact(
+            SortedNumericDoubleValues counterDocValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer
+        ) throws IOException {
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                var currentTimestamp = timestamps[i];
+                long currentTimestamp = timestampBuffer.get(i);
                 if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
@@ -216,6 +344,62 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 assert docValuesCount > 0;
                 temporalityCollector.collect(counterDocValues.nextValue(), currentTimestamp);
                 state = State.IN_PROGRESS;
+            }
+        }
+
+        /**
+         * Mirrors {@link NumericMetricFieldDownsampler#collectUsingDocIdIterator} but threads the timestamp
+         * alongside each matched doc. {@code timestamps[index]} is always the timestamp for
+         * {@code docIdBuffer.get(index)}, so the same {@code index} used to walk the buffer also addresses
+         * the correct timestamp — even when {@link #lowerBound} skips ahead past unmatched entries.
+         * <p>
+         * When a doc is skipped due to {@code timestamp < 0}, the iterator has already advanced to that doc;
+         * the subsequent {@link #advanceLeafDocIdIterator} call to the next target naturally moves past it.
+         */
+        private void collectCounterUsingDocIdIterator(
+            SortedNumericDoubleValues counterDocValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer
+        ) throws IOException {
+            int bufferedDocCount = docIdBuffer.size();
+            int[] bufferedDocIds = docIdBuffer.buffer;
+            if (leafDocIdIteratorDoc > bufferedDocIds[bufferedDocCount - 1]) {
+                return;
+            }
+
+            int firstBufferedDocId = bufferedDocIds[0];
+            if (leafDocIdIteratorDoc < firstBufferedDocId) {
+                advanceLeafDocIdIterator(firstBufferedDocId);
+                if (leafIteratorExhausted) {
+                    return;
+                }
+            }
+
+            int index = lowerBound(bufferedDocIds, 0, bufferedDocCount, leafDocIdIteratorDoc);
+            while (index < bufferedDocCount && leafIteratorExhausted == false) {
+                int targetDocId = bufferedDocIds[index];
+                if (leafDocIdIteratorDoc < targetDocId) {
+                    advanceLeafDocIdIterator(targetDocId);
+                    continue;
+                }
+
+                if (leafDocIdIteratorDoc == targetDocId) {
+                    long timestamp = timestampBuffer.get(index);
+                    if (timestamp >= 0) {
+                        int docValuesCount = counterDocValues.docValueCount();
+                        assert docValuesCount > 0;
+                        temporalityCollector.collect(counterDocValues.nextValue(), timestamp);
+                        state = State.IN_PROGRESS;
+                    }
+                    index++;
+                    if (index < bufferedDocCount) {
+                        advanceLeafDocIdIterator(bufferedDocIds[index]);
+                    }
+                    continue;
+                }
+
+                // leafDocIdIteratorDoc > targetDocId: skip ahead in the buffer to the next candidate
+                index = lowerBound(bufferedDocIds, index + 1, bufferedDocCount, leafDocIdIteratorDoc);
             }
         }
 
@@ -238,6 +422,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         public void tsidReset() {
+            state = State.EMPTY;
             if (temporalityCollector != null) {
                 temporalityCollector.tsidReset();
                 temporalityCollector = null;
@@ -262,7 +447,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override
@@ -271,7 +456,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override
@@ -280,13 +465,13 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * When the active temporality is {@link Temporality#CUMULATIVE}, we delegate to the {@link CumulativeCollector}
-         * to update the {@link CounterResetDataPoints}
-         * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+         * Update {@link ResetDataPoints} which contains all reset counter values,
+         * with the latest reset points of this counter field.
+         * @param resetDataPoints the extra reset data values for every counter for this bucket
          */
-        void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+        public void updateResetDataPoints(ResetDataPoints resetDataPoints) {
             if (temporalityCollector == cumulativeCollector) {
-                cumulativeCollector.updateResetDataPoints(counterResetDataPoints);
+                cumulativeCollector.updateResetDataPoints(resetDataPoints);
             }
         }
 
@@ -333,7 +518,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         static class CumulativeCollector implements TemporalityAwareCollector {
 
             private final String name;
-            private final Deque<CounterResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
+            private final Deque<ResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
             private double downsampledValue = Double.NaN;
 
             // Visible for testing
@@ -368,18 +553,18 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                         // reset or not.
                         double lastPersisted = Double.NaN;
                         if (resetStack.isEmpty() == false) {
-                            lastPersisted = resetStack.peek().value();
+                            lastPersisted = ((ResetDataPoints.CounterResetValue) resetStack.peek().value()).value();
                         } else if (Double.isNaN(previousBucketValue) == false) {
                             lastPersisted = previousBucketValue;
                         }
                         // If there is no known last persisted value or the last persisted is larger than the current value,
                         // we need to store the previous document to capture the reset.
                         if (Double.isNaN(lastPersisted) || Double.compare(counterValue, lastPersisted) < 0) {
-                            resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                            resetStack.push(new ResetDataPoints.ResetPoint(lastTimestamp, previousValue));
                         }
                     }
                     // This is the last value before reset, which we always need to persist
-                    resetStack.push(new CounterResetDataPoints.ResetPoint(timestamp, counterValue));
+                    resetStack.push(new ResetDataPoints.ResetPoint(timestamp, counterValue));
                 }
                 downsampledValue = counterValue;
                 previousValue = counterValue;
@@ -406,22 +591,22 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             }
 
             /**
-             * Update {@link CounterResetDataPoints} which contains all reset counter values,
+             * Update {@link ResetDataPoints} which contains all reset counter values,
              * with the latest reset points of this counter field.
-             * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+             * @param resetDataPoints the extra reset data values for every counter for this bucket
              */
-            void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+            void updateResetDataPoints(ResetDataPoints resetDataPoints) {
                 if (resetStack.isEmpty()) {
                     return;
                 }
                 // It is possible that the first reset data point is the same with the first data point
                 // we skip this if this is the case
                 var firstResetPoint = resetStack.pop();
-                if (firstResetPoint.value() != downsampledValue) {
-                    counterResetDataPoints.addDataPoint(name, firstResetPoint);
+                if (((ResetDataPoints.CounterResetValue) firstResetPoint.value()).value() != downsampledValue) {
+                    resetDataPoints.addDataPoint(name, firstResetPoint);
                 }
                 while (resetStack.isEmpty() == false) {
-                    counterResetDataPoints.addDataPoint(name, resetStack.pop());
+                    resetDataPoints.addDataPoint(name, resetStack.pop());
                 }
             }
         }

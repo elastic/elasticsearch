@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.benchmark.vector.scorer.BenchmarkTest;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Random;
 
 public class ESVectorUtilByteOperationBenchmarkTests extends ESTestCase {
@@ -32,13 +33,32 @@ public class ESVectorUtilByteOperationBenchmarkTests extends ESTestCase {
         bench.setup(new Random(seed));
         float expected = bench.dotProduct();
 
-        bench = new ESVectorUtilByteOperationBenchmark();
-        bench.size = size;
-        bench.implementation = VectorImplementation.PANAMA;
-        bench.setup(new Random(seed));
-        float panama = bench.dotProduct();
+        for (var impl : List.of(VectorImplementation.PANAMA, VectorImplementation.NATIVE)) {
+            bench = new ESVectorUtilByteOperationBenchmark();
+            bench.size = size;
+            bench.implementation = impl;
+            bench.setup(new Random(seed));
+            float actual = bench.dotProduct();
+            assertEquals(expected, actual, 0f);
+        }
+    }
 
-        assertEquals(expected, panama, 0f);
+    public void testSquareDistance() {
+        long seed = randomLong();
+        var bench = new ESVectorUtilByteOperationBenchmark();
+        bench.size = size;
+        bench.implementation = VectorImplementation.SCALAR;
+        bench.setup(new Random(seed));
+        float expected = bench.squareDistance();
+
+        for (var impl : List.of(VectorImplementation.PANAMA, VectorImplementation.NATIVE)) {
+            bench = new ESVectorUtilByteOperationBenchmark();
+            bench.size = size;
+            bench.implementation = impl;
+            bench.setup(new Random(seed));
+            float actual = bench.squareDistance();
+            assertEquals(expected, actual, 0f);
+        }
     }
 
     public void testl2Normalize() {
@@ -50,13 +70,14 @@ public class ESVectorUtilByteOperationBenchmarkTests extends ESTestCase {
         bench.setup(new Random(seed));
         float expected = bench.l2Normalize();
 
-        bench = new ESVectorUtilByteOperationBenchmark();
-        bench.size = size;
-        bench.implementation = VectorImplementation.PANAMA;
-        bench.setup(new Random(seed));
-        float panama = bench.l2Normalize();
-
-        assertEquals(expected, panama, 0f);
+        for (var impl : List.of(VectorImplementation.PANAMA, VectorImplementation.NATIVE)) {
+            bench = new ESVectorUtilByteOperationBenchmark();
+            bench.size = size;
+            bench.implementation = impl;
+            bench.setup(new Random(seed));
+            float actual = bench.l2Normalize();
+            assertEquals(expected, actual, 0f);
+        }
     }
 
     @ParametersFactory

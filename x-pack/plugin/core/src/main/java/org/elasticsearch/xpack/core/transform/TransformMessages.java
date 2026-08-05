@@ -21,6 +21,8 @@ public class TransformMessages {
     public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
     public static final String REST_STOP_TRANSFORM_WITHOUT_CONFIG =
         "Detected transforms with no config [{0}]. Use force to stop/delete them.";
+    public static final String REST_PUT_FAILED_CREATING_TRANSFORM_INDEX =
+        "Failed to create transform system index, please wait and try again.";
     public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist transform configuration";
     public static final String TRANSFORM_WAIT_FOR_INDEX_SHARDS_ACTIVE_TIMEOUT =
         "Timed out waiting for transform system index shards to become active";

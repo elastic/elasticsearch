@@ -72,6 +72,12 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
      */
     private static final Settings TSDB_PROMETHEUS_LIKE_SETTINGS = tsdbSettings(SourceFieldMapper.Mode.STORED, "labels.*");
 
+    /**
+     * OTel-like TSDB index: an {@code attributes} passthrough object. Dimension fields show up under
+     * {@code attributes.*} and also as root-level aliases. Synthetic source (JSON) is used.
+     */
+    private static final Settings TSDB_OTEL_LIKE_SETTINGS = tsdbSettings(null, "attributes.*");
+
     private static final String MAPPING = """
         {
           "_doc": {
@@ -83,6 +89,38 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
               "cpu": { "type": "double", "time_series_metric": "gauge" },
               "request_count": { "type": "long", "time_series_metric": "counter" },
               "message": { "type": "keyword" }
+            }
+          }
+        }
+        """;
+
+    /**
+     * OTel TSDB index: an {@code attributes} {@code passthrough} object marked as
+     * {@code time_series_dimension: true}, plus a non-dimension metric under {@code metrics}. Dimension
+     * fields are exposed both under their concrete path ({@code attributes.cpu}) and as root-level aliases
+     * ({@code cpu}). Stored source is not configured here, so synthetic source (JSON) is used.
+     */
+    private static final String OTEL_LIKE_MAPPING = """
+        {
+          "_doc": {
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "attributes": {
+                "type": "passthrough",
+                "priority": 10,
+                "time_series_dimension": true,
+                "properties": {
+                  "cpu": { "type": "keyword" },
+                  "state": { "type": "keyword" }
+                }
+              },
+              "metrics": {
+                "type": "passthrough",
+                "priority": 20,
+                "properties": {
+                  "system.cpu.time": { "type": "double", "time_series_metric": "gauge" }
+                }
+              }
             }
           }
         }
@@ -188,24 +226,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
     }
 
-    /**
-     * With no exclusions the wildcard {@code index.dimensions} shortcut is still honored as-is, since there is
-     * nothing to remove and the source filter understands the {@code labels.*} pattern.
-     */
-    public void testWildcardDimensionSettingUsedWhenNothingExcluded() throws IOException {
-        Settings settings = Settings.builder()
-            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
-            .build();
-        BlockLoader loader = createBlockLoader(
-            settings,
-            PROMETHEUS_LIKE_MAPPING,
-            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
-        );
-        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-        assertThat(sourcePaths(loader), equalTo(Set.of("labels.*")));
-    }
-
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
         MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
         BlockLoader loader = mapperService.documentMapper()
@@ -281,7 +301,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * Verify that the `withoutFields` parameter correctly excludes labels from the output.
+     * Verify that the `skipFieldNames` parameter correctly excludes labels from the output.
      * When using PromQL's `without(instance)` clause, the `instance` label must not appear
      * in the emitted `_timeseries` JSON.
      */
@@ -308,6 +328,94 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         @SuppressWarnings("unchecked")
         Map<String, Object> labels = (Map<String, Object>) parsed.get("labels");
         assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
+    }
+
+    /**
+     * Regression test for OTel passthrough alias exclusion (GitHub issue #151540). PromQL
+     * {@code without(cpu)} passes the short alias name {@code "cpu"} in {@code skipFieldNames}. The block
+     * loader must resolve the alias to the concrete dimension path {@code "attributes.cpu"} (via
+     * {@link MappingLookup#getFieldType}) so the exclusion actually matches and the dimension is dropped from
+     * the {@code _timeseries} source paths. Before the fix, {@code "cpu" != "attributes.cpu"} caused the
+     * exclusion to silently no-op, leaking the label.
+     */
+    public void testOtelPassthroughAliasExcludedByShortName() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_OTEL_LIKE_SETTINGS,
+            OTEL_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("cpu"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("attributes.state")));
+    }
+
+    /**
+     * Prometheus-style passthrough: {@code labels.job} is exposed as the short alias {@code job} at the
+     * root level. Passing {@code "job"} in skipFieldNames must resolve to {@code "labels.job"} and exclude
+     * it, leaving only {@code labels.__name__} and {@code labels.instance}.
+     */
+    public void testPrometheusPassthroughAliasExcludedByShortName() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            PROMETHEUS_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("job"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
+    }
+
+    /**
+     * Excluding all dimensions must produce an empty source-paths set (single global series).
+     */
+    public void testWithoutAllDimensionsYieldsEmptySourcePaths() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "env", "region"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of()));
+    }
+
+    /**
+     * An unknown field in skipFieldNames must be silently ignored: the exclusion simply
+     * does not match any dimension and the full dimension set is returned.
+     */
+    public void testWithoutUnknownFieldIsIgnored() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("does_not_exist"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
+    }
+
+    /**
+     * loadMetricFields=true with a non-empty exclusion set: the excluded dimension must be absent from
+     * source paths while metrics remain unaffected.
+     */
+    public void testExcludedDimensionsWithMetricsAndExclusion() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("host"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("env", "region", "cpu", "request_count")));
+    }
+
+    /**
+     * Complement of {@link #testOtelPassthroughAliasExcludedByShortName}: passing the concrete field name
+     * {@code "attributes.cpu"} directly must also work, and it already did before the fix (regression guard).
+     */
+    public void testOtelPassthroughConcreteNameExcludesCorrectly() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_OTEL_LIKE_SETTINGS,
+            OTEL_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("attributes.cpu"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("attributes.state")));
     }
 
     /**

@@ -403,15 +403,16 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         }
         final List<Measurement> fetchMeasurements = getFetchMeasurementsEventually(queryMeasurements.size());
         // in this case, each shard queried has results to be fetched
-        // no range info stored because we had no bounds after rewrite, basically a match_all
         for (Measurement measurement : fetchMeasurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(4, attributes.size());
+            assertEquals(5, attributes.size());
             assertEquals("user", attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            // no time range filter bucketing on the fetch phase, because the query was rewritten to one without bounds
+            // the fetch phase receives the original source (with the range query), which gets rewritten to match_all
+            // at the shard level — but timeRangeFilterFromMillis is still set during that rewrite, so the from bucket is reported
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
     }
 

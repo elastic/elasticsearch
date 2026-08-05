@@ -7,13 +7,14 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_fix_unmapped_load_convert_function ]
-      reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
+      reason: 'requires SET unmapped_fields="load" handling for partially mapped non-keyword fields'
   #
-  # The table below represents the field mappings for the indices created in this test.
+  # The table below represents the field mappings for the three indices created in this test.
+  # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
   #
-  # | Field | index1 | index2 | index3 | index4 | index5                  |
-  # |-------|--------|--------|--------|--------|-------------------------|
-  # | foo   | double | long   | -      | text   | aggregate_metric_double |
+  # | Field      | index1  |   index2   | index3  |
+  # |------------|---------|------------|---------|
+  # | foo        | double  | long       | -       |
   #
   - do:
       indices.create:
@@ -40,71 +41,61 @@ setup:
           mappings:
             dynamic: false
   - do:
-      indices.create:
-        index: index4
-        body:
-          mappings:
-            dynamic: false
-            properties:
-              foo:
-                type: text
-  - do:
-      indices.create:
-        index: index5
-        body:
-          mappings:
-            dynamic: false
-            properties:
-              foo:
-                type: aggregate_metric_double
-                metrics: [min, max]
-  - do:
       bulk:
-        index: "index3"
         refresh: true
         body:
-          - { "index": { } }
+          - { "index": { "_index": "index1" } }
+          - { "foo": 0.0 }
+          - { "index": { "_index": "index2" } }
+          - { "foo": 0 }
+          - { "index": { "_index": "index3" } }
           - { "foo": "1"}
 ---
-'to_degrees on punk field':
+'to_degrees on single-type punk field':
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
-      reason: "requires auto-casting of two-legged PUNKs"
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [foo] is double in index1
           # [foo] is unmapped in index3
-          query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_DEGREES(foo)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: [foo] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(foo)] does not accept [KEYWORD]' }
+          query: 'SET unmapped_fields="load"; FROM index1,index3 METADATA _index | EVAL x = TO_DEGREES(foo) | KEEP _index, x | SORT _index'
+  - length: { columns: 2 }
+  - match: { columns.0.name: "_index" }
+  - match: { columns.1.name: "x" }
+  - length: { values: 2 }
+  - match: { values.0: [ "index1", 0.0 ] }
+  - match: { values.1: [ "index3", null ] }
 ---
-'to_radians on punk field':
+'to_radians on single-type punk field':
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
-      reason: "requires auto-casting of two-legged PUNKs"
+          capabilities: [ optional_fields_unmapped_load_null_fallback ]
+      reason: 'requires null-fallback for single-type non-keyword PUNKs under unmapped_fields="load"'
   - do:
-      catch: bad_request
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [foo] is long in index2
           # [foo] is unmapped in index3
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | EVAL x = TO_RADIANS(foo)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: [foo] is loaded as [KEYWORD] where unmapped, but [TO_RADIANS(foo)] does not accept [KEYWORD]' }
+          query: 'SET unmapped_fields="load"; FROM index2,index3 METADATA _index | EVAL x = TO_RADIANS(foo) | KEEP _index, x | SORT _index'
+  - length: { columns: 2 }
+  - match: { columns.0.name: "_index" }
+  - match: { columns.1.name: "x" }
+  - length: { values: 2 }
+  - match: { values.0: [ "index2", 0.0 ] }
+  - match: { values.1: [ "index3", null ] }
 ---
 'aggregate_metric_double cast on fully unmapped field':
   - do:
@@ -130,44 +121,4 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:52: Cannot use field [foo] due to ambiguities being mapped as [5] incompatible types: [keyword] due to loading from _source, [aggregate_metric_double] in [index5], [double] in [index1], [long] in [index2], [text] in [index4]' }
----
-'text punk cannot be auto-cast':
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
-      reason: "requires auto-casting of two-legged PUNKs"
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          # [foo] is text in index4, unmapped in index3
-          # There is no KEYWORD -> TEXT converter, so this two-legged PUNK cannot be auto-cast
-          query: 'SET unmapped_fields="load"; FROM index3,index4 | WHERE foo == "test"'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
----
-'aggregate_metric_double punk cannot be auto-cast':
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
-      reason: "requires auto-casting of two-legged PUNKs"
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          # [foo] is aggregate_metric_double in index5, unmapped in index3
-          # There is no KEYWORD -> aggregate_metric_double converter, so this two-legged PUNK cannot be auto-cast
-          query: 'SET unmapped_fields="load"; FROM index3,index5 | WHERE foo IS NOT NULL'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:52: Cannot use field [foo] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [double] in [index1], [long] in [index2]' }

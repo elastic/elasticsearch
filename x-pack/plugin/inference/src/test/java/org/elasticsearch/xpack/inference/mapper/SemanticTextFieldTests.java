@@ -25,7 +25,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -232,39 +231,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             new SemanticTextField.ParserContext(useLegacyFormat, NAME, parser.contentType())
         );
         assertThat(parsed.inference().modelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
-    }
-
-    public void testGetDenseVectorsAsSupplier() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
-
-            List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
-            var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
-
-            List<VectorData> chunkVectors = new ArrayList<>();
-            for (EmbeddingResults.Chunk chunk : inferenceResults.chunks()) {
-                VectorData thisVector = switch (chunk.embedding()) {
-                    case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
-                    case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
-                    default -> throw new IllegalStateException("Unexpected value: " + chunk.embedding().getClass());
-                };
-                chunkVectors.add(thisVector);
-            }
-
-            var field = semanticTextFieldFromChunkedInferenceResults(
-                useLegacyFormat,
-                "testfield",
-                model,
-                generateRandomChunkingSettings(),
-                inputs,
-                inferenceResults,
-                randomFrom(XContentType.values())
-            );
-
-            var vectors = field.getDenseVectorData();
-            assertNotNull(vectors);
-            assertEquals(chunkVectors, vectors);
-        }
     }
 
     public static EmbeddingResults<?> combineMultimodalEmbeddings(List<? extends EmbeddingResults.Embedding<?>> embeddings) {

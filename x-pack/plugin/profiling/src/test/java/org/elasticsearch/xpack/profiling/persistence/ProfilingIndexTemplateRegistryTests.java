@@ -327,6 +327,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testAllResourcesPresentButOutdated() {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();
@@ -382,6 +383,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testSomeResourcesMissing() {
+        registry.setEcsSchemaEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -78,6 +79,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -3260,6 +3262,78 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearchAll(indexName), 100);
     }
 
+    // Test that when the source shard is relocated while cloning to the target shard, the clone task is cancelled
+    // and relocation completes promptly. The clone task holds a permit, so if it is not cancelled it will block relocation from
+    // acquiring all permits when it is about to hand off.
+    public void testSourceRelocationCancelsClone() throws Exception {
+        var copyStarted = new CountDownLatch(1);
+        var copyBlock = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                copyStarted.countDown();
+                safeAwait(copyBlock);
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        startMasterOnlyNode();
+        var sourceNode = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(sourceNode, copyBlockStrategy);
+
+        MockTransportService.getInstance(sourceNode)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                ((CancellableTask) task).addListener(() -> {
+                    logger.info("split task cancelled, unblocking copy: {}", task);
+                    copyBlock.countDown();
+                });
+                handler.messageReceived(request, channel, task);
+            });
+
+        var targetNode = startIndexNode();
+        ensureStableCluster(3);
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+                .put("cluster.routing.allocation.exclude._name", targetNode)
+        );
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+
+        // allow placement on target node after shard 0 has been placed on source node
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", "null"));
+
+        // with one commit, copyShard won't throw, it will unblock on relocation and succeed the copy.
+        // With two it should throw. Test both cases.
+        for (var i = 0; i < randomIntBetween(1, 2); i++) {
+            indexDocs(indexName, 100);
+            refresh(indexName);
+        }
+
+        logger.info("starting reshard");
+        safeGet(client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)));
+
+        // once copy has started, relocate source shard. This should cause the split task to be cancelled and unblock relocation
+        safeAwait(copyStarted);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+    }
+
     public void testMismatchedSourceAndTargetPrimaryTerm() {
         String indexNode = startMasterAndIndexNode();
         String indexNodeB = startIndexNode();
@@ -4234,13 +4308,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .setQuery(QueryBuilders.matchQuery("field", "source_value"))
             .setFetchSource(true)
             .get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(sourceShardReferenceResponse, sourceShardHandoffResponse);
+        assertSameExplainResult(sourceShardReferenceResponse, sourceShardHandoffResponse);
         var targetShardHandoffResponse = client(coordinator).prepareExplain(indexName, id2)
             .setRouting(shard1RoutingValue)
             .setQuery(QueryBuilders.matchQuery("field", "target_value"))
             .setFetchSource(true)
             .get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(targetShardReferenceResponse, targetShardHandoffResponse);
+        assertSameExplainResult(targetShardReferenceResponse, targetShardHandoffResponse);
 
         splitBlocked.countDown();
         safeAwait(attemptingDone);
@@ -4251,13 +4325,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 .setQuery(QueryBuilders.matchQuery("field", "source_value"))
                 .setFetchSource(true)
                 .get(SAFE_AWAIT_TIMEOUT);
-            assertEquals(sourceShardReferenceResponse, sourceShardSplitResponse);
+            assertSameExplainResult(sourceShardReferenceResponse, sourceShardSplitResponse);
             var targetShardSplitResponse = client(coordinator).prepareExplain(indexName, id2)
                 .setRouting(shard1RoutingValue)
                 .setQuery(QueryBuilders.matchQuery("field", "target_value"))
                 .setFetchSource(true)
                 .get(SAFE_AWAIT_TIMEOUT);
-            assertEquals(targetShardReferenceResponse, targetShardSplitResponse);
+            assertSameExplainResult(targetShardReferenceResponse, targetShardSplitResponse);
         } finally {
             doneBlocked.countDown();
         }
@@ -5137,5 +5211,21 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     private void waitForReshardCompletion(String indexName) {
         awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+    }
+
+    /// Asserts that two [ExplainResponse]s describe the same result, without requiring them to be identical.
+    ///
+    /// Two responses taken either side of a split are only identical for as long as no merge has run. An explanation embeds the
+    /// collection statistics of whichever shard copy served the request, plus the per-segment doc ID of the explained document, and both
+    /// change once a merge reclaims the unowned documents that the split target hard-deleted. That merge is expected but its timing is
+    /// not ours to control, so compare only the parts that resharding has to preserve.
+    private void assertSameExplainResult(ExplainResponse expected, ExplainResponse actual) {
+        var message = Strings.format("expected [%s] but was [%s]", expected, actual);
+        assertEquals(message, expected.getIndex(), actual.getIndex());
+        assertEquals(message, expected.getId(), actual.getId());
+        assertEquals(message, expected.isExists(), actual.isExists());
+        assertEquals(message, expected.isMatch(), actual.isMatch());
+        assertEquals(message, expected.getGetResult().sourceAsMap(), actual.getGetResult().sourceAsMap());
+        assertThat(message, actual.getExplanation().getValue().doubleValue(), greaterThan(0.0));
     }
 }

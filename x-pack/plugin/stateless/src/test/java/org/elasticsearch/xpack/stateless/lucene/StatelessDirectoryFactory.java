@@ -18,7 +18,6 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -61,7 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
-import static org.mockito.Mockito.mock;
 
 /**
  * Factory for creating a stateless directory for use by the KnnIndexTester
@@ -158,13 +156,14 @@ public final class StatelessDirectoryFactory {
                 new DefaultBuiltInExecutorBuilders(),
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
             );
+            var clusterService = TestUtils.mockClusterService(nodeSettings);
             var cacheService = new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 nodeSettings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
-                mock(ClusterService.class),
-                TestUtils.mockIndicesService(mock(ClusterService.class)),
+                clusterService,
+                TestUtils.mockIndicesService(clusterService),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -179,7 +178,8 @@ public final class StatelessDirectoryFactory {
                 cacheService,
                 cacheBlobReaderService,
                 MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                shardId
+                shardId,
+                false
             );
 
             var blobStore = new FsBlobStore(8192, dataPath, true);

@@ -368,7 +368,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false, null),
             ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -395,7 +395,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         // The normalizer must lowercase the pattern before building the regexp query
         assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false),
+            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10, false, null),
             ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
     }
@@ -428,7 +428,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false), q);
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, false, null), q);
     }
 
     public void testFuzzyQuery() {

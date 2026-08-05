@@ -31,7 +31,7 @@ import java.util.List;
 public class EscfCursorsTests extends ESTestCase {
 
     public void testLongTupleCursorDense() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(10);
         b.addLong(20);
         b.addLong(30);
@@ -46,7 +46,7 @@ public class EscfCursorsTests extends ESTestCase {
 
     public void testLongTupleCursorSparse() {
         // Docs: [10, absent, 30, absent, 50]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(10);
         b.addAbsent();
         b.addLong(30);
@@ -62,7 +62,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongTupleCursorAllAbsent() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addAbsent();
         b.addAbsent();
         b.addAbsent();
@@ -72,7 +72,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongTupleCursorSingleRow() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(42);
         EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(1));
 
@@ -82,7 +82,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongValuesCursorDenseNextLong() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(100);
         b.addLong(200);
         b.addLong(300);
@@ -96,7 +96,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongValuesCursorDenseFillDocValues() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(7);
         b.addLong(8);
         b.addLong(9);
@@ -115,7 +115,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongValuesCursorMixedNextLongAndFill() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(1);
         b.addLong(2);
         b.addLong(3);
@@ -132,7 +132,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testLongValuesCursorOverrunThrows() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(1);
         b.addLong(2);
         EscfLongColumn col = (EscfLongColumn) EscfColumn.from(b.finish(2));
@@ -261,7 +261,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testStringTupleCursorDense() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addString(utf8("alpha"));
         b.addString(utf8("beta"));
         b.addString(utf8("gamma"));
@@ -276,7 +276,7 @@ public class EscfCursorsTests extends ESTestCase {
 
     public void testStringTupleCursorSparse() {
         // Docs: ["a", absent, "c"]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addString(utf8("a"));
         b.addAbsent();
         b.addString(utf8("c"));
@@ -289,7 +289,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testStringTupleCursorAllAbsent() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addAbsent();
         b.addAbsent();
         EscfColumn col = EscfColumn.from(b.finish(2));
@@ -301,7 +301,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testStringValuesCursorDense() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addString(utf8("x"));
         b.addString(utf8("yz"));
         b.addString(utf8("abc"));
@@ -315,7 +315,7 @@ public class EscfCursorsTests extends ESTestCase {
     }
 
     public void testStringValuesCursorOverrunThrows() {
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addString(utf8("only"));
         AbstractVarColumn col = (AbstractVarColumn) EscfColumn.from(b.finish(1));
 

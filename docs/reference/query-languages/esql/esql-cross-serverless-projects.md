@@ -248,6 +248,27 @@ FROM data,-_origin:*    <1>
 - In CPS, `*:` resolves against all projects including the origin, the same as an unqualified expression.
 ::::
 
+#### Exclude specific indices from a project
+
+To exclude a specific index from a linked project, prefix the index with a minus sign after the project alias, such as `linked-project-1:-logs-archive`:
+
+```esql
+FROM logs*,linked-project-1:-logs-archive    <1>
+| STATS COUNT(*)
+```
+
+1. `logs*` is resolved across all projects. On `linked-project-1`, the `logs-archive` index is excluded.
+
+You can also place the minus sign on the project alias. For example, `-linked-project-1:logs-archive` is equivalent to `linked-project-1:-logs-archive`. This works for any index name or wildcard pattern other than `*`. Both forms can appear on their own.
+
+The same applies to the origin project. For example, `-_origin:logs` is equivalent to `_origin:-logs`.
+
+::::{note}
+`-linked-project-1:*` behaves differently. It is a project-level exclusion that removes the entire project and requires a preceding inclusion pattern.
+::::
+
+Combining both prefixes, such as `-linked-project-1:-logs-archive`, is not valid.
+
 ### Combine qualified and unqualified expressions
 
 You can mix unqualified and qualified expressions in the same query:
@@ -379,8 +400,9 @@ FROM logs METADATA _project._alias        <2>
 
 ### LOOKUP JOIN across projects
 
-{{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support).
-The lookup index must exist on every project being queried, because each project uses its own local copy of the lookup index data.
+{{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support). By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.
+
+If the lookup index is missing from one or more linked projects, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against an origin project lookup index copy.
 
 ### Views across projects
 

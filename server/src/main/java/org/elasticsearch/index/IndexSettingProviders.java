@@ -40,6 +40,7 @@ public final class IndexSettingProviders {
                     indexName,
                     dataStreamName,
                     templateIndexMode,
+                    managedTemplate,
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,

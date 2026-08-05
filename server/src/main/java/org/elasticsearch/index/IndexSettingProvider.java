@@ -36,6 +36,14 @@ public interface IndexSettingProvider {
      *                                              otherwise <code>null</code>
      * @param templateIndexMode                     The index mode defined in template if template creates data streams,
      *                                              otherwise <code>null</code> is returned.
+     * @param managedTemplate                       {@code true} when the matched composable index template declares
+     *                                              {@code "_meta": {"managed": true}}, indicating that it is owned by an
+     *                                              {@code IndexTemplateRegistry} (e.g. a Kibana/Fleet/stack built-in template).
+     *                                              {@code false} when no composable template matched or when the matched
+     *                                              template does not carry that flag.
+     *                                              <p>This is a hint, not a trust boundary: {@code _meta} is an untyped map
+     *                                              and any user-supplied template can set this key. Use it only to relax
+     *                                              product guardrails, never as a security or correctness control.
      * @param projectMetadata                       The current project metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt                            The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
@@ -51,6 +59,7 @@ public interface IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
+        boolean managedTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

@@ -223,6 +223,7 @@ public class DataTier {
             String indexName,
             @Nullable String dataStreamName,
             IndexMode templateIndexMode,
+            boolean managedTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

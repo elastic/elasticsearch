@@ -212,6 +212,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
                 dataStream.getName(),
                 indexMode,
+                indexTemplate.isManaged(),
                 state.metadata(),
                 Instant.now(),
                 settings,

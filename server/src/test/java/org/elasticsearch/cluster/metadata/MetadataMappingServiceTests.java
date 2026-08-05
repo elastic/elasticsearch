@@ -161,6 +161,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean managedTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,

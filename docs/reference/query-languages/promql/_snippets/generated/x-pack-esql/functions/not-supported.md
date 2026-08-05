@@ -3,11 +3,13 @@
 * `absent`
 * `changes`
 * `count_values`
+* `double_exponential_smoothing`
 * `group`
 * `histogram_fraction`
 * `histogram_stddev`
 * `histogram_stdvar`
 * `holt_winters`
+* `info`
 * `label_join`
 * `label_replace`
 * `limit_ratio`
@@ -15,4 +17,6 @@
 * `predict_linear`
 * `resets`
 * `sort`
+* `sort_by_label`
+* `sort_by_label_desc`
 * `sort_desc`

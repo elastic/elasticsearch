@@ -115,6 +115,7 @@ public class PromqlFunctionRegistry {
         PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
         PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -160,7 +161,8 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
-        PromqlBuiltinFunctionDefinitions.TIME, };
+        PromqlBuiltinFunctionDefinitions.TIME,
+        PromqlBuiltinFunctionDefinitions.TIMESTAMP, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -182,7 +184,6 @@ public class PromqlFunctionRegistry {
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
         "group",
         "count_values",
 
@@ -197,9 +198,6 @@ public class PromqlFunctionRegistry {
         "absent",
         "sort",
         "sort_desc",
-
-        // Time functions
-        "timestamp",
 
         // Label manipulation functions
         "label_join",

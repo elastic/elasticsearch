@@ -502,6 +502,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             result = primary.applyDeleteOperationOnPrimary(
                 version,
                 request.id(),
+                request.routing(),
                 request.versionType(),
                 request.ifSeqNo(),
                 request.ifPrimaryTerm()
@@ -868,7 +869,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
-                    deleteRequest.id()
+                    deleteRequest.id(),
+                    deleteRequest.routing()
                 );
             }
             default -> {

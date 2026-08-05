@@ -2863,3 +2863,645 @@ FROM employees, employees_incompatible METADATA _index
 c:long | _index:keyword
 100    | employees_incompatible
 ;
+
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndMatchPhrase
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) AND false
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeMarkJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| WHERE book_no IN (FROM books | KEEP book_no) AND false
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeSemiJoinMarkJoinAndMatchOperator
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) AND true
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
+| STATS c = COUNT(*)
+;
+
+c:long
+79
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinMarkJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND match(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithNonEmptyRelationBeforeTwoMarkJoinAndMatchOperator
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_operator_colon
+
+FROM books
+| WHERE book_no IN (FROM books | KEEP book_no) OR 1 > 1
+| WHERE author RLIKE ".*" OR book_no IN (FROM books | KEEP book_no) AND description : "test"
+| STATS c = COUNT(*)
+;
+
+c:long
+79
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeAntiJoinSemiJoinAndMatchPhrase
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_phrase_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" AND book_no IN (FROM books | KEEP book_no) AND match_phrase(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeTwoAntiJoinAndMatchFunction
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | KEEP book_no) AND 1 > 1
+| WHERE author RLIKE ".*" AND book_no NOT IN (FROM books | KEEP book_no) AND match(description, "test")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationWithEmptyRelationBeforeSemiJoinMarkJoinAndKnn
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE hex_code IN (FROM colors | KEEP hex_code) AND false
+| WHERE color RLIKE ".*" OR hex_code IN (FROM colors | KEEP hex_code) AND knn(rgb_vector, [0, 0, 0])
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+propagateEmptyRelationSemiJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+propagateEmptyRelationAntiJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+propagateEmptyRelationMarkJoinWithEmptySubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no > 0 OR emp_no IN (FROM employees | WHERE false | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+propagateEmptyRelationAntiJoinBothSidesEmpty
+required_capability: where_in_subquery_without_view
+required_capability: propagate_empty_relation_past_where_in_subquery
+
+FROM employees
+| WHERE false
+| WHERE emp_no NOT IN (FROM employees | WHERE false | KEEP emp_no)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+forkBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE last_name LIKE "Z*"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeNotInSubqueryWithGrokInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE first_name NOT IN (
+    FROM employees
+    | GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+    | WHERE b LIKE "Z*"
+    | KEEP a
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10019          | Lillian
+10027          | Divier
+10029          | Otmar
+10045          | Moss
+10097          | Remzi
+;
+
+forkBeforeInSubqueryWithDissectInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE first_name IN (
+    FROM employees
+    | EVAL name = CONCAT(first_name, " ", last_name)
+    | DISSECT name "%{a} %{b}"
+    | WHERE b LIKE "Z*"
+    | KEEP a
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeInSubqueryWithLookupJoinInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+required_capability: join_lookup_v12
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | WHERE language_name == "German"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeDisjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE last_name LIKE "Z*"
+    | KEEP emp_no
+  ) OR emp_no > 99999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeDisjunctiveInSubqueryWithGrokInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE first_name IN (
+    FROM employees
+    | GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+    | WHERE b LIKE "Z*"
+    | KEEP a
+  ) OR emp_no > 99999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeDisjunctiveInSubqueryWithDissectInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE first_name IN (
+    FROM employees
+    | EVAL name = CONCAT(first_name, " ", last_name)
+    | DISSECT name "%{a} %{b}"
+    | WHERE b LIKE "Z*"
+    | KEEP a
+  ) OR emp_no > 99999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkBeforeDisjunctiveNotInSubqueryWithLookupJoinInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+required_capability: join_lookup_v12
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no NOT IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | WHERE language_name == "German"
+    | KEEP emp_no
+  ) OR emp_no > 99999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10019          | Lillian
+10027          | Divier
+10029          | Otmar
+10033          | null
+10045          | Moss
+;
+
+fromSubqueryBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE last_name LIKE "Z*"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+fromSubqueryBeforeDisjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE last_name LIKE "Z*"
+    | KEEP emp_no
+  ) OR emp_no > 99999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+fromSubqueryBeforeNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE emp_no NOT IN (
+    FROM employees
+    | WHERE last_name LIKE "Z*"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10015          | Guoxiang
+10019          | Lillian
+10026          | Yongqiao
+10027          | Divier
+10029          | Otmar
+;
+
+forkInMainWithForkInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE last_name LIKE "Z*")
+        (WHERE last_name LIKE "A*")
+    | WHERE _fork == "fork1"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkInMainWithFromSubqueryInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM
+      (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no),
+      (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+fromSubqueryInMainWithForkInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE last_name LIKE "Z*")
+        (WHERE last_name LIKE "A*")
+    | WHERE _fork == "fork1"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+fromSubqueryInMainWithFromSubqueryInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name),
+  (FROM employees | WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE emp_no IN (
+    FROM
+      (FROM employees | WHERE last_name LIKE "Z*" | KEEP emp_no),
+      (FROM employees | WHERE last_name LIKE "A*" | KEEP emp_no)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+forkInMainWithForkAndNestedInSubqueryInsideSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| FORK
+    (WHERE salary > 70000 | KEEP emp_no, first_name)
+    (WHERE salary < 30000 | KEEP emp_no, first_name)
+| WHERE _fork == "fork1"
+| DROP _fork
+| WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE last_name LIKE "Z*")
+        (WHERE last_name LIKE "A*")
+    | WHERE _fork == "fork1"
+    | WHERE emp_no IN (
+        FROM employees
+        | WHERE salary > 50000
+        | KEEP emp_no
+      )
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+;
+
+inSubqueryAfterLookupJoinWithoutKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+from employees
+| KEEP languages, first_name
+| rename languages as language_code
+| lookup join languages_lookup on language_code
+| where first_name IN ( from employees_gender_text | KEEP last_name )
+;
+
+language_code:integer | first_name:keyword | language_name:keyword
+;
+
+inSubqueryWithRenameNoKeepMainQueryKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| WHERE emp_no NOT IN ( FROM employees
+                        | RENAME salary AS first_name
+                        | KEEP emp_no)
+| KEEP first_name
+;
+
+first_name:keyword
+;
+
+inSubqueryWithRenameKeepMainQueryKeep
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+required_capability: where_in_subquery_fork_unknown_column_fix
+
+FROM employees
+| WHERE emp_no NOT IN ( FROM employees
+                        | RENAME emp_no AS id
+                        | KEEP id)
+| KEEP first_name
+;
+
+first_name:keyword
+;

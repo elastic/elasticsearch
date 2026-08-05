@@ -18,9 +18,12 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -182,6 +185,77 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         onQueryResultForShardIndex(listener, shards, 1);
 
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, true);
+    }
+
+    public void testOnQueryResult_IsThreadSafe_WithOnPartialReduce() throws InterruptedException {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var numberOfShards = 20;
+        var shards = new ArrayList<SearchShard>();
+        for (int i = 0; i < numberOfShards; ++i) {
+            shards.add(new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, i)));
+        }
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), numberOfShards, 0, 0, false);
+
+        var threads = new ArrayList<Thread>();
+        var startOnQueryResult = new CountDownLatch(1);
+        var startOnPartialReduce = new CountDownLatch(1);
+        var partialReduceDone = new CountDownLatch(1);
+        var successfulShards = new AtomicInteger();
+        // Register success for each of the shards. Half of the shards will wait until onPartialReduce has been called to ensure that the
+        // calls are happening simultaneously
+        for (int i = 0; i < numberOfShards; ++i) {
+            final int shardIndex = i;
+            Thread onQueryResultThread = new Thread(() -> {
+                try {
+                    startOnQueryResult.await();
+                    if (shardIndex % 2 == 0) {
+                        partialReduceDone.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                onQueryResultForShardIndex(listener, shards, shardIndex);
+                if (successfulShards.incrementAndGet() == 5) {
+                    startOnPartialReduce.countDown();
+                }
+            });
+            onQueryResultThread.start();
+            threads.add(onQueryResultThread);
+        }
+
+        Thread partialReduceThread = new Thread(() -> {
+            try {
+                startOnPartialReduce.await();
+                listener.onPartialReduce(
+                    shards.subList(0, successfulShards.get()),
+                    new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
+                    InternalAggregationsTests.createTestInstance(),
+                    randomInt()
+                );
+                partialReduceDone.countDown();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        partialReduceThread.start();
+        threads.add(partialReduceThread);
+
+        startOnQueryResult.countDown();
+        for (Thread t : threads) {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+        }
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), numberOfShards, numberOfShards, 0, false);
     }
 
     public void testOnQueryFailure_DoesNothingWhenStatusIsNotRunning() {

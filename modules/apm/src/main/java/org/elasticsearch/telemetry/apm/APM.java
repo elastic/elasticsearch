@@ -109,6 +109,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT,
             // Metrics
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
+            OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL,
             OtelSdkSettings.TELEMETRY_METRICS_DISABLED,
@@ -126,6 +127,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
             OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED,
             OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,

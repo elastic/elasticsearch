@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -125,10 +127,21 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
-        var aggregate = plan.collect(Aggregate.class).getFirst();
+        var unpack = plan.collect(UnpackDims.class).getFirst();
+        assertThat(unpack.dims(), hasSize(1));
+        assertThat(Expressions.name(unpack.dims().getFirst()), equalTo("pod"));
+
+        var outerProject = as(unpack.child(), Project.class);
+        var outerEval = as(outerProject.child(), Eval.class);
+        var aggregate = as(outerEval.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
 
-        var evalMiddle = as(aggregate.child(), Eval.class);
+        var pack = as(aggregate.child(), PackDims.class);
+        assertThat(pack.dims(), hasSize(1));
+        assertThat(Expressions.name(pack.dims().getFirst()), equalTo("pod"));
+
+        var innerProject = as(pack.child(), Project.class);
+        var evalMiddle = as(innerProject.child(), Eval.class);
 
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
         assertThat(tsAggregate.groupings(), hasSize(2));

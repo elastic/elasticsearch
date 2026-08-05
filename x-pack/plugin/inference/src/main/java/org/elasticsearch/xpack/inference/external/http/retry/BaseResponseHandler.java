@@ -78,11 +78,13 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     @Override
     public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result) {
-        checkForFailureStatusCode(outboundRequest, result);
+        if (result.isSuccessfulResponse() == false) {
+            handleFailureStatusCode(outboundRequest, result);
+        }
         checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
     }
 
-    protected abstract void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result);
+    protected abstract void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result);
 
     protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);

@@ -195,21 +195,22 @@ static inline void dotd1qN_inner_bulk(
             }
         }
 
-        // complete using byte ops
+        // Byte tail. Single-byte loads only: with sparse addresses a vector can
+        // end right before an unmapped page, so wider loads could fault.
         for (; r < length; r++) {
-            int64_t vs[batches];
+            uint8_t vs[batches];
             apply_indexed<batches>([&](auto I) {
-                vs[I] = *((int64_t*)(as[I] + r));
+                vs[I] = as[I][r];
             });
 
-            int64_t qs[query_bits];
+            uint8_t qs[query_bits];
             apply_indexed<query_bits>([&](auto I) {
-                qs[I] = *((int64_t*)(query[I] + r));
+                qs[I] = query[I][r];
             });
 
             apply_indexed<batches>([&](auto B) {
                 apply_indexed<query_bits>([&](auto Q) {
-                    bit_result[B * query_bits + Q] += __builtin_popcount(qs[Q] & vs[B] & 0xFF);
+                    bit_result[B * query_bits + Q] += __builtin_popcount(qs[Q] & vs[B]);
                 });
             });
         }

@@ -550,7 +550,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet == false
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
-                        && distinctSelectorOffsets(binaryOperator).size() > 1) {
+                        && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
                         failures.add(
                             fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
                         );
@@ -630,7 +630,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * carry no data window and are excluded. More than one distinct value within a merged binary operator is
      * unsupported (see the verifier guard).
      */
-    private static Set<Duration> distinctSelectorOffsets(LogicalPlan plan) {
+    private static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
         Set<Duration> offsets = new HashSet<>();
         for (Selector selector : plan.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
@@ -646,7 +646,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
      * when there is none.
      */
-    public Duration offset(LogicalPlan branch) {
+    public Duration collectFirstOffsetForBranch(LogicalPlan branch) {
         for (Selector selector : branch.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
                 return selector.evaluation().offsetDuration();
@@ -672,10 +672,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * Returns the local evaluation timestamp for the current selector branch.
      * <p>
      * Unlike {@link PromqlCommand#timestamp()}, which returns the global evaluation timestamp,
-     * this function returns the plan fragment timestamp and includes any applied offset.
+     * this function returns the plan branch timestamp and includes any applied offset.
      */
-    public Expression timestamp(LogicalPlan fragment) {
-        var offset = offset(fragment);
+    public Expression collectEvaluationTimestampForBranch(LogicalPlan branch) {
+        var offset = collectFirstOffsetForBranch(branch);
         var timestamp = timestamp();
         if (timestamp == null || timestamp.resolved() == false) {
             return timestamp;

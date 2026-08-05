@@ -30,11 +30,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         throw buildRetryException(outboundRequest, result);
     }
 

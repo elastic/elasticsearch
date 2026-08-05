@@ -2052,6 +2052,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();
+            var settings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+                .build();
             int nbReplicas = randomIntBetween(0, 1);
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
@@ -2063,9 +2066,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     .build()
                     .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN),
                 null,
-                MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
-                    Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build()
-                ),
+                MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(settings),
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
@@ -2081,9 +2082,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
-        var nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless).build();
 
-        var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(nodeSettings);
+        var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
+            Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless)
+                .build()
+        );
         assertThat(applier, notNullValue());
 
         var blocks = ClusterBlocks.builder().blocks(ClusterState.EMPTY_STATE.blocks());

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -87,6 +88,30 @@ public class QuerySettingsTests extends ESTestCase {
         ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("UTC"));
         assertThat(QuerySettings.TIME_ZONE.get(resolved), equalTo(ZoneId.of("UTC").normalized()));
         assertThat(QuerySettings.TIME_ZONE.get(resolved), not(equalTo(ZoneId.of("UTC"))));
+    }
+
+    /**
+     * The same settings have to serialize to the same bytes however they were assembled: the ES|QL shard result cache
+     * digests these bytes into its key, and a request's settings are resolved on the coordinator and read back off the
+     * wire on every other node, which is two different insertion orders into the same immutable map.
+     */
+    public void testWrittenBytesDoNotDependOnHowTheSettingsWereAssembled() throws IOException {
+        ResolvedSettings oneOrder = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, ZoneId.of("UTC"))
+            .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.DEFAULT)
+            .withOverride(QuerySettings.COLUMN_METADATA, false)
+            .withOverride(QuerySettings.PROJECT_ROUTING, "p*");
+        ResolvedSettings otherOrder = ResolvedSettings.EMPTY.withOverride(QuerySettings.PROJECT_ROUTING, "p*")
+            .withOverride(QuerySettings.COLUMN_METADATA, false)
+            .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.DEFAULT)
+            .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("UTC"));
+        assertThat(bytes(otherOrder), equalTo(bytes(oneOrder)));
+    }
+
+    private static BytesReference bytes(ResolvedSettings settings) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            settings.writeTo(out);
+            return out.bytes();
+        }
     }
 
     public void testAllContainsEveryDeclaredSetting() throws IllegalAccessException {

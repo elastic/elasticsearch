@@ -260,6 +260,10 @@ public class ComputeService {
         return remoteFetchService;
     }
 
+    BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
     FormatReaderRegistry formatReaderRegistry() {
         return formatReaderRegistry;
     }

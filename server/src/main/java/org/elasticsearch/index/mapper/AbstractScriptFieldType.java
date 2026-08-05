@@ -178,6 +178,17 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
         );
     }
 
+    /**
+     * Whether two evaluations of this field's script over the same document produce the same value. False for a script
+     * reading randomness, the wall clock or anything outside the document.
+     * <p>
+     * {@link #applyScriptContext} reports the same thing to the context, but only for a caller that <em>queries</em>
+     * the field. A caller that reads its values, as ES|QL does, has to ask here.
+     */
+    public final boolean isResultDeterministic() {
+        return isResultDeterministic;
+    }
+
     protected final void applyScriptContext(SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(

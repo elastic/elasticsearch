@@ -16,7 +16,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,7 +75,15 @@ public final class ResolvedSettings implements Writeable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(values.size());
-        for (Map.Entry<QuerySettingDef<?>, Object> e : values.entrySet()) {
+        /*
+         * By name, because the map's own order is not one: it is an immutable map keyed by identity, and the layout it
+         * probes into depends on the order the entries went in, which differs between a resolved instance and a copy
+         * read back off the wire. Order means nothing to the reader, but these bytes are also digested into the ES|QL
+         * shard result cache key, where the same settings have to produce the same bytes on every node.
+         */
+        List<Map.Entry<QuerySettingDef<?>, Object>> sorted = new ArrayList<>(values.entrySet());
+        sorted.sort(Comparator.comparing(e -> e.getKey().name()));
+        for (Map.Entry<QuerySettingDef<?>, Object> e : sorted) {
             QuerySettingDef def = e.getKey();
             out.writeString(def.name());
             try (BytesStreamOutput valueOut = new BytesStreamOutput()) {

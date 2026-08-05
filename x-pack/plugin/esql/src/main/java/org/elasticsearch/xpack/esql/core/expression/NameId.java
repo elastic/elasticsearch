@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -68,6 +69,10 @@ public class NameId implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(id);
+        if (out instanceof PlanStreamOutput planOut) {
+            planOut.writeNameId(id);
+        } else {
+            out.writeLong(id);
+        }
     }
 }

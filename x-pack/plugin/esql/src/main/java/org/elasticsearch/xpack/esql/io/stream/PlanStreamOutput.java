@@ -21,6 +21,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -73,12 +75,47 @@ public final class PlanStreamOutput extends StreamOutput {
 
     private final int maxSerializedAttributes;
 
+    /**
+     * When non-null, this stream is written for identity rather than for transport, and the parts of a plan that name
+     * the same computation differently from one run to the next are normalized away. The map itself holds the
+     * {@link NameId} rewriting: ids come from a process-global counter and are reallocated again by
+     * {@link PlanStreamInput.NameIdMapper} on deserialize, so raw ids differ between two runs of the same query and
+     * between two nodes; they are replaced by dense ordinals in write order. {@link Source} is elided for the same
+     * reason, through {@link #normalizeForIdentity()}.
+     * <p>
+     * Never used on the transport path: the wire format is unchanged when this is null.
+     */
+    @Nullable
+    private final Map<Long, Long> nameIdOrdinals;
+
     public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration) throws IOException {
         this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES);
     }
 
     public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, int maxSerializedAttributes) throws IOException {
+        this(delegate, configuration, maxSerializedAttributes, false);
+    }
+
+    /**
+     * @param normalizeForIdentity see {@link #nameIdOrdinals}
+     */
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, boolean normalizeForIdentity) throws IOException {
+        this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES, normalizeForIdentity);
+    }
+
+    /**
+     * @param normalizeForIdentity see {@link #nameIdOrdinals}. Must be {@code false} for anything that is going to be
+     *                             read back as a plan: a normalized stream preserves what the plan computes, not the
+     *                             ids and source positions it computes it under.
+     */
+    public PlanStreamOutput(
+        StreamOutput delegate,
+        @Nullable Configuration configuration,
+        int maxSerializedAttributes,
+        boolean normalizeForIdentity
+    ) throws IOException {
         this.delegate = delegate;
+        this.nameIdOrdinals = normalizeForIdentity ? new HashMap<>() : null;
         if (configuration != null) {
             for (Map.Entry<String, Map<String, Column>> table : configuration.tables().entrySet()) {
                 for (Map.Entry<String, Column> column : table.getValue().entrySet()) {
@@ -126,6 +163,29 @@ public final class PlanStreamOutput extends StreamOutput {
     public void setTransportVersion(TransportVersion version) {
         delegate.setTransportVersion(version);
         super.setTransportVersion(version);
+    }
+
+    /**
+     * Writes a {@link NameId}'s raw id, mapping it to a dense ordinal first when this stream normalizes for identity.
+     * Called by {@link NameId#writeTo}.
+     */
+    public void writeNameId(long id) throws IOException {
+        if (nameIdOrdinals == null) {
+            writeLong(id);
+        } else {
+            writeLong(nameIdOrdinals.computeIfAbsent(id, k -> (long) nameIdOrdinals.size()));
+        }
+    }
+
+    /**
+     * Whether this stream describes what a plan computes rather than how it was written down. A {@link Source} carries
+     * a position in the query text and the text's own length, which differ between a plan parsed from text and the same
+     * plan arriving pre-built, and between two texts that mean the same thing, so it is written as
+     * {@link Source#EMPTY}. Consulted by {@link Source#writeTo} and by
+     * {@code EsqlBinaryComparison#writeTo}, whose zone id the wire drops on read.
+     */
+    public boolean normalizeForIdentity() {
+        return nameIdOrdinals != null;
     }
 
     /**

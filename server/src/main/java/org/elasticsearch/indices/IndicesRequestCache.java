@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappingLookup;
 
@@ -137,27 +138,79 @@ public final class IndicesRequestCache implements Closeable {
         BytesReference value = cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            // see if it's the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
-            if (registeredClosedListeners.containsKey(cleanupKey) == false) {
-                Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
-                if (previous == null) {
-                    cacheHelper.addClosedListener(cleanupKey);
-                }
-            }
-            /*
-             * Note that we don't use a closed listener for the mapping. Instead
-             * we let cache entries for out of date mappings age out. We do this
-             * because we don't reference count the MappingLookup so we can't tell
-             * when one is no longer used. Mapping updates should be a lot less
-             * frequent than reader closes so this is probably ok. On the other
-             * hand, for read only indices mapping changes are, well, possible,
-             * and readers are never changed. Oh well.
-             */
+            registerCleanupKey(cacheEntity, cacheHelper);
         } else {
             key.entity.onHit();
         }
         return value;
+    }
+
+    /**
+     * Looks a value up without computing one on a miss, recording the hit or the miss. Callers whose computation is not
+     * a synchronous loader - ES|QL computes a whole batch of shards asynchronously and only learns afterwards whether
+     * the result may be stored - probe with this and store later with {@link #put}.
+     * <p>
+     * Counts differ from {@link #getOrCompute} when two callers race for one absent key: there, the second waits for
+     * the first and counts a hit, while here both count a miss. That is what happened, because both go on to compute.
+     *
+     * @return the cached value, or {@code null} when the key is not present
+     */
+    @Nullable
+    BytesReference get(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        BytesReference value = cache.get(new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey));
+        if (value == null) {
+            cacheEntity.onMiss();
+        } else {
+            cacheEntity.onHit();
+        }
+        return value;
+    }
+
+    /**
+     * Stores a value that was computed outside the cache. An entry that is already present wins, so two concurrent
+     * computations of the same key cannot replace each other's results. Does not record a hit or a miss: the
+     * matching {@link #get} probe already did.
+     */
+    void put(
+        CacheEntity cacheEntity,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        BytesReference value
+    ) throws Exception {
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
+        cache.computeIfAbsent(key, k -> {
+            cacheEntity.onCached(k, value);
+            return value;
+        });
+        registerCleanupKey(cacheEntity, cacheHelper);
+    }
+
+    /**
+     * Registers the reader-close listener that queues this entity's entries for the periodic cleaner, unless a
+     * listener for this (entity, reader) pair is already registered.
+     */
+    private void registerCleanupKey(CacheEntity cacheEntity, ESCacheHelper cacheHelper) {
+        CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
+        if (registeredClosedListeners.containsKey(cleanupKey) == false) {
+            Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
+            if (previous == null) {
+                cacheHelper.addClosedListener(cleanupKey);
+            }
+        }
+        /*
+         * Note that we don't use a closed listener for the mapping. Instead
+         * we let cache entries for out of date mappings age out. We do this
+         * because we don't reference count the MappingLookup so we can't tell
+         * when one is no longer used. Mapping updates should be a lot less
+         * frequent than reader closes so this is probably ok. On the other
+         * hand, for read only indices mapping changes are, well, possible,
+         * and readers are never changed. Oh well.
+         */
     }
 
     /**

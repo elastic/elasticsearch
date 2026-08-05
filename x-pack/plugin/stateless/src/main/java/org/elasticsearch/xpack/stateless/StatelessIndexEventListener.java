@@ -494,14 +494,20 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
+                                // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
                                 long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
+                            },
+                            (blobFile, bccSize) -> {
+                                assert targetsToWarm.containsKey(blobFile);
+                                targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
                             },
                             l2.map(aVoid -> {
+                                assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
                                 var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
                                 for (var entry : targetsToWarm.entrySet()) {
                                     timestampByCacheKey.put(

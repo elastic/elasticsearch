@@ -236,7 +236,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         assertAcked(prepareCreate(unpinnedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
         ensureGreen(pinnedIdx, unpinnedIdx);
 
-        // Stub absoluteTimeInMillis() on the spy thread pool so PinnedWindowEvictionPolicy sees a fixed "now",
+        // Stub absoluteTimeInMillis() on the mock timeProvider so that PinnedWindowEvictionPolicy sees a fixed "now",
         // making data timestamps independent of actual system time and fully reproducible.
         final var spyCachePlugin = findPlugin(searchNode, SpyCacheStatelessPlugin.class);
         spyCachePlugin.currentTimestamp.set(BOOST_WINDOW_END);

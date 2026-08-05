@@ -1316,7 +1316,6 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
@@ -1557,7 +1556,6 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "merge warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
@@ -1607,7 +1605,6 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             assert byteRangeToWarm.start() == 0L
                 : "byte range warmer NOT used with prefix ranges, is the warming ratio metric still correct?";
             warmingRatioMetric.record(
@@ -1664,7 +1661,6 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",
@@ -1704,6 +1700,7 @@ public class SharedBlobCacheWarmingService {
             logger.debug("{} {} warming, {}", warmingRun.shardId(), warmingRun.type(), warmingRun.logIdentifier());
             return ActionListener.runBefore(target, () -> {
                 final long duration = threadPool.relativeTimeInMillis() - started;
+                warmingDurationMetric.record(duration / 1000.0, warmingRun.labels());
                 onWarmingSuccess(duration);
             }).delegateResponse((l, e) -> {
                 onWarmingFailed(e);

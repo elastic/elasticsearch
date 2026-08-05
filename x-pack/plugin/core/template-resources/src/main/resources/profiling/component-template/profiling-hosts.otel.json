@@ -4,12 +4,6 @@
       "index": {
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
-        "sort": {
-          "field": [
-            "resource.attributes.host.id",
-            "@timestamp"
-          ]
-        },
         "routing.allocation.include._tier_preference": "data_hot"
       },
       "codec": "best_compression"
@@ -24,6 +18,17 @@
         "managed": true
       },
       "dynamic": false,
+      "dynamic_templates": [
+        {
+          "resource_attributes_as_keyword": {
+            "path_match": "resource.attributes.*",
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword"
+            }
+          }
+        }
+      ],
       "properties": {
         "@timestamp": {
           "type": "date",

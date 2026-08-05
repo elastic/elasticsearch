@@ -33,7 +33,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /// Heap-buffered async response consumer that charges the raw Apache HTTP response buffer to the
 /// [CircuitBreaker#REQUEST] circuit breaker.
@@ -171,8 +170,9 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
 
     private static final class AccountingByteBufferAllocator implements ByteBufferAllocator, Releasable {
         private final CircuitBreaker breaker;
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final AtomicLong reservedBytes = new AtomicLong();
+        private final Object mutex = new Object();
+        private boolean closed; // guarded by mutex
+        private long reservedBytes; // guarded by mutex
 
         private AccountingByteBufferAllocator(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -183,36 +183,54 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
             if (size < 0) {
                 throw new IllegalArgumentException("size must be >= 0, was " + size);
             }
-            if (size > 0) {
-                breaker.addEstimateBytesAndMaybeBreak(size, REMOTE_RESPONSE_BUFFER_BREAKER_LABEL);
-                reservedBytes.addAndGet(size);
-            }
-            try {
-                return ByteBuffer.allocate(size);
-            } catch (RuntimeException | Error e) {
-                release(size);
-                throw e;
+            synchronized (mutex) {
+                if (closed) {
+                    throw new IllegalStateException("allocator is closed");
+                }
+                if (size > 0) {
+                    breaker.addEstimateBytesAndMaybeBreak(size, REMOTE_RESPONSE_BUFFER_BREAKER_LABEL);
+                    reservedBytes += size;
+                }
+                try {
+                    return ByteBuffer.allocate(size);
+                } catch (RuntimeException | Error e) {
+                    if (size > 0) {
+                        reservedBytes -= size;
+                        breaker.addWithoutBreaking(-size);
+                    }
+                    throw e;
+                }
             }
         }
 
         void release(long bytes) {
             if (bytes > 0) {
-                reservedBytes.addAndGet(-bytes);
-                breaker.addWithoutBreaking(-bytes);
+                synchronized (mutex) {
+                    if (closed == false) {
+                        reservedBytes -= bytes;
+                        breaker.addWithoutBreaking(-bytes);
+                    }
+                }
             }
         }
 
         long currentReservation() {
-            return reservedBytes.get();
+            synchronized (mutex) {
+                return reservedBytes;
+            }
         }
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
-                long bytes = reservedBytes.getAndSet(0L);
-                if (bytes > 0) {
-                    breaker.addWithoutBreaking(-bytes);
+            synchronized (mutex) {
+                if (closed) {
+                    return;
                 }
+                closed = true;
+                if (reservedBytes > 0) {
+                    breaker.addWithoutBreaking(-reservedBytes);
+                }
+                reservedBytes = 0L;
             }
         }
     }

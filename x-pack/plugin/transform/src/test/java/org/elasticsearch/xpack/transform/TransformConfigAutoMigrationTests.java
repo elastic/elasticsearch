@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -85,6 +86,20 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
         var updatedConfig = autoMigration.migrate(config);
 
         assertThatMaxPageSearchSizeMigrated(updatedConfig, config);
+        verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
+    }
+
+    public void testMigratePreservesHeadersAndCredentialId() {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "minted-auth", "x-trace-id", "trace-1");
+        var config = new TransformConfig.Builder(randomTransformConfigWithDeprecatedSettings()).setHeaders(headers)
+            .setCredentialId("cloud-token-id")
+            .build();
+
+        var updatedConfig = autoMigration.migrate(config);
+
+        assertThatMaxPageSearchSizeMigrated(updatedConfig, config);
+        assertThat(updatedConfig.getHeaders(), equalTo(headers));
+        assertThat(updatedConfig.getCredentialId(), equalTo("cloud-token-id"));
         verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
     }
 

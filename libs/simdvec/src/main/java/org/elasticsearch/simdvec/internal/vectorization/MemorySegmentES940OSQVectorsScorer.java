@@ -551,12 +551,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                         res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                         // see VectorUtil.scaleMaxInnerProductScore
                         var negMask = res.lt(0);
-                        if (negMask.anyTrue()) {
-                            var neg = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res.mul(-1).add(1));
-                            res = res.add(1).blend(neg, negMask);
-                        } else {
-                            res = res.add(1);
-                        }
+                        var neg = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res.mul(-1).add(1));
+                        res = res.add(1).blend(neg, negMask);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                         break;
                     case COSINE:
@@ -647,12 +643,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                         res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                         // see VectorUtil.scaleMaxInnerProductScore
                         var negMask = res.lt(0);
-                        if (negMask.anyTrue()) {
-                            var neg = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res.mul(-1).add(1));
-                            res = res.add(1).blend(neg, negMask);
-                        } else {
-                            res = res.add(1);
-                        }
+                        var neg = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res.mul(-1).add(1));
+                        res = res.add(1).blend(neg, negMask);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                         break;
                     case COSINE:

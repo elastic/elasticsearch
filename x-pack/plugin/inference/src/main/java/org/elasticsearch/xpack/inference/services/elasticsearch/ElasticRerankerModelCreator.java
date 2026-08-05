@@ -36,7 +36,7 @@ public class ElasticRerankerModelCreator extends ElasticsearchInternalModelCreat
             inferenceId,
             taskType,
             service,
-            ElasticRerankerServiceSettings.fromMap(serviceSettings),
+            ElasticRerankerServiceSettings.fromMap(serviceSettings, context),
             RerankTaskSettings.fromMap(taskSettings)
         );
     }

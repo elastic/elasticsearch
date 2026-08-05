@@ -408,7 +408,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<Model> modelListener
     ) {
 
-        var serviceSettings = ElasticRerankerServiceSettings.fromMap(serviceSettingsMap);
+        var serviceSettings = ElasticRerankerServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());

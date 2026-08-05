@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
@@ -32,7 +33,8 @@ abstract class AbstractFixed64Column extends EscfColumn {
     AbstractFixed64Column(int docCount, FixedBitSet validity, BytesReference data) {
         super(docCount, validity);
         assert assertDataValid(docCount, data);
-        this.data = data;
+        // We do not handle lifecycle here. Unwrap to reduce indirection.
+        this.data = ReleasableBytesReference.unwrap(data);
     }
 
     /** The raw little-endian 8-byte slot for document {@code d}. */

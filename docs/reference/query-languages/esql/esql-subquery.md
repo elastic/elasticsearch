@@ -1,5 +1,5 @@
 ---
-navigation_title: "Use subqueries in a FROM command"
+navigation_title: "Use FROM subqueries"
 applies_to:
   serverless: ga
   stack: preview 9.4, ga 9.5+
@@ -9,9 +9,9 @@ products:
 
 # Combine result sets with {{esql}} subqueries in a `FROM` command [esql-subquery]
 
-A subquery is a complete ES|QL query wrapped in parentheses that can be used
+A `FROM` subquery is a complete ES|QL query wrapped in parentheses that can be used
 in place of an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command.
-Each subquery is executed independently. The final output combines all these
+Each `FROM` subquery is executed independently. The final output combines all these
 results into a single list, including any duplicate rows.
 
 ## Syntax
@@ -277,7 +277,7 @@ For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine an
 ## Related pages
 
 * [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
-* [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to subqueries, with a persisted, named definition.
-* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where subqueries are used.
+* [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to `FROM` subqueries, with a persisted, named definition.
+* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where `FROM` subqueries are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

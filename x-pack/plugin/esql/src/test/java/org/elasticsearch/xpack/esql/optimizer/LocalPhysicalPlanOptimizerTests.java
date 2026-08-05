@@ -651,11 +651,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
         );
 
-        var ip = plannerOptimizer.plan(
-            "from test | where not mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)",
-            IS_SV_STATS,
-            analyzer
-        );
+        var ip = plannerOptimizer.plan("from test | where not mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
         assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(
             pushedQuery(ip).toString(),

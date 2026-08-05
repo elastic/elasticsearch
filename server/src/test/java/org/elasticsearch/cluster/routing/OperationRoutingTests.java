@@ -406,12 +406,7 @@ public class OperationRoutingTests extends ESTestCase {
             ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
             assertThat(shardChoice.currentNodeId(), equalTo("node_0"));
 
-            collector.addNodeStatistics(
-                "node_0",
-                1,
-                TimeValue.timeValueMillis(50).nanos(),
-                TimeValue.timeValueMillis(40).nanos()
-            );
+            collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());
         }
 
         // Check that we try the second when the first node slows down more

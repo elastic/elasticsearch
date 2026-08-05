@@ -545,8 +545,24 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var primary = soleStartedPrimaryShard(alloc, shardId);
                     final var startedReplica = soleStartedReplicaShard(alloc, shardId);
-                    alloc.routingNodes().relocateShard(primary, primaryTargetNode, 0, "test", alloc.changes());
-                    alloc.routingNodes().relocateShard(startedReplica, replicaTargetNode, 0, "test", alloc.changes());
+                    alloc.routingNodes()
+                        .relocateShard(
+                            primary,
+                            primaryTargetNode,
+                            0,
+                            "test",
+                            alloc.changes(),
+                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        );
+                    alloc.routingNodes()
+                        .relocateShard(
+                            startedReplica,
+                            replicaTargetNode,
+                            0,
+                            "test",
+                            alloc.changes(),
+                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        );
                 });
 
                 final var primaryTarget = primaryShard(clusterState, 0).getTargetRelocatingShard();
@@ -574,7 +590,15 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 final String replicaTargetNode = randomFrom(freeNodes);
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var startedReplica = soleStartedReplicaShard(alloc, shardId);
-                    alloc.routingNodes().relocateShard(startedReplica, replicaTargetNode, 0, "test", alloc.changes());
+                    alloc.routingNodes()
+                        .relocateShard(
+                            startedReplica,
+                            replicaTargetNode,
+                            0,
+                            "test",
+                            alloc.changes(),
+                            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                        );
                 });
 
                 final var relocationTarget = soleReplicaShard(clusterState, 0).getTargetRelocatingShard();

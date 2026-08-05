@@ -686,12 +686,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
-     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a whole-string comparison. {@code job}
+     * has a {@code .raw} keyword subfield, so it is otherwise pushable — only the TEXT gate stops it. If text were
+     * classified YES, FilterExec would drop and a token range would push (this assertion fails).
      */
     public void testMvInRangeTextNotPushed() {
-        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
-        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
         var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(pushedQuery(plan), nullValue());

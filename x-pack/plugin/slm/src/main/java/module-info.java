@@ -13,6 +13,7 @@ module org.elasticsearch.slm {
     requires org.elasticsearch.xcore;
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
+    requires static org.elasticsearch.encryption.spi;
 
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;

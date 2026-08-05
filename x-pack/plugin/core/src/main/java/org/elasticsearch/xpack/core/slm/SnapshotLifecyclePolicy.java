@@ -27,10 +27,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +49,8 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
+    private static final TransportVersion SLM_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+
     private final String id;
     private final String name;
     private final String schedule;
@@ -54,6 +59,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final SnapshotRetentionConfiguration retentionPolicy;
     private final boolean isCronSchedule;
     private final TimeValue unhealthyIfNoSnapshotWithin;
+    /** Password-encrypted with the cluster PEK; null if no encryption password was configured. */
+    @Nullable
+    private final EncryptedData encryptedPassword;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
@@ -103,7 +111,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy
     ) {
-        this(id, name, schedule, repository, configuration, retentionPolicy, null);
+        this(id, name, schedule, repository, configuration, retentionPolicy, null, null);
     }
 
     public SnapshotLifecyclePolicy(
@@ -115,6 +123,19 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
         @Nullable final TimeValue unhealthyIfNoSnapshotWithin
     ) {
+        this(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin, null);
+    }
+
+    public SnapshotLifecyclePolicy(
+        final String id,
+        final String name,
+        final String schedule,
+        final String repository,
+        @Nullable final Map<String, Object> configuration,
+        @Nullable final SnapshotRetentionConfiguration retentionPolicy,
+        @Nullable final TimeValue unhealthyIfNoSnapshotWithin,
+        @Nullable final EncryptedData encryptedPassword
+    ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
         this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
@@ -123,6 +144,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.retentionPolicy = retentionPolicy;
         this.unhealthyIfNoSnapshotWithin = unhealthyIfNoSnapshotWithin;
         this.isCronSchedule = isCronSchedule(schedule);
+        this.encryptedPassword = encryptedPassword;
     }
 
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
@@ -134,6 +156,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
         this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
             ? in.readOptionalTimeValue()
+            : null;
+        this.encryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD_TV)
+            ? in.readOptionalWriteable(EncryptedData::new)
             : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
@@ -381,6 +406,14 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
         req.source(mergedConfiguration);
         req.waitForCompletion(true);
+        if (encryptedPassword != null) {
+            byte[] plaintextBytes = EncryptionServiceRegistry.getEncryptionService().decrypt(encryptedPassword);
+            try {
+                req.encryptionPassword(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray());
+            } finally {
+                Arrays.fill(plaintextBytes, (byte) 0);
+            }
+        }
         return req;
     }
 
@@ -399,6 +432,31 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (out.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
             out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
+        if (out.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD_TV)) {
+            out.writeOptionalWriteable(this.encryptedPassword);
+        }
+    }
+
+    /**
+     * Returns a copy of this policy with the given {@code encryptedPassword} (or {@code null} to clear it).
+     */
+    public SnapshotLifecyclePolicy withEncryptedPassword(@Nullable EncryptedData encryptedPassword) {
+        return new SnapshotLifecyclePolicy(
+            id,
+            name,
+            schedule,
+            repository,
+            configuration,
+            retentionPolicy,
+            unhealthyIfNoSnapshotWithin,
+            encryptedPassword
+        );
+    }
+
+    /** Returns the PEK-encrypted snapshot password, or {@code null} if none was configured. */
+    @Nullable
+    public EncryptedData getEncryptedPassword() {
+        return encryptedPassword;
     }
 
     @Override
@@ -422,7 +480,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin, encryptedPassword);
     }
 
     @Override
@@ -441,7 +499,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             && Objects.equals(repository, other.repository)
             && Objects.equals(configuration, other.configuration)
             && Objects.equals(retentionPolicy, other.retentionPolicy)
-            && Objects.equals(unhealthyIfNoSnapshotWithin, other.unhealthyIfNoSnapshotWithin);
+            && Objects.equals(unhealthyIfNoSnapshotWithin, other.unhealthyIfNoSnapshotWithin)
+            && Objects.equals(encryptedPassword, other.encryptedPassword);
     }
 
     @Override

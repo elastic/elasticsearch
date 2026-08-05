@@ -176,6 +176,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final SnapshotMetrics snapshotMetrics;
 
+    private final SnapshotEncryptionExtension snapshotEncryptionExtension;
+
+    private final ConcurrentHashMap<SnapshotId, char[]> pendingEncryptionPasswords = new ConcurrentHashMap<>();
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final SnapshotExternalChangesBatcher externalChangesBatcher;
@@ -206,7 +210,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         TransportService transportService,
         SystemIndices systemIndices,
         boolean serializeProjectMetadata,
-        SnapshotMetrics snapshotMetrics
+        SnapshotMetrics snapshotMetrics,
+        SnapshotEncryptionExtension snapshotEncryptionExtension
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -214,6 +219,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.snapshotMetrics = snapshotMetrics;
+        this.snapshotEncryptionExtension = snapshotEncryptionExtension;
 
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
@@ -281,6 +287,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
             );
             return;
+        }
+        if (request.encryptionPassword() != null) {
+            pendingEncryptionPasswords.put(snapshotId, request.encryptionPassword());
         }
         submitCreateSnapshotRequest(
             request,
@@ -1023,6 +1032,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
 
+                final char[] encPassword = pendingEncryptionPasswords.remove(snapshot.getSnapshotId());
+                final boolean hasEncrypted = snapshotEncryptionExtension.hasEncryptedCustoms(projectId, metaForSnapshot);
+                if (hasEncrypted && encPassword == null) {
+                    logger.warn(
+                        "snapshot [{}] contains encrypted data but no encryption_password was provided; "
+                            + "encrypted data will not be included in the snapshot",
+                        snapshot
+                    );
+                }
+                final byte[] encryptedData = (encPassword != null && hasEncrypted)
+                    ? snapshotEncryptionExtension.encryptForSnapshot(projectId, metaForSnapshot, encPassword)
+                    : null;
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
@@ -1036,7 +1057,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
-                );
+                ).withHasEncryptedData(encryptedData != null);
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
@@ -1086,7 +1107,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 // never fails
                                 assert false : e;
                             }
-                        })
+                        }),
+                        encryptedData
                     )
                 );
             },

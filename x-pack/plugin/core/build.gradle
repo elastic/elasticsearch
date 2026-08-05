@@ -43,6 +43,8 @@ configurations {
 }
 
 dependencies {
+  compileOnly project(':x-pack:plugin:encryption:spi')
+
   api project(':libs:grok')
   api project(":libs:ssl-config")
 

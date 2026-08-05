@@ -265,6 +265,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
 
     /**
+     * Name prefix for blobs that hold password-encrypted snapshot customs data.
+     * @see #ENCRYPTED_DATA_NAME_FORMAT
+     */
+    public static final String ENCRYPTED_DATA_PREFIX = "enc-";
+
+    /**
+     * Blob name format for password-encrypted snapshot customs data blobs.
+     */
+    public static final String ENCRYPTED_DATA_NAME_FORMAT = ENCRYPTED_DATA_PREFIX + "%s" + METADATA_BLOB_NAME_SUFFIX;
+
+    /**
      * Name prefix for shard-level {@link BlobStoreIndexShardSnapshots} blobs.
      * @see #SNAPSHOT_INDEX_NAME_FORMAT
      * @see #INDEX_SHARD_SNAPSHOTS_FORMAT
@@ -1647,6 +1658,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else if (blob.startsWith(METADATA_PREFIX)) {
                         foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                         assert GLOBAL_METADATA_FORMAT.blobName(foundUUID).equals(blob);
+                    } else if (blob.startsWith(ENCRYPTED_DATA_PREFIX)) {
+                        foundUUID = blob.substring(ENCRYPTED_DATA_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length());
                     } else {
                         return false;
                     }
@@ -1678,6 +1691,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId -> Stream.of(
                             GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
                             SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
+                            String.format(java.util.Locale.ROOT, ENCRYPTED_DATA_NAME_FORMAT, snapshotId.getUUID()),
                             getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
                         )
                     )
@@ -2033,6 +2047,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
                     ActionListener.completeWith(allMetaListeners.acquire(), () -> {
                         SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress);
+                        final byte[] encryptedData = finalizeSnapshotContext.encryptedCustomsData();
+                        if (encryptedData != null) {
+                            blobContainer().writeBlob(
+                                OperationPurpose.SNAPSHOT_METADATA,
+                                String.format(java.util.Locale.ROOT, ENCRYPTED_DATA_NAME_FORMAT, snapshotId.getUUID()),
+                                new java.io.ByteArrayInputStream(encryptedData),
+                                encryptedData.length,
+                                false
+                            );
+                        }
                         return null;
                     });
 
@@ -2252,6 +2276,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlockingQueue<SnapshotId> queue = new LinkedBlockingQueue<>(context.snapshotIds());
         for (int i = 0; i < workers; i++) {
             getOneSnapshotInfo(queue, context);
+        }
+    }
+
+    @Override
+    public byte[] readSnapshotEncryptedData(SnapshotId snapshotId) throws IOException {
+        final String blobName = String.format(java.util.Locale.ROOT, ENCRYPTED_DATA_NAME_FORMAT, snapshotId.getUUID());
+        try (var stream = blobContainer().readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
+            return stream.readAllBytes();
+        } catch (NoSuchFileException e) {
+            return null;
         }
     }
 

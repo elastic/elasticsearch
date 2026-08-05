@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption.spi;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Implemented by features that own a project-scoped {@link Metadata.ProjectCustom} containing data encrypted under the project
@@ -34,6 +35,33 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
      *         is not null.
      */
     T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
+
+    /**
+     * Serializes {@code current} to a plaintext byte array suitable for inclusion in an encrypted snapshot blob.
+     * Only secrets (values encrypted under the PEK) need to be decrypted before serialization; non-secret values
+     * may be written as-is.
+     *
+     * @param current          the current value of the custom, never {@code null} when called
+     * @param encryptionService used to decrypt PEK-encrypted secrets before writing them out
+     * @return the serialized plaintext bytes, or {@code null} if this handler does not support snapshot export
+     */
+    @Nullable
+    default byte[] toSnapshotBytes(T current, EncryptionService encryptionService) {
+        return null;
+    }
+
+    /**
+     * Deserializes bytes previously produced by {@link #toSnapshotBytes} and re-encrypts any secrets under the
+     * destination cluster's PEK.
+     *
+     * @param bytes            plaintext bytes as produced by {@link #toSnapshotBytes}
+     * @param encryptionService used to re-encrypt secrets under the destination PEK
+     * @return the restored custom, or {@code null} if this handler does not support snapshot import
+     */
+    @Nullable
+    default T fromSnapshotBytes(byte[] bytes, EncryptionService encryptionService) {
+        return null;
+    }
 
     /**
      * Decides what happens to this handler's custom when the project encryption key is destructively reset (via

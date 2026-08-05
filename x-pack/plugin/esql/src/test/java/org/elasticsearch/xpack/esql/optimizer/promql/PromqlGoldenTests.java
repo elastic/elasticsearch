@@ -133,13 +133,16 @@ public class PromqlGoldenTests extends GoldenTestCase {
     public void testLimitk() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(limitk(3, network.bytes_in))").transportVersion(TransportVersion.current()).run();
+        builder("PROMQL index=k8s step=1h result=(limitk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
     }
 
     public void testLimitkByGrouping() {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))").transportVersion(TransportVersion.current())
+        builder("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .run();
     }
 
@@ -147,7 +150,9 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         assumeTrue("requires fix for topk over aggregated vectors", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
-        builder("PROMQL index=k8s step=1h result=(limitk(2, sum by (pod) (network.bytes_in)))").transportVersion(TransportVersion.current())
+        builder("PROMQL index=k8s step=1h result=(limitk(2, sum by (pod) (network.bytes_in)))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .run();
     }
 }

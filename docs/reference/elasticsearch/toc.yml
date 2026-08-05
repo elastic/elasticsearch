@@ -45,6 +45,7 @@ toc:
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md
+  - file: columnar/index.md
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md

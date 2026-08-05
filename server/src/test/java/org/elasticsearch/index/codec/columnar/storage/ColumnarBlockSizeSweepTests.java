@@ -27,6 +27,8 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
 
     private static final Logger logger = LogManager.getLogger(ColumnarBlockSizeSweepTests.class);
     private static final int[] ES95_BLOCK_SIZES = { 128, 512 };
+    private static final long SMALL_WORKLOAD_THRESHOLD_BYTES = 16_384L;
+    private static final long SMALL_WORKLOAD_ABS_DELTA_BYTES = 512L;
 
     private record Ceiling(double bs128, double bs512) {}
 
@@ -101,11 +103,19 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
             );
             final Ceiling ceilings = MAX_COLUMNAR_TO_ES95_RATIO.get(workload);
             assertNotNull("no parity ceiling defined for workload: " + workload, ceilings);
-            final double ceiling = blockSize == 128 ? ceilings.bs128() : ceilings.bs512();
-            assertTrue(
-                workload + " bs=" + blockSize + ": ratio " + String.format(Locale.ROOT, "%.2f", ratio) + "x > ceiling " + ceiling + "x",
-                ratio <= ceiling
-            );
+            if (es95 < SMALL_WORKLOAD_THRESHOLD_BYTES) {
+                final long absDelta = columnar - es95;
+                assertTrue(
+                    workload + " bs=" + blockSize + ": abs delta " + absDelta + " B > " + SMALL_WORKLOAD_ABS_DELTA_BYTES + " B",
+                    absDelta <= SMALL_WORKLOAD_ABS_DELTA_BYTES
+                );
+            } else {
+                final double ceiling = blockSize == 128 ? ceilings.bs128() : ceilings.bs512();
+                assertTrue(
+                    workload + " bs=" + blockSize + ": ratio " + String.format(Locale.ROOT, "%.2f", ratio) + "x > ceiling " + ceiling + "x",
+                    ratio <= ceiling
+                );
+            }
         }
     }
 

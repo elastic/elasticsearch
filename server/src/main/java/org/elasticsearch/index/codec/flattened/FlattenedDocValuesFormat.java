@@ -63,17 +63,19 @@ import java.io.IOException;
  *
  * <pre>
  * [byte  flags]
- *       bit0 = FLAG_VALUES_COMPRESSED    values ZSTD-compressed; otherwise stored raw
- *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
- *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
+ *       bit0 = FLAG_VALUES_COMPRESSED    payload is ZSTD-compressed; otherwise stored raw
+ *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted from payload
+ *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted from payload
  * [vint  numDocs]
- * [vint  docDelta] x (numDocs-1)         absent when FLAG_DOCS_CONTIGUOUS
- * [vint  slotCount] x numDocs            absent when FLAG_ALL_SINGLE_SLOT
  * [vint  uncompressedLen]
  * -- if FLAG_VALUES_COMPRESSED:
  *    [vint compressedLen][compressedLen bytes]   written by ZstdCompressionMode.ZstdCompressor
  * -- otherwise:
  *    [uncompressedLen bytes]                     raw
+ * The (un)compressed payload contains:
+ * [vint  docDelta] x (numDocs-1)   absent when FLAG_DOCS_CONTIGUOUS
+ * [vint  slotCount] x numDocs      absent when FLAG_ALL_SINGLE_SLOT
+ * [vint  valueLen+1][value bytes] x ...   per doc in ascending docId order, per slot
  * </pre>
  *
  * <p>The compressed payload contains, per doc in ascending docId order, per slot in document
@@ -116,8 +118,14 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
     static final String META_CODEC = "ESFlattenedColumnarMeta";
     static final String META_EXTENSION = "fdvm";
     static final int VERSION_START = 0;
-    /** Version 2: per-sub-field column layout with direct block writes (no temp files). */
-    static final int VERSION_CURRENT = 2;
+    /**
+     * Version 3: docId-delta and slot-count arrays moved inside the compressed payload region.
+     * The raw block header now contains only {@code flags} and {@code numDocs}; the arrays that
+     * were previously written raw between the header and the payload boundary are now prepended
+     * to the value bytes before (optional) ZSTD compression, so that the compressor can exploit
+     * their redundancy alongside the values.
+     */
+    static final int VERSION_CURRENT = 3;
 
     // Block flag bits
     /** Bit 0: block payload is ZSTD-compressed; otherwise stored raw. */

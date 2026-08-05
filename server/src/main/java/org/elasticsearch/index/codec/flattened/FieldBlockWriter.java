@@ -18,7 +18,7 @@ import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
@@ -29,6 +29,12 @@ import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.F
  *
  * <p>Blocks are written straight into the caller-supplied output — no temp files, no splice.
  * The caller retains ownership of the output; {@link #close()} is a no-op.
+ *
+ * <p>One instance is reused for every column of a field: call {@link #reset(IndexOutput)} at each column
+ * boundary rather than allocating a new writer. The block-accumulation arrays are pre-sized from
+ * the configured thresholds (~{@code 2 * 4 * maxDocsPerBlock + targetBlockBytes} bytes) and the
+ * ZSTD compressor is stateful to allocate, so allocating per column turned into hundreds of
+ * megabytes of short-lived garbage per flush on fields with a large sub-field cardinality.
  *
  * <h2>On-disk column structure</h2>
  *
@@ -46,10 +52,17 @@ final class FieldBlockWriter implements Closeable {
     private final int minCompressBytes;
     private final Compressor compressor = new ZstdCompressionMode(1).newCompressor();
 
-    /** Absolute data-file offset of the first block for this column. */
-    private final long columnStartOffset;
+    /**
+     * Scratch buffer for the docId-delta / slot-count prefix written before the value payload
+     * inside the compressed region. Upper-bound per block: 10 * maxDocsPerBlock bytes
+     * (5 bytes/vint × (numDocs-1) deltas + 5 bytes/vint × numDocs slot counts).
+     */
+    private byte[] prefixBuf;
+
+    /** Absolute data-file offset of the first block for this column. Updated by {@link #reset}. */
+    private long columnStartOffset;
     /** The externally-owned output this column is being written into. */
-    private final IndexOutput currentOut;
+    private IndexOutput currentOut;
 
     // Current block accumulation. Pre-sized to the configured thresholds so that typical blocks
     // require no grows; ArrayUtil.grow handles the overshoot case (one doc's payload past the limit).
@@ -76,6 +89,9 @@ final class FieldBlockWriter implements Closeable {
      * Constructs a writer that emits blocks directly into {@code out}. No temp files are created;
      * {@link #close()} is a no-op. The caller must keep {@code out} open until after
      * {@link #finish()} returns.
+     *
+     * <p>Prefer allocating one instance and calling {@link #reset(IndexOutput)} at each column
+     * boundary to avoid per-column array and compressor allocation.
      */
     FieldBlockWriter(IndexOutput out, int targetBlockBytes, int maxDocsPerBlock, int minCompressBytes) {
         this.targetBlockBytes = targetBlockBytes;
@@ -86,6 +102,27 @@ final class FieldBlockWriter implements Closeable {
         this.blockDocIds = new int[maxDocsPerBlock];
         this.blockSlotCounts = new int[maxDocsPerBlock];
         this.blockPayload = new byte[targetBlockBytes];
+        this.prefixBuf = new byte[10 * maxDocsPerBlock];
+    }
+
+    /**
+     * Resets this writer to start a new column in {@code out}.
+     *
+     * <p>Must only be called immediately after {@link #finish()} has been called (or before any
+     * slots have been added for the very first column). Reuses all pre-allocated arrays and the
+     * ZSTD compressor from the previous column.
+     */
+    void reset(IndexOutput out) {
+        assert finished : "reset() called on an unfinished writer";
+        this.currentOut = out;
+        this.columnStartOffset = out.getFilePointer();
+        this.numDocsInBlock = 0;
+        this.blockPayloadLen = 0;
+        this.numBlocks = 0;
+        this.totalBlockBytes = 0;
+        this.maxUncompressedBlockLen = 0;
+        this.maxDocsPerBlockSeen = 0;
+        this.finished = false;
     }
 
     /**
@@ -157,7 +194,6 @@ final class FieldBlockWriter implements Closeable {
     private void flushCurrentBlock() throws IOException {
         if (numDocsInBlock == 0) return;
 
-        maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, blockPayloadLen);
         maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, numDocsInBlock);
 
         blockFirstDocIds = ArrayUtil.grow(blockFirstDocIds, numBlocks + 1);
@@ -175,7 +211,41 @@ final class FieldBlockWriter implements Closeable {
         for (int i = 0; i < numDocsInBlock && allSingleSlot; i++) {
             if (blockSlotCounts[i] != 1) allSingleSlot = false;
         }
-        final boolean compress = blockPayloadLen >= minCompressBytes;
+
+        // Build the combined payload: [docDelta × (n-1)][slotCount × n][value bytes].
+        // The docId and slot-count arrays are now inside the (optionally) compressed region so
+        // that ZSTD can exploit their redundancy alongside the value bytes. The old layout wrote
+        // them raw before the compression boundary, which made them incompressible overhead.
+        //
+        // We encode the prefix into the separate prefixBuf scratch buffer, then shift the value
+        // payload right in blockPayload to make room, and copy the prefix in. This keeps a single
+        // contiguous buffer for the compressor.
+        // Upper-bound: (numDocs-1) * 5 + numDocs * 5 = 10 * numDocs bytes.
+        if (prefixBuf.length < 10 * numDocsInBlock) {
+            prefixBuf = new byte[10 * numDocsInBlock];
+        }
+        int prefixLen = 0;
+        if (contiguous == false) {
+            for (int i = 1; i < numDocsInBlock; i++) {
+                prefixLen = writeVIntToArray(prefixBuf, prefixLen, blockDocIds[i] - blockDocIds[i - 1] - 1);
+            }
+        }
+        if (allSingleSlot == false) {
+            for (int i = 0; i < numDocsInBlock; i++) {
+                prefixLen = writeVIntToArray(prefixBuf, prefixLen, blockSlotCounts[i]);
+            }
+        }
+        final int totalPayloadLen = prefixLen + blockPayloadLen;
+        // Grow blockPayload to hold both prefix and value bytes, shift the value bytes right,
+        // then copy the prefix into the freed front region.
+        if (prefixLen > 0) {
+            blockPayload = ArrayUtil.grow(blockPayload, totalPayloadLen);
+            System.arraycopy(blockPayload, 0, blockPayload, prefixLen, blockPayloadLen);
+            System.arraycopy(prefixBuf, 0, blockPayload, 0, prefixLen);
+        }
+        maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, totalPayloadLen);
+
+        final boolean compress = totalPayloadLen >= minCompressBytes;
 
         byte flags = 0;
         if (compress) flags |= FLAG_VALUES_COMPRESSED;
@@ -185,25 +255,11 @@ final class FieldBlockWriter implements Closeable {
         currentOut.writeByte(flags);
         writeVInt(currentOut, numDocsInBlock);
 
-        if (contiguous == false) {
-            for (int i = 1; i < numDocsInBlock; i++) {
-                writeVInt(currentOut, blockDocIds[i] - blockDocIds[i - 1] - 1);
-            }
-        }
-        if (allSingleSlot == false) {
-            for (int i = 0; i < numDocsInBlock; i++) {
-                writeVInt(currentOut, blockSlotCounts[i]);
-            }
-        }
-
-        writeVInt(currentOut, blockPayloadLen);
+        writeVInt(currentOut, totalPayloadLen);
         if (compress) {
-            compressor.compress(
-                new ByteBuffersDataInput(Collections.singletonList(ByteBuffer.wrap(blockPayload, 0, blockPayloadLen))),
-                currentOut
-            );
+            compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(blockPayload, 0, totalPayloadLen))), currentOut);
         } else {
-            currentOut.writeBytes(blockPayload, 0, blockPayloadLen);
+            currentOut.writeBytes(blockPayload, 0, totalPayloadLen);
         }
 
         totalBlockBytes += (int) (currentOut.getFilePointer() - blockStart);

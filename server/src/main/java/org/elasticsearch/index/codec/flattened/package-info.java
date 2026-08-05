@@ -80,11 +80,9 @@
  * <pre>
  * byte  flags
  *         bit 0 = FLAG_VALUES_COMPRESSED    payload is ZSTD-compressed
- *         bit 1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
- *         bit 2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
+ *         bit 1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted from payload
+ *         bit 2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted from payload
  * vint  numDocs
- * vint  docDelta × (numDocs-1)              absent when FLAG_DOCS_CONTIGUOUS
- * vint  slotCount × numDocs                absent when FLAG_ALL_SINGLE_SLOT
  * vint  uncompressedLen
  *   if FLAG_VALUES_COMPRESSED:
  *     vint compressedLen
@@ -93,8 +91,12 @@
  *     uncompressedLen bytes                raw
  * </pre>
  *
- * <p>The payload contains, per document in ascending docId order, per slot in document order:
+ * <p>The (un)compressed payload contains: {@code [vint docDelta] × (numDocs-1)} (absent when
+ * FLAG_DOCS_CONTIGUOUS), then {@code [vint slotCount] × numDocs} (absent when FLAG_ALL_SINGLE_SLOT),
+ * then per document in ascending docId order, per slot in document order:
  * {@code [vint valueLen+1][value bytes]}, where prefix 0 means null (no bytes follow).
+ * Moving the docId and slot-count arrays inside the compressed region lets ZSTD exploit their
+ * redundancy alongside the value bytes, reducing on-disk size for sparse or multi-valued columns.
  *
  * <p>Flush triggers: a new block is started when {@code numDocs >= MAX_DOCS_PER_BLOCK} (default
  * 8192) or {@code blockPayloadLen >= TARGET_BLOCK_BYTES} (default 64 KiB). The check fires at the

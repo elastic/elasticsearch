@@ -64,8 +64,8 @@ final class SequentialColumnReader implements Closeable {
     private boolean contiguous;
     private boolean allSingleSlot;
     private boolean compressed;
-    private int[] docIds;      // resolved docIds when !contiguous
-    private int[] slotCounts;  // slot counts per doc when !allSingleSlot
+    private int[] docIds;      // resolved docIds when !contiguous (populated by ensurePayloadLoaded)
+    private int[] slotCounts;  // slot counts per doc when !allSingleSlot (populated by ensurePayloadLoaded)
     private int uncompPayloadLen;
     private long payloadAbsOff;
 
@@ -75,7 +75,8 @@ final class SequentialColumnReader implements Closeable {
 
     // Cursor state within current block.
     private int docIdx = -1;       // index of current doc within block
-    private int payloadCursor = 0; // byte offset in payload[] after the current doc's slots
+    private int payloadCursor = 0; // byte offset in payload[] (past the docId/slotCount prefix)
+    private int valueStartOffset = 0; // payloadCursor position after the prefix (set by ensurePayloadLoaded)
 
     // Exported per-doc state (populated by nextDoc()).
     private int currentDocId = -1;
@@ -171,6 +172,7 @@ final class SequentialColumnReader implements Closeable {
     private void loadBlockHeader(int blockIdx) throws IOException {
         payloadLoaded = false;
         payloadCursor = 0;
+        valueStartOffset = 0;
 
         dataIn.seek(columnStartOff + blockStartsRel[blockIdx]);
 
@@ -180,20 +182,8 @@ final class SequentialColumnReader implements Closeable {
         compressed = (flags & FLAG_VALUES_COMPRESSED) != 0;
 
         numDocsInBlock = dataIn.readVInt();
-
-        if (contiguous == false) {
-            if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
-            docIds[0] = firstDocIds[blockIdx];
-            for (int i = 1; i < numDocsInBlock; i++) {
-                docIds[i] = docIds[i - 1] + dataIn.readVInt() + 1;
-            }
-        }
-        if (allSingleSlot == false) {
-            if (slotCounts.length < numDocsInBlock) slotCounts = new int[numDocsInBlock];
-            for (int i = 0; i < numDocsInBlock; i++) {
-                slotCounts[i] = dataIn.readVInt();
-            }
-        }
+        // The docId deltas and slot counts are now inside the compressed payload.
+        // They are parsed out in ensurePayloadLoaded, after decompression.
         uncompPayloadLen = dataIn.readVInt();
         payloadAbsOff = dataIn.getFilePointer();
     }
@@ -209,6 +199,38 @@ final class SequentialColumnReader implements Closeable {
         } else {
             dataIn.readBytes(payload, 0, uncompPayloadLen);
         }
+        // Parse the docId-delta prefix (absent when contiguous).
+        payloadCursor = 0;
+        if (contiguous == false) {
+            if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
+            docIds[0] = firstDocIds[currentBlock];
+            for (int i = 1; i < numDocsInBlock; i++) {
+                int delta = 0, shift = 0;
+                while (true) {
+                    final int b = payload[payloadCursor++] & 0xFF;
+                    delta |= (b & 0x7F) << shift;
+                    if ((b & 0x80) == 0) break;
+                    shift += 7;
+                }
+                docIds[i] = docIds[i - 1] + delta + 1;
+            }
+        }
+        // Parse the slot-count prefix (absent when allSingleSlot).
+        if (allSingleSlot == false) {
+            if (slotCounts.length < numDocsInBlock) slotCounts = new int[numDocsInBlock];
+            for (int i = 0; i < numDocsInBlock; i++) {
+                int count = 0, shift = 0;
+                while (true) {
+                    final int b = payload[payloadCursor++] & 0xFF;
+                    count |= (b & 0x7F) << shift;
+                    if ((b & 0x80) == 0) break;
+                    shift += 7;
+                }
+                slotCounts[i] = count;
+            }
+        }
+        // payloadCursor now sits at the start of the value bytes.
+        valueStartOffset = payloadCursor;
         payloadLoaded = true;
     }
 

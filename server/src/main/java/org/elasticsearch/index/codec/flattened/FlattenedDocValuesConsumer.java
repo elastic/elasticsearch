@@ -213,7 +213,9 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
             int maxDocsPerBlockSeen = 0;
 
             try (SortedSlotAccumulator.SortedCursor cursor = slotAcc.sortedCursor(lexRankOf)) {
-                FieldBlockWriter writer = null;
+                // Allocate one writer and reuse it across all columns via reset(). This avoids
+                // allocating ~128 KiB of block-accumulation arrays and a ZSTD compressor per key.
+                final FieldBlockWriter writer = new FieldBlockWriter(data, targetBlockBytes, maxDocsPerBlock, minCompressBytes);
                 int prevLexRank = -1;
                 int prevDoc = -1;
                 int slotCount = 0;
@@ -231,8 +233,8 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                             maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, writer.maxUncompressedBlockLen);
                             maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, writer.maxDocsPerBlockSeen);
                             addresses[prevLexRank] = writer.columnAddress();
+                            writer.reset(data);
                         }
-                        writer = new FieldBlockWriter(data, targetBlockBytes, maxDocsPerBlock, minCompressBytes);
                         prevLexRank = lr;
                         prevDoc = -1;
                         slotCount = 0;
@@ -500,8 +502,18 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
         int maxDocsPerBlockSeen = 0;
         final FieldBlockWriter.ColumnAddress[] addresses = new FieldBlockWriter.ColumnAddress[numMergedKeys];
 
+        // Allocate one writer and reuse it across all merged keys via reset(). This avoids
+        // allocating ~128 KiB of block-accumulation arrays and a ZSTD compressor per key.
+        final FieldBlockWriter mergeWriter = new FieldBlockWriter(data, targetBlockBytes, maxDocsPerBlock, minCompressBytes);
+        boolean firstMergedKey = true;
+
         for (int mergedOrd = 0; mergedOrd < numMergedKeys; mergedOrd++) {
             final int[] srcOrds = srcOrdsByKey.get(mergedOrd);
+
+            if (firstMergedKey == false) {
+                mergeWriter.reset(data);
+            }
+            firstMergedKey = false;
 
             // Build a DocIDMerger.Sub for each segment that has this key.
             final List<ColumnMergeSub> subs = new ArrayList<>();
@@ -521,14 +533,12 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                 }
 
                 // Write the column directly into the data output (no temp file, no splice).
-                final FieldBlockWriter writer = new FieldBlockWriter(data, targetBlockBytes, maxDocsPerBlock, minCompressBytes);
-                // writer.close() is a no-op in direct mode, so no try-finally needed here.
                 if (subs.isEmpty() == false) {
                     final DocIDMerger<ColumnMergeSub> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
                     ColumnMergeSub sub;
                     while ((sub = merger.next()) != null) {
                         final SequentialColumnReader reader = sub.reader;
-                        writer.addDocSlots(
+                        mergeWriter.addDocSlots(
                             sub.mappedDocID,
                             reader.slotCount(),
                             reader.payload(),
@@ -537,10 +547,10 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                         );
                     }
                 }
-                writer.finish();
-                maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, writer.maxUncompressedBlockLen);
-                maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, writer.maxDocsPerBlockSeen);
-                addresses[mergedOrd] = writer.columnAddress();
+                mergeWriter.finish();
+                maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, mergeWriter.maxUncompressedBlockLen);
+                maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, mergeWriter.maxDocsPerBlockSeen);
+                addresses[mergedOrd] = mergeWriter.columnAddress();
 
             } finally {
                 IOUtils.close(subs);

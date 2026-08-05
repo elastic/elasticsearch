@@ -19,12 +19,8 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Regression test guarding that {@link IterativeDouglasPeuckerSimplifier} (the heap-stack replacement
- * ST_SIMPLIFY uses to avoid {@link StackOverflowError} on huge geometries) produces output identical
- * to JTS {@link org.locationtech.jts.simplify.DouglasPeuckerSimplifier}. Two behaviours are easy to
- * get subtly wrong and are not caught by keep-all / collapse-all cases: the split loop must use
- * segment distance (not perpendicular distance), and a ring's shared endpoint must itself be
- * simplifiable. This test exercises both directly and deterministically.
+ * Asserts {@link IterativeDouglasPeuckerSimplifier} produces the same output as JTS
+ * {@link org.locationtech.jts.simplify.DouglasPeuckerSimplifier}.
  */
 public class IterativeDouglasPeuckerEquivalenceTests extends ESTestCase {
 

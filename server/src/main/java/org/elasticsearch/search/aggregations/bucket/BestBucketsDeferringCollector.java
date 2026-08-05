@@ -47,10 +47,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         AggregationExecutionContext aggCtx;
         PackedLongValues docDeltas;
         PackedLongValues buckets;
-        /**
-         * Bytes charged to the circuit breaker for the packed values in this entry.
-         * Tracked so we can return them precisely when the entry is released.
-         */
         final long ramBytesUsed;
 
         Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
@@ -64,12 +60,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private final Query topLevelQuery;
     private final IndexSearcher searcher;
     private final boolean isGlobal;
-    /**
-     * Callback into the owning aggregator's {@code addRequestCircuitBreakerBytes}. Using the
-     * aggregator's tracker means bytes flow through {@code requestBytesUsed} and are automatically
-     * returned when the aggregator is closed, even if the query fails before
-     * {@link #prepareSelectedBuckets} is called.
-     */
     private final LongConsumer bytesAccounter;
 
     private List<Entry> entries = new ArrayList<>();
@@ -81,13 +71,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private boolean finished = false;
     private long callCount;
 
-    /**
-     * Sole constructor.
-     * @param isGlobal Whether this collector visits all documents (global context)
-     * @param bytesAccounter Callback used to charge and return circuit breaker bytes.
-     *                       Pass {@code aggregator::addRequestCircuitBreakerBytes} so that
-     *                       bytes are automatically returned when the aggregator is closed.
-     */
     public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal, LongConsumer bytesAccounter) {
         this.topLevelQuery = topLevelQuery;
         this.searcher = searcher;
@@ -154,7 +137,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 lastDoc = doc;
                 // Periodically give the real-memory parent breaker a chance to check heap
                 // usage for in-flight builder allocations that are not yet committed to entries.
-                if ((++callCount & 0x3FF) == 0) {
+                if ((++callCount % 1024) == 0) {
                     bytesAccounter.accept(0);
                 }
             }

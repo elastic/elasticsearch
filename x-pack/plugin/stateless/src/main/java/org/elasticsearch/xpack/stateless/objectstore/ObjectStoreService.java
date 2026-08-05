@@ -868,7 +868,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewBlobStoreCacheDirectoryForMetadataRead();
+        var dir = directory.createPerBccMetadataReadDirectory();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -980,6 +980,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public @Nullable BatchedCompoundCommit readSearchShardState(
         BlobContainer shardContainer,
         SearchDirectory searchDirectory,
+        BlobStoreCacheDirectory metadataReadDirectory,
         long primaryTerm
     ) throws IOException {
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
@@ -993,7 +994,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             if (cacheSearchRecoveryBcc) {
                 var foundTermAndGen = new PrimaryTermAndGeneration(term, latestBlob.v1());
                 searchDirectory.updateLatestUploadedBcc(foundTermAndGen);
-                return readBatchedCompoundCommitUsingCache(searchDirectory, IOContext.DEFAULT, foundTermAndGen, latestBlob.v2().length());
+                return readBatchedCompoundCommitUsingCache(
+                    metadataReadDirectory,
+                    IOContext.DEFAULT,
+                    foundTermAndGen,
+                    latestBlob.v2().length()
+                );
             } else {
                 return readBatchedCompoundCommitFromStore(blobContainer, latestBlob.v2());
             }
@@ -1282,7 +1288,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public static void readReferencedCompoundCommitsUsingCache(
         Map<String, BlobLocation> commitFiles,
         @Nullable BatchedCompoundCommit bcc,
-        BlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory metadataReadDirectory,
         IOContext context,
         Executor bccHeaderReadExecutor,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
@@ -1294,7 +1300,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             bccHeaderReadExecutor,
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
-                : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
+                : readBatchedCompoundCommitIncrementallyUsingCache(metadataReadDirectory, context, referencedBlob, maxBlobOffset),
             referencedCCsConsumer,
             bccBlobSizeConsumer,
             listener

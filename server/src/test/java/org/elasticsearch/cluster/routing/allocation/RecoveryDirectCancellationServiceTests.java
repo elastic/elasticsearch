@@ -1351,6 +1351,104 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(capturedCancellations, hasSize(0));
     }
 
+    public void testSnapshotCancellationRunsAreCoalesced() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var waitingShardId = new ShardId(index, 0);
+        final var initShardId = new ShardId(index, 1);
+        final var sourceAllocationId = AllocationId.newRelocation(AllocationId.newInitializing(randomIdentifier("source-")));
+        final var targetAllocationId = AllocationId.newTargetRelocation(sourceAllocationId);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(waitingShardId, "node-0", true, RELOCATING)
+                    .withAllocationId(sourceAllocationId)
+                    .withRelocatingNodeId("node-1")
+                    .build()
+            )
+            .addShard(newShardRouting(initShardId, "node-2", true, STARTED));
+        final var snapshot = snapshotWithShards(
+            Map.of(
+                waitingShardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-0", SnapshotsInProgress.ShardState.WAITING, null),
+                initShardId,
+                new SnapshotsInProgress.ShardSnapshotStatus("node-2", SnapshotsInProgress.ShardState.INIT, null)
+            )
+        );
+        final var compatVersions = new CompatibilityVersions(TransportVersion.current(), Map.of());
+        final var initialState = ClusterState.builder(clusterStateWithSnapshot(indexMetadata, indexRoutingTable, snapshot))
+            .putCompatibilityVersions("node-0", compatVersions)
+            .putCompatibilityVersions("node-1", compatVersions)
+            .putCompatibilityVersions("node-2", compatVersions)
+            .build();
+
+        final var currentState = new AtomicReference<>(initialState);
+        final var taskQueue = new DeterministicTaskQueue();
+        final var transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(taskQueue.getThreadPool());
+
+        final var sendCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            sendCount.incrementAndGet();
+            final TransportResponseHandler<CancelRecoveriesAction.Response> handler = invocation.getArgument(3);
+            handler.handleResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return null;
+        }).when(transportService).sendRequest(any(DiscoveryNode.class), anyString(), any(), any());
+
+        final var clusterService = createMockClusterService(initialState, true);
+        when(clusterService.state()).thenAnswer(invocation -> currentState.get());
+
+        final var service = new RecoveryDirectCancellationService(
+            transportService,
+            clusterService,
+            mock(AllocationService.class),
+            mock(RerouteService.class)
+        );
+        service.start();
+
+        final var stateWithoutSnapshots = ClusterState.builder(initialState).removeCustom(SnapshotsInProgress.TYPE).build();
+        service.clusterChanged(new ClusterChangedEvent("test", initialState, stateWithoutSnapshots));
+
+        // Further triggers while the first run is still queued. Each gets a fresh routing-table instance so
+        // clusterChanged's gate fires. Without coalescing each would schedule its own runnable.
+        final int extraTriggers = randomIntBetween(2, 8);
+        for (int i = 0; i < extraTriggers; i++) {
+            final var previous = currentState.get();
+            final var next = ClusterState.builder(previous)
+                .version(previous.version() + 1)
+                .routingTable(RoutingTable.builder(previous.routingTable()).build())
+                .build();
+            currentState.set(next);
+            service.clusterChanged(new ClusterChangedEvent("test", next, previous));
+        }
+
+        int cancellationRuns = 0;
+        while (taskQueue.hasRunnableTasks()) {
+            cancellationRuns++;
+            taskQueue.runRandomTask();
+        }
+        assertThat("concurrent snapshot-cancellation triggers should coalesce to a single queued run", cancellationRuns, equalTo(1));
+        assertThat(sendCount.get(), equalTo(1));
+        assertThat(
+            service.sentCancellations.get(targetAllocationId.getId()),
+            equalTo(new RecoveryDirectCancellationService.SentCancellation(currentState.get().term(), false))
+        );
+
+        // Same cluster-state version: the run should bail out before computing candidates for cancellations.
+        service.sentCancellations.invalidateAll();
+        final var processedState = currentState.get();
+        final var sameVersionState = ClusterState.builder(processedState)
+            .routingTable(RoutingTable.builder(processedState.routingTable()).build())
+            .build();
+        assertThat(sameVersionState.version(), equalTo(processedState.version()));
+        currentState.set(sameVersionState);
+        service.clusterChanged(new ClusterChangedEvent("test", sameVersionState, processedState));
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("same-version follow-up must bail out without sending any cancellations ", sendCount.get(), equalTo(1));
+        assertThat(service.sentCancellations.get(targetAllocationId.getId()), nullValue());
+    }
+
     private SnapshotsInProgress.Entry snapshotWithShards(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         final var snapshot = new Snapshot("test-repo", new SnapshotId("test-snapshot", randomIdentifier()));
         assertThat(

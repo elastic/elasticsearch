@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
@@ -1080,11 +1079,12 @@ public abstract class DocumentParserContext {
         // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
         // documents are then aligned with other root documents. This will lead to the nested query, sorting, aggregations
         // and inner hits to fail or yield incorrect results.
-        IndexableField idField = doc.getParent().getField(IdFieldMapper.NAME);
-        if (idField != null) {
-            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
-            // delete it when the root document is deleted too.
-            doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
+        IdFieldMapper idFieldMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        BytesRef identityTerm = idFieldMapper == null ? null : idFieldMapper.nestedIdentityTerm(this);
+        if (identityTerm != null) {
+            // Store the identity term as an indexed field so IndexWriter#deleteDocuments(term) removes the child when the
+            // root is deleted. It must match the engine uid: a slice index scopes that by (id, slice), not the plain id.
+            doc.add(standardIdField(identityTerm, Field.Store.NO));
         } else if (indexSettings().getMode().isTsdb()) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the

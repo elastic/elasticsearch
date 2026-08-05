@@ -11,6 +11,8 @@ import io.netty.channel.Channel;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.message.MapMessage;
+import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -97,7 +100,6 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
-import org.elasticsearch.xpack.core.security.audit.AuditEntry;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
@@ -2087,7 +2089,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
     }
 
-    public void testCustomizerCanEnrichAuditEntry() throws Exception {
+    public void testCustomizerCanOverwriteAuditEntryField() throws Exception {
         final String maskedValue = randomAlphaOfLength(8);
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
             settings,
@@ -2096,10 +2098,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                    // enrich runs last in build(), so it can read and override fields already set by the builder
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    // rewrite runs last in build(), so it sees all the fields set by the builder
                     assertThat(entry.get(LoggingAuditTrail.ACTION_FIELD_NAME), equalTo("_action"));
-                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
+                    return new ESLogMessage().withFields(entry.getData()).with(LoggingAuditTrail.ACTION_FIELD_NAME, maskedValue);
                 }
             }
         );
@@ -2121,9 +2123,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
                     assertThat(entry.get(addedField), nullValue());
-                    entry.set(addedField, addedValue);
+                    return new ESLogMessage().withFields(entry.getData()).with(addedField, addedValue);
                 }
             }
         );
@@ -2167,7 +2169,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
     }
 
-    public void testCustomizerEnrichReceivesPopulatedContext() throws Exception {
+    public void testCustomizerRewriteReceivesPopulatedContext() throws Exception {
         // an authentication with a non-null creator realm, so the event carries a realm in its context
         final Authentication authentication = randomValueOtherThanMany(
             authc -> ApiKeyService.getCreatorRealmName(authc) == null,
@@ -2179,7 +2181,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
 
-        // enrich() writes a value derived from the context, proving it saw the event's realm and indices
+        // rewrite() writes a value derived from the context, proving it saw the event's realm, indices and roles
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
             settings,
             clusterService,
@@ -2187,8 +2189,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             threadContext,
             new AuditLogCustomizer() {
                 @Override
-                public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                    entry.set(LoggingAuditTrail.ACTION_FIELD_NAME, ctx.realm() + ":" + ctx.indices().length);
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    return new ESLogMessage().withFields(entry.getData())
+                        .with(
+                            LoggingAuditTrail.ACTION_FIELD_NAME,
+                            ctx.realm() + ":" + ctx.indices().length + ":" + Arrays.toString(ctx.roles())
+                        );
                 }
             }
         );
@@ -2196,7 +2202,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         assertThat(
             singleLogLine(logger),
-            containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + expectedRealm + ":" + expectedIndices.length + "\"")
+            containsString(
+                "\""
+                    + LoggingAuditTrail.ACTION_FIELD_NAME
+                    + "\":\""
+                    + expectedRealm
+                    + ":"
+                    + expectedIndices.length
+                    + ":"
+                    + Arrays.toString(expectedRoles)
+                    + "\""
+            )
         );
     }
 

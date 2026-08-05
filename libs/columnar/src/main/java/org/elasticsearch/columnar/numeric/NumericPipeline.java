@@ -38,6 +38,50 @@ public final class NumericPipeline {
         );
     }
 
+    /**
+     * Pipeline for monotonic long fields (TSDB counters, {@code @timestamp}): SplitDelta absorbs
+     * the large first-value jump at {@code _tsid} block boundaries before the standard stages.
+     */
+    public static NumericPipeline monotonicLongPipeline(int blockSize) {
+        return new NumericPipeline(
+            new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            new ForTerminal(blockSize)
+        );
+    }
+
+    /**
+     * Pipeline for double gauge fields: ALP converts IEEE 754 doubles to integer mantissas so the
+     * standard integer stages can compress them. Delta is included because it is adaptive and costs
+     * nothing on non-monotonic blocks.
+     */
+    public static NumericPipeline doubleGaugePipeline(int blockSize) {
+        return new NumericPipeline(
+            new BlockTransform[] {
+                new AlpDoubleTransform(blockSize),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE },
+            new ForTerminal(blockSize)
+        );
+    }
+
+    /**
+     * Pipeline for double counter fields: ALP followed by SplitDelta. ALP is order-preserving so
+     * the post-ALP mantissa stream keeps the counter shape, and SplitDelta handles {@code _tsid}
+     * boundary resets the same way it does on raw long counters.
+     */
+    public static NumericPipeline doubleCounterPipeline(int blockSize) {
+        return new NumericPipeline(
+            new BlockTransform[] {
+                new AlpDoubleTransform(blockSize),
+                new SplitDeltaTransform(),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE },
+            new ForTerminal(blockSize)
+        );
+    }
+
     BlockTransform[] transforms() {
         return transforms;
     }
@@ -72,16 +116,18 @@ public final class NumericPipeline {
         public static NumericPipeline rebuild(byte terminalId, byte[] transformIds, int blockSize) {
             BlockTransform[] transforms = new BlockTransform[transformIds.length];
             for (int i = 0; i < transformIds.length; i++) {
-                transforms[i] = transform(transformIds[i]);
+                transforms[i] = transform(transformIds[i], blockSize);
             }
             return new NumericPipeline(transforms, terminal(terminalId, blockSize));
         }
 
-        private static BlockTransform transform(byte id) {
+        private static BlockTransform transform(byte id, int blockSize) {
             return switch (id) {
                 case DeltaTransform.ID -> DeltaTransform.INSTANCE;
                 case OffsetTransform.ID -> OffsetTransform.INSTANCE;
                 case GcdTransform.ID -> GcdTransform.INSTANCE;
+                case SplitDeltaTransform.ID -> new SplitDeltaTransform();
+                case AlpDoubleTransform.ID -> new AlpDoubleTransform(blockSize);
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };
         }

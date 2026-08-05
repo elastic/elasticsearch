@@ -494,7 +494,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
-                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()

@@ -262,7 +262,7 @@ public record DriverCompletionInfo(
     // Also gates AsyncExternalSourceOperator.Status fields and EsqlQueryProfile.datasetResolution.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
-    private static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
+    public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
     public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
         long documentsFound = in.readVLong();

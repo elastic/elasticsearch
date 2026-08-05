@@ -65,6 +65,9 @@ public class DriverContext {
      */
     private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * Snapshotted at {@link #finish()} into {@link #warningsSnapshot}.
+     */
     private volatile List<String> warningsSnapshot;
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
@@ -107,8 +110,6 @@ public class DriverContext {
         this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
     }
 
-    // Package-private (rather than public) so that tests exercising WarningsMode.IGNORE can build a context in
-    // that mode; production only ever constructs COLLECT contexts via the public constructors above.
     DriverContext(
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -232,9 +233,9 @@ public class DriverContext {
     }
 
     /**
-     * Adds a fully-formatted warning string to this context's per-driver sink. Called single-threaded from the
-     * driver loop (and, for forked producer threads, before the corresponding async action completes). See
-     * {@link #warnings}.
+     * Adds a fully-formatted warning string to this context's per-driver sink.
+     * Called mostly single-threaded from the driver loop, but also called by async
+     * operators from other threads.
      */
     public void addWarning(String warning) {
         warnings.add(warning);

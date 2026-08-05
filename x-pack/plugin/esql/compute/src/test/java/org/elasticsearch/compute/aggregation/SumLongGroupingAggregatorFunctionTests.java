@@ -124,8 +124,6 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
         assertThat(sumsByGroup.get(2L), equalTo(9L));
         assertThat(nullSumGroups, equalTo(Set.of(1L)));
 
-        // Warnings are accumulated in the per-driver sink and snapshotted at DriverContext#finish() (done by the
-        // driver run above), rather than the ambient response-header ThreadContext.
         assertThat(collectWarnings(driverContext), hasItem(containsString("long overflow")));
     }
 }

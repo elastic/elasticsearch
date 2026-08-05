@@ -92,8 +92,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     // Accumulated directory bytes read across all worker BatchExchangeStatusResponses (set on transport threads).
     private final AtomicLong totalBytesRead = new AtomicLong();
-    // Warnings accumulated from server-side lookup drivers across all worker BatchExchangeStatusResponses (added on
-    // transport threads). Replayed into the client driver's per-driver sink so they reach the response chokepoint.
+    /**
+     * Warnings accumulated from server-side lookup drivers across all worker
+     * BatchExchangeStatusResponses (added on transport threads). Replayed into
+     * the client driver's per-driver sink so they reach the response chokepoint.
+     */
     private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing

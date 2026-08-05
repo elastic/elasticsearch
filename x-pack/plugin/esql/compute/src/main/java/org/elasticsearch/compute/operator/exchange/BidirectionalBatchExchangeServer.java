@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -196,6 +197,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Store the listener to send response when batch processing completes
         // This MUST be done before starting processing to ensure we can always reply on error
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
+        // Old clients receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS wire field.
+        // Emit them here — before the channel serialises its ThreadContext — so they are included.
+        if (channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) == false) {
+            batchExchangeStatusListener = batchExchangeStatusListener.map(resp -> {
+                resp.warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
+        }
         logger.debug(
             "BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
             serverToClientId

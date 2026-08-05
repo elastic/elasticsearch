@@ -83,8 +83,6 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         assertThat(results.get(0).getPositionCount(), equalTo(1));
         assertThat(results.get(0).getBlock(0).isNull(0), equalTo(true));
 
-        // Warnings are accumulated in the per-driver sink and snapshotted at DriverContext#finish() (done by the
-        // driver run above), rather than the ambient response-header ThreadContext.
         assertThat(
             collectWarnings(driverContext),
             contains(

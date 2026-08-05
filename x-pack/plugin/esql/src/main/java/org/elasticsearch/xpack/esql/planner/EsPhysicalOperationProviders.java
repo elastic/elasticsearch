@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -473,7 +474,33 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
+            if (superResult != null || name.equals(fullFieldName) == false) {
+                return superResult;
+            }
+            // Try the implicit _unmapped sink before falling back to the _source-based keyword type.
+            // FlattenedFieldParser.indexValueAtPath uses an empty ContentPath, so "foo.bar" is stored verbatim as the key —
+            // getChildFieldType("foo.bar") is the exact inverse. The returned KeyedFlattenedFieldType.name() is "_unmapped._keyed",
+            // not "foo.bar", but nothing on this path uses fieldType.name() for layout; the operator uses the attribute name.
+            var sinkMft = sinkFieldType();
+            if (sinkMft != null) {
+                return sinkMft;
+            }
+            return createUnmappedFieldType(name, this);
+        }
+
+        /**
+         * Returns a {@link FlattenedFieldMapper.KeyedFlattenedFieldType} for {@code fullFieldName} backed by the implicit
+         * {@code _unmapped} sink, or {@code null} if the sink is absent or the setting is not enabled on this index.
+         * Self-gating: {@link FlattenedFieldMapper#isUnmappedSink()} is false unless both the feature flag and strict-columnar mode
+         * are active, so on any other index this always returns {@code null} and the caller falls through to the existing path.
+         */
+        private @Nullable MappedFieldType sinkFieldType() {
+            if (mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
+                && sink.isUnmappedSink()
+                && sink.fieldType() instanceof DynamicFieldType dft) {
+                return dft.getChildFieldType(fullFieldName);
+            }
+            return null;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

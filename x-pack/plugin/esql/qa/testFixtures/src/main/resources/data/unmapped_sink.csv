@@ -1,0 +1,4 @@
+@timestamp:date,level:keyword,response_code:integer,request.path:keyword,cluster:keyword
+2025-01-01T00:00:00Z,info,200,/api/v1,prod
+2025-01-01T00:01:00Z,warn,404,/api/v2,prod
+2025-01-01T00:02:00Z,info,200,/api/v1,

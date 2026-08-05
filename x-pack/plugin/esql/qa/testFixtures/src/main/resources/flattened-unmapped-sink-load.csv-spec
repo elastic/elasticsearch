@@ -1,0 +1,112 @@
+sink not in column list
+required_capability: flattened_unmapped_sink_load
+
+FROM unmapped_sink
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date
+2025-01-01T00:00:00.000Z
+2025-01-01T00:01:00.000Z
+2025-01-01T00:02:00.000Z
+;
+
+// -------------------------------------------------------
+load top-level absorbed key
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, level
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | level:keyword
+2025-01-01T00:00:00.000Z | info
+2025-01-01T00:01:00.000Z | warn
+2025-01-01T00:02:00.000Z | info
+;
+
+// -------------------------------------------------------
+load nested absorbed key with nulls
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, request.path
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | request.path:keyword
+2025-01-01T00:00:00.000Z | /api/v1
+2025-01-01T00:01:00.000Z | /api/v2
+2025-01-01T00:02:00.000Z | /api/v1
+;
+
+// -------------------------------------------------------
+load key absent in some docs returns null
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, cluster
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | cluster:keyword
+2025-01-01T00:00:00.000Z | prod
+2025-01-01T00:01:00.000Z | prod
+2025-01-01T00:02:00.000Z | null
+;
+
+// -------------------------------------------------------
+filter by absorbed key is evaluated post-extraction not pushed to Lucene
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| WHERE level == "warn"
+| KEEP @timestamp, level
+;
+
+@timestamp:date          | level:keyword
+2025-01-01T00:01:00.000Z | warn
+;
+
+// -------------------------------------------------------
+stats by absorbed key
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| STATS count = COUNT(*) BY level
+| SORT count DESC, level ASC
+;
+
+count:long | level:keyword
+2          | info
+1          | warn
+;
+
+// -------------------------------------------------------
+numeric value absorbed as keyword string
+required_capability: flattened_unmapped_sink_load
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM unmapped_sink
+| KEEP @timestamp, response_code
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | response_code:keyword
+2025-01-01T00:00:00.000Z | 200
+2025-01-01T00:01:00.000Z | 404
+2025-01-01T00:02:00.000Z | 200
+;

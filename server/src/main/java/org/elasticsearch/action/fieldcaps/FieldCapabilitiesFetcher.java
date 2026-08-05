@@ -18,6 +18,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -176,6 +177,13 @@ class FieldCapabilitiesFetcher {
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
             MappedFieldType ft = entry.getValue();
+            // The implicit _unmapped sink is derived state (re-injected every parse, never serialized into the mapping source).
+            // Excluding it from field caps is the third leg of that "derived state is invisible" contract, consistent with
+            // ObjectMapper.serializeMappers already skipping it. Without this, FROM <columnar-index> leaks an _unmapped:flattened
+            // column whose value is a JSON blob of every absorbed key.
+            if (context.getIndexSettings().isFlattenedUnmappedFieldsEnabled() && FlattenedFieldMapper.UNMAPPED_SINK_NAME.equals(field)) {
+                continue;
+            }
             if (fieldNameFilter.test(field) == false && ((includeDimensions && ft.isDimension()) == false)) {
                 continue;
             }

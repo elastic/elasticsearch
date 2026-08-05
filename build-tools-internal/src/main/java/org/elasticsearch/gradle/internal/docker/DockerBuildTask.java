@@ -228,11 +228,16 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
-                } else if (!isCrossPlatform) {
-                    // For single-platform builds, add --load to ensure the image is loaded into
-                    // the local Docker daemon as a regular image, not a manifest list.
-                    // This prevents issues with newer Docker versions (23.0+) that may create
-                    // manifest lists even for single-platform builds when BuildKit is enabled.
+                } else if (parameters.getPlatforms().get().size() == 1) {
+                    // Add --load to ensure the image ends up in the local Docker daemon as a
+                    // regular image, not a manifest list. This is required for any
+                    // single-platform build (including cross-platform builds for a single
+                    // foreign architecture, e.g. aarch64 on x86): with the docker-container
+                    // buildx driver the result otherwise remains only in the build cache and
+                    // the subsequent `docker inspect` for the image checksum fails with
+                    // "no such object". It also prevents issues with newer Docker versions
+                    // (23.0+) that may create manifest lists even for single-platform builds
+                    // when BuildKit is enabled.
                     spec.args("--load");
                 }
             });

@@ -35,7 +35,6 @@ public class MergeReaderWrapper extends FlatVectorsReader {
 
     private final FlatVectorsReader mainReader;
     private final IOSupplier<FlatVectorsReader> mergeReaderSupplier;
-    private final Object lock = new Object();
     private FlatVectorsReader mergeReader;
     private boolean closed;
 
@@ -86,19 +85,18 @@ public class MergeReaderWrapper extends FlatVectorsReader {
 
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
-        synchronized (lock) {
-            if (closed) {
-                throw new AlreadyClosedException("this MergeReaderWrapper is closed");
-            }
-            // created lazily: most segments are never merged during a reader's lifetime, and the
-            // merge reader holds direct I/O resources
-            if (mergeReader == null) {
-                mergeReader = mergeReaderSupplier.get();
-            }
-            // delegate so the reader can prepare itself for merging, e.g. Lucene99FlatVectorsReader
-            // switches its data input to sequential read advice
-            return mergeReader.getMergeInstance();
+        // only the single thread running the merge calls this
+        if (closed) {
+            throw new AlreadyClosedException("this MergeReaderWrapper is closed");
         }
+        // created lazily: most segments are never merged during a reader's lifetime, and the
+        // merge reader holds direct I/O resources
+        if (mergeReader == null) {
+            mergeReader = mergeReaderSupplier.get();
+        }
+        // delegate so the reader can prepare itself for merging, e.g. Lucene99FlatVectorsReader
+        // switches its data input to sequential read advice
+        return mergeReader.getMergeInstance();
     }
 
     @Override
@@ -120,12 +118,10 @@ public class MergeReaderWrapper extends FlatVectorsReader {
 
     @Override
     public void close() throws IOException {
-        synchronized (lock) {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            IOUtils.close(mainReader, mergeReader);
+        if (closed) {
+            return;
         }
+        closed = true;
+        IOUtils.close(mainReader, mergeReader);
     }
 }

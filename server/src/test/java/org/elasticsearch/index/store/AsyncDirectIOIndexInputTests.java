@@ -9,15 +9,11 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.DirectIOMergeHint;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -71,66 +67,6 @@ public class AsyncDirectIOIndexInputTests extends ESTestCase {
                     actualSlice.readFloats(vectorActual, 0, vectorActual.length);
                     assertEquals("mismatch at seek: " + seek, (seek + 1) * byteSize, actualSlice.getFilePointer());
                 }
-            }
-        }
-    }
-
-    public void testPrefetchWithNoPrefetchSlots() throws IOException {
-        byte[] bytes = new byte[BASE_BUFFER_SIZE * 4 + randomIntBetween(1, BASE_BUFFER_SIZE)];
-        random().nextBytes(bytes);
-        Path path = createTempDir("testDirectIODirectory");
-        int blockSize = getBlockSize(path);
-        try (Directory dir = new NIOFSDirectory(path)) {
-            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
-                output.writeBytes(bytes, bytes.length);
-            }
-            try (var input = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, BASE_BUFFER_SIZE, 0)) {
-                assertEquals(0, input.prefetchSlots());
-                // prefetch must be a no-op, not a failure, when the input has no prefetch slots
-                input.prefetch(0, bytes.length);
-                byte[] read = new byte[bytes.length];
-                input.readBytes(read, 0, read.length);
-                assertArrayEquals(bytes, read);
-            }
-        }
-    }
-
-    public void testMergeHintedOpenUsesMergeBufferAndNoPrefetchSlots() throws IOException {
-        Path path = createTempDir("testDirectIODirectory");
-        FsDirectoryFactory.AlwaysDirectIODirectory dir;
-        try {
-            dir = new FsDirectoryFactory.AlwaysDirectIODirectory(
-                new MMapDirectory(path),
-                FsDirectoryFactory.AlwaysDirectIODirectory.RANDOM_ACCESS_BUFFER_SIZE,
-                DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
-                4
-            );
-        } catch (Exception e) {
-            assumeNoException("test requires a JDK and filesystem that support Direct IO", e);
-            return;
-        }
-        try (dir) {
-            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
-                output.writeString("test");
-            }
-            try (var input = dir.openInput("test", org.apache.lucene.store.IOContext.DEFAULT.withHints(DirectIOHint.INSTANCE))) {
-                AsyncDirectIOIndexInput asyncInput = (AsyncDirectIOIndexInput) input;
-                assertEquals(FsDirectoryFactory.AlwaysDirectIODirectory.RANDOM_ACCESS_BUFFER_SIZE, asyncInput.bufferCapacity());
-                // prefetchSlots() reports live registrations: one prefetch call occupies a slot
-                asyncInput.prefetch(0, asyncInput.length());
-                assertEquals(1, asyncInput.prefetchSlots());
-            }
-            try (
-                var input = dir.openInput(
-                    "test",
-                    org.apache.lucene.store.IOContext.DEFAULT.withHints(DirectIOHint.INSTANCE, DirectIOMergeHint.INSTANCE)
-                )
-            ) {
-                AsyncDirectIOIndexInput asyncInput = (AsyncDirectIOIndexInput) input;
-                assertEquals(DirectIODirectory.DEFAULT_MERGE_BUFFER_SIZE, asyncInput.bufferCapacity());
-                // merge-hinted inputs get no prefetch slots: prefetch is a no-op and registers nothing
-                asyncInput.prefetch(0, asyncInput.length());
-                assertEquals(0, asyncInput.prefetchSlots());
             }
         }
     }

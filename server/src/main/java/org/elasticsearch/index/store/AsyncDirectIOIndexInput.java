@@ -401,10 +401,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     // pkg private for testing
-    int bufferCapacity() {
-        return buffer.capacity();
-    }
-
     int prefetchSlots() {
         return prefetcher.posToSlot.size();
     }
@@ -452,10 +448,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          */
         void prefetch(long pos, long length) {
             assert pos % blockSize == 0 : "prefetch pos [" + pos + "] must be aligned to block size [" + blockSize + "]";
-            if (maxConcurrentPrefetches == 0) {
-                // opened without prefetch slots, e.g. a merge-hinted input when async prefetch is disabled
-                return;
-            }
             // first determine how many slots we need given the length
             while (length > 0) {
                 Map.Entry<Long, Integer> floor = this.posToSlot.floorEntry(pos);

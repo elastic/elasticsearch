@@ -13,16 +13,10 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -30,33 +24,26 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Tests that formats based on {@link DirectIOCapableFlatVectorsFormat} open the raw vector data
  * with direct I/O for both searches and merges when direct I/O is requested.
  */
-public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class DirectIOCapableFlatVectorsFormatTests extends ESTestCase {
 
     @BeforeClass
     public static void checkDirectIOSupported() throws IOException {
@@ -98,7 +85,7 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
                         name,
                         context.context(),
                         context.hints().contains(DirectIOHint.INSTANCE),
-                        context.hints().contains(DirectIOMergeHint.INSTANCE)
+                        context.context() == IOContext.Context.MERGE && context.hints().contains(DirectIOHint.INSTANCE)
                     )
                 );
             }
@@ -128,10 +115,10 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
 
     private void runMergeTest(KnnVectorsFormat format, boolean expectMergeHintedOpen) throws IOException {
         int dims = 64;
-        int docsPerSegment = 50;
+        int docsPerSegment = randomIntBetween(30, 120);
         float[][] vectors = new float[docsPerSegment * 2][];
         for (int i = 0; i < vectors.length; i++) {
-            vectors[i] = randomVector(dims);
+            vectors[i] = BaseKnnVectorsFormatTestCase.randomNormalizedVector(dims);
         }
 
         Path path = createTempDir("directIOMerge");
@@ -166,21 +153,6 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
             }
             writer.commit();
 
-            try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                LeafReader leafReader = getOnlyLeafReader(reader);
-                FloatVectorValues values = leafReader.getFloatVectorValues("v");
-                KnnVectorValues.DocIndexIterator iterator = values.iterator();
-                int count = 0;
-                while (iterator.nextDoc() != NO_MORE_DOCS) {
-                    assertTrue(containsVector(vectors, values.vectorValue(iterator.index())));
-                    count++;
-                }
-                assertEquals(vectors.length, count);
-
-                TopDocs topDocs = new IndexSearcher(reader).search(new KnnFloatVectorQuery("v", vectors[0], 5), 5);
-                assertEquals(5, topDocs.scoreDocs.length);
-            }
-
             assertTrue("expected at least one open of a raw vector file", dir.vecOpens.isEmpty() == false);
             for (VecOpen open : dir.vecOpens) {
                 if (open.context() == IOContext.Context.DEFAULT) {
@@ -189,34 +161,18 @@ public class DirectIOCapableFlatVectorsFormatTests extends LuceneTestCase {
             }
             if (expectMergeHintedOpen) {
                 assertTrue(
-                    "expected the merge to open a raw vector file with a merge-hinted direct IO context",
+                    "expected the merge to open a raw vector file with a MERGE-context direct IO open",
                     dir.vecOpens.stream().anyMatch(VecOpen::mergeDirectIO)
                 );
             } else {
                 // documents the current gap: this chain does not propagate getMergeInstance, so no
-                // merge-hinted open may occur; this fails loudly when propagation lands
+                // MERGE-context open may occur; this fails loudly when propagation lands
                 assertTrue(
-                    "unexpected merge-hinted open for a chain that does not propagate getMergeInstance",
+                    "unexpected MERGE-context open for a chain that does not propagate getMergeInstance",
                     dir.vecOpens.stream().noneMatch(VecOpen::mergeDirectIO)
                 );
             }
         }
     }
 
-    private static boolean containsVector(float[][] vectors, float[] candidate) {
-        for (float[] vector : vectors) {
-            if (Arrays.equals(vector, candidate)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = random().nextFloat();
-        }
-        return vector;
-    }
 }

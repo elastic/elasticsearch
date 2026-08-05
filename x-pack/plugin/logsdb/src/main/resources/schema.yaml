@@ -145,6 +145,11 @@ schema:
       constraint: "{4}"
       description: "A year in 4-digit format"
       timestamp_component_type: "Y"
+    - name: "yy"
+      base_type: "%I"
+      constraint: "{2}"
+      description: "A year in 2-digit format (e.g. Spark logs), interpreted as 20yy"
+      timestamp_component_type: "YY"
     - name: "MM"
       base_type: "%I"
       constraint: "1-12"
@@ -290,6 +295,10 @@ schema:
       encoding_type: "%A"
       format: "$YYYY-$MM-$DD"
       description: "Date without time, year first"
+    - name: "date3"
+      encoding_type: "%A"
+      format: "$yy/$MM/$DD"
+      description: "Date without time, 2-digit year first, slash-separated (e.g. Spark logs)"
     - name: "timeS"
       encoding_type: "%A"
       format: "$hh:$mm:$ss"
@@ -322,6 +331,11 @@ schema:
   #          Each referenced element must be separated by spaces to indicate token boundaries
   #   description: human-readable description
   multi_token_types:
+    - name: "spark-datetime-timestamp"
+      encoding_type: "%T"
+      # e.g 17/06/09 20:10:40
+      format: "$date3 $timeS"
+      description: "Spark log formatted timestamp (yy/MM/dd HH:mm:ss)"
     - name: "RFC-1123-timestamp"
       encoding_type: "%T"
       # e.g Oct 05, 2023 02:48:00 PM

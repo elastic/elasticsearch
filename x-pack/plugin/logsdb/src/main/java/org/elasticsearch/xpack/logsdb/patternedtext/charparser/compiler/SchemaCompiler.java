@@ -938,6 +938,7 @@ public class SchemaCompiler {
         // The mapping is based on the sub-token definitions in schema.yaml
         return switch (subTokenType.name()) {
             case "YYYY" -> "yyyy";                  // 4-digit year
+            case "yy" -> "yy";                      // 2-digit year (interpreted as 20yy)
             case "MM" -> "MM";                      // 2-digit month
             case "Mon" -> "MMM";                    // 3-letter month abbreviation
             case "DD" -> "dd";                      // 2-digit day

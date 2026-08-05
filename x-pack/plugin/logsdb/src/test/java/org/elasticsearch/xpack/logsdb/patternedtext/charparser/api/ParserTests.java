@@ -84,6 +84,17 @@ public class ParserTests extends ESTestCase {
         assertNotEquals("id %U x", patternedMessage.toString());
     }
 
+    public void testSparkTimestamp() throws ParseException {
+        // Spark log format: yy/MM/dd HH:mm:ss  (2-digit year interpreted as 20yy)
+        String message = "17/06/09 20:10:40 INFO Executor task 42 finished";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T INFO Executor task %I finished", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        Timestamp timestamp = (Timestamp) parsedArguments.getFirst();
+        assertEquals(1497039040000L, timestamp.getTimestampMillis()); // 2017-06-09T20:10:40Z
+    }
+
     public void testRFC1123TimestampAndIpAndNumber() throws ParseException {
         String messageWithTimestampIpAndNumber = "Oct, 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);

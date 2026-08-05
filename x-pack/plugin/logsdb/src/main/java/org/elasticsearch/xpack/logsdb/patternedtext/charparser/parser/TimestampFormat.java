@@ -33,6 +33,7 @@ public final class TimestampFormat {
     private final int numTimestampComponents;
 
     private final int yearIndex;
+    private final int twoDigitYearIndex;
     private final int monthIndex;
     private final int dayIndex;
     private final int hourIndex;
@@ -53,7 +54,8 @@ public final class TimestampFormat {
         this.timestampComponentsOrder = timestampComponentsOrder;
         int timestampComponentsCount = 0;
         this.yearIndex = timestampComponentsOrder[TimestampComponentType.YEAR_CODE];
-        if (yearIndex < 0) {
+        this.twoDigitYearIndex = timestampComponentsOrder[TimestampComponentType.TWO_DIGIT_YEAR_CODE];
+        if (yearIndex < 0 && twoDigitYearIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a year component");
         }
         timestampComponentsCount++;
@@ -132,7 +134,7 @@ public final class TimestampFormat {
 
     public long toTimestamp(int[] parsedTimestampComponents) {
         int year, month, day, hour, minute, second, nanos, timezoneOffset;
-        year = parsedTimestampComponents[yearIndex];
+        year = yearIndex >= 0 ? parsedTimestampComponents[yearIndex] : 2000 + parsedTimestampComponents[twoDigitYearIndex];
         month = parsedTimestampComponents[monthIndex];
         day = parsedTimestampComponents[dayIndex];
         hour = parsedTimestampComponents[hourIndex];

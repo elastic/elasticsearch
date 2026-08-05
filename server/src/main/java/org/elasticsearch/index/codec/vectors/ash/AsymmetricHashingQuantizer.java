@@ -25,7 +25,7 @@ import java.util.function.IntFunction;
  *   <li>A rotation matrix W is learned (PCA init + Procrustes iterations) to maximize
  *       inner product preservation after quantization in the projected space</li>
  *   <li>Vectors are projected via W, then quantized (binary or multi-bit spherical)</li>
- *   <li>Per-vector scale and offset (float16) are stored for dot product reconstruction</li>
+ *   <li>Per-vector scale and offset are stored for dot product reconstruction</li>
  * </ol>
  * <p>
  * At query time, the query is projected via W but NOT quantized (asymmetric scoring),
@@ -380,7 +380,7 @@ public final class AsymmetricHashingQuantizer {
 
         // Compute scale and offset
         for (int i = 0; i < nVectors; i++) {
-            // scale = norm / codeNorm (stored as float16)
+            // scale = norm / codeNorm
             scales[i] = codeNorms[i] > 0 ? norms[i] / codeNorms[i] : 0;
 
             // offset = dot(vector, centroid) - dot(centroid, centroid) - scale[i] * dot(centroids @ W, xEnc)

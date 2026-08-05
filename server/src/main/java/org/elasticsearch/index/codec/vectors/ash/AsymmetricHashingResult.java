@@ -14,8 +14,8 @@ package org.elasticsearch.index.codec.vectors.ash;
  *
  * @param w the learned projection matrix, shape (originalDim, nDims). Stored for query-time transformation.
  * @param encodedVectors quantized codes in the latent space, shape (nVectors, nDims). Values are centered floats.
- * @param scales per-vector scale factor (float16 precision), applied to reconstruct dot product magnitude
- * @param offsets per-vector offset correction (float16 precision), accounts for centroid dot product terms
+ * @param scales per-vector scale factor, applied to reconstruct dot product magnitude
+ * @param offsets per-vector offset correction, accounts for centroid dot product terms
  * @param nClusters number of clusters used (determines cluster_id bit width in header)
  */
 public record AsymmetricHashingResult(float[][] w, float[][] encodedVectors, float[] scales, float[] offsets, int nClusters) {}

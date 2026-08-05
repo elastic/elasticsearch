@@ -120,12 +120,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
                 used.addAndGet(bytes);
             };
-            BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(
-                Queries.ALL_DOCS_INSTANCE,
-                searcher,
-                false,
-                cranky
-            );
+            BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, cranky);
             dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
             try {
                 dc.preCollection();
@@ -207,16 +202,11 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     public void testCircuitBreakerTripDuringFinishLeaf() throws IOException {
         try (Directory dir = buildIndex(10); IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = newSearcher(reader);
-            BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(
-                Queries.ALL_DOCS_INSTANCE,
-                searcher,
-                false,
-                bytes -> {
-                    if (bytes > 0) {
-                        throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
-                    }
+            BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, bytes -> {
+                if (bytes > 0) {
+                    throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
                 }
-            );
+            });
             dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> delegate));

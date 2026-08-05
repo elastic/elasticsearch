@@ -68,6 +68,10 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
         expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 127));
         expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 384));
         expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, 640));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ColumNARDocValuesFormat(sel, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2)
+        );
     }
 
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {

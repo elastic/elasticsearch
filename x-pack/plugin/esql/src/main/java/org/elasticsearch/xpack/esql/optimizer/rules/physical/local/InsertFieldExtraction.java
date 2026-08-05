@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -32,9 +33,15 @@ import java.util.Set;
  * 1. add the materialization right before usage inside the local plan
  * 2. materialize any missing fields needed further up the chain
  *
+ * <p>Mandatory: without this rule the physical plan has no {@link FieldExtractExec} nodes, so the
+ * physical verifier throws {@code IllegalStateException("Found N problems")} for any query that
+ * reads field values.
+ *
  * @see ProjectAwayColumns
  */
-public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext> {
+public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {

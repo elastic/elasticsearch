@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
  * or {@link Alias} nodes wrapping the expression. {@link Alias#foldable()} is always {@code false},
  * so we unwrap to check the child.
  */
-public final class PruneLiteralsInLimitBy extends OptimizerRules.OptimizerRule<LimitBy> {
+public final class PruneLiteralsInLimitBy extends OptimizerRules.OptimizerRule<LimitBy> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(LimitBy limitBy) {

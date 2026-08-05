@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.isGuaranteedNull;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
@@ -28,7 +29,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * of it. The rule can apply on the coordinator already, but it's more likely to be effective on the data nodes, where null aliasing is
  * inserted due to locally missing fields. This rule relies on that behavior -- see {@link ReplaceFieldWithConstantOrNull}.
  */
-public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.ParameterizedOptimizerRule<Join, LogicalOptimizerContext> {
+public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.ParameterizedOptimizerRule<Join, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     public PruneLeftJoinOnNullMatchingField() {
         super(OptimizerRules.TransformDirection.DOWN);

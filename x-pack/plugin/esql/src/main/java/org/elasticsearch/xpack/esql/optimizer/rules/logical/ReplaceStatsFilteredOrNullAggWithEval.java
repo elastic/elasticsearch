@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,8 @@ import java.util.List;
  */
 public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan>
     implements
-        OptimizerRules.CoordinatorOnly {
+        OptimizerRules.CoordinatorOnly,
+        MandatoryRule {
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         Aggregate aggregate;

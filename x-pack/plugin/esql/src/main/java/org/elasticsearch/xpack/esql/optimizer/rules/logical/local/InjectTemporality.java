@@ -24,11 +24,17 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
+/**
+ * Mandatory for time-series queries: injects {@link org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute}
+ * into the plan so the time-series execution layer can track temporality. Without it, time-series aggregates
+ * fail at execution time with a {@code ClassCastException} (wrong block type) or with a partial-shard failure.
+ */
+public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate tsAgg) {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,7 +72,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * same {@code timestamp}, {@code buckets}, {@code from}, and {@code to} arguments.
  * At most 100 buckets are supported.
  */
-public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
+public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext>
+    implements
+        MandatoryRule {
 
     private static final Integer SPARKLINE_BUCKET_LIMIT = 100;
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * <p>
  * Foldable groupings are pruned separately by {@link PruneLiteralsInChangePointBy} in the operators batch.
  */
-public final class ReplaceChangePointByExpressionWithEval extends OptimizerRules.OptimizerRule<ChangePoint> {
+public final class ReplaceChangePointByExpressionWithEval extends OptimizerRules.OptimizerRule<ChangePoint> implements MandatoryRule {
     private static int counter = 0;
 
     @Override

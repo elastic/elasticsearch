@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -33,7 +34,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * </pre>
  * will NOT produce a warning because the final SORT restores a defined order.
  */
-public final class WarnLostSortOrder extends Rule<LogicalPlan, LogicalPlan> {
+public final class WarnLostSortOrder extends Rule<LogicalPlan, LogicalPlan> implements MandatoryRule {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

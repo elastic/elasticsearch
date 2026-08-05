@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
@@ -71,9 +72,9 @@ import java.util.Set;
  * is the only place where this information is available. This also means that the knowledge of the usage of doc-values does not need
  * to be serialized between nodes and is only used locally.
  */
-public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    UnaryExec,
-    LocalPhysicalOptimizerContext> {
+public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<UnaryExec, LocalPhysicalOptimizerContext>
+    implements
+        MandatoryRule {
     @Override
     protected PhysicalPlan rule(UnaryExec planNode, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = findAttributesFromAggregatesAndEvals(planNode, ctx);

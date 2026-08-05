@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,7 +31,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.StubRelation.comput
  * As the grouping key is used to perform the join, the evaluation required for creating it has to be copied to the left side
  * as well.
  */
-public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoin> {
+public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoin> implements MandatoryRule {
 
     @Override
     protected LogicalPlan rule(InlineJoin plan) {

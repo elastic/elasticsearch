@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
 import java.util.List;
 
@@ -22,7 +23,7 @@ import java.util.List;
  *
  * STATS a = count(*) by b | drop a, b
  */
-public final class PruneEmptyAggregates extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class PruneEmptyAggregates extends OptimizerRules.OptimizerRule<Aggregate> implements MandatoryRule {
     @Override
     protected LogicalPlan rule(Aggregate agg) {
         if (agg.aggregates().isEmpty() && agg.groupings().isEmpty()) {

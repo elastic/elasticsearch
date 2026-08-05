@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.MandatoryRule;
 
-public final class PushDownCompoundOutputEval extends OptimizerRules.OptimizerRule<CompoundOutputEval<?>> {
+public final class PushDownCompoundOutputEval extends OptimizerRules.OptimizerRule<CompoundOutputEval<?>> implements MandatoryRule {
     @Override
     protected LogicalPlan rule(CompoundOutputEval<?> coe) {
         return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(coe);

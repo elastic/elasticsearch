@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -190,6 +191,24 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * Snapshot-only diagnostic lever for the differential optimizer-rule test suite
+     * ({@code CsvOptimizerRuleDisabledIT}). Each entry is either a bare rule simple class name (disable
+     * the rule in every optimizer stage) or a stage-scoped {@code "<stage-key>:<RuleName>"} entry (disable
+     * only in the named stage, e.g. {@code "local_logical:InferIsNotNull"}).
+     *
+     * <p>The effect is enforced at the single {@link org.elasticsearch.xpack.esql.rule.RuleExecutor#execute}
+     * chokepoint on both the coordinator and every data node, so a pragma entry reaches all six optimizer
+     * stages transparently. On release builds the setting is ignored regardless of its value.</p>
+     *
+     * <p>Requires {@code accept_pragma_risks: true} in the request.</p>
+     */
+    public static final Setting<List<String>> DISABLE_OPTIMIZER_RULES = Setting.listSetting(
+        "disable_optimizer_rules",
+        List.of(),
+        Function.identity()
+    );
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -214,6 +233,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        DISABLE_OPTIMIZER_RULES,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
     ).map(Setting::getKey).toList();
 
@@ -414,6 +434,18 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * Returns the raw list of {@code disable_optimizer_rules} pragma entries. Each entry is either a bare rule simple
+     * class name (disable in every stage) or a {@code "<stage-key>:<RuleName>"} stage-scoped string.
+     *
+     * <p>The list is empty when the pragma was not set. Stage filtering and the snapshot-only gate are applied by
+     * {@link org.elasticsearch.xpack.esql.optimizer.OptimizerStage#disabledRuleNames}; this method returns the raw
+     * list without further interpretation.</p>
+     */
+    public List<String> disableOptimizerRules() {
+        return DISABLE_OPTIMIZER_RULES.get(settings);
     }
 
     public boolean isEmpty() {

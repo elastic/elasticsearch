@@ -45,7 +45,7 @@ public class PromqlBuiltinFunctionDefinitions {
      * translator (see {@code TranslatePromqlToEsqlPlan#wrapWithTopNBy}) appends the ranking/limiting step itself.
      */
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
-        .acrossSeriesBinaryReduction(PromqlFunctionDefinition.K, (source, field, filter, window, k) -> field)
+        .acrossSeriesBinaryReduceSortDesc(PromqlFunctionDefinition.K)
         .description(
             "Returns `k` time series with the highest values, keeping their full label set. "
                 + "When used with `by`, `topk` ranks independently within each group."
@@ -58,6 +58,25 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "A `without` grouping clause is not yet supported."
         )
         .name("topk");
+
+    /**
+     * {@code bottomk(k, v)} is the ascending counterpart to {@link #TOPK}; it uses the same passthrough aggregation
+     * and switches only the ranking direction in {@code TopNBy}.
+     */
+    public static final PromqlFunctionDefinition BOTTOMK = PromqlFunctionDefinition.def()
+        .acrossSeriesBinaryReduceSortAsc(PromqlFunctionDefinition.K)
+        .description(
+            "Returns `k` time series with the lowest values, keeping their full label set. "
+                + "When used with `by`, `bottomk` ranks independently within each group."
+        )
+        .example("bottomk(3, http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
+                + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
+                + "A `without` grouping clause is not yet supported."
+        )
+        .name("bottomk");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()

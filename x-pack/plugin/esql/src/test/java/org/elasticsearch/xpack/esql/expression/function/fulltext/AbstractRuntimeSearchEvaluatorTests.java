@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,12 +21,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -80,6 +83,11 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
             @Override
             public FoldContext foldCtx() {
                 return FoldContext.small();
+            }
+
+            @Override
+            public Analyzer getAnalyzer(String name) {
+                return PlannerUtils.resolveAnalyzer(name, EsqlTestUtils.TEST_ANALYSIS_REGISTRY);
             }
         };
     }

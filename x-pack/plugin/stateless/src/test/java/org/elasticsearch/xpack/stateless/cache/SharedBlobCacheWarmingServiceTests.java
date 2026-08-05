@@ -1384,8 +1384,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             safeGet(refillCacheCompletionListener);
 
-            // assert that whole bcc is cached which implies absence of cache holes
-            assertThat(cacheFile.tryRead(testBuffer.clear(), 0), equalTo(true));
+            // Assert that whole bcc is cached which implies absence of cache holes.
+            // `warmCache` above can actually complete before the entire region is filled
+            // because we don't wait for cache gaps to be filled during warming,
+            // only for them to be claimed.
+            // So, in scope of search shard prewarming (we use `SEARCH` type here)
+            // gaps for the entire region will be claimed.
+            // `ShardWarmer` then will do nothing given that all gaps are claimed.
+            // But again that doesn't mean that they are all filled since the search shard prewarming
+            // only waits for commit headers to be available (see `CacheFile#populate`) and not the full region.
+            assertBusy(() -> assertThat(cacheFile.tryRead(testBuffer.clear(), 0), equalTo(true)));
             // check that position and length were set only once
             assertThat(actualRangeInputStreamPosition.get(), equalTo(0L));
             assertThat(actualRangeInputStreamLength.get(), equalTo(fakeNode.sharedCacheService.getRegionSize()));
@@ -2346,6 +2354,91 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             taskRunnerLatch2.countDown();
             safeGet(mergeWarmFuture);
+        }
+    }
+
+    public void testCancellationOfMergeWarmingTasks() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                Settings settings = super.nodeSettings();
+                return Settings.builder()
+                    .put(settings)
+                    // Override to be able to block the thread pool easily.
+                    .put("stateless.stateless_prewarm_thread_pool.core", 1)
+                    .put("stateless.stateless_prewarm_thread_pool.max", 1)
+                    // Ensure there are free regions in the cache to execute warming.
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "2MB")
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "64KB")
+                    .build();
+            }
+        }) {
+            var warmingService = fakeNode.warmingService;
+
+            var indexCommits = fakeNode.generateIndexCommitsWithoutCompoundFiles(randomIntBetween(1, 5));
+            var vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                (v) -> null,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            vbcc.freeze();
+
+            var indexBlobContainer = fakeNode.getShardContainer();
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                indexBlobContainer.writeBlobAtomic(
+                    OperationPurpose.INDICES,
+                    vbcc.getBlobName(),
+                    vbccInputStream,
+                    vbcc.getTotalSizeInBytes(),
+                    true
+                );
+            }
+
+            StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
+            Map.Entry<String, BlobLocation> someFile = lastCommit.commitFiles().entrySet().stream().findFirst().get();
+
+            SegmentInfo info = new SegmentInfo(
+                fakeNode.indexingDirectory,
+                Version.LATEST,
+                Version.LATEST,
+                "_segment1",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            info.setFiles(List.of(someFile.getKey()));
+            var segmentCommitInfo = new SegmentCommitInfo(info, 0, 0, -1L, -1L, -1L, new byte[16]);
+
+            var threadPoolBlocker = new CountDownLatch(1);
+            fakeNode.threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL).submit(() -> safeAwait(threadPoolBlocker));
+
+            var mergeWarmFuture = new PlainActionFuture<Void>();
+            warmingService.warmCacheMerge(
+                "test-merge",
+                fakeNode.shardId,
+                fakeNode.indexingStore,
+                List.of(segmentCommitInfo),
+                fileName -> someFile.getValue(),
+                () -> true, // merge is cancelled
+                mergeWarmFuture
+            );
+
+            // Warming is complete even though the prewarm thread pool is blocked.
+            safeGet(mergeWarmFuture);
+
+            threadPoolBlocker.countDown();
         }
     }
 

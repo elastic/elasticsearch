@@ -105,7 +105,7 @@ For the `fvh` highlighter:
 
     $$$number_of_fragments$$$
 
-    number_of_fragments {applies_to}`stack: ga 9.4+`
+    number_of_fragments {applies_to}`stack: ga 9.3+`
     :   The maximum number of fragments to return. If the number of fragments is set to 0, no fragments are returned. Instead, the entire field contents are highlighted and returned. This can be handy when you need to highlight short texts such as a title or address, but fragmentation is not required. If `number_of_fragments` is 0, `fragment_size` is ignored. Defaults to 5. Cannot exceed 100000.
 
     order

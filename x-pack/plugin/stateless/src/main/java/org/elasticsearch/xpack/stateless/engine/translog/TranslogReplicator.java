@@ -356,10 +356,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     /**
      * A concrete {@link OperationListener}, bound to a single shard, that forwards translog writes to the owning node-level
-     * {@link TranslogReplicator}. Unlike a lambda (which can only implement the single abstract {@code operationAdded}), this class also
-     * overrides {@code batchAdded}, so batch records are replicated to the object store rather than silently dropped. The {@code shardId}
-     * is captured because a single {@link TranslogReplicator} is shared by every shard on the node and must be told which shard each write
-     * belongs to.
+     * {@link TranslogReplicator}.
      */
     private final class StatelessOperationListener implements OperationListener {
 

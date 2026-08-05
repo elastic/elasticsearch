@@ -3689,8 +3689,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return OptionalDouble.of(((double) max - (double) min) / 60_000d);
     }
 
-    // visible for testing
-    static String bccSizeBucket(long totalSizeBytes) {
+    public static String bccSizeBucket(long totalSizeBytes) {
         assert totalSizeBytes > 0 : "was " + totalSizeBytes;
         if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(16)) {
             return "<=16MiB";

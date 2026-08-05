@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
 
@@ -37,14 +38,18 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
 
     private final DataSourceEncryptedDataHandler handler = new DataSourceEncryptedDataHandler();
 
+    /** The re-keying function the rotation coordinator supplies: skip values already on the active key, re-wrap the rest. */
+    private static UnaryOperator<EncryptedData> rotateTo(String activeKeyId) {
+        return existing -> existing.keyId().equals(activeKeyId) ? existing : SERVICE.encrypt(SERVICE.decrypt(existing));
+    }
+
     public void testCustomNameMatchesMetadataType() {
         assertEquals(DataSourceMetadata.TYPE, handler.customName());
     }
 
-    public void testNullAndEmptyAreReturnedAsIs() {
-        assertNull(handler.reEncrypt(null, SERVICE, ACTIVE_KEY));
+    public void testEmptyIsReturnedAsIs() {
         DataSourceMetadata empty = DataSourceMetadata.EMPTY;
-        assertSame(empty, handler.reEncrypt(empty, SERVICE, ACTIVE_KEY));
+        assertSame(empty, handler.reEncrypt(empty, rotateTo(ACTIVE_KEY)));
     }
 
     public void testOnDestructiveResetNullAndEmptyReturnedAsIs() {
@@ -124,7 +129,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, rotateTo(ACTIVE_KEY));
 
         assertNotSame(before, after);
         DataSourceSetting reKeyed = after.get("s3").settings().get("access_key");
@@ -145,7 +150,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("s3", ds));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, rotateTo(ACTIVE_KEY));
 
         assertSame("no secret needed re-encryption, so the custom is returned by reference", before, after);
     }
@@ -165,7 +170,7 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         );
         DataSourceMetadata before = new DataSourceMetadata(Map.of("stale", stale, "fresh", fresh));
 
-        DataSourceMetadata after = handler.reEncrypt(before, SERVICE, ACTIVE_KEY);
+        DataSourceMetadata after = handler.reEncrypt(before, rotateTo(ACTIVE_KEY));
 
         assertNotSame(before, after);
         assertEquals(ACTIVE_KEY, ((EncryptedData) after.get("stale").settings().get("access_key").rawValue()).keyId());

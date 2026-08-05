@@ -7,11 +7,18 @@
 package org.elasticsearch.xpack.encryption.spi;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Implemented by features that own a project-scoped {@link Metadata.ProjectCustom} containing data encrypted under the project
- * encryption key (PEK). The rotation coordinator drives {@link #reEncrypt} when the custom is not yet on the active key, and
- * {@code POST /_encryption/_reset} drives {@link #onDestructiveReset} when the PEK is destroyed.
+ * encryption key (PEK). The handler's single responsibility is knowing <em>where</em> the {@link EncryptedData} values live inside
+ * its custom: {@link #reEncrypt} applies a caller-supplied re-keying function to every value. The encryption plugin supplies the
+ * function per operation — key rotation, re-wrapping under a snapshot password, or re-wrapping under the destination PEK on
+ * restore — so handlers never touch key material, passwords, or plaintext.
+ *
+ * <p>{@code POST /_encryption/_reset} drives {@link #onDestructiveReset} when the PEK is destroyed.
  *
  * <p>Handlers are contributed via the {@link EncryptedDataHandlerProvider} SPI.
  *
@@ -25,15 +32,20 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
     String customName();
 
     /**
-     * Returns a re-encrypted copy of {@code current} where every encrypted value is under {@code activeKeyId}.
+     * Applies {@code reEncrypt} to every {@link EncryptedData} value in {@code current} and returns the rebuilt custom.
      *
-     * @param current          the current value of the custom in cluster state, or {@code null} if absent
-     * @param encryptionService used to decrypt with the previous key and encrypt under the active key
-     * @param activeKeyId      the key ID every encrypted value in the returned custom must be under
-     * @return the re-encrypted custom. This may be the same instance if no change is needed. This must not be null when {@code current}
-     *         is not null.
+     * <p>Contract for applying the function's result:
+     * <ul>
+     *   <li>same instance — the value is unchanged; keep it.</li>
+     *   <li>different {@link EncryptedData} — replace the value.</li>
+     *   <li>{@code null} — the value is unrecoverable; clear the field while preserving the rest of the custom.</li>
+     * </ul>
+     *
+     * @param current   the current value of the custom, never {@code null}
+     * @param reEncrypt the re-keying function supplied by the encryption plugin
+     * @return the rebuilt custom, or the same instance if no value changed. Must not be {@code null}.
      */
-    T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
+    T reEncrypt(T current, UnaryOperator<EncryptedData> reEncrypt);
 
     /**
      * Decides what happens to this handler's custom when the project encryption key is destructively reset (via

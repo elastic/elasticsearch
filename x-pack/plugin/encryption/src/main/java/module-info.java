@@ -9,6 +9,7 @@ module org.elasticsearch.encryption {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.xcore;
     requires org.elasticsearch.encryption.spi;
 
     requires org.apache.logging.log4j;
@@ -17,4 +18,8 @@ module org.elasticsearch.encryption {
     exports org.elasticsearch.xpack.encryption;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.encryption.EncryptionFeatures;
+
+    provides org.elasticsearch.snapshots.SnapshotGlobalStateTransformer
+        with
+            org.elasticsearch.xpack.encryption.EncryptingSnapshotGlobalStateTransformer;
 }

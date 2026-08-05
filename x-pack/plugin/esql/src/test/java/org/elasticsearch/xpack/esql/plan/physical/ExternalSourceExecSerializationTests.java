@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;

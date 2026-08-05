@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;

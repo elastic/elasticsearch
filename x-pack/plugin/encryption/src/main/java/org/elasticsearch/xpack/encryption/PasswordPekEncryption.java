@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 
 import java.util.function.Supplier;
 

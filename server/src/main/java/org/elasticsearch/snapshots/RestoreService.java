@@ -210,6 +210,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final IndexMetadataRestoreTransformer indexMetadataRestoreTransformer;
 
+    private final List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -224,7 +226,8 @@ public final class RestoreService implements ClusterStateApplier {
         FileSettingsService fileSettingsService,
         ThreadPool threadPool,
         boolean deserializeProjectMetadata,
-        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer
+        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
+        List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -246,6 +249,7 @@ public final class RestoreService implements ClusterStateApplier {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
         this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
+        this.snapshotGlobalStateTransformers = snapshotGlobalStateTransformers;
     }
 
     /**
@@ -396,7 +400,13 @@ public final class RestoreService implements ClusterStateApplier {
         Metadata globalMetadata = null;
         final Metadata.Builder metadataBuilder;
         if (request.includeGlobalState()) {
-            globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId, deserializeProjectMetadata);
+            Metadata restoredMetadata = repository.getSnapshotGlobalMetadata(snapshotId, deserializeProjectMetadata);
+            // inverse order of the snapshot-side application
+            for (int i = snapshotGlobalStateTransformers.size() - 1; i >= 0; i--) {
+                restoredMetadata = snapshotGlobalStateTransformers.get(i)
+                    .transformForRestore(projectId, restoredMetadata, request.encryptionPassword());
+            }
+            globalMetadata = restoredMetadata;
             metadataBuilder = Metadata.builder(globalMetadata);
         } else {
             metadataBuilder = Metadata.builder();

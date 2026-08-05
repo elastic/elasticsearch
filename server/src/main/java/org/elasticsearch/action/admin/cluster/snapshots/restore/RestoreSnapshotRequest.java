@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +43,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
+    private static final int MIN_PASSWORD_LENGTH = 15;
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -61,6 +66,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
+
+    @Nullable
+    private SecureString encryptionPassword;
 
     public RestoreSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -95,6 +103,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+            encryptionPassword = in.readOptionalSecureString();
+        }
     }
 
     @Override
@@ -115,6 +126,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+            out.writeOptionalSecureString(encryptionPassword);
+        }
     }
 
     @Override
@@ -165,6 +179,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
+        }
+        if (encryptionPassword != null && encryptionPassword.length() < MIN_PASSWORD_LENGTH) {
+            validationException = addValidationError(
+                "encryption_password must be at least " + MIN_PASSWORD_LENGTH + " characters",
+                validationException
+            );
         }
         return validationException;
     }
@@ -586,6 +606,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 } else {
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                 }
+            } else if (name.equals("encryption_password")) {
+                if (entry.getValue() instanceof String s) {
+                    encryptionPassword = new SecureString(s.toCharArray());
+                } else {
+                    throw new IllegalArgumentException("malformed encryption_password, should be a string");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -593,6 +619,22 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             }
         }
         indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
+        return this;
+    }
+
+    /**
+     * @return the encryption password for decrypting snapshot customs data, or {@code null} if none was provided
+     */
+    @Nullable
+    public SecureString encryptionPassword() {
+        return encryptionPassword;
+    }
+
+    /**
+     * @param encryptionPassword the password used to decrypt snapshot customs data on restore
+     */
+    public RestoreSnapshotRequest encryptionPassword(@Nullable SecureString encryptionPassword) {
+        this.encryptionPassword = encryptionPassword;
         return this;
     }
 

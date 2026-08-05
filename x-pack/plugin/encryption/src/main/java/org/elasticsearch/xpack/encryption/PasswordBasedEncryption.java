@@ -7,12 +7,18 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.AesGcm;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -20,14 +26,14 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Password-based wrap/unwrap of the 32-byte project encryption key (PEK).
+ * Password-based wrap/unwrap of secret values, e.g. the 32-byte project encryption key (PEK) or snapshot secrets.
  *
- * <p>The key-encryption-key (KEK) is derived from the password via PBKDF2-HMAC-SHA512 with a per-PEK random 16-byte salt.
+ * <p>The key-encryption-key (KEK) is derived from the password via PBKDF2-HMAC-SHA512 with a random 16-byte salt.
  * The AES-256-GCM cipher operation is delegated to {@link AesGcm}.
  *
- * <p>The wrapped PEK is returned as an {@link EncryptedData} where:
+ * <p>The wrapped value is returned as an {@link EncryptedData} where:
  * <ul>
- *   <li>{@link EncryptedData#keyId()} carries the {@code passwordId} (the secure-setting suffix)
+ *   <li>{@link EncryptedData#keyId()} carries the {@code passwordId} (e.g. the secure-setting suffix for a wrapped PEK)
  *   <li>{@link EncryptedData#payload()} is {@code [kdf_version(1) | salt(16) | AesGcm.encrypt output]}
  * </ul>
  *
@@ -35,12 +41,15 @@ import javax.crypto.spec.SecretKeySpec;
  * while still being able to unwrap previously persisted payloads.
  *
  * <p>PBKDF2 stretching is applied universally since stateful clusters allow operators to set the keystore value directly.
+ *
+ * <p>Derived KEKs are cached in a single slot keyed by a password digest (and salt), so wrapping or unwrapping many
+ * values under the same password (e.g. every secret in a snapshot) pays the PBKDF2 cost once, not per value.
  */
 final class PasswordBasedEncryption {
     static final int PBKDF2_ITERATIONS = 210_000;
     static final int SALT_LENGTH_BYTES = 16;
     static final int KEK_LENGTH_BITS = 256;
-    /** Plaintext length of a project encryption key (AES-256 → 32 bytes). Part of the {@link #wrap}/{@link #unwrap} contract. */
+    /** Plaintext length of a project encryption key (AES-256 → 32 bytes). */
     static final int PEK_LENGTH_BYTES = 32;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -49,18 +58,28 @@ final class PasswordBasedEncryption {
     private static final int VERSION_OFFSET = 0;
     static final int SALT_OFFSET = VERSION_OFFSET + 1;
 
+    private record CachedKek(byte[] passwordDigest, byte[] salt, SecretKey kek) {}
+
+    private static final AtomicReference<CachedKek> KEK_CACHE = new AtomicReference<>();
+
     private PasswordBasedEncryption() {}
 
     /**
-     * Wraps the given 32-byte plaintext PEK under a fresh key derived from the password. The returned {@link EncryptedData} carries the
-     * salt prefix followed by the {@link AesGcm#encrypt} output so {@link #unwrap} can recover the original PEK given the same password.
+     * Wraps the given plaintext under a key derived from the password. The returned {@link EncryptedData} carries the
+     * salt prefix followed by the {@link AesGcm#encrypt} output so {@link #unwrap} can recover the original value given
+     * the same password.
      */
-    static EncryptedData wrap(byte[] plaintextPek, String passwordId, char[] password) {
-        byte[] salt = new byte[SALT_LENGTH_BYTES];
-        SECURE_RANDOM.nextBytes(salt);
-
-        SecretKey kek = deriveKek(password, salt);
-        byte[] inner = AesGcm.encrypt(kek, plaintextPek);
+    static EncryptedData wrap(byte[] plaintext, String passwordId, char[] password) {
+        byte[] passwordDigest = digest(password);
+        CachedKek cached = KEK_CACHE.get();
+        byte[] salt;
+        if (cached != null && Arrays.equals(cached.passwordDigest, passwordDigest)) {
+            salt = cached.salt;
+        } else {
+            salt = new byte[SALT_LENGTH_BYTES];
+            SECURE_RANDOM.nextBytes(salt);
+        }
+        byte[] inner = AesGcm.encrypt(cachedOrDerivedKek(passwordDigest, salt, password), plaintext);
 
         byte[] payload = new byte[1 + SALT_LENGTH_BYTES + inner.length];
         payload[VERSION_OFFSET] = KDF_FORMAT_VERSION;
@@ -70,7 +89,7 @@ final class PasswordBasedEncryption {
     }
 
     /**
-     * Unwraps a previously wrapped PEK using the same password the wrap was performed under. Throws if the password is wrong or the
+     * Unwraps a previously wrapped value using the same password the wrap was performed under. Throws if the password is wrong or the
      * ciphertext is corrupted (AES-GCM authentication failure).
      */
     static byte[] unwrap(EncryptedData wrapped, char[] password) {
@@ -83,13 +102,40 @@ final class PasswordBasedEncryption {
             throw new IllegalArgumentException("unsupported KDF version [" + version + "]");
         }
         byte[] salt = Arrays.copyOfRange(payload, SALT_OFFSET, SALT_OFFSET + SALT_LENGTH_BYTES);
-        SecretKey kek = deriveKek(password, salt);
+        SecretKey kek = cachedOrDerivedKek(digest(password), salt, password);
         try {
             return AesGcm.decrypt(kek, payload, SALT_OFFSET + SALT_LENGTH_BYTES, payload.length - SALT_OFFSET - SALT_LENGTH_BYTES);
         } catch (ElasticsearchException e) {
             // Re-throw with a domain-specific message so callers can distinguish wrap/unwrap failures
             // from generic decryption errors.
-            throw new ElasticsearchException("PEK unwrap failed", e);
+            throw new ElasticsearchException("unwrap failed", e);
+        }
+    }
+
+    private static SecretKey cachedOrDerivedKek(byte[] passwordDigest, byte[] salt, char[] password) {
+        CachedKek cached = KEK_CACHE.get();
+        if (cached != null && Arrays.equals(cached.passwordDigest, passwordDigest) && Arrays.equals(cached.salt, salt)) {
+            return cached.kek;
+        }
+        SecretKey kek = deriveKek(password, salt);
+        KEK_CACHE.set(new CachedKek(passwordDigest, salt, kek));
+        return kek;
+    }
+
+    /** SHA-256 digest of the password, used only as the KEK cache key so the password itself is not retained. */
+    private static byte[] digest(char[] password) {
+        ByteBuffer utf8 = StandardCharsets.UTF_8.encode(CharBuffer.wrap(password));
+        byte[] bytes = new byte[utf8.remaining()];
+        utf8.get(bytes);
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("SHA-256 unavailable", e);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+            if (utf8.hasArray()) {
+                Arrays.fill(utf8.array(), (byte) 0);
+            }
         }
     }
 

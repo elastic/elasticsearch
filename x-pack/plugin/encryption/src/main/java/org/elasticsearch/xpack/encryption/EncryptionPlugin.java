@@ -56,9 +56,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        // Clear any service left in the registry by a previously constructed plugin instance (e.g. a prior node in the same test JVM),
-        // so this node's createComponents publishes into a clean slot.
+        // Clear any state left in the registries by a previously constructed plugin instance (e.g. a prior node in the same test JVM),
+        // so this node's createComponents publishes into clean slots.
         EncryptionServiceRegistry.reset();
+        EncryptedDataHandlerRegistry.reset();
     }
 
     @Override
@@ -81,6 +82,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         EncryptionServiceRegistry.setEncryptionService(encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
+        EncryptedDataHandlerRegistry.setInstance(handlerRegistry);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
             services.threadPool(),

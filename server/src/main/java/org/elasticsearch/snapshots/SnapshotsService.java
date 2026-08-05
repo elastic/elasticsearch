@@ -56,6 +56,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -176,6 +177,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final SnapshotMetrics snapshotMetrics;
 
+    private final List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers;
+
+    private final ConcurrentHashMap<SnapshotId, SecureString> pendingEncryptionPasswords = new ConcurrentHashMap<>();
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final SnapshotExternalChangesBatcher externalChangesBatcher;
@@ -206,7 +211,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         TransportService transportService,
         SystemIndices systemIndices,
         boolean serializeProjectMetadata,
-        SnapshotMetrics snapshotMetrics
+        SnapshotMetrics snapshotMetrics,
+        List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -214,6 +220,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.snapshotMetrics = snapshotMetrics;
+        this.snapshotGlobalStateTransformers = snapshotGlobalStateTransformers;
 
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
@@ -281,6 +288,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 new IllegalArgumentException("[" + repository.getMetadata().name() + "] cannot create snapshot in a readonly repository")
             );
             return;
+        }
+        if (request.encryptionPassword() != null) {
+            // store an owned copy: the entry is closed once the snapshot completes or fails
+            pendingEncryptionPasswords.put(snapshotId, request.encryptionPassword().clone());
         }
         submitCreateSnapshotRequest(
             request,
@@ -986,7 +997,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                Metadata transformedMetadata = metadataForSnapshot(entry, meta, projectId);
+                boolean containsSecuredData = false;
+                try (SecureString encryptionPassword = pendingEncryptionPasswords.remove(snapshot.getSnapshotId())) {
+                    for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
+                        var transformed = transformer.transformForSnapshot(projectId, transformedMetadata, encryptionPassword);
+                        transformedMetadata = transformed.metadata();
+                        containsSecuredData |= transformed.containsSecuredData();
+                    }
+                }
+                final Metadata metaForSnapshot = transformedMetadata;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -1036,7 +1056,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
-                );
+                ).withHasEncryptedData(containsSecuredData);
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
@@ -1150,6 +1170,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
         final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
+        final SecureString unusedPassword = pendingEncryptionPasswords.remove(snapshot.getSnapshotId());
+        if (unusedPassword != null) {
+            unusedPassword.close();
+        }
         return listenersToComplete;
     }
 

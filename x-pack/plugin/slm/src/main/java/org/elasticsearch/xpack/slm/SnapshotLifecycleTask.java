@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -39,18 +40,22 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -190,6 +195,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId = policyMetadata.getPolicy().getId();
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
+            setEncryptionPassword(policyMetadata.getPolicy(), request);
             final SnapshotId snapshotId = new SnapshotId(request.snapshot(), request.uuid());
 
             final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
@@ -344,6 +350,24 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         ClusterStateUpdateTask task
     ) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
+    /**
+     * Decrypts the policy's PEK-encrypted password and sets it on the create snapshot request, so the snapshot's
+     * global state is protected under it. {@code SnapshotLifecyclePolicy#toRequest} cannot do this itself because
+     * it lives in x-pack core, which has no access to the encryption service.
+     */
+    private static void setEncryptionPassword(SnapshotLifecyclePolicy policy, CreateSnapshotRequest request) {
+        EncryptedData encryptedPassword = policy.getEncryptedPassword();
+        if (encryptedPassword == null) {
+            return;
+        }
+        byte[] plaintextBytes = EncryptionServiceRegistry.getEncryptionService().decrypt(encryptedPassword);
+        try {
+            request.encryptionPassword(new SecureString(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray()));
+        } finally {
+            Arrays.fill(plaintextBytes, (byte) 0);
+        }
     }
 
     /**

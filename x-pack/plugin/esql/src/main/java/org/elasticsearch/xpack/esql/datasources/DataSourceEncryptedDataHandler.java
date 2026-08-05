@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
-import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
- * Re-encrypts every stored data-source secret under the active project encryption key on rotation —
- * without it, retiring a key would strand secrets undecryptable. Driven by the rotation coordinator for
- * the {@link DataSourceMetadata} custom; contributed via {@link EsqlEncryptedDataHandlerProvider}. The
- * payload is an opaque {@code writeGenericValue} blob, preserved verbatim — only the wrapping key changes.
+ * Re-keys stored data-source secrets. This handler knows where the {@link EncryptedData} values live inside
+ * {@link DataSourceMetadata} and applies the caller-supplied re-keying function to them — on key rotation this keeps
+ * secrets decryptable after the previous key is retired; without it, retiring a key would strand secrets
+ * undecryptable. Contributed via {@link EsqlEncryptedDataHandlerProvider}. The payload is an opaque
+ * {@code writeGenericValue} blob, preserved verbatim — only the wrapping key changes.
  */
 public final class DataSourceEncryptedDataHandler implements EncryptedDataHandler<DataSourceMetadata> {
 
@@ -60,50 +59,34 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
     }
 
     @Override
-    public DataSourceMetadata reEncrypt(DataSourceMetadata current, EncryptionService encryptionService, String activeKeyId) {
-        if (current == null || current.dataSources().isEmpty()) {
+    public DataSourceMetadata reEncrypt(DataSourceMetadata current, UnaryOperator<EncryptedData> rewrap) {
+        if (current.dataSources().isEmpty()) {
             return current;
         }
-        Map<String, DataSource> rebuilt = new HashMap<>(current.dataSources().size());
+        Map<String, DataSource> rebuiltSources = new HashMap<>(current.dataSources().size());
         boolean changed = false;
-        for (Map.Entry<String, DataSource> entry : current.dataSources().entrySet()) {
-            DataSource dataSource = entry.getValue();
-            DataSource reEncrypted = reEncrypt(dataSource, encryptionService, activeKeyId);
-            rebuilt.put(entry.getKey(), reEncrypted);
-            changed |= reEncrypted != dataSource;
+        for (Map.Entry<String, DataSource> sourceEntry : current.dataSources().entrySet()) {
+            DataSource dataSource = sourceEntry.getValue();
+            Map<String, DataSourceSetting> rebuiltSettings = new HashMap<>(dataSource.settings().size());
+            boolean sourceChanged = false;
+            for (Map.Entry<String, DataSourceSetting> entry : dataSource.settings()) {
+                DataSourceSetting setting = entry.getValue();
+                if (setting.isEncrypted()) {
+                    EncryptedData existing = (EncryptedData) setting.rawValue();
+                    EncryptedData rewrapped = rewrap.apply(existing);
+                    if (rewrapped != existing) {
+                        setting = new DataSourceSetting(rewrapped, true);
+                        sourceChanged = true;
+                    }
+                }
+                rebuiltSettings.put(entry.getKey(), setting);
+            }
+            rebuiltSources.put(
+                sourceEntry.getKey(),
+                sourceChanged ? new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuiltSettings) : dataSource
+            );
+            changed |= sourceChanged;
         }
-        return changed ? new DataSourceMetadata(rebuilt) : current;
-    }
-
-    private static DataSource reEncrypt(DataSource dataSource, EncryptionService encryptionService, String activeKeyId) {
-        DataSourceSettings settings = dataSource.settings();
-        Map<String, DataSourceSetting> rebuilt = new HashMap<>(settings.size());
-        boolean changed = false;
-        for (Map.Entry<String, DataSourceSetting> entry : settings) {
-            DataSourceSetting setting = entry.getValue();
-            DataSourceSetting reEncrypted = reEncrypt(setting, encryptionService, activeKeyId);
-            rebuilt.put(entry.getKey(), reEncrypted);
-            changed |= reEncrypted != setting;
-        }
-        if (changed == false) {
-            return dataSource;
-        }
-        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt);
-    }
-
-    private static DataSourceSetting reEncrypt(DataSourceSetting setting, EncryptionService encryptionService, String activeKeyId) {
-        if (setting.isEncrypted() == false) {
-            return setting;
-        }
-        EncryptedData existing = (EncryptedData) setting.rawValue();
-        if (existing.keyId().equals(activeKeyId)) {
-            return setting;
-        }
-        byte[] plaintext = encryptionService.decrypt(existing);
-        try {
-            return new DataSourceSetting(encryptionService.encrypt(plaintext), true);
-        } finally {
-            Arrays.fill(plaintext, (byte) 0);
-        }
+        return changed ? new DataSourceMetadata(rebuiltSources) : current;
     }
 }

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.AesGcm;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 public class PasswordBasedEncryptionTests extends ESTestCase {
 
@@ -34,7 +34,7 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
             ElasticsearchException.class,
             () -> PasswordBasedEncryption.unwrap(encrypted, "wrong-password-fips".toCharArray())
         );
-        assertTrue(e.getMessage().contains("PEK unwrap failed"));
+        assertTrue(e.getMessage().contains("unwrap failed"));
     }
 
     public void testEachWrapProducesDistinctPayload() {
@@ -56,7 +56,7 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
         EncryptedData bad = new EncryptedData(encrypted.keyId(), tampered);
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> PasswordBasedEncryption.unwrap(bad, PASSWORD));
-        assertTrue(e.getMessage().contains("PEK unwrap failed"));
+        assertTrue(e.getMessage().contains("unwrap failed"));
     }
 
     public void testTooShortPayloadIsRejected() {

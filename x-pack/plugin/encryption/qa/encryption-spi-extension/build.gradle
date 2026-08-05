@@ -16,6 +16,7 @@ esplugin {
 }
 
 dependencies {
+  compileOnly project(':x-pack:plugin:core')
   compileOnly project(':x-pack:plugin:encryption:spi')
   clusterPlugins project(':x-pack:plugin:encryption:qa:encryption-spi-extension')
 

@@ -69,6 +69,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.datatiers;
     exports org.elasticsearch.xpack.core.deprecation;
     exports org.elasticsearch.xpack.core.downsample;
+    exports org.elasticsearch.xpack.core.encryption;
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;

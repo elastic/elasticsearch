@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.junit.After;
@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -421,7 +422,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     /**
-     * Re-encrypts a {@link TestBlobBase}-shaped custom under the active key.
+     * Re-keys a {@link TestBlobBase}-shaped custom by applying the coordinator-supplied function to its single blob.
      */
     private record TestHandler<T extends TestBlobBase>(
         String customName,
@@ -431,16 +432,10 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     ) implements EncryptedDataHandler<T> {
 
         @Override
-        public T reEncrypt(T current, EncryptionService service, String activeKeyId) {
+        public T reEncrypt(T current, UnaryOperator<EncryptedData> reEncrypt) {
             state.callCount.incrementAndGet();
-            if (current == null) {
-                return null;
-            }
-            if (current.blob.keyId().equals(activeKeyId)) {
-                return current;
-            }
-            byte[] plaintext = encryptionService.decrypt(current.blob);
-            return factory.apply(encryptionService.encrypt(plaintext));
+            EncryptedData rewrapped = reEncrypt.apply(current.blob);
+            return rewrapped == current.blob ? current : factory.apply(rewrapped);
         }
     }
 }

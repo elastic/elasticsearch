@@ -626,7 +626,8 @@ public class SnapshotResiliencyTestHelper {
                     transportService,
                     EmptySystemIndices.INSTANCE,
                     false,
-                    SnapshotMetrics.NOOP
+                    SnapshotMetrics.NOOP,
+                    List.of()
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
@@ -932,7 +933,8 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                    List.of()
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

@@ -22,11 +22,11 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that {@code EncryptedDataHandlerProvider} implementations contributed by other plugins via
- * {@code ExtensiblePlugin.loadExtensions} are discovered by the encryption plugin and their handlers are invoked by the running
- * {@code KeyRotationCoordinator}.
+ * {@code ExtensiblePlugin.loadExtensions} are discovered by the encryption plugin in a real distribution.
  *
- * <p>The test plugin contributes a {@code TestEncryptedDataHandlerProvider} whose handler increments an in-JVM counter. The plugin
- * also installs a small REST handler that exposes that counter so this test (running out-of-process) can observe rotation activity.
+ * <p>The test plugin contributes a {@code TestEncryptedDataHandlerProvider} whose {@code getHandlers} increments an in-JVM counter.
+ * The plugin also installs a small REST handler that exposes that counter so this test (running out-of-process) can observe the
+ * discovery.
  */
 public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
 

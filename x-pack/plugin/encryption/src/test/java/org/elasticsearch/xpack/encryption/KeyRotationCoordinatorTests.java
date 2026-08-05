@@ -35,6 +35,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -48,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -533,7 +535,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> reEncrypt) {
                 calls.incrementAndGet();
                 return current;
             }
@@ -573,7 +575,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> reEncrypt) {
                 calls.incrementAndGet();
                 return null;
             }
@@ -762,9 +764,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> reEncrypt) {
                 calls.incrementAndGet();
-                return TestCustom.encryptedUnder(activeKeyId);
+                return TestCustom.encryptedUnder(expectedKeyId);
             }
         };
     }

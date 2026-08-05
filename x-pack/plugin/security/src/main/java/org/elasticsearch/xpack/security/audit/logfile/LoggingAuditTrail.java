@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
@@ -316,7 +317,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         UpdateApiKeyAction.NAME,
         BulkUpdateApiKeyAction.NAME,
         CreateCrossClusterApiKeyAction.NAME,
-        UpdateCrossClusterApiKeyAction.NAME
+        UpdateCrossClusterApiKeyAction.NAME,
+        PutSnapshotLifecycleAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -807,6 +809,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof final PutSnapshotLifecycleAction.Request putSLMRequest) {
+                    assert PutSnapshotLifecycleAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(putSLMRequest).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -1596,6 +1601,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logEntry.with(EVENT_ACTION_FIELD_NAME, "change_disable_user_profile");
             }
             logEntry.with(CHANGE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(PutSnapshotLifecycleAction.Request putSLMRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_snapshot_lifecycle_policy");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("snapshot_lifecycle_policy")
+                .field("id", putSLMRequest.getLifecycleId())
+                .field("name", putSLMRequest.getLifecycle().getName())
+                .field("schedule", putSLMRequest.getLifecycle().getSchedule())
+                .field("repository", putSLMRequest.getLifecycle().getRepository())
+                .endObject() // snapshot_lifecycle_policy
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

@@ -4,7 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.encryption.spi;
+
+package org.elasticsearch.xpack.core.encryption;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
@@ -25,7 +26,9 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Holds the result of an encryption operation: the key ID that was used and the encrypted payload.
+ * Holds the result of an encryption operation: the key ID that was used and the encrypted payload. A passive value type
+ * so that any module can carry encrypted values inside cluster-state customs without depending on the code that performs
+ * the cryptography.
  *
  * <p>Implements {@link GenericNamedWriteable} so the carrier can ride the generic-value serialization
  * ES|QL plan nodes use ({@code ExternalSourceExec} serializes its config map via

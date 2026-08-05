@@ -248,6 +248,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTr
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -1248,6 +1249,10 @@ class NodeConstruction {
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
 
+        final List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers = List.copyOf(
+            pluginsService.loadServiceProviders(SnapshotGlobalStateTransformer.class)
+        );
+
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
@@ -1257,7 +1262,8 @@ class NodeConstruction {
             transportService,
             systemIndices,
             projectResolver.supportsMultipleProjects(),
-            snapshotMetrics
+            snapshotMetrics,
+            snapshotGlobalStateTransformers
         );
 
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
@@ -1297,7 +1303,8 @@ class NodeConstruction {
             fileSettingsService,
             threadPool,
             projectResolver.supportsMultipleProjects(),
-            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
+            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
+            snapshotGlobalStateTransformers
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

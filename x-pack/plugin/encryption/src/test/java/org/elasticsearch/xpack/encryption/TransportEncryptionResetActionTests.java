@@ -21,9 +21,9 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 public class TransportEncryptionResetActionTests extends ESTestCase {
 
@@ -106,7 +107,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> reEncrypt) {
                 return current;
             }
 
@@ -194,7 +195,7 @@ public class TransportEncryptionResetActionTests extends ESTestCase {
         }
 
         @Override
-        public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+        public TestCustom reEncrypt(TestCustom current, UnaryOperator<EncryptedData> reEncrypt) {
             return current;
         }
 

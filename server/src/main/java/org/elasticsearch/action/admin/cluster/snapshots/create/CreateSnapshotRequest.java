@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -55,6 +57,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         ToXContentObject {
 
     public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
+    private static final int MIN_PASSWORD_LENGTH = 15;
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
 
     private String snapshot;
 
@@ -77,6 +81,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Nullable
     private String uuid = null;
+
+    @Nullable
+    private SecureString encryptionPassword;
 
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -107,6 +114,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
         uuid = in.readOptionalString();
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+            encryptionPassword = in.readOptionalSecureString();
+        }
     }
 
     @Override
@@ -122,6 +132,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
         out.writeOptionalString(uuid);
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+            out.writeOptionalSecureString(encryptionPassword);
+        }
     }
 
     @Override
@@ -153,6 +166,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (metadataSize > MAXIMUM_METADATA_BYTES) {
             validationException = addValidationError(
                 "metadata must be smaller than 1024 bytes, but was [" + metadataSize + "]",
+                validationException
+            );
+        }
+        if (encryptionPassword != null && encryptionPassword.length() < MIN_PASSWORD_LENGTH) {
+            validationException = addValidationError(
+                "encryption_password must be at least " + MIN_PASSWORD_LENGTH + " characters",
                 validationException
             );
         }
@@ -409,6 +428,22 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * @return the encryption password for this snapshot, or {@code null} if none was provided
+     */
+    @Nullable
+    public SecureString encryptionPassword() {
+        return encryptionPassword;
+    }
+
+    /**
+     * @param encryptionPassword the password used to derive a key for encrypting snapshot customs data
+     */
+    public CreateSnapshotRequest encryptionPassword(@Nullable SecureString encryptionPassword) {
+        this.encryptionPassword = encryptionPassword;
+        return this;
+    }
+
+    /**
      * Parses snapshot definition.
      *
      * @param source snapshot definition
@@ -446,6 +481,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                         throw new IllegalArgumentException("malformed metadata, should be an object");
                     }
                     userMetadata((Map<String, Object>) entry.getValue());
+                    break;
+                case "encryption_password":
+                    if (entry.getValue() instanceof String s) {
+                        encryptionPassword = new SecureString(s.toCharArray());
+                    } else {
+                        throw new IllegalArgumentException("malformed encryption_password, should be a string");
+                    }
                     break;
             }
         }

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -393,7 +394,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             transportService,
             mock(ClusterService.class),
             threadPool,
-            mock(ActionFilters.class)
+            mock(ActionFilters.class),
+            mock(EncryptionService.class)
         );
         assertThat(putAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 

@@ -186,7 +186,8 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(POLICY.getPreferredName(), policy);
+        // pass params through so the policy can gate its encrypted password on the metadata xcontent context
+        builder.field(POLICY.getPreferredName(), policy, params);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
         builder.timestampFieldsFromUnixEpochMillis(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);

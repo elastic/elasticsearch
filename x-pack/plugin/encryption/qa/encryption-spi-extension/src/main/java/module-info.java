@@ -12,6 +12,7 @@ module org.elasticsearch.internal.encryption.spi.test {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.xcore;
     requires org.elasticsearch.encryption.spi;
 
     provides EncryptedDataHandlerProvider with TestEncryptedDataHandlerProvider;

@@ -16,6 +16,8 @@ base {
 }
 
 dependencies {
+  compileOnly project(":libs:core")
   compileOnly project(":server")
+  compileOnly project(":x-pack:plugin:core")
   testImplementation project(":test:framework")
 }

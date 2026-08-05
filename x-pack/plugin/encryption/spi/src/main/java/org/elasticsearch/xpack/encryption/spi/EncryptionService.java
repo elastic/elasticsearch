@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.encryption.spi;
 
+import org.elasticsearch.xpack.core.encryption.EncryptedData;
+
 /**
  * Provides symmetric encrypt/decrypt operations.
  *

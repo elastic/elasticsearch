@@ -13,6 +13,7 @@ module org.elasticsearch.slm {
     requires org.elasticsearch.xcore;
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
+    requires org.elasticsearch.encryption.spi;
 
     exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
@@ -20,4 +21,8 @@ module org.elasticsearch.slm {
     provides ReservedStateHandlerProvider with org.elasticsearch.xpack.slm.ReservedLifecycleStateHandlerProvider;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.slm.SnapshotLifecycleFeatures;
+
+    provides org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider
+        with
+            org.elasticsearch.xpack.slm.SlmEncryptedDataHandlerProvider;
 }

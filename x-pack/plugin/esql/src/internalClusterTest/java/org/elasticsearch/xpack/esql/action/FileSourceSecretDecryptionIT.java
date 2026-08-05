@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Regression guard for the file-on-blob-storage read path: the {@link StorageProvider} factory must
- * receive the decrypted plaintext secret, not the {@link org.elasticsearch.xpack.encryption.spi.EncryptedData}
+ * receive the decrypted plaintext secret, not the {@link org.elasticsearch.xpack.core.encryption.EncryptedData}
  * carrier it is stored as. {@code StorageProviderRegistry} decrypts at the single point every provider
  * client is built.
  *

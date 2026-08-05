@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.Closeable;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -354,7 +355,17 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             ProjectState projectState = projectResolver.getProjectState(snapshot);
 
             T oldCustom = projectState.metadata().custom(handler.customName());
-            T newCustom = handler.reEncrypt(oldCustom, encryptionService, expectedActiveKeyId);
+            T newCustom = oldCustom == null ? null : handler.reEncrypt(oldCustom, existing -> {
+                if (existing.keyId().equals(expectedActiveKeyId)) {
+                    return existing;
+                }
+                byte[] plaintext = encryptionService.decrypt(existing);
+                try {
+                    return encryptionService.encrypt(plaintext);
+                } finally {
+                    Arrays.fill(plaintext, (byte) 0);
+                }
+            });
             if (oldCustom != null && newCustom == null) {
                 listener.onFailure(new IllegalStateException("Re-encrypting non-null state returned null state"));
                 return;

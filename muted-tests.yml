@@ -538,9 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
   method: testCurrentlyRunningSnapshotNotRecordedAsFailure
   issue: https://github.com/elastic/elasticsearch/issues/155621
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348
@@ -565,9 +562,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testOutputSupportedTypes {p0=LT}
   issue: https://github.com/elastic/elasticsearch/issues/155694
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testVirtualBatchedCompoundCommitChunksPressure
-  issue: https://github.com/elastic/elasticsearch/issues/155754
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783
@@ -613,3 +607,9 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/155972
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155977
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155980

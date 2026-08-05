@@ -63,7 +63,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     /** the default number of fragments for highlighting */
     public static final int DEFAULT_NUMBER_OF_FRAGMENTS = 5;
     /** the maximum accepted number of fragments for highlighting */
-    public static final int MAX_NUMBER_OF_FRAGMENTS = 10_000;
+    public static final int MAX_NUMBER_OF_FRAGMENTS = 100_000;
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */

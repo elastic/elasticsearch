@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.util.Arrays;
@@ -50,10 +51,18 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
         return columns.stream().map(ColumnInfo::name).toList();
     }
 
+    private void indexJson(String index, String id, String json) {
+        client().prepareIndex(index).setId(id).setSource(json, XContentType.JSON).get();
+    }
+
     /**
      * A field mapped only in the filter-pruned index: DEFAULT retries and reports its real type ({@code integer}); NULLIFY reports
      * {@code null}, LOAD reports {@code keyword}. Column names and row data are identical across modes; only the pruned field's type
      * diverges.
+     *
+     * field_caps:
+     * DEFAULT      makes the second, unfiltered call ({@code id2} fails first-pass analysis → retry);
+     * NULLIFY/LOAD resolve {@code id2} on the first pass and make a single call
      */
     public void testPrunedOnlyFieldColumnTypeDiverges() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -93,6 +102,10 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
      * A type-conflicted field ({@code id}: integer in one index, keyword in another) whose every mapping is pruned by the filter, while a
      * third index that does not map it survives. DEFAULT retries, sees both mappings and reports {@code unsupported} (union conflict);
      * NULLIFY reports {@code null} and LOAD reports {@code keyword} — silently masking the conflict.
+     *
+     * field_caps:
+     * DEFAULT      makes the second, unfiltered call (id fails first-pass analysis → retry);
+     * NULLIFY/LOAD resolve it and make a single call
      */
     public void testTypeConflictHiddenByFilterIsMasked() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -133,6 +146,10 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
      * LOAD's keyword assumption can mask a downstream type error that DEFAULT surfaces: {@code SUBSTRING} is valid on the assumed
      * keyword but invalid on the pruned field's real {@code integer} type, so LOAD succeeds while DEFAULT (which retries to the real
      * type) fails verification.
+     *
+     * field_caps:
+     * DEFAULT makes the second, unfiltered call (id2 fails first-pass analysis → retry, then errors on SUBSTRING type incompatibility);
+     * LOAD    resolves id2 as keyword and never retries - SUBSTRING is happy from data type POV.
      */
     public void testLoadMasksDownstreamTypeErrorThatDefaultRaises() {
         assumeTrue("requires load", loadEnabled());
@@ -154,13 +171,19 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
         }
 
         Exception e = expectThrows(Exception.class, () -> runFiltered(null, body, filter).close());
-        assertThat(e.getMessage(), containsString("SUBSTRING"));
-        assertThat(e.getMessage(), containsString("integer"));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [SUBSTRING(id2, 1, 1)] must be [string], found value [id2] type [integer]")
+        );
     }
 
     /**
      * NULLIFY masks the same downstream error: {@code SUBSTRING} is accepted on the {@code null} type, so NULLIFY succeeds while DEFAULT
      * retries to {@code integer} and fails verification.
+     *
+     * field_caps:
+     * DEFAULT makes the second, unfiltered call id2 fails first-pass analysis → retry, then errors on SUBSTRING(integer);
+     * NULLIFY resolves id2 as null and never retries.
      */
     public void testNullifyMasksDownstreamTypeErrorThatDefaultRaises() {
         assumeTrue("requires nullify", nullifyEnabled());
@@ -182,15 +205,21 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
         }
 
         Exception e = expectThrows(Exception.class, () -> runFiltered(null, body, filter).close());
-        assertThat(e.getMessage(), containsString("SUBSTRING"));
-        assertThat(e.getMessage(), containsString("integer"));
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [SUBSTRING(id2, 1, 1)] must be [string], found value [id2] type [integer]")
+        );
     }
 
     /**
-     * Arithmetic on the pruned-only field is consistent across all three modes (not a bug), each for a different reason: DEFAULT fails
-     * to resolve {@code id2}, retries without the filter and types it {@code integer}; LOAD's keyword assumption makes {@code id2 * 2}
-     * invalid, so it throws and the same VerificationException retry re-resolves it to {@code integer} (self-heal); NULLIFY accepts
-     * {@code null * 2} and widens the derived column to {@code integer} via the non-null operand. All three yield {@code d:integer}.
+     * Arithmetic on the pruned-only field is consistent across all three modes, each for a different reason:
+     * DEFAULT fails to resolve id2, retries without the filter and types it {@code integer}
+     * LOAD's  keyword assumption makes id2 * 2 invalid, so it throws and the same VerificationException retry re-resolves it to integer
+     * NULLIFY accepts null * 2 and widens the derived column to integer via the non-null operand. All three yield d:integer.
+     *
+     *  field_caps:
+     *  DEFAULT and LOAD both make the second, unfiltered call (LOAD via the keyword*2 self-heal retry);
+     *  NULLIFY          resolves on the first pass and makes a single call.
      */
     public void testArithmeticOnPrunedFieldIsConsistentAcrossModes() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -225,9 +254,13 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Missing-columns divergence via a wildcard projection. {@code id2} (pruned-only) forces DEFAULT to retry without the filter, so
-     * {@code *} re-expands over the pruned index and its other field {@code extraB} appears; NULLIFY/LOAD don't retry, so {@code extraB}
-     * is absent from the output. The column SET differs across modes, not just a type.
+     * Missing-columns divergence via a wildcard projection. id2 (pruned-only) forces DEFAULT to retry without the filter, so
+     * the wildcard * re-expands over the pruned index and its other field extraB appears; NULLIFY/LOAD don't retry, so extraB is absent
+     * from the output. The column SET differs across modes, not just a type.
+     *
+     * field_caps:
+     * DEFAULT      makes the second, unfiltered call (id2 fails first-pass analysis → retry that re-expands *);
+     * NULLIFY/LOAD resolve on the first pass and make a single call.
      */
     public void testWildcardProjectionMissingColumnsUnderNullifyLoad() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -261,10 +294,14 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Row-DATA divergence. {@code g} is {@code integer} in the surviving index and {@code keyword} in the pruned one. Referencing the
-     * pruned-only {@code id2} forces DEFAULT to retry without the filter, which unions {@code g} into an {@code unsupported} conflict, so
-     * its real integer values render as {@code null}. NULLIFY/LOAD don't retry, keep {@code g} as {@code integer}, and return its real
-     * values — the actual result data differs across modes, not just the type.
+     * Row-DATA divergence. g is integer in the surviving index and keyword in the pruned one. Referencing the pruned-only id2 forces
+     * DEFAULT to retry without the filter, which unions g into an unsupported conflict, so its real integer values render as null.
+     * NULLIFY/LOAD don't retry, keep g as integer, and return its real values — the actual result data differs across modes, not just
+     * the type.
+     *
+     * field_caps:
+     * DEFAULT      makes the second, unfiltered call (id2 fails first-pass analysis → the retry is what makes g as unsupported type);
+     * NULLIFY/LOAD resolve on the first pass and make a single call.
      */
     public void testSurvivingFieldContaminatedToUnsupportedByRetryChangesData() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -297,10 +334,14 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * LOAD returns data that DEFAULT/NULLIFY report as {@code null}. The surviving index stores {@code f} in {@code _source} but does not
-     * map it ({@code dynamic:false}); the pruned index maps {@code f} as {@code integer}. LOAD resolves {@code f} as an unmapped keyword
-     * and loads its real values from the surviving index's {@code _source}; DEFAULT retries and types {@code f} as {@code integer} but
-     * cannot load it (the surviving index doesn't map it and DEFAULT doesn't read {@code _source}); NULLIFY types it {@code null}.
+     * LOAD returns data that DEFAULT/NULLIFY report as null. The surviving index stores f in _source but does not map it (dynamic:false);
+     * the pruned index maps f as integer. LOAD resolves f as an unmapped keyword and loads its real values from the surviving index's
+     * _source; DEFAULT retries and types f as integer but cannot load it (the surviving index doesn't map it and DEFAULT doesn't read
+     * _source); NULLIFY types it null.
+     *
+     * field_caps:
+     * DEFAULT      makes the second, unfiltered call (f fails first-pass analysis on the dynamic:false survivor → retry);
+     * NULLIFY/LOAD resolve on the first pass and make a single call.
      */
     public void testLoadLoadsPrunedFieldFromSourceWhileDefaultReportsNull() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
@@ -330,6 +371,52 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(load.columns(), List.of("integer", "keyword"));
             assertThat(getValuesList(load), equalTo(List.of(Arrays.asList(0, "7"), Arrays.asList(1, "8"))));
         }
+    }
+
+    /**
+     * LOAD makes the extra field_caps call while DEFAULT and NULLIFY do not. labels.env is a real keyword in test1, but its parent
+     * labels is a flattened field in test2, so labels.env is mapped only in test1. Only LOAD tracks partially-unmapped fields.
+     * DEFAULT and NULLIFY never run that check and resolve labels.env from test1, so they succeed on the first pass.
+     *
+     * field_caps:
+     * LOAD            throws first-pass (flattened subfield) → makes the second, unfiltered call, which re-throws the same error - the
+     *                 retry is futile since it only adds indices back and the flattened parent is still present;
+     * DEFAULT/NULLIFY resolve on the first pass and make a single call.
+     */
+    public void testLoadFlattenedSubfieldRetriesAndErrorsWhileDefaultNullifySucceed() {
+        assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
+        createIndex(
+            "test1",
+            "{ \"properties\": { \"k\": { \"type\": \"integer\" }, "
+                + "\"labels\": { \"type\": \"object\", \"properties\": { \"env\": { \"type\": \"keyword\" } } } } }"
+        );
+        createIndex("test2", "{ \"properties\": { \"k\": { \"type\": \"integer\" }, \"labels\": { \"type\": \"flattened\" } } }");
+        indexJson("test1", "a", "{ \"k\": 1, \"labels\": { \"env\": \"prod\" } }");
+        indexJson("test2", "b", "{ \"k\": 2, \"labels\": { \"env\": \"dev\", \"other\": \"x\" } }");
+        refresh("test1", "test2");
+
+        String body = "FROM test1,test2 | KEEP k, labels.env | SORT k";
+        QueryBuilder filter = QueryBuilders.existsQuery("k"); // present so the retry path is active; matches both indices, prunes nothing
+
+        List<List<Object>> expectedValues = List.of(Arrays.asList(1, "prod"), Arrays.asList(2, null));
+
+        try (var def = runFiltered(null, body, filter)) {
+            assertThat(def.isPartial(), equalTo(false));
+            assertColumnNames(def.columns(), List.of("k", "labels.env"));
+            assertColumnTypes(def.columns(), List.of("integer", "keyword"));
+            assertThat(getValuesList(def), equalTo(expectedValues));
+        }
+        try (var nullify = runFiltered("nullify", body, filter)) {
+            assertColumnNames(nullify.columns(), List.of("k", "labels.env"));
+            assertColumnTypes(nullify.columns(), List.of("integer", "keyword"));
+            assertThat(getValuesList(nullify), equalTo(expectedValues));
+        }
+
+        Exception e = expectThrows(Exception.class, () -> runFiltered("load", body, filter).close());
+        assertThat(
+            e.getMessage(),
+            containsString("Loading subfield [labels.env] when parent [labels] is of flattened field type is not supported")
+        );
     }
 
     private static boolean nullifyEnabled() {

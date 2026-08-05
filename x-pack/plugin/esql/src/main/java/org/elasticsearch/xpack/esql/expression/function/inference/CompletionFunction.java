@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -52,12 +53,18 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
     private final Expression inferenceId;
     private final Expression prompt;
     private final MapExpression taskSettings;
+    private final TimeValue timeout;
 
     public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
+        this(source, prompt, inferenceId, taskSettings, null);
+    }
+
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings, TimeValue timeout) {
         super(source, List.of(prompt, inferenceId, taskSettings));
         this.inferenceId = inferenceId;
         this.prompt = prompt;
         this.taskSettings = taskSettings;
+        this.timeout = timeout;
     }
 
     @Override
@@ -76,6 +83,10 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     public MapExpression taskSettings() {
         return taskSettings;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
     }
 
     @Override
@@ -135,17 +146,23 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public CompletionFunction withInferenceResolutionError(String inferenceId, String error) {
-        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), taskSettings);
+        return new CompletionFunction(
+            source(),
+            prompt,
+            new UnresolvedAttribute(inferenceId().source(), inferenceId, error),
+            taskSettings,
+            timeout
+        );
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1), (MapExpression) newChildren.get(2));
+        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1), (MapExpression) newChildren.get(2), timeout);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId, taskSettings);
+        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId, taskSettings, timeout);
     }
 
     @Override

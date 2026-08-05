@@ -55,9 +55,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -98,8 +95,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private Path watchedFile;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startFileSettingsService() throws Exception {
         // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
         Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.DEBUG);
 
@@ -148,7 +144,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopFileSettingsService() throws Exception {
         try {
             if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
                 logger.info("Stopping file settings service");
@@ -159,7 +155,6 @@ public class FileSettingsServiceTests extends ESTestCase {
                 fileSettingsService.close();
             }
 
-            super.tearDown();
             clusterService.close();
             threadpool.shutdownNow();
         } finally {
@@ -310,9 +305,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        // Touch the file to get an update
-        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(watchedFile, FileTime.from(now));
+        // Touch the file to get an update; use +2s to guarantee we land in a different millisecond regardless of filesystem timestamp
+        // rounding or NTP shenanigans
+        Files.setLastModifiedTime(watchedFile, FileTime.from(Instant.now().plusSeconds(2)));
 
         longAwait(processFileChangeLatch);
 

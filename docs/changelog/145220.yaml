@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 145220
-summary: Add schema reconciliation for multi-file external sources
-type: enhancement

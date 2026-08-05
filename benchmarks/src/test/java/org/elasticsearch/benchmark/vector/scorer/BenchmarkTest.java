@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -26,11 +27,12 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public class BenchmarkTest extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected static Iterable<Object[]> generateParameters(Field... paramsFields) {
+    public static Iterable<Object[]> generateParameters(Field... paramsFields) {
         List<Object[]> params = Arrays.stream(paramsFields).map(f -> {
             String[] values = f.getAnnotation(Param.class).value();
             return Arrays.copyOf(values, values.length, Object[].class);
@@ -84,20 +86,31 @@ public class BenchmarkTest extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("Native scorers only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
+
+    protected List<VectorImplementation> implementations() {
+        return List.of(VectorImplementation.values());
+    }
+
+    protected List<VectorImplementation> queryImplementations() {
+        return implementations().stream().filter(i -> i != VectorImplementation.SCALAR).toList();
+    }
+
     public <V> void testSequential(
         Supplier<V> vectorData,
         CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
         float delta
     ) throws Exception {
-        for (int i = 0; i < 100; i++) {
-            V data = vectorData.get();
-            assertResultsEqual(
-                List.of(VectorImplementation.values()),
-                impl -> createBenchmark.apply(data, impl),
-                List.of(VectorScorerBulkBenchmark::scoreMultipleSequential, VectorScorerBulkBenchmark::scoreMultipleSequentialBulk),
-                delta
-            );
-        }
+        V data = vectorData.get();
+        assertResultsEqual(
+            implementations(),
+            impl -> createBenchmark.apply(data, impl),
+            List.of(VectorScorerBulkBenchmark::scoreMultipleSequential, VectorScorerBulkBenchmark::scoreMultipleSequentialBulk),
+            delta
+        );
     }
 
     public <V> void testRandom(
@@ -105,15 +118,13 @@ public class BenchmarkTest extends ESTestCase {
         CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
         float delta
     ) throws IOException {
-        for (int i = 0; i < 100; i++) {
-            V data = vectorData.get();
-            assertResultsEqual(
-                List.of(VectorImplementation.values()),
-                impl -> createBenchmark.apply(data, impl),
-                List.of(VectorScorerBulkBenchmark::scoreMultipleRandom, VectorScorerBulkBenchmark::scoreMultipleRandomBulk),
-                delta
-            );
-        }
+        V data = vectorData.get();
+        assertResultsEqual(
+            implementations(),
+            impl -> createBenchmark.apply(data, impl),
+            List.of(VectorScorerBulkBenchmark::scoreMultipleRandom, VectorScorerBulkBenchmark::scoreMultipleRandomBulk),
+            delta
+        );
     }
 
     public <V> void testQueryRandom(
@@ -122,15 +133,13 @@ public class BenchmarkTest extends ESTestCase {
         float delta
     ) throws IOException {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
-        for (int i = 0; i < 100; i++) {
-            V data = vectorData.get();
-            assertResultsEqual(
-                List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE),
-                impl -> createBenchmark.apply(data, impl),
-                List.of(VectorScorerBulkBenchmark::scoreQueryMultipleRandom, VectorScorerBulkBenchmark::scoreQueryMultipleRandomBulk),
-                delta
-            );
-        }
+        V data = vectorData.get();
+        assertResultsEqual(
+            queryImplementations(),
+            impl -> createBenchmark.apply(data, impl),
+            List.of(VectorScorerBulkBenchmark::scoreQueryMultipleRandom, VectorScorerBulkBenchmark::scoreQueryMultipleRandomBulk),
+            delta
+        );
     }
 
     static <B extends VectorScorerBulkBenchmark> void assertResultsEqual(

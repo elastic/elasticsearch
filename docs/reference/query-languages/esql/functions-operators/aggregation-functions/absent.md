@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ABSENT` function [esql-absent]
 
-:::{include} ../../_snippets/functions/layout/absent.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/absent.md
 :::

@@ -14,8 +14,7 @@ import org.elasticsearch.gradle.Architecture
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
@@ -142,6 +141,8 @@ dependencies {
   fips_140_3 "org.bouncycastle:bc-fips:2.0.1"
   fips_140_3 "org.bouncycastle:bctls-fips:2.0.22"
   fips_140_3 "org.bouncycastle:bcutil-fips:2.0.5"
+
+  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, String publicationContext = '' ->
@@ -189,7 +190,7 @@ private static String toCamel(String input) {
   return input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
 }
 
-private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
+private static String dockerTaskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
@@ -226,23 +227,6 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base, String pu
   }
 }
 
-tasks.register("copyNodeKeyMaterial", Sync) {
-  def certsDir = file("build/certs")
-  def pemFile = file("build/certs/testnode.pem")
-  def crtFile = file("build/certs/testnode.crt")
-  from project(':x-pack:plugin:core')
-    .files(
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-    )
-  into "build/certs"
-  doLast {
-    certsDir.setReadable(true, false)
-    pemFile.setReadable(true, false)
-    crtFile.setReadable(true, false)
-  }
-}
-
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker_${eachArchitecture == Architecture.AARCH64 ? '_aarch64' : ''}" {
@@ -250,31 +234,6 @@ elasticsearch_distributions {
       type = InternalElasticsearchDistributionTypes.DOCKER
       version = VersionProperties.getElasticsearch()
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
-    }
-  }
-}
-
-interface Injected {
-  @Inject
-  FileSystemOperations getFs()
-}
-
-tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
-  dependsOn "copyNodeKeyMaterial"
-  def injected = project.objects.newInstance(Injected)
-  def testFixturesFolder = project.testFixturesDir.absoluteFile
-  doLast {
-    // tests expect to have an empty repo
-    injected.fs.delete {
-      it.delete("${testFixturesFolder}/repo")
-    }
-    ["${testFixturesFolder}/repo",
-     "${testFixturesFolder}/logs/default-1",
-     "${testFixturesFolder}/logs/default-2"].each { location ->
-      File file = new File(location)
-      file.mkdirs()
-      file.setWritable(true, false)
     }
   }
 }
@@ -289,23 +248,14 @@ tasks.named("processYamlRestTestResources").configure {
 
 tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
-  maxParallelForks = '1'
+  maxParallelForks = 1
   include '**/*IT.class'
+  // Boot the JUnit-driven Testcontainers fixture against the locally tagged elasticsearch:test image
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
 }
 
 tasks.named("check").configure {
   dependsOn "yamlRestTest"
-}
-
-// We build the images used in compose locally, but the pull command insists on using a repository
-// thus we must disable it to prevent it from doing so.
-// Everything will still be pulled since we will build the local images on a pull
-tasks.named("composePull").configure {
-  enabled = false
-}
-
-tasks.named("composeUp").configure {
-  dependsOn tasks.named("preProcessFixture")
 }
 
 
@@ -318,7 +268,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
   final TaskProvider<Tar> buildDockerContextTask =
-    tasks.register(taskName('build', architecture, base, taskSuffix), Tar) {
+    tasks.register(dockerTaskName('build', architecture, base, taskSuffix), Tar) {
       archiveExtension = 'tar.gz'
       compression = Compression.GZIP
       archiveClassifier = "${classifier}${arch}"
@@ -378,8 +328,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 }
 
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
-  def transformTask = tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
-    TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
+  def transformTask = tasks.register(dockerTaskName("transform", architecture, base, "DockerContext"), Sync) {
+    TaskProvider<Tar> buildContextTask = tasks.named(dockerTaskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -433,7 +383,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   }
 
   // Register transformed context as a project artifact
-  def contextConfig = configurations.create(taskName("docker", architecture, base, "Context")) {
+  def contextConfig = configurations.create(dockerTaskName("docker", architecture, base, "Context")) {
     canBeResolved = false
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
@@ -468,9 +418,9 @@ private static List<String> generateTags(DockerBase base, Architecture architect
 void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+    tasks.register(dockerTaskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<Sync> transformTask = tasks.named(taskName("transform", architecture, base, "DockerContext"))
+      TaskProvider<Sync> transformTask = tasks.named(dockerTaskName("transform", architecture, base, "DockerContext"))
       dependsOn(transformTask)
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
@@ -518,7 +468,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
   String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
 
   final TaskProvider<Sync> buildContextTask =
-    tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
+    tasks.register(dockerTaskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
       into contextDir
 
       final Path projectDir = project.projectDir.toPath()
@@ -556,11 +506,11 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
     }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
+    tasks.register(dockerTaskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
 
       DockerBase base = DockerBase.WOLFI
 
-      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
+      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(dockerTaskName("build", architecture, base, "DockerImage"))
       inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
@@ -578,13 +528,10 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-String fipsPolicySourceFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
-
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsDockerResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
   outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
-  copy fipsPolicySourceFilename, 'fips_java.policy'
 }
 
 for (final Architecture architecture : Architecture.values()) {
@@ -612,6 +559,15 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
+    def exportDockerTaskName = { String prefix, Architecture taskArchitecture, DockerBase taskBase, String suffix ->
+      prefix +
+        (taskArchitecture == Architecture.AARCH64 ? 'Aarch64' : '') +
+        (taskBase == DockerBase.DEFAULT
+          ? ""
+          : taskBase.name().split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")) +
+        suffix
+    }
+
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
@@ -633,8 +589,8 @@ subprojects { Project subProject ->
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
-    final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
-    final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
+    final String exportTaskName = exportDockerTaskName("export", architecture, base, 'DockerImage')
+    final String buildTaskName = exportDockerTaskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
@@ -658,7 +614,7 @@ subprojects { Project subProject ->
       dependsOn exportTask
     }
 
-    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+    def compressExportTask = tasks.register(exportDockerTaskName("compress", architecture, base, 'DockerImageExport'), Tar) {
       it.from(project.tarTree(tarFile))
       archiveExtension = 'tar.gz'
       it.setCompression(Compression.GZIP)

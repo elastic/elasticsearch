@@ -141,16 +141,10 @@ static inline void bf16_bulk_inner(
     }
 }
 
-// const bf16_t* a  pointer to the first float vector
-// const f32_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotDbf16Qf32(const bf16_t* a, const f32_t* b, const int32_t elementCount) {
     return bf16_inner<f32_t, load_f32, vfmaq_f32, dot_scalar>(a, b, elementCount);
 }
 
-// const bf16_t* a  pointer to the first float vector
-// const bf16_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_dotDbf16Qbf16(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
     return bf16_inner<bf16_t, load_bf16, vfmaq_f32, dot_scalar>(a, b, elementCount);
 }
@@ -228,16 +222,10 @@ static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x
     return vmlaq_f32(sum, diff, diff);
 }
 
-// const bf16_t* a  pointer to the first float vector
-// const f32_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_sqrDbf16Qf32(const bf16_t* a, const f32_t* b, const int32_t elementCount) {
     return bf16_inner<f32_t, load_f32, sqrf32_vector, sqr_scalar>(a, b, elementCount);
 }
 
-// const bf16_t* a  pointer to the first float vector
-// const bf16_t* b  pointer to the second float vector
-// const int32_t elementCount  the number of floating point elements
 EXPORT f32_t vec_sqrDbf16Qbf16(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
     return bf16_inner<bf16_t, load_bf16, sqrf32_vector, sqr_scalar>(a, b, elementCount);
 }

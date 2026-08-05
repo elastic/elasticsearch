@@ -23,7 +23,7 @@ import java.io.IOException;
  * the additional ordinals vector. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted implements BytesRefVector {
+public final class OrdinalBytesRefVector extends AbstractBlockRefCounted implements BytesRefVector {
     private final IntVector ordinals;
     private final BytesRefVector bytes;
 
@@ -71,6 +71,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }
@@ -104,13 +105,13 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
         // may reappear when hashing the dictionary in BlockHash.
         final BytesRef scratch = new BytesRef();
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-            for (int p : positions) {
-                builder.appendBytesRef(getBytesRef(p, scratch));
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                builder.appendBytesRef(getBytesRef(positions[i], scratch));
             }
             return builder.build();
         }
@@ -160,6 +161,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     public ElementType elementType() {
         return bytes.elementType();
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
     }
 
     @Override

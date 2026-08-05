@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -32,14 +30,20 @@ public class TimedListener<Response> {
     private final ActionListener<Response> listenerWithTimeout;
     private final AtomicBoolean completed = new AtomicBoolean();
 
-    public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool) {
-        listenerWithTimeout = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+    public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool, String inferenceId) {
+        listenerWithTimeout = getListener(
+            Objects.requireNonNull(listener),
+            timeout,
+            Objects.requireNonNull(threadPool),
+            Objects.requireNonNull(inferenceId)
+        );
     }
 
     private ActionListener<Response> getListener(
         ActionListener<Response> origListener,
         @Nullable TimeValue timeout,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        String inferenceId
     ) {
         ActionListener<Response> notificationListener = ActionListener.wrap(result -> {
             completed.set(true);
@@ -58,9 +62,7 @@ public class TimedListener<Response> {
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
-            (ignored) -> notificationListener.onFailure(
-                new ElasticsearchStatusException(Strings.format("Request timed out after [%s]", timeout), RestStatus.GATEWAY_TIMEOUT)
-            )
+            (ignored) -> notificationListener.onFailure(timeoutException(timeout, inferenceId))
         );
     }
 
@@ -70,5 +72,15 @@ public class TimedListener<Response> {
 
     public ActionListener<Response> getListener() {
         return listenerWithTimeout;
+    }
+
+    /**
+     * Creates an {@link ElasticsearchTimeoutException} with a message indicating that the request timed out.
+     * @param timeout the timeout that was reached
+     * @param inferenceId the id of the inference request that timed out
+     * @return an {@link ElasticsearchTimeoutException} indicating a timeout occurred
+     */
+    public static ElasticsearchTimeoutException timeoutException(TimeValue timeout, String inferenceId) {
+        return new ElasticsearchTimeoutException("Request timed out after [{}] for inference id [{}]", timeout, inferenceId);
     }
 }

@@ -12,29 +12,27 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleCounter;
 
+import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
+public class DoubleAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
 
     public DoubleAsyncCounterAdapter(
         Meter meter,
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Supplier<Collection<DoubleWithAttributes>> observer,
+        Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer));
-    }
-
-    @Override
-    public void close() throws Exception {
-        getInstrument().close();
+        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleCounter> {

@@ -7,23 +7,30 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
 
@@ -40,33 +47,39 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
 
-    public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> REQUEST_PARSER = createParser(false);
+    private static final ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> PERSISTENT_PARSER = createParser(true);
+
+    static ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<CohereEmbeddingsTaskSettings, Void> parser = new ConstructingObjectParser<>(
+            ModelConfigurations.TASK_SETTINGS,
+            ignoreUnknownFields,
+            args -> {
+                InputType inputType = EnumParser.parseFromStringInObjectParserContext(
+                    (String) args[0],
+                    InputType::fromString,
+                    VALID_INPUT_TYPE_VALUES,
+                    EnumSet.of(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH)
+                );
+                Truncation truncation = args[1] == null ? null : Truncation.fromString((String) args[1]);
+                return new CohereEmbeddingsTaskSettings(inputType, truncation);
+            }
+        );
+        parser.declareString(optionalConstructorArg(), new ParseField(INPUT_TYPE));
+        parser.declareString(optionalConstructorArg(), new ParseField(TRUNCATE));
+        return parser;
+    }
+
+    public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
-
-        ValidationException validationException = new ValidationException();
-
-        InputType inputType = extractOptionalEnum(
-            map,
-            INPUT_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
-            InputType::fromString,
-            VALID_INPUT_TYPE_VALUES,
-            validationException
-        );
-        Truncation truncation = extractOptionalEnum(
-            map,
-            TRUNCATE,
-            ModelConfigurations.TASK_SETTINGS,
-            Truncation::fromString,
-            Truncation.ALL,
-            validationException
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereEmbeddingsTaskSettings(inputType, truncation);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, null);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
+        }
     }
 
     /**
@@ -191,7 +204,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(newSettings);
+        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(newSettings, ConfigurationParseContext.REQUEST);
         return of(this, updatedSettings);
     }
 }

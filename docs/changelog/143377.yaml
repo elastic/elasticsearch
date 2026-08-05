@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 143377
-summary: Re-use previously seen dynamically-created Mappers during document parsing
-type: bug

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -272,7 +273,7 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         int usagePromptTokens = randomIntBetween(1, 100);
         int usageTotalTokens = randomIntBetween(1, 200);
         int reasoningTokens = randomIntBetween(1, 50);
-        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, reasoningTokens);
+        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, null, reasoningTokens);
 
         String chatCompletionChunkId = randomAlphaOfLength(10);
         String chatCompletionChunkModel = randomAlphaOfLength(5);
@@ -491,22 +492,15 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         }
     }
 
-    private String createUsageJson(int completionTokens, int promptTokens, int totalTokens) {
-        return createUsageJson(completionTokens, promptTokens, totalTokens, null, null);
-    }
-
     private String createUsageJson(
         int completionTokens,
         int promptTokens,
         int totalTokens,
         @Nullable Integer cachedTokens,
+        @Nullable Integer cacheWriteTokens,
         @Nullable Integer reasoningTokens
     ) {
-        String cachedTokensPart = cachedTokens != null ? Strings.format("""
-            ,
-            "prompt_tokens_details": {
-                "cached_tokens": %d
-            }""", cachedTokens) : "";
+        String promptTokensDetailsPart = promptTokensDetailsJson(cachedTokens, cacheWriteTokens);
         String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
             ,
             "completion_tokens_details": {
@@ -520,7 +514,27 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 %s\
                 %s
             }
-            """, completionTokens, promptTokens, totalTokens, cachedTokensPart, reasoningTokensPart);
+            """, completionTokens, promptTokens, totalTokens, promptTokensDetailsPart, reasoningTokensPart);
+    }
+
+    private static String promptTokensDetailsJson(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+        if (cachedTokens == null && cacheWriteTokens == null) {
+            return "";
+        }
+
+        var fields = new ArrayList<String>();
+        if (cachedTokens != null) {
+            fields.add(Strings.format("\"cached_tokens\": %d", cachedTokens));
+        }
+        if (cacheWriteTokens != null) {
+            fields.add(Strings.format("\"cache_write_tokens\": %d", cacheWriteTokens));
+        }
+
+        return Strings.format("""
+            ,
+            "prompt_tokens_details": {
+                %s
+            }""", String.join(",\n    ", fields));
     }
 
     public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {
@@ -544,9 +558,10 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
         int promptTokens = randomIntBetween(1, 100);
         int totalTokens = randomIntBetween(1, 200);
         var cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var cacheWriteTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
         var reasoningTokens = includeReasoningTokens ? randomIntBetween(1, 50) : null;
 
-        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, reasoningTokens);
+        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, cacheWriteTokens, reasoningTokens);
 
         String chatCompletionChunkJson = createChatCompletionChunkJson(
             randomAlphaOfLength(10),
@@ -567,7 +582,13 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(completionTokens, chunk.usage().completionTokens());
             assertEquals(promptTokens, chunk.usage().promptTokens());
             assertEquals(totalTokens, chunk.usage().totalTokens());
-            assertEquals(cachedTokens, chunk.usage().cachedTokens());
+            if (includeCachedTokens) {
+                assertNotNull(chunk.usage().promptTokensDetails());
+                assertEquals(cachedTokens, chunk.usage().promptTokensDetails().cachedTokens());
+                assertEquals(cacheWriteTokens, chunk.usage().promptTokensDetails().cacheWriteTokens());
+            } else {
+                assertNull(chunk.usage().promptTokensDetails());
+            }
             if (includeReasoningTokens) {
                 assertNotNull(chunk.usage().completionTokenDetails());
                 assertEquals(reasoningTokens, chunk.usage().completionTokenDetails().reasoningTokens());
@@ -575,5 +596,30 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 assertNull(chunk.usage().completionTokenDetails());
             }
         }
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "id": "1",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "id": "2",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunks = OpenAiUnifiedStreamingProcessor.parse(parserConfig, data).toList();
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).id(), is("1"));
+        assertThat(chunks.get(1).id(), is("2"));
     }
 }

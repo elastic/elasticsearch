@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Evaluates filter predicates against per-split (row-group/stripe) statistics to classify
@@ -64,11 +63,11 @@ final class SplitFilterClassifier {
      * Classifies a split by recursively evaluating the filter expression tree against its statistics.
      * Supports AND, OR, NOT, and leaf comparisons (field op literal).
      */
-    public static SplitMatch classifyExpression(Expression filter, Map<String, Object> splitStats) {
-        if (filter == null || splitStats == null || splitStats.isEmpty()) {
+    public static SplitMatch classifyExpression(Expression filter, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filter == null || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        return classifyRecursive(filter, splitStats);
+        return classifyRecursive(filter, splitStats, implicitNullsForAbsentColumn);
     }
 
     /**
@@ -80,19 +79,19 @@ final class SplitFilterClassifier {
      * all conjuncts are MATCH, AMBIGUOUS otherwise.
      *
      * @param filterConjuncts AND-separated filter expressions (from {@code splitAnd()})
-     * @param splitStats per-split statistics map using {@link SourceStatisticsSerializer} keys
+     * @param splitStats per-split statistics
      * @return the classification for this split
      */
-    static SplitMatch classifySplit(List<Expression> filterConjuncts, Map<String, Object> splitStats) {
-        if (filterConjuncts.isEmpty() || splitStats == null || splitStats.isEmpty()) {
+    static SplitMatch classifySplit(List<Expression> filterConjuncts, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filterConjuncts.isEmpty() || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
         if (filterConjuncts.size() == 1) {
-            return classifyRecursive(filterConjuncts.getFirst(), splitStats);
+            return classifyRecursive(filterConjuncts.getFirst(), splitStats, implicitNullsForAbsentColumn);
         }
         boolean allMatch = true;
         for (Expression conjunct : filterConjuncts) {
-            SplitMatch result = classifyRecursive(conjunct, splitStats);
+            SplitMatch result = classifyRecursive(conjunct, splitStats, implicitNullsForAbsentColumn);
             if (result == SplitMatch.MISS) {
                 return SplitMatch.MISS;
             }
@@ -103,13 +102,13 @@ final class SplitFilterClassifier {
         return allMatch ? SplitMatch.MATCH : SplitMatch.AMBIGUOUS;
     }
 
-    private static SplitMatch classifyRecursive(Expression expr, Map<String, Object> splitStats) {
+    private static SplitMatch classifyRecursive(Expression expr, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         if (expr instanceof And and) {
-            SplitMatch left = classifyRecursive(and.left(), splitStats);
+            SplitMatch left = classifyRecursive(and.left(), splitStats, implicitNullsForAbsentColumn);
             if (left == SplitMatch.MISS) {
                 return SplitMatch.MISS;
             }
-            SplitMatch right = classifyRecursive(and.right(), splitStats);
+            SplitMatch right = classifyRecursive(and.right(), splitStats, implicitNullsForAbsentColumn);
             if (right == SplitMatch.MISS) {
                 return SplitMatch.MISS;
             }
@@ -119,11 +118,11 @@ final class SplitFilterClassifier {
             return SplitMatch.AMBIGUOUS;
         }
         if (expr instanceof Or or) {
-            SplitMatch left = classifyRecursive(or.left(), splitStats);
+            SplitMatch left = classifyRecursive(or.left(), splitStats, implicitNullsForAbsentColumn);
             if (left == SplitMatch.MATCH) {
                 return SplitMatch.MATCH;
             }
-            SplitMatch right = classifyRecursive(or.right(), splitStats);
+            SplitMatch right = classifyRecursive(or.right(), splitStats, implicitNullsForAbsentColumn);
             if (right == SplitMatch.MATCH) {
                 return SplitMatch.MATCH;
             }
@@ -133,7 +132,7 @@ final class SplitFilterClassifier {
             return SplitMatch.AMBIGUOUS;
         }
         if (expr instanceof Not not) {
-            SplitMatch child = classifyRecursive(not.field(), splitStats);
+            SplitMatch child = classifyRecursive(not.field(), splitStats, implicitNullsForAbsentColumn);
             return switch (child) {
                 case MATCH -> SplitMatch.MISS;
                 case MISS -> SplitMatch.AMBIGUOUS;
@@ -141,18 +140,18 @@ final class SplitFilterClassifier {
             };
         }
         if (expr instanceof IsNull isNull) {
-            return classifyIsNull(isNull, splitStats);
+            return classifyIsNull(isNull, splitStats, implicitNullsForAbsentColumn);
         }
         if (expr instanceof IsNotNull isNotNull) {
-            return classifyIsNotNull(isNotNull, splitStats);
+            return classifyIsNotNull(isNotNull, splitStats, implicitNullsForAbsentColumn);
         }
         if (expr instanceof In in) {
             return classifyIn(in, splitStats);
         }
-        return classifyConjunct(expr, splitStats);
+        return classifyConjunct(expr, splitStats, implicitNullsForAbsentColumn);
     }
 
-    private static SplitMatch classifyConjunct(Expression expr, Map<String, Object> splitStats) {
+    private static SplitMatch classifyConjunct(Expression expr, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         String columnName;
         Object literalValue;
         boolean reversed;
@@ -245,21 +244,32 @@ final class SplitFilterClassifier {
 
     /**
      * {@code col IS NULL}: MATCH when null_count == row_count, MISS when null_count == 0.
+     * <p>
+     * The null-count read below bakes in the {@link SplitStats} "implicit nulls" contract — an absent
+     * column reads as {@code null_count == rowCount} (all-null). That is true for footer formats, but for
+     * partially-harvested TEXT stats an absent column means "not harvested": classifying it as all-null
+     * would MATCH {@code IS NULL} (serving a count of N where the truth is 0) or MISS {@code IS NOT NULL}
+     * (serving 0 where the truth is N). When the format does not apply implicit nulls and the column was
+     * not observed, the classification is unknowable from stats — AMBIGUOUS, so the engine re-scans.
+     * This delegates to {@link ExternalSourceAggregatePushdown#columnStatUnservable} — the single owner of the
+     * "unharvested text column is unservable" rule, shared with the aggregate side.
      */
-    private static SplitMatch classifyIsNull(IsNull isNull, Map<String, Object> splitStats) {
+    private static SplitMatch classifyIsNull(IsNull isNull, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         String columnName = extractColumnName(isNull.field());
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        Long nullCount = SourceStatisticsSerializer.extractColumnNullCount(splitStats, columnName);
-        if (nullCount == null) {
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount < 0) {
             return SplitMatch.AMBIGUOUS;
         }
         if (nullCount == 0) {
             return SplitMatch.MISS;
         }
-        Long rowCount = SourceStatisticsSerializer.extractRowCount(splitStats);
-        if (rowCount != null && nullCount.equals(rowCount)) {
+        if (nullCount == splitStats.rowCount()) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -267,21 +277,25 @@ final class SplitFilterClassifier {
 
     /**
      * {@code col IS NOT NULL}: MATCH when null_count == 0, MISS when null_count == row_count.
+     * Same unharvested-column guard as {@link #classifyIsNull}: for a format without implicit nulls, an
+     * unobserved column's null count is unknowable — AMBIGUOUS, never a MISS that would serve COUNT(*) = 0.
      */
-    private static SplitMatch classifyIsNotNull(IsNotNull isNotNull, Map<String, Object> splitStats) {
+    private static SplitMatch classifyIsNotNull(IsNotNull isNotNull, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         String columnName = extractColumnName(isNotNull.field());
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        Long nullCount = SourceStatisticsSerializer.extractColumnNullCount(splitStats, columnName);
-        if (nullCount == null) {
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount < 0) {
             return SplitMatch.AMBIGUOUS;
         }
         if (nullCount == 0) {
             return SplitMatch.MATCH;
         }
-        Long rowCount = SourceStatisticsSerializer.extractRowCount(splitStats);
-        if (rowCount != null && nullCount.equals(rowCount)) {
+        if (nullCount == splitStats.rowCount()) {
             return SplitMatch.MISS;
         }
         return SplitMatch.AMBIGUOUS;
@@ -291,7 +305,7 @@ final class SplitFilterClassifier {
      * {@code col IN (lit1, lit2, ...)}: MISS when all literals fall outside [min, max],
      * MATCH when min == max and that value equals one of the literals and null_count == 0.
      */
-    private static SplitMatch classifyIn(In in, Map<String, Object> splitStats) {
+    private static SplitMatch classifyIn(In in, SplitStats splitStats) {
         String columnName = extractColumnName(in.value());
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
@@ -300,8 +314,8 @@ final class SplitFilterClassifier {
         if (literalValues.stream().anyMatch(v -> v == null)) {
             return SplitMatch.AMBIGUOUS;
         }
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -328,7 +342,7 @@ final class SplitFilterClassifier {
         }
         if (minMaxCmp == 0) {
             for (Object lit : literalValues) {
-                if (compareValues(min, lit) == 0 && hasNoNulls(columnName, splitStats)) {
+                if (compareValues(min, lit) == 0 && matchableColumn(columnName, splitStats)) {
                     return SplitMatch.MATCH;
                 }
             }
@@ -339,9 +353,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col > lit}: MATCH when min &gt; lit (and no nulls), MISS when max &lt;= lit
      */
-    private static SplitMatch classifyGreaterThan(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyGreaterThan(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -356,7 +370,7 @@ final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp > 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp > 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -365,9 +379,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col >= lit}: MATCH when min &gt;= lit (and no nulls), MISS when max &lt; lit
      */
-    private static SplitMatch classifyGreaterThanOrEqual(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyGreaterThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -382,7 +396,7 @@ final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp >= 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp >= 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -391,9 +405,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col < lit}: MATCH when max &lt; lit (and no nulls), MISS when min &gt;= lit
      */
-    private static SplitMatch classifyLessThan(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyLessThan(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -408,7 +422,7 @@ final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp < 0 && hasNoNulls(columnName, splitStats)) {
+        if (maxCmp < 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -417,9 +431,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col <= lit}: MATCH when max &lt;= lit (and no nulls), MISS when min &gt; lit
      */
-    private static SplitMatch classifyLessThanOrEqual(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyLessThanOrEqual(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -434,7 +448,7 @@ final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp <= 0 && hasNoNulls(columnName, splitStats)) {
+        if (maxCmp <= 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -443,9 +457,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col = lit}: MATCH when min == max == lit (and no nulls), MISS when lit outside [min, max]
      */
-    private static SplitMatch classifyEquals(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyEquals(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -457,7 +471,7 @@ final class SplitFilterClassifier {
         if (minCmp < 0 || maxCmp > 0) {
             return SplitMatch.MISS;
         }
-        if (minCmp == 0 && maxCmp == 0 && hasNoNulls(columnName, splitStats)) {
+        if (minCmp == 0 && maxCmp == 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -466,9 +480,9 @@ final class SplitFilterClassifier {
     /**
      * {@code col != lit}: MATCH when min == max and min != lit (and no nulls), MISS when min == max == lit
      */
-    private static SplitMatch classifyNotEquals(String columnName, Object literalValue, Map<String, Object> splitStats) {
-        Object min = SourceStatisticsSerializer.extractColumnMin(splitStats, columnName);
-        Object max = SourceStatisticsSerializer.extractColumnMax(splitStats, columnName);
+    private static SplitMatch classifyNotEquals(String columnName, Object literalValue, SplitStats splitStats) {
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
@@ -484,19 +498,27 @@ final class SplitFilterClassifier {
         if (minMaxCmp == 0 && minCmp == 0) {
             return SplitMatch.MISS;
         }
-        if (minMaxCmp == 0 && minCmp != 0 && hasNoNulls(columnName, splitStats)) {
+        if (minMaxCmp == 0 && minCmp != 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
     }
 
     /**
-     * Returns true when the column has zero null values in this split.
-     * When null_count is unavailable, assumes nulls may exist (conservative).
+     * A comparison/IN MATCH may only be served from min/max stats when EVERY row contributes exactly one value
+     * the bound describes: no nulls AND single-valued. A null row's comparison is NULL (not true), and a
+     * MULTIVALUED row's comparison is ALSO NULL — e.g. {@code [5,5] == 5} yields NULL, so the row does NOT match,
+     * yet {@code min == max == 5} would say it does; serving the count would over-count. With zero nulls,
+     * {@code value_count == rowCount} proves exactly one value per row. An unknown value_count ({@code -1}, e.g.
+     * a scope that did not harvest it) cannot prove single-valuedness, so the split is not matchable and the
+     * classifier stays AMBIGUOUS — the engine re-scans rather than serving a wrong count.
      */
-    private static boolean hasNoNulls(String columnName, Map<String, Object> splitStats) {
-        Long nullCount = SourceStatisticsSerializer.extractColumnNullCount(splitStats, columnName);
-        return nullCount != null && nullCount == 0;
+    private static boolean matchableColumn(String columnName, SplitStats splitStats) {
+        if (splitStats.columnNullCount(columnName) != 0) {
+            return false;
+        }
+        long valueCount = splitStats.columnValueCount(columnName);
+        return valueCount >= 0 && valueCount == splitStats.rowCount();
     }
 
     private static String extractColumnName(Expression expr) {
@@ -518,33 +540,11 @@ final class SplitFilterClassifier {
 
     /**
      * Compares two values, returning negative, zero, or positive as with {@link Comparable#compareTo}.
-     * Returns {@link Integer#MIN_VALUE} when the values are not comparable (type mismatch or null).
-     * Uses exact long comparison for integral types to avoid double precision loss.
+     * Returns {@link StatValueComparator#INCOMPARABLE} ({@link Integer#MIN_VALUE}) when the values are
+     * not comparable (type mismatch or null). Delegates to the shared {@link StatValueComparator} so all
+     * stats-driven planner comparisons normalize boxed numeric types identically.
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     static int compareValues(Object a, Object b) {
-        if (a == null || b == null) {
-            return Integer.MIN_VALUE;
-        }
-        if (a instanceof BytesRef br) {
-            a = br.utf8ToString();
-        }
-        if (b instanceof BytesRef br) {
-            b = br.utf8ToString();
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            if (isIntegral(na) && isIntegral(nb)) {
-                return Long.compare(na.longValue(), nb.longValue());
-            }
-            return Double.compare(na.doubleValue(), nb.doubleValue());
-        }
-        if (a instanceof Comparable ca && a.getClass() == b.getClass()) {
-            return ca.compareTo(b);
-        }
-        return Integer.MIN_VALUE;
-    }
-
-    private static boolean isIntegral(Number n) {
-        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
+        return StatValueComparator.compare(a, b);
     }
 }

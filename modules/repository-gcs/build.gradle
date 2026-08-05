@@ -46,14 +46,15 @@ dependencies {
   runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
   runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
-  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
   runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
   runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   implementation 'org.checkerframework:checker-qual:3.49.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
-  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
   runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
@@ -275,7 +276,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed

@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -107,14 +108,15 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected String getQuery() {
+    protected InferenceStringGroup getInput() {
         if (queryVectorSupplier != null) {
             // We are in the process of rewriting to generate a query vector. Return null to prevent
             // InferenceQueryUtils from attempting to generate inference results based on the query text.
             return null;
         }
 
-        return originalQuery.getQuery();
+        String query = originalQuery.getQuery();
+        return query != null ? new InferenceStringGroup(query) : null;
     }
 
     @Override

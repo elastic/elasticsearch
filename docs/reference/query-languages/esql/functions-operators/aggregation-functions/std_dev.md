@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `STD_DEV` function [esql-std_dev]
 
-:::{include} ../../_snippets/functions/layout/std_dev.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/std_dev.md
 :::

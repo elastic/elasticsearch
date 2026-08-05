@@ -73,6 +73,23 @@ public interface EstimatesRowSize {
         }
 
         /**
+         * Similar to {@link #add(boolean, List)} but count text fields as keyword field.
+         * This allows pipeline with Enrich, LookupJoin to avoiding generate many smaller pages,
+         * which have significant overhead per page.
+         */
+        public void add(boolean needsSortedDocIds, List<? extends Expression> expressions, boolean countTextFieldAsKeyword) {
+            for (var expr : expressions) {
+                DataType dataType = expr.dataType();
+                if (countTextFieldAsKeyword && dataType == DataType.TEXT) {
+                    dataType = DataType.KEYWORD;
+                }
+                estimatedRowSize += estimateSize(dataType);
+            }
+            maxEstimatedRowSize = Math.max(estimatedRowSize, maxEstimatedRowSize);
+            this.needsSortedDocIds |= needsSortedDocIds;
+        }
+
+        /**
          * Model an operator that consumes all fields.
          * @return the number of bytes added to pages emitted by the operator
          *         being modeled

@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 145820
-summary: Bugfix for CCS BWC in `SearchShardsAction`
-type: bug

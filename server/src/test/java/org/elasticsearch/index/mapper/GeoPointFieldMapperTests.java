@@ -597,11 +597,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
@@ -613,12 +608,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
-
-                    if (columnReader) {
-                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
-                    }
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
-
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();

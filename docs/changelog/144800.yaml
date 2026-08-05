@@ -1,5 +1,0 @@
-area: Analysis
-issues: []
-pr: 144800
-summary: Inject circuit breaker into forked `SynonymMapBuilder`
-type: enhancement

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 // begin generated imports
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -164,7 +163,7 @@ public class InLongEvaluator implements ExpressionEvaluator {
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            this.warnings = driverContext.createWarnings(source);
         }
         return warnings;
     }

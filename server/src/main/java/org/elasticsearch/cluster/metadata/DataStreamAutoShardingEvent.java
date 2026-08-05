@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.function.LongSupplier;
 
 /**
- * Represents the last auto sharding event that occured for a data stream.
+ * Represents the last auto sharding event that occurred for a data stream.
  */
 public record DataStreamAutoShardingEvent(String triggerIndexName, int targetNumberOfShards, long timestamp)
     implements

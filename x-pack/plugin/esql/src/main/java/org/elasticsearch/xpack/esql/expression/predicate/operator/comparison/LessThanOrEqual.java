@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
-public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "LessThanOrEqual",
@@ -36,10 +37,10 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
         Map.entry(DataType.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, LessThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, LessThanOrEqualBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, LessThanOrEqualBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, LessThanOrEqualBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, LessThanOrEqualBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -157,8 +158,8 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
         return lhs <= rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) <= 0;
     }
 }

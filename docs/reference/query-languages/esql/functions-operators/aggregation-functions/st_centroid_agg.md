@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_CENTROID_AGG` function [esql-st_centroid_agg]
 
-:::{include} ../../_snippets/functions/layout/st_centroid_agg.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_centroid_agg.md
 :::

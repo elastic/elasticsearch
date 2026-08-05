@@ -55,6 +55,8 @@ final class BraceExpander {
 
     /**
      * Expands all brace groups in the glob into a list of concrete path candidates.
+     * Supports both comma-separated alternatives ({@code {a,b,c}}) and numeric
+     * range expressions ({@code {N..M}}) with leading-zero preservation.
      * Returns {@code null} if the Cartesian product exceeds {@code maxExpansion},
      * signaling that the caller should fall back to listing.
      * Returns a single-element list containing the input if no braces are found.
@@ -71,8 +73,13 @@ final class BraceExpander {
         }
 
         String prefix = glob.substring(0, braceStart);
-        String[] alternatives = glob.substring(braceStart + 1, braceEnd).split(",", -1);
+        String braceContent = glob.substring(braceStart + 1, braceEnd);
         String suffix = glob.substring(braceEnd + 1);
+
+        String[] alternatives = expandBraceContent(braceContent, maxExpansion);
+        if (alternatives == null || alternatives.length > maxExpansion) {
+            return null;
+        }
 
         List<String> result = new ArrayList<>();
         for (String alt : alternatives) {
@@ -89,5 +96,87 @@ final class BraceExpander {
             }
         }
         return result;
+    }
+
+    /**
+     * Interprets brace content as either a numeric range ({@code N..M}) or
+     * comma-separated alternatives. For ranges, both ascending and descending
+     * sequences are supported, and leading zeros are preserved when either operand
+     * has a leading zero (matching bash semantics: {@code {01..03}} pads, {@code {1..3}} does not).
+     * Returns {@code null} if the range exceeds {@code maxExpansion}.
+     */
+    private static String[] expandBraceContent(String content, int maxExpansion) {
+        int dotDot = content.indexOf("..");
+        if (dotDot > 0 && dotDot < content.length() - 2 && content.indexOf(',') < 0) {
+            String startStr = content.substring(0, dotDot);
+            String endStr = content.substring(dotDot + 2);
+            if (isNumeric(startStr) && isNumeric(endStr)) {
+                String[] rangeResult = expandNumericRange(startStr, endStr, maxExpansion);
+                if (rangeResult != null) {
+                    return rangeResult;
+                }
+                return null;
+            }
+        }
+        return content.split(",", -1);
+    }
+
+    private static boolean isNumeric(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isDigit(s.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Nullable
+    private static String[] expandNumericRange(String startStr, String endStr, int maxExpansion) {
+        long start;
+        long end;
+        try {
+            start = Long.parseLong(startStr);
+            end = Long.parseLong(endStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+
+        int width = Math.max(startStr.length(), endStr.length());
+        boolean zeroPad = (startStr.length() > 1 && startStr.charAt(0) == '0') || (endStr.length() > 1 && endStr.charAt(0) == '0');
+
+        long count;
+        if (start <= end) {
+            count = end - start + 1;
+        } else {
+            count = start - end + 1;
+        }
+        if (count < 0 || count > maxExpansion) {
+            return null;
+        }
+
+        String[] result = new String[(int) count];
+        long step = start <= end ? 1 : -1;
+        long current = start;
+        for (int i = 0; i < count; i++) {
+            result[i] = zeroPad ? padWithZeros(current, width) : Long.toString(current);
+            current += step;
+        }
+        return result;
+    }
+
+    private static String padWithZeros(long value, int width) {
+        String str = Long.toString(value);
+        if (str.length() >= width) {
+            return str;
+        }
+        StringBuilder sb = new StringBuilder(width);
+        for (int i = str.length(); i < width; i++) {
+            sb.append('0');
+        }
+        sb.append(str);
+        return sb.toString();
     }
 }

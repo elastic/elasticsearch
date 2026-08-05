@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.junit.After;
 import org.junit.Before;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,32 +40,26 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
     public void wrapUncaughtExceptionHandler() {
         CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(true);
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
-                    && t.getName().equals("elasticsearch-error-rethrower")) {
-                    for (StackTraceElement element : e.getStackTrace()) {
-                        if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
-                            if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
-                                logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
-                                return;
-                            }
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
+                && t.getName().equals("elasticsearch-error-rethrower")) {
+                for (StackTraceElement element : e.getStackTrace()) {
+                    if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
+                        if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
+                            logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
+                            return;
                         }
                     }
                 }
-                uncaughtExceptionHandler.uncaughtException(t, e);
-            });
-            return null;
+            }
+            uncaughtExceptionHandler.uncaughtException(t, e);
         });
     }
 
     @After
     public void restoreUncaughtExceptionHandler() {
         CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(false);
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
-            return null;
-        });
+        Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
     }
 
     public void testCloseAndReopenFollowerIndex() throws Exception {

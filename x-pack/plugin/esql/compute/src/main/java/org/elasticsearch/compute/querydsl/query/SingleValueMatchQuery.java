@@ -18,6 +18,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -27,7 +28,10 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -44,7 +48,7 @@ import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
 
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
- * a {@link Warnings warning}.
+ * a {@link org.elasticsearch.compute.operator.Warnings warning}.
  * <p>
  *     Warnings are only emitted if the {@link TwoPhaseIterator#matches}. Meaning that,
  *     if the other query skips the doc either because the index doesn't match or because it's
@@ -53,6 +57,16 @@ import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
  *     matched but for having a multivalued field. If the document doesn't match but
  *     "almost" matches in some fairly lucene-specific ways then it *might* emit
  *     a warning.
+ * </p>
+ * <p>
+ *     A query can be built one of two ways. When the same {@link Query}/{@link Weight} might be
+ *     scored concurrently by more than one driver -- the Lucene-pushdown path shared across a
+ *     shard's slices -- it's bound to a {@link QueryWarnings} bridge plus a {@link WarningSourceLocation},
+ *     and warnings are dispatched to whichever driver is currently bound on the calling thread; see
+ *     {@link QueryWarnings} for why that bridge exists at all. When a query is instead privately owned
+ *     by exactly one driver/thread for its whole lifetime -- e.g. {@link org.elasticsearch.compute.operator.lookup.QueryList} --
+ *     it can instead be bound directly to an already-built {@link Warnings} instance, with no bridge,
+ *     no thread-local, and no lazy creation.
  * </p>
  */
 public final class SingleValueMatchQuery extends Query {
@@ -63,13 +77,79 @@ public final class SingleValueMatchQuery extends Query {
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
     private final IndexFieldData<?> fieldData;
-    private final Warnings warnings;
+    private final WarningsTarget warningsTarget;
     private final String multiValueExceptionMessage;
 
+    /**
+     * Where {@link #registerMultiValueException()} sends its warning: either a {@link QueryWarnings}
+     * bridge dispatching by calling-thread identity, or a concrete {@link Warnings} instance known
+     * up front.
+     */
+    private interface WarningsTarget {
+        void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message);
+
+        @Nullable
+        WarningSourceLocation source();
+    }
+
+    private record BridgedWarningsTarget(QueryWarnings warnings, WarningSourceLocation source) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(query, exceptionClass, message);
+        }
+    }
+
+    private record DirectWarningsTarget(Warnings warnings) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(exceptionClass, message);
+        }
+
+        @Override
+        public WarningSourceLocation source() {
+            return null;
+        }
+    }
+
+    /**
+     * Build, bound to a {@link QueryWarnings} bridge that resolves the calling driver's
+     * {@link org.elasticsearch.compute.operator.Warnings} by thread identity. Use this when the same
+     * query/{@link Weight} might be scored concurrently by more than one driver.
+     * @param warnings bridge used to resolve the calling driver's {@link org.elasticsearch.compute.operator.Warnings}
+     *                 for this query node; see {@link QueryWarnings} for why this can't just be a plain
+     *                 {@code Warnings} field
+     * @param source the location that produced this query, used to build a {@code Warnings} instance per driver
+     */
+    public SingleValueMatchQuery(
+        IndexFieldData<?> fieldData,
+        QueryWarnings warnings,
+        WarningSourceLocation source,
+        String multiValueExceptionMessage
+    ) {
+        this.fieldData = fieldData;
+        this.warningsTarget = new BridgedWarningsTarget(warnings, source);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * Build, bound directly to an already-built {@link Warnings} instance, with no bridge, no
+     * thread-local, and no lazy creation. Use this when the query is privately owned by exactly one
+     * driver/thread for its whole lifetime, e.g. {@link org.elasticsearch.compute.operator.lookup.QueryList}.
+     */
     public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
         this.fieldData = fieldData;
-        this.warnings = warnings;
+        this.warningsTarget = new DirectWarningsTarget(warnings);
         this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * The location that produced this query, if bound via the {@link QueryWarnings} bridge. Used by
+     * {@link LuceneOperator} to build a driver-local {@link Warnings} for this node. {@code null} when
+     * this query was bound directly to a {@link Warnings} instance.
+     */
+    @Nullable
+    public WarningSourceLocation source() {
+        return warningsTarget.source();
     }
 
     @Override
@@ -155,7 +235,8 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -180,7 +261,8 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -188,14 +270,15 @@ public final class SingleValueMatchQuery extends Query {
                 SortedBinaryDocValues sortedBinaryDocValues,
                 float boost,
                 ScoreMode scoreMode
-            ) {
+            ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
                 if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
                     || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
                     return new PredicateScorerSupplier(
                         boost,
                         scoreMode,
-                        maxDoc,
+                        approximationIterator,
                         MULTI_VALUE_MATCH_COST,
                         sortedBinaryDocValues::advanceExact
                     );
@@ -210,7 +293,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
         };
     }
@@ -312,27 +395,42 @@ public final class SingleValueMatchQuery extends Query {
     }
 
     private void registerMultiValueException() {
-        warnings.registerException(IllegalArgumentException.class, multiValueExceptionMessage);
+        warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
+    }
+
+    static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {
+        var iterator = FieldExistsQuery.getDocValuesDocIdSetIterator(fieldName, reader);
+        if (iterator != null) {
+            return iterator;
+        } else {
+            return DocIdSetIterator.all(maxDoc);
+        }
     }
 
     private static class PredicateScorerSupplier extends ScorerSupplier {
         private final float score;
         private final ScoreMode scoreMode;
-        private final int maxDoc;
         private final int matchCost;
         private final CheckedIntPredicate predicate;
+        private final DocIdSetIterator approximation;
 
-        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
+        private PredicateScorerSupplier(
+            float score,
+            ScoreMode scoreMode,
+            DocIdSetIterator approximation,
+            int matchCost,
+            CheckedIntPredicate predicate
+        ) {
             this.score = score;
             this.scoreMode = scoreMode;
-            this.maxDoc = maxDoc;
             this.matchCost = matchCost;
             this.predicate = predicate;
+            this.approximation = approximation;
         }
 
         @Override
         public Scorer get(long leadCost) {
-            TwoPhaseIterator iterator = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
+            TwoPhaseIterator iterator = new TwoPhaseIterator(approximation) {
                 @Override
                 public boolean matches() throws IOException {
                     return predicate.test(approximation.docID());
@@ -348,7 +446,7 @@ public final class SingleValueMatchQuery extends Query {
 
         @Override
         public long cost() {
-            return maxDoc;
+            return approximation.cost();
         }
     }
 

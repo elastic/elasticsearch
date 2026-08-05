@@ -65,7 +65,7 @@ public class VectorOpsTests extends ESTestCase {
         float[] dest = new float[19];
         linearCombination(scaleX, x, scaleY, y, dest);
         ESVectorUtil.linearCombination(scaleX, x, scaleY, y);
-        assertArrayEquals(dest, y, 0.0f);
+        assertArrayEquals(dest, y, 1e-5f);
     }
 
     private static void linearCombination(float scaleX, float[] x, float scaleY, float[] y, float[] dest) {

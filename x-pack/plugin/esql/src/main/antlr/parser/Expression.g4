@@ -13,19 +13,20 @@ booleanExpression
     | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
+    | valueExpression (NOT)? IN subquery                                         #logicalInSubquery
     | valueExpression IS NOT? NULL                                               #isNull
     | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? LIKE stringOrParameter                                     #likeExpression
-    | valueExpression (NOT)? RLIKE stringOrParameter                                    #rlikeExpression
+    : valueExpression (NOT)? LIKE primaryExpression                                     #likeExpression
+    | valueExpression (NOT)? RLIKE primaryExpression                                    #rlikeExpression
     | valueExpression (NOT)? LIKE LP stringOrParameter (COMMA stringOrParameter )* RP   #likeListExpression
     | valueExpression (NOT)? RLIKE LP stringOrParameter (COMMA stringOrParameter )* RP  #rlikeListExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
+    : fieldExp=primaryExpression COLON matchQuery=constant
     ;
 
 valueExpression
@@ -49,13 +50,23 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
+    : functionName LP (ASTERISK | (functionParam (COMMA functionParam)* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
     | FIRST
     | LAST
+    ;
+
+functionParam
+    : booleanExpression
+    | lambda
+    ;
+
+lambda
+    : LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
+    | identifier ARROW booleanExpression
     ;
 
 mapExpression

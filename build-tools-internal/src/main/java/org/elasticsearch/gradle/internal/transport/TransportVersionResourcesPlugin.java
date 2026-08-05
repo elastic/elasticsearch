@@ -102,7 +102,10 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.setDescription("(Re)generates a transport version definition file");
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-        validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
+        validateTask.configure(t -> {
+            t.mustRunAfter(generateDefinitionsTask);
+            t.getIncrement().set(generateDefinitionsTask.flatMap(GenerateTransportVersionDefinitionTask::getIncrement));
+        });
 
         var resolveConflictTask = project.getTasks()
             .register("resolveTransportVersionConflict", ResolveTransportVersionConflictTask.class, t -> {

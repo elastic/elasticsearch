@@ -83,10 +83,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
-    @Option(
-        option = "entitlements",
-        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
-    )
+    @Option(option = "entitlements", description = "Use the Entitlements agent system to enforce sandbox policies.")
     public void setEntitlementsEnabled(boolean enabled) {}
 
     @Input
@@ -139,9 +136,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Option(
         option = "using-otel-sdk",
-        description = "Use the OTel SDK for metrics export instead of the APM agent. "
+        description = "Use the OTel SDK for metrics and traces export instead of the APM agent. "
             + "Can be combined with --with-apm-server (uses built-in mock server) or alone, manually "
-            + "setting telemetry.otel.metrics.endpoint."
+            + "setting telemetry.export.endpoint."
     )
     public void setUsingOtelSdk(Boolean usingOtelSdk) {
         this.usingOtelSdk = usingOtelSdk;
@@ -301,16 +298,19 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 }
                 if (usingOtelSdk) {
                     node.systemProperty("telemetry.otel.metrics.enabled", "true");
+                    node.systemProperty("telemetry.otel.traces.enabled", "true");
                     node.setting("telemetry.metrics.enabled", "true");
                 }
                 if (mockServer != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    // Sample everything so spans are actually emitted. On the OTel SDK path this also feeds the
+                    // default of telemetry.tracing.sample_rate (which otherwise defaults to 0.001).
+                    node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                     if (usingOtelSdk) {
-                        node.setting("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + mockServer.getPort() + "/v1/metrics");
+                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
                     } else {
-                        node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                         node.setting("telemetry.agent.transaction_max_spans", "100");
                         node.setting("telemetry.agent.metrics_interval", "10s");
                     }

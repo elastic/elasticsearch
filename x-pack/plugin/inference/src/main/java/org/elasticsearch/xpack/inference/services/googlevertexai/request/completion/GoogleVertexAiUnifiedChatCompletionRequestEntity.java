@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
@@ -65,6 +66,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     private final UnifiedChatInput unifiedChatInput;
     private final ThinkingConfig thinkingConfig;
+    @Nullable
+    private final Integer taskMaxTokens;
 
     private static final String USER_ROLE = "user";
     private static final String MODEL_ROLE = "model";
@@ -76,8 +79,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String SYSTEM_INSTRUCTION = "systemInstruction";
 
     public GoogleVertexAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, ThinkingConfig thinkingConfig) {
+        this(unifiedChatInput, thinkingConfig, null);
+    }
+
+    public GoogleVertexAiUnifiedChatCompletionRequestEntity(
+        UnifiedChatInput unifiedChatInput,
+        ThinkingConfig thinkingConfig,
+        @Nullable Integer taskMaxTokens
+    ) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.thinkingConfig = Objects.requireNonNull(thinkingConfig);
+        this.taskMaxTokens = taskMaxTokens;
     }
 
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
@@ -331,9 +343,20 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private void buildGenerationConfig(XContentBuilder builder) throws IOException {
         var request = unifiedChatInput.getRequest();
 
+        // Fall back to the configured task-settings maxTokens when the per-request value is null,
+        // so endpoint-level configuration isn't silently ignored. Use an explicit if/else (not a
+        // ternary) to avoid Java unboxing both Long and Integer to a primitive, which would NPE on
+        // the unused branch when one side is null.
+        final Number maxOutputTokens;
+        if (request.maxCompletionTokens() != null) {
+            maxOutputTokens = request.maxCompletionTokens();
+        } else {
+            maxOutputTokens = taskMaxTokens;
+        }
+
         boolean hasAnyConfig = request.stop() != null
             || request.temperature() != null
-            || request.maxCompletionTokens() != null
+            || maxOutputTokens != null
             || request.topP() != null
             || thinkingConfig.isEmpty() == false;
 
@@ -349,8 +372,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         if (request.temperature() != null) {
             builder.field(TEMPERATURE, request.temperature());
         }
-        if (request.maxCompletionTokens() != null) {
-            builder.field(MAX_OUTPUT_TOKENS, request.maxCompletionTokens());
+        if (maxOutputTokens != null) {
+            builder.field(MAX_OUTPUT_TOKENS, maxOutputTokens);
         }
         if (request.topP() != null) {
             builder.field(TOP_P, request.topP());

@@ -211,7 +211,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             objectMappers,
             fieldAliasMappers,
             emptyList(),
-            randomFrom(IndexMode.values())
+            randomFrom(IndexMode.availableModes())
         );
     }
 }

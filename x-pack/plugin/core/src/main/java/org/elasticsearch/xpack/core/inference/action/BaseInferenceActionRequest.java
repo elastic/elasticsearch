@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
-public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
+public abstract class BaseInferenceActionRequest extends UntypedActionRequest {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
@@ -39,10 +39,6 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
      * would otherwise lead to requests instantly timing out, which is not a valid use case
      */
     public static final TimeValue TIMEOUT_NOT_DETERMINED = TimeValue.ZERO;
-    /**
-     * A timeout to use in the (unexpected) case that the appropriate default timeout cannot be determined for a given task type
-     */
-    public static final TimeValue FALLBACK_TIMEOUT = TimeValue.THIRTY_SECONDS;
     /**
      * The default timeout used for all task types prior to {@link BaseInferenceActionRequest#INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED}
      */
@@ -69,7 +65,8 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(InferenceContext context) {
         super();
-        this.context = context;
+        // The context should never be null, but this is just a safeguard in case we missed a place where null could be passed in.
+        this.context = Objects.requireNonNullElse(context, InferenceContext.EMPTY_INSTANCE);
     }
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {

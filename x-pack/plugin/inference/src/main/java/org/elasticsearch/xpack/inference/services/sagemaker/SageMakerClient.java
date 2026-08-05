@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.sender.TimedListener.timeoutException;
 
 public class SageMakerClient implements Closeable {
     private static final Logger log = LogManager.getLogger(SageMakerClient.class);
@@ -71,6 +72,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<InvokeEndpointResponse> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -94,9 +96,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(awsFuture);
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
-                );
+                contextPreservingListener.onFailure(timeoutException(timeout, inferenceId));
             }
         );
         awsFuture.thenAcceptAsync(timeoutListener::onResponse, threadPool.executor(UTILITY_THREAD_POOL_NAME))
@@ -130,6 +130,7 @@ public class SageMakerClient implements Closeable {
         RegionAndSecrets regionAndSecrets,
         InvokeEndpointWithResponseStreamRequest request,
         TimeValue timeout,
+        String inferenceId,
         ActionListener<SageMakerStream> listener
     ) {
         SageMakerRuntimeAsyncClient asyncClient;
@@ -154,9 +155,7 @@ public class SageMakerClient implements Closeable {
             contextPreservingListener,
             ignored -> {
                 FutureUtils.cancel(cancelAwsRequestListener.get());
-                contextPreservingListener.onFailure(
-                    new ElasticsearchStatusException("Request timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout)
-                );
+                contextPreservingListener.onFailure(timeoutException(timeout, inferenceId));
             }
         );
         // To stay consistent with HTTP providers, we cancel the TimeoutListener onResponse because we are measuring the time it takes to

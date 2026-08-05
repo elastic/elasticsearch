@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -39,6 +40,15 @@ public interface EvaluatorMapper {
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
+        }
+
+        /**
+         * Returns the {@link Analyzer} registered (prebuilt or plugin-contributed) under the given name.
+         * Implementations that have access to an analysis registry resolve the name; the default
+         * throws because no registry is available (e.g. during folding or in tests).
+         */
+        default Analyzer getAnalyzer(String name) {
+            throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
     }
 

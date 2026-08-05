@@ -37,7 +37,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     BooleanBlock asBlock();
 
     @Override
-    BooleanVector filter(boolean mayContainDuplicates, int... positions);
+    BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default BooleanVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     BooleanBlock keepMask(BooleanVector mask);
@@ -76,6 +81,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
      * Are all values {@code false}? This will scan all values to check and always answer accurately.
      */
     boolean allFalse();
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Byte.BYTES} since all boolean values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

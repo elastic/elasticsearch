@@ -68,6 +68,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             } else {
                 state = HistogramUnionState.readAsPureTDigest(HistogramUnionState.NOOP_BREAKER, in);
             }
+            state.compress();
         } else {
             state = null;
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
@@ -39,17 +40,15 @@ public class GoogleVertexAiRerankModelTests extends ESTestCase {
     }
 
     public static GoogleVertexAiRerankModel createModel(@Nullable String modelId, @Nullable Integer topN) {
-        return new GoogleVertexAiRerankModel(
-            "id",
-            TaskType.RERANK,
-            "service",
-            new GoogleVertexAiRerankServiceSettings(randomAlphaOfLength(10), modelId, null),
-            new GoogleVertexAiRerankTaskSettings(topN),
-            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8))
-        );
+        return createModel("https://fake.abc", modelId, topN, randomAlphaOfLength(8));
     }
 
-    public static GoogleVertexAiRerankModel createModel(String url, @Nullable String modelId, @Nullable Integer topN) {
+    public static GoogleVertexAiRerankModel createModel(
+        String url,
+        @Nullable String modelId,
+        @Nullable Integer topN,
+        String authHeaderValue
+    ) {
         return new GoogleVertexAiRerankModel(
             "id",
             TaskType.RERANK,
@@ -57,7 +56,8 @@ public class GoogleVertexAiRerankModelTests extends ESTestCase {
             url,
             new GoogleVertexAiRerankServiceSettings(randomAlphaOfLength(10), modelId, null),
             new GoogleVertexAiRerankTaskSettings(topN),
-            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8))
+            new GoogleVertexAiSecretSettings(randomSecureStringOfLength(8)),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

@@ -47,6 +47,20 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
     }
 
     @Override
+    public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
+    }
+
+    @Override
     public HistogramValues getLeaf(LeafReaderContext context) throws IOException {
         LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
         return histogramFieldData.getHistogramValues();
@@ -92,27 +106,22 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
             }
         }
 
-        public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                if (tDigestState == null) {
-                    // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.createOfType(new NoopCircuitBreaker("downsampling-histograms"), type, compression);
-                }
-                final HistogramValue sketch = docValues.histogram();
-                while (sketch.next()) {
-                    tDigestState.add(sketch.value(), sketch.count());
-                }
+        @Override
+        public void collectCurrentValues(HistogramValues docValues) throws IOException {
+            if (tDigestState == null) {
+                // TODO: figure out what circuit breaker to use here and in the other histogram
+                tDigestState = TDigestState.createOfType(new NoopCircuitBreaker("downsampling-histograms"), type, compression);
             }
+            final HistogramValue sketch = docValues.histogram();
+            while (sketch.next()) {
+                tDigestState.add(sketch.value(), sketch.count());
+            }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             tDigestState = null;
         }
 
@@ -151,24 +160,15 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
             super(name, fieldType, fieldData);
         }
 
-        public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                lastValue = docValues.histogram();
-                return;
-            }
+        @Override
+        public void collectCurrentValues(HistogramValues docValues) throws IOException {
+            lastValue = docValues.histogram();
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             lastValue = null;
         }
 

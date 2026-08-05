@@ -119,6 +119,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
@@ -175,6 +177,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.ESQL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
@@ -402,7 +405,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         String[] realmNames = generateRandomStringArray(4, 4, true, true);
@@ -465,7 +468,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         CheckedSupplier<SearchResponse, IOException> searchResponseSupplier = () -> {
             // 2 API keys, one with a "null" (missing) realm type
             SearchHit[] searchHits = new SearchHit[2];
-            searchHits[0] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "0");
+            searchHits[0] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "0");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm1);
@@ -473,7 +476,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[0].sourceRef(BytesReference.bytes(builder));
             }
-            searchHits[1] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "1");
+            searchHits[1] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "1");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm2);
@@ -485,16 +488,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return SearchResponseUtils.successfulResponse(
-                SearchHits.unpooled(
-                    searchHits,
-                    new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                )
+            var responseHits = new SearchHits(
+                searchHits,
+                new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            return searchResponse;
         };
         doAnswer(invocation -> {
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[1], searchResponseSupplier.get());
@@ -553,7 +557,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set((SearchRequest) invocationOnMock.getArguments()[0]);
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            ActionListener.respondAndRelease(listener, SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().tookInMillis(1L).build());
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -624,24 +628,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -705,7 +707,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeyDocMap = buildApiKeySourceDoc("some_hash".toCharArray());
                 // Ensure type is null
@@ -713,19 +715,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeyDocMap);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1255,19 +1255,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set(invocationOnMock.getArgument(0));
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        searchHits.toArray(SearchHit[]::new),
-                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            SearchHits hits = new SearchHits(
+                searchHits.toArray(SearchHit[]::new),
+                new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            ActionListener.respondAndRelease(listener, response);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1312,7 +1310,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
-        final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+        final var searchHit = new SearchHit(docId, apiKeyId);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
                 {
@@ -3317,6 +3315,49 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(auth3.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth3.getValue(), notNullValue());
         assertThat(auth3.getMetadata(), hasEntry(API_KEY_TYPE_KEY, apiKeyDoc3.type.value()));
+    }
+
+    public void testCreateApiKeyWithDatasourcePrivilegeRejectedInMixedCluster() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersionUtils.getPreviousVersion(ESQL_DATASOURCE_PRIVILEGE));
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool,
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
+        );
+
+        final var datasourcePrivileges = new ConfigurableClusterPrivileges.DatasourcePrivileges(
+            List.of(
+                new ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup(
+                    new String[] { "my-ds" },
+                    new String[] { "read" }
+                )
+            )
+        );
+        final List<RoleDescriptor> requestRoleDescriptors = List.of(
+            new RoleDescriptor("test-role", null, null, null, new ConfigurableClusterPrivilege[] { datasourcePrivileges }, null, null, null)
+        );
+
+        final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
+        when(createRequest.getType()).thenReturn(ApiKey.Type.REST);
+        when(createRequest.getRoleDescriptors()).thenReturn(requestRoleDescriptors);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createRequest, Set.of(), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("datasource privilege"));
     }
 
     public void testValidateOwnerUserRoleDescriptorsWithWorkflowsRestriction() {

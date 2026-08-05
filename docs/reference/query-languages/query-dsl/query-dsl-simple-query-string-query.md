@@ -169,7 +169,7 @@ The available flags are:
 :   Enables the `-` NOT operator.
 
 `OR`
-:   Enables the `\|` OR operator.
+:   Enables the `|` OR operator.
 
 `PHRASE`
 :   Enables the `"` quotes operator used to search for phrases.

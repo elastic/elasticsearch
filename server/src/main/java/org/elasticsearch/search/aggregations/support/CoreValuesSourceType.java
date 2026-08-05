@@ -293,6 +293,20 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                  */
                 @Override
                 public Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+                    return prepareDateRounding(context, true);
+                }
+
+                /**
+                 * Like {@link #roundingPreparer(AggregationContext)} but skips query-derived bounds,
+                 * since under a {@code global} agg the top-level query is ignored.
+                 */
+                @Override
+                public Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+                    return prepareDateRounding(context, false);
+                }
+
+                private Function<Rounding, Rounding.Prepared> prepareDateRounding(AggregationContext context, boolean useQueryBounds)
+                    throws IOException {
                     DateFieldType dft = (DateFieldType) fieldContext.fieldType();
                     /*
                      * The range of dates, min first, then max. This is an array so we can
@@ -324,49 +338,51 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     }
                     log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
-                    boolean isMultiValue = false;
-                    for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
-                        if (fieldContext.fieldType().indexType().hasPoints()) {
-                            PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
-                            if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
-                                isMultiValue = true;
-                            }
-                        } else if (fieldContext.fieldType().hasDocValues()) {
-                            if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(leaf.reader(), fieldContext.field())) == null) {
-                                isMultiValue = true;
+                    if (useQueryBounds && context.query() != null) {
+                        boolean isMultiValue = false;
+                        for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
+                            if (fieldContext.fieldType().indexType().hasPoints()) {
+                                PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
+                                if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
+                                    isMultiValue = true;
+                                }
+                            } else if (fieldContext.fieldType().hasDocValues()) {
+                                if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(leaf.reader(), fieldContext.field())) == null) {
+                                    isMultiValue = true;
+                                }
                             }
                         }
-                    }
 
-                    // Check the query for bounds. If the field is multivalued, we can't apply query bounds, because a document that
-                    // matches the query might also have values outside the query, which would not be included in any range.
-                    if (context.query() != null && false == isMultiValue) {
-                        log.trace("Attempting to apply query bound rounding");
-                        context.query().visit(new QueryVisitor() {
-                            @Override
-                            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                                // Only extract bounds queries that must filter the results
-                                return switch (occur) {
-                                    case MUST, FILTER -> this;
-                                    default -> QueryVisitor.EMPTY_VISITOR;
+                        // Check the query for bounds. If the field is multivalued, we can't apply query bounds, because a document that
+                        // matches the query might also have values outside the query, which would not be included in any range.
+                        if (false == isMultiValue) {
+                            log.trace("Attempting to apply query bound rounding");
+                            context.query().visit(new QueryVisitor() {
+                                @Override
+                                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                                    // Only extract bounds queries that must filter the results
+                                    return switch (occur) {
+                                        case MUST, FILTER -> this;
+                                        default -> QueryVisitor.EMPTY_VISITOR;
+                                    };
                                 };
-                            };
 
-                            @Override
-                            public boolean acceptField(String field) {
-                                return field.equals(fieldContext.fieldType().name());
-                            };
+                                @Override
+                                public boolean acceptField(String field) {
+                                    return field.equals(fieldContext.fieldType().name());
+                                };
 
-                            @Override
-                            public void visitLeaf(Query query) {
-                                if (query instanceof PointRangeQuery prq) {
-                                    range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
-                                    range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
-                                }
-                            };
-                        });
+                                @Override
+                                public void visitLeaf(Query query) {
+                                    if (query instanceof PointRangeQuery prq) {
+                                        range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
+                                        range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
+                                    }
+                                };
+                            });
+                        }
+                        log.trace("Bounds after query bound date rounding: {}, {}", range[0], range[1]);
                     }
-                    log.trace("Bounds after query bound date rounding: {}, {}", range[0], range[1]);
 
                     if (range[0] == Long.MIN_VALUE && range[1] == Long.MAX_VALUE) {
                         // Didn't find any bounds

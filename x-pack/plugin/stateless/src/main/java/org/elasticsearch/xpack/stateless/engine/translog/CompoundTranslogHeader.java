@@ -1,0 +1,68 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.engine.translog;
+
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
+import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
+
+import java.io.IOException;
+import java.util.Map;
+
+public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
+
+    static final String TRANSLOG_REPLICATOR_CODEC = "translog_replicator_file";
+    // Pin the transport version to 8.9 to ensure that serialization changes of used types can be read without version negotiation. In the
+    // future this might need to be advanced if 8.9 is no longer available.
+    static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.fromId(8_09_00_99);
+    static final int VERSION_WITH_FIXED_DIRECTORY = 3;
+    static final int VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY = 4;
+    static final int MINIMUM_VERSION = VERSION_WITH_FIXED_DIRECTORY;
+    private static final int CURRENT_VERSION = VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY;
+
+    public static CompoundTranslogHeader readFromStore(String name, StreamInput streamInput) throws IOException {
+        streamInput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+        BufferedChecksumStreamInput input = new BufferedChecksumStreamInput(streamInput, TRANSLOG_REPLICATOR_CODEC);
+        InputStreamDataInput dataInput = new InputStreamDataInput(input);
+        int version = CodecUtil.checkHeader(dataInput, TRANSLOG_REPLICATOR_CODEC, MINIMUM_VERSION, CURRENT_VERSION);
+        return readHeader(name, input, version);
+    }
+
+    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input, int version) throws IOException {
+        Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, (in) -> TranslogMetadata.readFromStore(in, version));
+        // Verify checksum of compound file
+        long expectedChecksum = input.getChecksum();
+        long readChecksum = Integer.toUnsignedLong(input.readInt());
+        if (readChecksum != expectedChecksum) {
+            throw new TranslogCorruptedException(
+                name,
+                "checksum verification failed - expected: 0x"
+                    + Long.toHexString(expectedChecksum)
+                    + ", got: 0x"
+                    + Long.toHexString(readChecksum)
+            );
+        }
+        return new CompoundTranslogHeader(metadata);
+    }
+
+    public void writeToStore(StreamOutput streamOutput) throws IOException {
+        streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_REPLICATOR_CODEC, CURRENT_VERSION);
+        out.writeMap(metadata);
+        out.writeInt((int) out.getChecksum());
+        out.flush();
+    }
+}

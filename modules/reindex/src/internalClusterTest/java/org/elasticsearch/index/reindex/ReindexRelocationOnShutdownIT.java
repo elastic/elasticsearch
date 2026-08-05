@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,24 +31,38 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeShutdownTestUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ElasticsearchException.getExceptionName;
 import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -71,9 +87,16 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     private static final String SOURCE = "reindex-relocation-source";
     private static final String DEST = "reindex-relocation-dest";
 
+    @After
+    public void clearTransportRules() {
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node).clearAllRules();
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -88,11 +111,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * Creates a 3 node cluster with a master node, data node and coordinating node (that will hold the reindexing request).
      * By shutting down the coordination node, the reindexing task is forced to relocate to the data node. Since the data node is not
      * shutting down, then pit relocation is guaranteed to succeed. We then assert that the destination index eventually contains
-     * all documents.
+     * all documents and that the relocated task's reported {@code Status#total} equals the source doc count.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
@@ -105,17 +126,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        // Keep the doc size small so the task finishes quickly
-        final int numDocs = randomIntBetween(10, 40);
-        createIndex(SOURCE);
-        indexRandom(
-            true,
-            false,
-            true,
-            IntStream.range(0, numDocs)
-                .mapToObj(i -> prepareIndex(SOURCE).setId(String.valueOf(i)).setSource("n", i))
-                .collect(Collectors.toList())
+        // Exceed the default cap so Status#total accuracy across relocation is meaningfully exercised.
+        final int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(
+            1,
+            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
         );
+        createIndex(SOURCE);
+        indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
         // Randomly make the source index read only
@@ -130,17 +147,16 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(0.000001f);
-        // This is the batch size of how many documents to return per search.
-        request.getSearchRequest().source().size(1);
+        request.getSearchRequest().source().size(1000);
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -167,10 +183,24 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         // Assert that the reindexing task on the first node failed
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
-        assertTrue(((TaskRelocatedException) ExceptionsHelper.unwrapCause(error)).getRelocatedTaskId().isPresent());
+        final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
+        final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();
         assertNull(response);
+
+        // Wait until the relocated task finishes (including persisting to `.tasks` when shouldStoreResult is true)
+        // so tear-down does not race with async task-result indexing.
+        final GetTaskResponse relocatedTaskFinished = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
+        assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
+
+        final Map<String, Object> responseMap = relocatedTaskFinished.getTask().getResponseAsMap();
+        final var reportedTotal = (Integer) responseMap.get(BulkByPaginatedSearchTask.Status.TOTAL_FIELD);
+        assertNotNull("relocated reindex response must include Status#total", reportedTotal);
+        assertEquals("relocated reindex Status#total must equal numDocs across the relocation boundary", numDocs, reportedTotal.intValue());
 
         // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {
@@ -197,14 +227,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      *         take up to an hour). However, due to the set-up of the test, search shards required for the pit are
      *         present on node 1. Therefore, if the reindexing task on node 2 is trying to access these shards on node 1 and
      *         then node 1 shuts down, then we get a different error.
-     *         These errors are {@link org.elasticsearch.action.search.SearchPhaseExecutionException} with
-     *         {@code node_not_connected_exception} if the query phase contacts the stopped node during the transport teardown.
+     *         These errors are {@link org.elasticsearch.action.search.SearchPhaseExecutionException} with a {@code failed_shards}
+     *         entry on the stopped node whose reason is {@code node_not_connected_exception} if the query phase contacts the
+     *         stopped node during transport teardown, or {@code search_context_missing_exception} if the shard search context is already
+     *         gone on that node.
      *     </li>
      * </ol>
      */
     public void testReindexFailsWhenPitRelocationFails() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
@@ -245,6 +275,19 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
+        // Create `.tasks` before reindex runs so its shards are allocated with the rest of the cluster, and set delayed
+        // node-left timeout to zero. Otherwise, when we stop the data node that holds the `.tasks` primary, the default
+        // ~1 minute delay before reallocating can cause task-result persistence to time out while the test polls GetTask.
+        assertAcked(indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX));
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(TaskResultsService.TASK_INDEX)
+                .setSettings(
+                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO).build()
+                )
+                .origin(TransportGetTaskAction.TASKS_ORIGIN)
+        );
+        ensureGreen(TaskResultsService.TASK_INDEX);
+
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
@@ -255,12 +298,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
 
         internalCluster().client(dataNodeRunningReindex).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -311,7 +354,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             final TaskResult relocated = relocatedTaskFinished.getTask();
             assertTrue("relocated reindex should finish", relocated.isCompleted());
             assertTrue(
-                "relocated reindex should fail with PIT missing-nodes or search-phase disconnect after stopped node",
+                "relocated reindex should fail after stopped node (PIT missing-nodes or search-phase shard failure on that node)",
                 taskResultIndicatesRelocatedReindexFailedAfterNodeLeft(relocated, stoppedDataNodeId)
             );
         }, 120, TimeUnit.SECONDS);
@@ -323,8 +366,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * and so an error is returned to the client
      */
     public void testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
@@ -367,11 +408,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -395,7 +436,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertTrue(
             "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response",
             reindexClientIndicatesCoordinatingNodeClosed(error, response)
@@ -412,8 +453,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * the task attempts to complete before node shutdown. Here we allow the test to complete and expect no errors
      */
     public void testReindexTaskFinishesBeforeNodeShutsDown() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
@@ -449,11 +488,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Start the reindexing task
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -477,7 +516,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertTrue("reindex listener should complete", listenerDone.await(60, TimeUnit.SECONDS));
 
         assertNull(failure.get());
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertNotNull(response);
         assertTrue(response.getBulkFailures().isEmpty());
         assertTrue(response.getSearchFailures().isEmpty());
@@ -489,13 +528,19 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * When the coordinating node stops mid-reindex, the client may get {@link ActionListener#onFailure} with
-     * {@link NodeClosedException}, or {@link ActionListener#onResponse} with a {@link BulkByScrollResponse} whose
-     * {@link BulkByScrollResponse#getBulkFailures()} wrap {@link NodeClosedException} after bulk indexing hits a closing node.
+     * When the coordinating node stops mid-reindex, the client may see one of:
+     * <ul>
+     *   <li>{@link ActionListener#onFailure} with {@link NodeClosedException} — transport closed before the task exited</li>
+     *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
+     *       {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} — bulk ops hit the closing node</li>
+     *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
+     *       {@link BulkByPaginatedSearchResponse#getReasonCancelled()} is {@code "node shutting down"} — the task was cancelled by
+     *       the shutdown hook and exited before the transport closed</li>
+     * </ul>
      */
     private static boolean reindexClientIndicatesCoordinatingNodeClosed(
         final Throwable clientFailure,
-        final BulkByScrollResponse response
+        final BulkByPaginatedSearchResponse response
     ) {
         if (clientFailure != null && ExceptionsHelper.unwrapCause(clientFailure) instanceof NodeClosedException) {
             return true;
@@ -505,6 +550,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 if (ExceptionsHelper.unwrapCause(bulkFailure.getCause()) instanceof NodeClosedException) {
                     return true;
                 }
+            }
+            if (ShutdownPrepareService.CANNOT_RELOCATE_REINDEX_CANCEL_REASON.equals(response.getReasonCancelled())) {
+                return true;
             }
         }
         return false;
@@ -519,10 +567,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      *   </li>
      *   <li>
      *       {@code search_phase_execution_exception} whose {@code failed_shards} for {@code stoppedDataNodeId} wrap
-     *       {@code node_not_connected_exception} or {@code node_disconnected_exception} (from
-     *       {@link org.elasticsearch.transport.NodeNotConnectedException} or
-     *       {@link org.elasticsearch.transport.NodeDisconnectedException}), which appear when a normal search phase still routes or
-     *       sends work to the old node while the connection is already gone.
+     *       {@code node_not_connected_exception}, {@code node_disconnected_exception}, or {@code search_context_missing_exception},
+     *       which appear when the query phase still routes work to the stopped node after its search context or transport is gone.
      *   </li>
      * </ul>
      */
@@ -533,7 +579,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         if (matchesSearchContextMissingNodesFailure(taskResult)) {
             return true;
         }
-        if (matchesSearchPhaseNodeDisconnectedFromStoppedNode(taskResult, stoppedDataNodeId)) {
+        if (matchesSearchPhaseFailureOnStoppedNode(taskResult, stoppedDataNodeId)) {
             return true;
         }
         logger.warn(
@@ -557,7 +603,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             return "search_context_missing_nodes_exception".equals(errorType);
         }
         final Map<String, Object> responseMap = taskResult.getResponseAsMap();
-        final Object failuresObj = responseMap.get(BulkByScrollResponse.FAILURES_FIELD);
+        final Object failuresObj = responseMap.get(BulkByPaginatedSearchResponse.FAILURES_FIELD);
         if (failuresObj instanceof List<?> failureList) {
             for (Object entry : failureList) {
                 if (entry instanceof Map<?, ?> failureMap) {
@@ -572,11 +618,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * {@link org.elasticsearch.action.search.SearchPhaseExecutionException} with a shard failure on the stopped node
-     * due to {@link org.elasticsearch.transport.NodeNotConnectedException} or
-     * {@link org.elasticsearch.transport.NodeDisconnectedException}.
+     * {@link org.elasticsearch.action.search.SearchPhaseExecutionException} with a shard failure on the stopped node whose
+     * reason indicates the PIT/search context on that node is unavailable (transport disconnect or missing search context).
      */
-    private static boolean matchesSearchPhaseNodeDisconnectedFromStoppedNode(final TaskResult taskResult, final String stoppedDataNodeId) {
+    private static boolean matchesSearchPhaseFailureOnStoppedNode(final TaskResult taskResult, final String stoppedDataNodeId) {
         if (taskResult.getError() == null) {
             return false;
         }
@@ -589,7 +634,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             for (Object fs : failedShards) {
                 if (fs instanceof Map<?, ?> shardFailure) {
                     if (stoppedDataNodeId.equals(shardFailure.get("node"))
-                        && reasonMapIndicatesNodeTransportDisconnect(shardFailure.get("reason"))) {
+                        && reasonMapIndicatesStoppedNodeSearchPhaseShardFailure(shardFailure.get("reason"))) {
                         return true;
                     }
                 }
@@ -599,24 +644,148 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * True if the serialized failure is a transport disconnect to the target node: either {@code node_not_connected_exception}
-     * or {@code node_disconnected_exception} (including under {@code caused_by}).
+     * True if the serialized shard failure reason means search on the stopped node cannot proceed: transport disconnect
+     * ({@code node_not_connected_exception} / {@code node_disconnected_exception}) or {@code search_context_missing_exception}
+     * (including under {@code caused_by}).
      */
-    private static boolean reasonMapIndicatesNodeTransportDisconnect(final Object reasonObj) {
+    private static boolean reasonMapIndicatesStoppedNodeSearchPhaseShardFailure(final Object reasonObj) {
         if (reasonObj instanceof Map<?, ?> reason) {
-            if (isNodeTransportDisconnectExceptionType(reason.get("type"))) {
+            if (isStoppedNodeSearchPhaseShardFailureType(reason.get("type"))) {
                 return true;
             }
             final Object causedBy = reason.get("caused_by");
-            if (causedBy instanceof Map<?, ?> cb && isNodeTransportDisconnectExceptionType(cb.get("type"))) {
+            if (causedBy instanceof Map<?, ?> cb && isStoppedNodeSearchPhaseShardFailureType(cb.get("type"))) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean isNodeTransportDisconnectExceptionType(final Object type) {
-        return "node_not_connected_exception".equals(type) || "node_disconnected_exception".equals(type);
+    private static boolean isStoppedNodeSearchPhaseShardFailureType(final Object type) {
+        return getExceptionName(NodeNotConnectedException.class).equals(type)
+            || getExceptionName(NodeDisconnectedException.class).equals(type)
+            || getExceptionName(SearchContextMissingException.class).equals(type);
+    }
+
+    /**
+     * Verifies that a reindex task that has committed a relocation handoff ({@code HANDOFF_INITIATED} state) is
+     * <em>not</em> cancelled when the shutdown reindex relocation timeout expires.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.node.ShutdownPrepareService:DEBUG",
+        reason = "So we can know when the task cancellation was attempted"
+    )
+    public void testRelocatingTaskIsNotCancelledOnShutdownTimeout() throws Exception {
+        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        final String dataNodeName = internalCluster().startDataOnlyNode();
+
+        // Short reindex timeout so the cancellation phase fires while the relocation is in-flight.
+        final Settings coordSettings = Settings.builder()
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(coordSettings);
+
+        ensureStableCluster(3);
+
+        final int numDocs = randomIntBetween(10, 40);
+        createIndex(SOURCE);
+        indexRandom(true, SOURCE, numDocs);
+        assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
+
+        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
+            .setDestIndex(DEST)
+            .setRefresh(true)
+            .setShouldStoreResult(true)
+            .setEligibleForRelocationOnShutdown(true)
+            .setRequestsPerSecond(0.000001f);
+        request.getSearchRequest().source().size(1000);
+
+        final CountDownLatch listenerDone = new CountDownLatch(1);
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByPaginatedSearchResponse r) {
+                listenerDone.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+                listenerDone.countDown();
+            }
+        });
+
+        waitForRootReindexTask(coordNodeName);
+
+        // Block the ResumeReindexAction on the destination node so the task stays in HANDOFF_INITIATED
+        // long enough for the shutdown timeout to fire.
+        final CountDownLatch resumeBlocked = new CountDownLatch(1);
+        final CountDownLatch resumeStarted = new CountDownLatch(1);
+        MockTransportService.getInstance(dataNodeName)
+            .addRequestHandlingBehavior(ResumeReindexAction.NAME, (handler, req, channel, task) -> {
+                resumeStarted.countDown();
+                safeAwait(resumeBlocked);
+                handler.messageReceived(req, channel, task);
+            });
+
+        final var executor = Executors.newSingleThreadExecutor();
+        try (MockLog mockLog = MockLog.capture(ShutdownPrepareService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "ensureCancellable() threw and the cancel was aborted",
+                    ShutdownPrepareService.class.getName(),
+                    Level.DEBUG,
+                    "Unable to cancel reindex task *"
+                )
+            );
+
+            // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
+            // waiting for the task to exit (which won’t happen until we release the transport block).
+            Future<?> shutdownFuture = executor.submit(
+                () -> internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName).prepareForShutdown()
+            );
+
+            // Rethrottle so the task quickly processes its page and commits the relocation handoff.
+            rethrottleRunningRootReindex(numDocs);
+
+            // Wait until the ResumeReindexAction is in-flight: the task is now in HANDOFF_INITIATED state.
+            safeAwait(resumeStarted);
+
+            // Wait for the cancellation to fail
+            mockLog.awaitAllExpectationsMatched();
+
+            // Release the transport block. With the fix the task was NOT cancelled, so the destination
+            // handler runs and the relocation completes normally.
+            resumeBlocked.countDown();
+
+            // The source task should complete via TaskRelocatedException (relocated, not cancelled).
+            safeAwait(listenerDone);
+            final var taskRelocatedException = asInstanceOf(TaskRelocatedException.class, ExceptionsHelper.unwrapCause(failure.get()));
+            final String relocatedTaskIdString = taskRelocatedException.getRelocatedTaskId().orElseThrow();
+
+            // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
+            safeGet(shutdownFuture);
+
+            // The relocated task should complete successfully on the data node.
+            final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))
+                .setWaitForCompletion(true)
+                .setTimeout(TimeValue.timeValueSeconds(60))
+                .get();
+            final var taskResult = relocatedResult.getTask();
+            assertTrue("relocated reindex should complete", taskResult.isCompleted());
+            assertNull("relocated reindex should not have errored", taskResult.getError());
+
+            assertBusy(() -> {
+                assertTrue(indexExists(DEST));
+                flushAndRefresh(DEST);
+                assertHitCount(prepareSearch(DEST).setSize(0).setTrackTotalHits(true), numDocs);
+            }, 30, TimeUnit.SECONDS);
+
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -654,6 +823,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                     ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(taskInfo.taskId())
                         // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
                         .setRequestsPerSecond((float) numDocs / 2)
+                        // Follow the relocation chain: if the task relocated between listing and rethrottling,
+                        // the rethrottle would silently return an empty success without this flag set.
+                        .setFollowRelocations(true)
                         .get();
                     rethrottleResponse.rethrowFailures("rethrottle after relocation");
                     return;

@@ -7,13 +7,21 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
@@ -22,8 +30,26 @@ import java.util.Map;
  */
 public abstract class DataSourceConfiguration {
 
+    private static final Logger logger = LogManager.getLogger(DataSourceConfiguration.class);
+
+    /**
+     * Deprecation-warning message template emitted when a deprecated {@code auth} value alias is canonicalized on
+     * parse. The two {@code {}} placeholders are the deprecated value and its canonical replacement, in that order.
+     * Shared by every {@code normalize()} that canonicalizes an {@code auth} alias so the emitted string stays
+     * byte-identical across datasource types (a serverless test filters on it).
+     */
+    public static final String DEPRECATED_AUTH_MESSAGE = "auth value [{}] is deprecated; the canonical value is [{}]";
+
+    /**
+     * Deprecation-logger key prefix for a deprecated {@code auth} value; the deprecated value name is appended to form
+     * the per-alias key (e.g. {@code esql_datasource_auth_none}). Shared so every {@code normalize()} keys the warning
+     * identically.
+     */
+    public static final String DEPRECATED_AUTH_LOG_KEY_PREFIX = "esql_datasource_auth_";
+
     private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
+    private final Set<String> preexistingSecretKeys;
 
     /**
      * Parses, normalizes, and validates raw settings from a REST request or CRUD layer.
@@ -42,7 +68,25 @@ public abstract class DataSourceConfiguration {
      * @throws ValidationException if any validation errors are found
      */
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+        this(raw, fieldDefs, Set.of());
+    }
+
+    /**
+     * Like {@link #DataSourceConfiguration(Map, Map)}, but for a PUT-as-update: a secret field omitted from
+     * {@code raw} is still treated as present (see {@link #hasStoredSecret}) if its name is in
+     * {@code preexistingSecretKeys}, so credential-completeness checks pass when the caller intends to keep
+     * the existing value. The caller excludes any key the request explicitly clears (JSON {@code null}).
+     *
+     * @param preexistingSecretKeys secret field names already stored, empty for a create
+     */
+    @SuppressWarnings("this-escape")
+    protected DataSourceConfiguration(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Set<String> preexistingSecretKeys
+    ) {
         this.fieldDefs = fieldDefs;
+        this.preexistingSecretKeys = Set.copyOf(preexistingSecretKeys);
         ValidationException errors = new ValidationException();
         DataSourceValidationUtils.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
         Map<String, Object> parsed = new HashMap<>();
@@ -56,16 +100,36 @@ public abstract class DataSourceConfiguration {
                 parsed.put(entry.getKey(), value);
             }
         }
+        normalize(parsed);
         this.values = Map.copyOf(parsed);
         validate(errors);
         errors.throwIfValidationErrorsExist();
     }
 
+    /**
+     * Subclass hook to canonicalize parsed values before they are frozen — e.g. mapping a deprecated
+     * enum alias to its current value so the stored configuration (and every later read) holds the
+     * canonical form. Runs after unknown-field rejection and case-insensitive lowering, before
+     * {@link #validate}. The default is a no-op. Like {@link #validate}, this is a virtual call during
+     * construction, so overrides must touch only the supplied map and static data, never instance fields.
+     */
+    protected void normalize(Map<String, Object> parsed) {}
+
     /** Cross-field validation. Accumulate errors into the provided exception. */
     protected abstract void validate(ValidationException errors);
 
-    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
+    /** True if any field marked secret has a value set, or a preexisting one carries forward (see {@link #hasStoredSecret}). */
     protected boolean hasAnySecretValue() {
+        return hasAnyExplicitSecretValue() || preexistingSecretKeys.isEmpty() == false;
+    }
+
+    /**
+     * True if any field marked secret has a value set in this request specifically, excluding any preexisting
+     * secret carried forward from a stored value. Use this to distinguish "this request supplied credentials"
+     * from "credentials came from the existing entry" in a conflict message — e.g. rejecting {@code
+     * auth=anonymous} because a stored secret wasn't cleared shouldn't say the request supplied one.
+     */
+    protected boolean hasAnyExplicitSecretValue() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
@@ -74,6 +138,85 @@ public abstract class DataSourceConfiguration {
             }
         }
         return false;
+    }
+
+    /**
+     * True if the named secret field has a value set in this request, or carries forward from a preexisting
+     * stored value on a PUT-as-update. Use this, not {@code Strings.hasText(get(key))}, in
+     * {@code hasCredentials()}/credential-completeness checks so an update that omits an already-stored
+     * secret still satisfies them.
+     */
+    protected boolean hasStoredSecret(String key) {
+        return Strings.hasText(get(key)) || preexistingSecretKeys.contains(key);
+    }
+
+    /** Returns true if any field marked as federated identity (aka keyless auth) has a value set. Null values are already excluded. */
+    public boolean hasFederatedAuth() {
+        for (var entry : values.entrySet()) {
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+            assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
+            if (def.federatedAuth()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs},
+     * paired with the set of keys that were kept. Used at query time where a query-time configuration map
+     * carries a mix of storage and format options; the storage plugin must ignore keys it does
+     * not own rather than reject them as unknown. Returns {@code null}/empty unchanged.
+     *
+     * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
+     * find out why the storage config came back with defaults. Only key <em>names</em> are
+     * logged — values are never emitted, since this method is unaware of which keys are secrets.
+     * Format keys (like {@code header_row}) will appear here too, which is expected.
+     */
+    protected static Configured<Map<String, Object>> filterKnown(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs
+    ) {
+        if (raw == null || raw.isEmpty()) {
+            return new Configured<>(raw, Set.of());
+        }
+        Map<String, Object> filtered = new HashMap<>(raw.size());
+        Set<String> consumed = new HashSet<>();
+        // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
+        // is not worth tracking precisely here.
+        boolean debug = logger.isDebugEnabled();
+        List<String> dropped = null;
+        for (Map.Entry<String, Object> entry : raw.entrySet()) {
+            if (fieldDefs.containsKey(entry.getKey())) {
+                filtered.put(entry.getKey(), entry.getValue());
+                consumed.add(entry.getKey());
+            } else if (debug) {
+                if (dropped == null) {
+                    dropped = new ArrayList<>();
+                }
+                dropped.add(entry.getKey());
+            }
+        }
+        if (dropped != null) {
+            logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
+        }
+        return new Configured<>(filtered, consumed);
+    }
+
+    /**
+     * Filters {@code raw} to keys in {@code fieldDefs} via {@link #filterKnown}, then constructs
+     * a configuration from the kept entries (or {@code null} if none kept). Pairs the result with
+     * the consumed-keys set. Use from each subclass's {@code fromQueryConfig} to eliminate the
+     * filter-construct-pair pipeline boilerplate.
+     */
+    protected static <T> Configured<T> filterAndConstruct(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Function<Map<String, Object>, T> constructor
+    ) {
+        Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
+        T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
+        return new Configured<>(value, filtered.consumedKeys());
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.completion;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -29,18 +30,21 @@ public class CompletionOperator extends InferenceOperator {
      * @param inferenceService  The inference service to use for executing inference requests.
      * @param inferenceId       The ID of the inference model to invoke.
      * @param promptEvaluator   Evaluator for computing prompts from input rows.
+     * @param taskSettings      Task-specific settings to include in inference requests.
+     * @param timeout           Timeout for each inference request.
      */
     CompletionOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator promptEvaluator,
-        Map<String, Object> taskSettings
+        Map<String, Object> taskSettings,
+        TimeValue timeout
     ) {
         super(
             driverContext,
             inferenceService,
-            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator, taskSettings),
+            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator, taskSettings, timeout),
             new CompletionOutputBuilder(driverContext.blockFactory())
         );
         this.taskSettings = taskSettings;
@@ -58,7 +62,8 @@ public class CompletionOperator extends InferenceOperator {
         InferenceService inferenceService,
         String inferenceId,
         ExpressionEvaluator.Factory promptEvaluatorFactory,
-        Map<String, Object> taskSettings
+        Map<String, Object> taskSettings,
+        TimeValue timeout
     ) implements OperatorFactory {
 
         @Override
@@ -73,7 +78,8 @@ public class CompletionOperator extends InferenceOperator {
                 inferenceService,
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext),
-                taskSettings
+                taskSettings,
+                timeout
             );
         }
     }

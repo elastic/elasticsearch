@@ -13,8 +13,16 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -41,6 +49,15 @@ import static org.mockito.Mockito.when;
  * stream operations, readBytes, readBytesAsync, and error handling.
  */
 public class GcsStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -127,8 +144,9 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testNewStreamWithNegativeLengthThrows() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -1));
-        assertEquals("length must be non-negative, got: -1", e.getMessage());
+        // -1 is now the READ_TO_END open-ended sentinel; a different non-positive length is still invalid.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -2));
+        assertEquals("length must be positive or READ_TO_END, got: -2", e.getMessage());
     }
 
     public void testNewStreamOpensReader() throws IOException {
@@ -169,13 +187,106 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException
+        // (which the external source operator maps to 400).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testNewStreamClassifies503AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("503 is throttling", e.throttling());
+    }
+
+    public void testNewStreamMapsRetryableStorageExceptionToUnavailable() {
+        // A retryable transport status (here 503) becomes ExternalUnavailableException (mapped to 503).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
+    }
+
+    public void testNewStreamClassifies429AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(429, "Too Many Requests"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("429 is throttling", e.throttling());
+    }
+
+    public void testNewStreamClassifies500AsTransientNotThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertFalse("500 is transient but not throttling", e.throttling());
+    }
+
+    public void testNewStreamClassifies403AsNonTransient() {
+        // 403 is not a retryable status, so it stays a plain IOException (the external source operator maps it to a
+        // client-class 400) rather than the retryable ExternalUnavailableException. expectThrows(IOException.class)
+        // already proves it is not ExternalUnavailableException — the unavailable type is not an IOException subtype.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(403, "Forbidden"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertTrue("403 wraps as a plain read failure", e.getMessage().contains("Failed to read object from"));
+    }
+
+    // The GCS ReadChannel never lets a StorageException escape the stream: BaseStorageReadChannel.read catches it
+    // and rethrows it wrapped in a plain IOException (its cause). These tests feed that real wrapped shape, not a
+    // raw StorageException, so they actually exercise the path a live read produces. The wrapper re-types the
+    // IOException as an (unchecked) ExternalUnavailableException, reading the throttle flag off the StorageException
+    // cause when present.
+    public void testMidReadStorageExceptionRetypedAsThrottling() throws IOException {
+        InputStream faulting = new InputStream() {
+            private int n = 0;
+
+            @Override
+            public int read() throws IOException {
+                if (n++ < 1) {
+                    return 'x';
+                }
+                throw new IOException(new StorageException(503, "mid-read drop"));
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        assertEquals('x', wrapped.read());
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
+    }
+
+    public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException(new StorageException(500, "mid-read error"));
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertFalse("500 mid-read is transient but not throttling", e.throttling());
+    }
+
+    public void testMidReadPlainTransportIOExceptionIsTransientNotThrottling() {
+        // A transport drop with no StorageException cause (a bare IOException) is still re-typed transient so the
+        // resume engages; it is just not throttling.
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("connection reset");
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {
@@ -335,7 +446,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
@@ -343,6 +455,17 @@ public class GcsStorageObjectTests extends ESTestCase {
         ByteBuffer target = ByteBuffer.allocate(10);
         IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
         assertTrue(e.getMessage().contains("Failed to read bytes from"));
+    }
+
+    public void testReadBytesMapsRetryableStorageExceptionToUnavailable() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     // === readBytesAsync tests ===
@@ -361,10 +484,10 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(10, 5, Runnable::run, ActionListener.wrap(buf -> {
+        obj.readBytesAsync(10, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> {
@@ -375,7 +498,10 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(result.get());
-        assertEquals(5, result.get().remaining());
+        try (DirectReadBuffer drb = result.get()) {
+            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertEquals(5, drb.buffer().remaining());
+        }
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
     }
@@ -387,7 +513,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -405,7 +531,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, -1, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, -1, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -425,7 +551,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -440,5 +566,51 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
         assertTrue(obj.supportsNativeAsync());
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
+     * the requested byte count. GCS ReadChannel does not expose content length on open, so the
+     * implementation records the requested range length as bytesRead.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws IOException {
+        long rangeBytes = 1024L;
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path, 100_000L);
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertTrue("bytesRead should be >= 0", metrics.bytesRead() >= 0);
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted
+     * in metrics() — they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws IOException {
+        Blob mockBlob = mock(Blob.class);
+        when(mockBlob.getSize()).thenReturn(100L);
+        OffsetDateTime odt = OffsetDateTime.of(2025, 6, 15, 10, 30, 0, 0, ZoneOffset.UTC);
+        when(mockBlob.getUpdateTimeOffsetDateTime()).thenReturn(odt);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(mockBlob);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        obj.length();
+        obj.exists();
+        obj.lastModified();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
     }
 }

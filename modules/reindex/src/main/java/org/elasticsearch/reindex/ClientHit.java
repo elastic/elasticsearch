@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
@@ -19,38 +20,17 @@ import org.elasticsearch.xcontent.XContentType;
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
  * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
- * paginated hit sources.
- * <p>
- * PIT-based searches use an unpooled copy of the hit. Scroll responses retain pooled hits until
- * {@link #release()} runs; use {@link #forScrollHit(SearchHit)} for that path.
+ * paginated hit sources. Callers must invoke {@link #release()} when the hit is no longer needed.
  */
 
 class ClientHit implements PaginatedHitSource.Hit {
     private final SearchHit delegate;
     private final BytesReference source;
-    private final boolean refCounted;
 
     ClientHit(SearchHit delegate) {
-        this(delegate, false);
-    }
-
-    /**
-     * Wraps a pooled scroll {@link SearchHit}; callers must invoke {@link #release()} when the hit is no longer needed.
-     */
-    static ClientHit forScrollHit(SearchHit delegate) {
-        return new ClientHit(delegate, true);
-    }
-
-    private ClientHit(SearchHit delegate, boolean refCounted) {
-        this.refCounted = refCounted;
-        if (refCounted) {
-            delegate.mustIncRef();
-            this.delegate = delegate;
-        } else {
-            // Unpooled copy for PIT; scroll uses pooled hits with ref counting via forScrollHit.
-            this.delegate = delegate.asUnpooled();
-        }
-        source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
+        delegate.mustIncRef();
+        this.delegate = delegate;
+        source = delegate.hasSource() ? delegate.getSourceRef() : null;
     }
 
     @Override
@@ -90,7 +70,9 @@ class ClientHit implements PaginatedHitSource.Hit {
 
     @Override
     public String getRouting() {
-        return fieldValue(RoutingFieldMapper.NAME);
+        // A slice-enabled index never exposes _routing; it surfaces the routing value as _slice instead.
+        String routing = fieldValue(RoutingFieldMapper.NAME);
+        return routing != null ? routing : fieldValue(SliceIndexing.FIELD_NAME);
     }
 
     @Override
@@ -105,8 +87,6 @@ class ClientHit implements PaginatedHitSource.Hit {
 
     @Override
     public void release() {
-        if (refCounted) {
-            delegate.decRef();
-        }
+        delegate.decRef();
     }
 }

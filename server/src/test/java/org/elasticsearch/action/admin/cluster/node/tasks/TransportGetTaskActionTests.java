@@ -56,6 +56,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -430,19 +432,59 @@ public class TransportGetTaskActionTests extends ESTestCase {
         assertThat("error should be preserved (relocation not followed)", result.getError(), notNullValue());
     }
 
-    public void testGetTaskFallsBackWhenRelocatedTaskNotFound() throws Exception {
+    public void testGetTaskSurfacesFailureWhenRelocatedTaskNotFound() {
         var nodeId = "nodeA";
         var originalTaskId = new TaskId(nodeId, 100);
         var relocatedTaskId = new TaskId("nodeB", 200);
 
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(
+            nodeId,
+            buildClientThatFailsRelocationLookup(originalTaskId, relocatedTaskId, new ResourceNotFoundException("task not found")),
+            taskManager
+        );
+
+        var thrown = expectGetTaskFailure(taskManager, getTaskAction, originalTaskId);
+        var rnfe = ExceptionsHelper.unwrap(thrown, ResourceNotFoundException.class);
+        assertThat("relocation lookup failure should be surfaced", rnfe, notNullValue());
+        assertThat(
+            "failure metadata should pinpoint the task we were following relocation from",
+            ((ResourceNotFoundException) rnfe).getMetadata("es.following_relocation_from"),
+            equalTo(List.of(originalTaskId.toString()))
+        );
+    }
+
+    public void testGetTaskSurfacesNonElasticsearchFailure() {
+        var nodeId = "nodeA";
+        var originalTaskId = new TaskId(nodeId, 100);
+        var relocatedTaskId = new TaskId("nodeB", 200);
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(
+            nodeId,
+            buildClientThatFailsRelocationLookup(originalTaskId, relocatedTaskId, new IllegalStateException("non-Elasticsearch failure")),
+            taskManager
+        );
+
+        var thrown = expectGetTaskFailure(taskManager, getTaskAction, originalTaskId);
+        assertThat(
+            "non-ES relocation lookup failure should be surfaced unchanged",
+            ExceptionsHelper.unwrap(thrown, IllegalStateException.class),
+            notNullValue()
+        );
+    }
+
+    private NodeClient buildClientThatFailsRelocationLookup(
+        TaskId originalTaskId,
+        TaskId relocatedTaskId,
+        Exception relocationLookupFailure
+    ) {
         TaskResult originalStoredResult = completedTaskResult(
             originalTaskId.toString(),
             ReindexAction.NAME,
             relocatedErrorBytes(relocatedTaskId.toString())
         );
-
-        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
-        var getTaskAction = buildGetTaskAction(nodeId, new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
+        return new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -454,19 +496,18 @@ public class TransportGetTaskActionTests extends ESTestCase {
                     var getRequest = (GetRequest) request;
                     ((ActionListener<GetResponse>) listener).onResponse(buildTasksIndexResponse(getRequest.id(), originalStoredResult));
                 } else if (TransportGetTaskAction.TYPE.equals(action)) {
-                    listener.onFailure(new ResourceNotFoundException("task not found"));
+                    listener.onFailure(relocationLookupFailure);
                 } else {
                     fail("Unexpected action: " + action);
                 }
             }
-        }, taskManager);
+        };
+    }
 
-        GetTaskResponse response = executeGetTask(taskManager, getTaskAction, originalTaskId);
-        TaskResult result = response.getTask();
-        assertThat("should fall back to original task ID", result.getTask().taskId(), equalTo(originalTaskId));
-        assertThat("original task completed", result.isCompleted(), equalTo(true));
-        assertThat("action should be reindex", result.getTask().action(), equalTo(ReindexAction.NAME));
-        assertThat("error should be the relocation error (original response returned as-is)", result.getError(), notNullValue());
+    private Exception expectGetTaskFailure(TaskManager taskManager, TransportGetTaskAction action, TaskId taskId) {
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        taskManager.registerAndExecute("transport", action, new GetTaskRequest().setTaskId(taskId), null, future);
+        return expectThrows(ExecutionException.class, future::get);
     }
 
     public void testGetCompletedRelocatedTaskDirectlyReturnsOwnStartTime() throws Exception {

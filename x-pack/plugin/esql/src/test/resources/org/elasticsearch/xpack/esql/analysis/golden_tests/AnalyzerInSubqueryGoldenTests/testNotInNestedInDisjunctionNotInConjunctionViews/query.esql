@@ -1,0 +1,4 @@
+FROM employees
+| WHERE emp_no NOT IN (FROM v_nested | KEEP emp_no)
+    AND emp_no IN (FROM v_disj | KEEP emp_no)
+    AND emp_no NOT IN (FROM v_conj | KEEP emp_no)

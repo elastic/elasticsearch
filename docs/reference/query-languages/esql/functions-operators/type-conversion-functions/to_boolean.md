@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_BOOLEAN` function [esql-to_boolean]
 
-:::{include} ../../_snippets/functions/layout/to_boolean.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_boolean.md
 :::

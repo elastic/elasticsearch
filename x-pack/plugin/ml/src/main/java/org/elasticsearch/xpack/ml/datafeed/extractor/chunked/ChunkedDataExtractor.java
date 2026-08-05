@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -136,7 +137,10 @@ public class ChunkedDataExtractor implements DataExtractor {
             Result result = currentExtractor.next();
             lastSearchInterval = result.searchInterval();
             if (result.linkedClusterStates().isEmpty() == false) {
-                lastLinkedClusterStates = result.linkedClusterStates();
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                    lastLinkedClusterStates,
+                    result.linkedClusterStates()
+                );
             }
             if (result.data().isPresent()) {
                 return result;

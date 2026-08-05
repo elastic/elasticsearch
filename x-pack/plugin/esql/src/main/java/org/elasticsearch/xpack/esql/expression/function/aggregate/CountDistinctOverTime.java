@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -32,7 +31,7 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression, ToAggregator {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",
@@ -40,6 +39,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinctOverTime.class)
         .binary(CountDistinctOverTime::new)
+        .capabilities("flattened")
         .name("count_distinct_over_time");
 
     private final Expression precision;
@@ -47,6 +47,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
+        briefSummary = "Calculates the count of distinct values over time for a field.",
         description = "Calculates the count of distinct values over time for a field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -57,13 +58,14 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "flattened", "integer", "ip", "keyword", "long", "text", "version" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             optional = true,
             name = "precision",
             type = { "integer", "long", "unsigned_long" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."
@@ -111,11 +113,6 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

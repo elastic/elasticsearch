@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -21,6 +24,16 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class SubstituteRoundToGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public SubstituteRoundToGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private record QueryAndName(String query, String name) {}
 
     private static final List<QueryAndName> dateHistograms = List.of(
@@ -116,6 +129,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
 
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         for (var queryAndName : dateHistograms) {
             var dateHistogram = queryAndName.query();
             if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats

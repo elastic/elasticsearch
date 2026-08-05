@@ -1,8 +1,9 @@
 toc:
   - file: index.md
+  - toc: columnar
   - toc: elasticsearch
   - toc: community-contributed
-  - toc: enrich-processor
+  - toc: ingest-processor
   - toc: search-connectors
   - toc: elasticsearch-plugins
   - toc: query-languages

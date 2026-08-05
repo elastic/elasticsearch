@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -78,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -137,6 +140,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -155,7 +159,7 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        Map.entry(DATE_RANGE, ToDateRange::new),
+        Map.entry(DATE_PERIOD, ToDatePeriod::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
@@ -170,10 +174,10 @@ public class EsqlDataTypeConverter {
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
         Map.entry(TDIGEST, ToTDigest::new),
+        // TODO: `ToText` conversion needs to be added, but it break implicit conversion for unmapped fields
+        Map.entry(TIME_DURATION, ToTimeDuration::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        Map.entry(VERSION, ToVersion::new),
-        Map.entry(DATE_PERIOD, ToDatePeriod::new),
-        Map.entry(TIME_DURATION, ToTimeDuration::new)
+        Map.entry(VERSION, ToVersion::new)
     );
 
     /**
@@ -188,6 +192,7 @@ public class EsqlDataTypeConverter {
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
             Map.entry(DATETIME, ToDatetime::new),
             Map.entry(DATE_NANOS, ToDateNanos::new),
+            Map.entry(DATE_RANGE, ToDateRange::new),
             Map.entry(KEYWORD, ToString::new)
         );
 
@@ -271,13 +276,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DataType.IP) {
@@ -645,8 +650,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {
@@ -658,6 +667,12 @@ public class EsqlDataTypeConverter {
             return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
+        } catch (ArithmeticException e) {
+            // An in-range epoch (e.g. a huge epoch_second) can parse to a valid Instant and then overflow when
+            // Instant.toEpochMilli scales it. Remap so it flows through the readers' per-cell error policy (null/warn
+            // or fail_fast) rather than escaping as an ArithmeticException that hard-fails the whole read — the same
+            // contract coerceToUnsignedLong keeps for its overflow.
+            throw new IllegalArgumentException("epoch value overflows a long when scaled to milliseconds: " + dateTime, e);
         }
     }
 
@@ -665,9 +680,15 @@ public class EsqlDataTypeConverter {
         return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
-    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+    /**
+     * Null {@code formatter} means ISO-8601 ({@link #DEFAULT_DATE_NANOS_FORMATTER}), matching
+     * {@link #dateTimeToLong(String, DateFormatter)}. The two sibling converters must agree on the null contract:
+     * a caller that threads an optional declared format through cannot be made to null-check one and not the other.
+     */
+    public static long dateNanosToLong(String dateNano, @Nullable DateFormatter formatter) {
         try {
-            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            DateFormatter effective = formatter == null ? DEFAULT_DATE_NANOS_FORMATTER : formatter;
+            Instant parsed = DateFormatters.from(effective.parse(dateNano)).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
@@ -701,10 +722,21 @@ public class EsqlDataTypeConverter {
     }
 
     public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
-        var ss = s.split("\\.\\.");
-        assert ss.length == 2 : "can't parse range: " + s;
-        var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
-        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0], formatter), dateTimeToLong(ss[1], formatter) - 1);
+        return parseDateRange(s, DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId));
+    }
+
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s, DateFormatter formatter) {
+        // limit -1 so trailing empty strings are preserved, otherwise "..2024-01-01" splits to length 1.
+        var ss = s.split("\\.\\.", -1);
+        if (ss.length != 2) {
+            throw new IllegalArgumentException("expected date range in the form 'from..to', got [" + s + "]");
+        }
+        long from = dateTimeToLong(ss[0], formatter);
+        long to = dateTimeToLong(ss[1], formatter);
+        if (from >= to) {
+            throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than 'to' [" + ss[1] + "]");
+        }
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {
@@ -712,7 +744,42 @@ public class EsqlDataTypeConverter {
     }
 
     public static String dateRangeToString(long from, long to) {
-        return dateTimeToString(from) + ".." + dateTimeToString(to);
+        return dateRangeToString(from, to, DEFAULT_DATE_TIME_FORMATTER);
+    }
+
+    /** Formats a half-open [from, to) range using the block's stored millis for both bounds. */
+    public static String dateRangeToString(long from, long to, DateFormatter formatter) {
+        return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
+    }
+
+    /**
+     * Parses the string representation used for double range response values.
+     */
+    public static DoubleRangeBlockBuilder.DoubleRange parseDoubleRange(String value) {
+        String[] bounds = value.split("\\.\\.", -1);
+        if (bounds.length != 2) {
+            throw new IllegalArgumentException("expected double range in the form 'from..to', got [" + value + "]");
+        }
+        double from = Double.parseDouble(bounds[0]);
+        double to = Double.parseDouble(bounds[1]);
+        if (Double.isNaN(from) || Double.isNaN(to) || from >= to) {
+            throw new IllegalArgumentException("double range 'from' [" + bounds[0] + "] must be less than 'to' [" + bounds[1] + "]");
+        }
+        return new DoubleRangeBlockBuilder.DoubleRange(from, to);
+    }
+
+    /**
+     * Formats a half-open double range for response serialization.
+     */
+    public static String doubleRangeToString(DoubleRangeBlockBuilder.DoubleRange range) {
+        return doubleRangeToString(range.from(), range.to());
+    }
+
+    /**
+     * Formats half-open double range bounds for response serialization.
+     */
+    public static String doubleRangeToString(double from, double to) {
+        return Double.toString(from) + ".." + Double.toString(to);
     }
 
     public static BytesRef numericBooleanToString(Object field) {

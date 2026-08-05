@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -27,38 +30,29 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -69,14 +63,12 @@ import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BB
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
-import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
@@ -117,6 +109,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     );
     public static final NodeFeature SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES = new NodeFeature(
         "semantic_text.prevent_legacy_format_new_indices"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES = new NodeFeature(
+        "semantic_text.original_values_in_doc_values"
     );
 
     public static final String CONTENT_TYPE = "semantic_text";
@@ -255,50 +250,11 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected Parameter<SemanticTextIndexOptions> configureIndexOptionsParam() {
-            return new Parameter<>(
-                INDEX_OPTIONS_FIELD,
-                true,
-                () -> null,
-                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
-                mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
-                (b, n, v) -> {
-                    throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
-                },
-                Objects::toString
-            ) {
-                @Override
-                protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-                    SemanticTextIndexOptions value = getValue();
-                    if (includeDefaults || isConfigured()) {
-                        if (value == null) {
-                            // Default value, serialize resolved defaults
-                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
-                            value = defaultIndexOptions(indexVersionCreated, resolvedModelSettings);
-                        } else if (value.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-                            ExtendedDenseVectorIndexOptions innerIndexOptions = getExtendedDenseVectorIndexOptions(value);
-                            DenseVectorFieldMapper.ElementType elementTypeOverride = innerIndexOptions.getElementType();
-                            DenseVectorFieldMapper.DenseVectorIndexOptions dvio = innerIndexOptions.getBaseIndexOptions();
-
-                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
-                            if (resolvedModelSettings == null) {
-                                throw new IllegalStateException("Model settings should be resolvable when explicit index options are set");
-                            }
-
-                            if (defaultElementTypeToBfloat16(indexVersionCreated, resolvedModelSettings.elementType())
-                                && includeDefaults
-                                && elementTypeOverride == null) {
-                                value = new SemanticTextIndexOptions(
-                                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                                    new ExtendedDenseVectorIndexOptions(dvio, DenseVectorFieldMapper.ElementType.BFLOAT16)
-                                );
-                            }
-                        }
-
-                        builder.field(INDEX_OPTIONS_FIELD, value);
-                    }
-                }
-            }.acceptsNull();
+        protected Parameter<SemanticIndexOptions> configureIndexOptionsParam() {
+            return buildIndexOptionsParam(
+                resolvedModelSettings -> defaultIndexOptions(indexVersionCreated, resolvedModelSettings),
+                elementType -> defaultElementTypeToBfloat16(indexVersionCreated, elementType)
+            );
         }
 
         @Override
@@ -334,13 +290,16 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions.get());
                     yield sparseVectorMapperBuilder;
                 }
-                case TEXT_EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                         CHUNKED_EMBEDDINGS_FIELD,
                         indexVersionCreated,
+                        indexSettings.getMode(),
                         false,
                         experimentalFeaturesEnabled,
-                        vectorsFormatProviders
+                        vectorsFormatProviders,
+                        false,
+                        indexSettings.getPostFilterSelectivityThreshold()
                     );
                     ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                         ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -373,20 +332,40 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
 
-            return (SemanticTextFieldMapper) super.build(context);
+            SemanticTextFieldMapper mapper = (SemanticTextFieldMapper) super.build(context);
+            if (mapper.storesOriginalValuesInDocValues()) {
+                // The original input is stored in an internal [<field>.input] binary doc values column, so a multi-field with that
+                // name would write to the same Lucene field. Reserve the name to prevent the collision. Gated on the doc values
+                // storage condition so existing indices that keep the input in _source remain valid.
+                for (FieldMapper multiField : mapper.multiFields()) {
+                    if (multiField.leafName().equals(SemanticTextField.INPUT_FIELD)) {
+                        throw new IllegalArgumentException(
+                            CONTENT_TYPE
+                                + " field ["
+                                + leafName()
+                                + "] cannot have a multi-field named ["
+                                + SemanticTextField.INPUT_FIELD
+                                + "]; that name is reserved for the field's internal doc values storage"
+                        );
+                    }
+                }
+            }
+            return mapper;
         }
 
         @Override
         protected void validateTaskType(MinimalServiceSettings modelSettings) {
             switch (modelSettings.taskType()) {
-                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["
                         + MinimalServiceSettings.TASK_TYPE_FIELD
                         + "], expected "
                         + TEXT_EMBEDDING
-                        + " or "
+                        + ", "
+                        + EMBEDDING
+                        + ", or "
                         + SPARSE_EMBEDDING
                         + ", got "
                         + modelSettings.taskType().name()
@@ -396,7 +375,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
         @Override
         protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
-            SemanticTextIndexOptions indexOptions = this.indexOptions.get();
+            SemanticIndexOptions indexOptions = this.indexOptions.get();
             String inferenceId = this.inferenceId.get();
 
             if (indexOptions == null) {
@@ -409,7 +388,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 );
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
                 if (modelSettings.taskType() != SPARSE_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required ["
@@ -422,10 +401,16 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 return;
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-                if (modelSettings.taskType() != TEXT_EMBEDDING) {
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+                if (modelSettings.taskType() != TEXT_EMBEDDING && modelSettings.taskType() != EMBEDDING) {
                     throw new IllegalArgumentException(
-                        "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
+                        "Invalid task type for index options, required ["
+                            + TEXT_EMBEDDING
+                            + "] or ["
+                            + EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
                     );
                 }
 
@@ -457,9 +442,12 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     indexOptions.getValue(),
                     inferenceField,
                     useLegacyFormat,
+                    storesOriginalValuesInDocValues(useLegacyFormat, indexVersionCreated, indexSettings.getMode()),
                     meta.getValue()
                 ),
                 builderParams,
+                indexVersionCreated,
+                indexSettings.getMode(),
                 modelRegistry,
                 vectorsFormatProviders
             );
@@ -475,10 +463,12 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
+        IndexVersion indexCreatedVersion,
+        IndexMode indexMode,
         ModelRegistry modelRegistry,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
-        super(simpleName, mappedFieldType, builderParams, modelRegistry, vectorsFormatProviders);
+        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, modelRegistry, vectorsFormatProviders);
     }
 
     @Override
@@ -497,6 +487,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        // semantic_text parses an object value only in the legacy format (where the value is the full {text, inference} object). The
+        // new format takes a plain text input, so under subobjects:false (columnar) the field must not be handed an object.
+        return fieldType().useLegacyFormat;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final XContentParser parser = context.parser();
         final XContentLocation xContentLocation = parser.getTokenLocation();
@@ -510,6 +507,10 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 );
             }
 
+            // When _source is reconstructed from doc values (synthetic / columnar), store the original input value so it can be
+            // rebuilt and retrieved without reading _source. Otherwise the original value is kept verbatim in the stored _source.
+            storeOriginalValueForSyntheticSource(context);
+
             // ignore the rest of the field value
             parser.skipChildren();
             return;
@@ -519,6 +520,49 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         if (field != null) {
             parseCreateFieldFromContext(context, field, xContentLocation);
         }
+    }
+
+    @Override
+    protected boolean storesOriginalValuesInDocValues() {
+        // The legacy format keeps the original value in _source, so the doc values store is only used by the new format.
+        return storesOriginalValuesInDocValues(fieldType().useLegacyFormat(), indexCreatedVersion, indexMode);
+    }
+
+    static boolean storesOriginalValuesInDocValues(boolean useLegacyFormat, IndexVersion indexVersion, IndexMode indexMode) {
+        if (useLegacyFormat) {
+            return false;
+        }
+        return indexMode.isStrictColumnar() || indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+    }
+
+    private void storeOriginalValueForSyntheticSource(DocumentParserContext context) throws IOException {
+        if (storesOriginalValuesInDocValues() == false) {
+            return;
+        }
+        // Only needed when _source is rebuilt from doc values; under stored _source the value is already kept verbatim.
+        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
+            return;
+        }
+        final XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
+        }
+        // UNSORTED keeps the values in document order (and keeps duplicates), so multi-valued fields round-trip exactly.
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            context.doc(),
+            SemanticTextField.getOriginalValuesFieldName(fullPath()),
+            new BytesRef(parser.text()),
+            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+            indexCreatedVersion
+        );
+    }
+
+    @Override
+    protected void writeOriginalValue(XContentBuilder b, BytesRef value) throws IOException {
+        // semantic_text stores its input as raw UTF-8 text, so it is written back verbatim (no encoder decoding). _source is rebuilt
+        // from the original input column only; the inference sub-fields are sub-mappers (like multi-fields) and never part of synthetic
+        // source. See SemanticFieldMapper#syntheticSourceSupport.
+        b.utf8Value(value.bytes, value.offset, value.length);
     }
 
     @Override
@@ -553,6 +597,15 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         String fieldName,
         SemanticTextField.Chunk chunk
     ) throws IOException {
+        XContentLocation xContentLocation = context.parser().getTokenLocation();
+        if (chunk.inputIndex() != null) {
+            // Non-null input index means a non-text value, which in turn means an object value
+            throw new DocumentParsingException(
+                xContentLocation,
+                "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support multimodal values"
+            );
+        }
+
         SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldType) fieldType;
         if (semanticTextFieldType.useLegacyFormat() == false) {
             super.parseChunkValueReference(context, fieldType, fieldName, chunk);
@@ -568,12 +621,23 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             String searchInferenceId,
             MinimalServiceSettings modelSettings,
             ChunkingSettings chunkingSettings,
-            SemanticTextIndexOptions indexOptions,
+            SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
+            boolean storesOriginalValuesInDocValues,
             Map<String, String> meta
         ) {
-            super(name, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, inferenceField, meta);
+            super(
+                name,
+                inferenceId,
+                searchInferenceId,
+                modelSettings,
+                chunkingSettings,
+                indexOptions,
+                inferenceField,
+                storesOriginalValuesInDocValues,
+                meta
+            );
             this.useLegacyFormat = useLegacyFormat;
         }
 
@@ -592,143 +656,45 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public String getDefaultHighlighter() {
-            return SemanticTextHighlighter.NAME;
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
+            // The base class reads the original value from the binary doc values store (with this type's UTF-8 decoder) when _source
+            // is rebuilt from doc values; only the legacy text field, kept in _source, differs.
+            if (useLegacyFormat) {
+                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
+            }
+            return super.valueFetcher(context);
         }
 
         @Override
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return useLegacyFormat
-                ? SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null)
-                : super.originalValueFetcher(context);
+        protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
+            return BytesRef::utf8ToString; // semantic_text stores its input as raw UTF-8 text
         }
 
         @Override
-        protected ValueFetcher allValuesFetcher(BlockLoaderContext blContext) {
+        protected ValueFetcher valueFetcher(BlockLoaderContext blContext) {
             if (useLegacyFormat) {
                 return SourceValueFetcher.toString(blContext.sourcePaths(getOriginalTextFieldName(name())), blContext.indexSettings());
             }
 
-            return super.allValuesFetcher(blContext);
+            return super.valueFetcher(blContext);
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
-            String nestedFieldPath = getChunksFieldName(name());
-            String inferenceResultsFieldName = getEmbeddingsFieldName(name());
-            QueryBuilder childQueryBuilder;
-
-            if (modelSettings == null) {
-                // No inference results have been indexed yet
-                childQueryBuilder = new MatchNoneQueryBuilder();
-            } else {
-                childQueryBuilder = switch (modelSettings.taskType()) {
-                    case SPARSE_EMBEDDING -> {
-                        if (inferenceResults instanceof TextExpansionResults == false) {
-                            throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, TextExpansionResults.NAME)
-                            );
-                        }
-
-                        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
-                        yield new SparseVectorQueryBuilder(
-                            inferenceResultsFieldName,
-                            textExpansionResults.getWeightedTokens(),
-                            null,
-                            null,
-                            null,
-                            null
-                        );
-                    }
-                    case TEXT_EMBEDDING -> {
-                        if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
-                            throw new IllegalArgumentException(
-                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
-                            );
-                        }
-
-                        MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
-                        float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
-                            : inference.length;
-                        assert modelSettings.dimensions() != null
-                            : "Model settings should have dimensions set by now for text embedding models";
-                        if (dimensions != modelSettings.dimensions()) {
-                            throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())
-                            );
-                        }
-
-                        Integer k = requestSize;
-                        if (k != null) {
-                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
-                            k = Math.max(k, DEFAULT_SIZE);
-                        }
-
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null)
-                            .setAutoPrefilteringEnabled(true);
-                    }
-                    default -> throw new IllegalStateException(
-                        "Field ["
-                            + name()
-                            + "] is configured to use an inference endpoint with an unsupported task type ["
-                            + modelSettings.taskType()
-                            + "]"
-                    );
-                };
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // When the index reconstructs _source from doc values, load the original value from its binary doc values store directly
+            // instead of reading it through _source (which would rebuild _source from doc values).
+            if (storesOriginalValuesInDocValues
+                && (blContext.mappingLookup().isSourceSynthetic() || blContext.mappingLookup().isSourceColumnarStored())) {
+                return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(SemanticTextField.getOriginalValuesFieldName(name()));
             }
-
-            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
-        }
-
-        private String generateQueryInferenceResultsTypeMismatchMessage(InferenceResults inferenceResults, String expectedResultsType) {
-            StringBuilder sb = new StringBuilder(
-                "Field ["
-                    + name()
-                    + "] expected query inference results to be of type ["
-                    + expectedResultsType
-                    + "],"
-                    + " got ["
-                    + inferenceResults.getWriteableName()
-                    + "]."
-            );
-
-            return generateInvalidQueryInferenceResultsMessage(sb);
-        }
-
-        private String generateDimensionCountMismatchMessage(int inferenceDimCount, int expectedDimCount) {
-            StringBuilder sb = new StringBuilder(
-                "Field ["
-                    + name()
-                    + "] expected query inference results with "
-                    + expectedDimCount
-                    + " dimensions, got "
-                    + inferenceDimCount
-                    + " dimensions."
-            );
-
-            return generateInvalidQueryInferenceResultsMessage(sb);
-        }
-
-        private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
-            if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
-                baseMessageBuilder.append(" Is the search inference endpoint [")
-                    .append(searchInferenceId)
-                    .append("] compatible with the inference endpoint [")
-                    .append(inferenceId)
-                    .append("]?");
-            } else {
-                baseMessageBuilder.append(" Has the configuration for inference endpoint [").append(inferenceId).append("] changed?");
-            }
-
-            return baseMessageBuilder.toString();
+            return super.blockLoader(blContext);
         }
     }
 
     private static void configureSparseVectorMapperBuilder(
         IndexVersion indexVersionCreated,
         SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
-        SemanticTextIndexOptions indexOptions
+        SemanticIndexOptions indexOptions
     ) {
         if (indexOptions != null) {
             SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
@@ -783,12 +749,12 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
-    static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
+    static SemanticIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
         if (modelSettings == null) {
             return null;
         }
 
-        if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+        if (modelSettings.taskType() == TEXT_EMBEDDING || modelSettings.taskType() == EMBEDDING) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 modelSettings
@@ -799,8 +765,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
             return denseVectorIndexOptions == null && elementType == null
                 ? null
-                : new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                : new SemanticIndexOptions(
+                    SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                     new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
                 );
         }
@@ -811,7 +777,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
             return sparseVectorIndexOptions == null
                 ? null
-                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
+                : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
         }
 
         return null;

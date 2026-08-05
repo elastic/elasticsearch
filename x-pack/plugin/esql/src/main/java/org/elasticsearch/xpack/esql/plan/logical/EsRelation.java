@@ -13,12 +13,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -166,23 +168,66 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(indexPattern).append("]");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append(']');
         if (indexMode != IndexMode.STANDARD) {
-            sb.append("[").append(indexMode.name()).append("]");
+            sb.append('[').append(indexMode.name()).append(']');
         }
-        NodeUtils.toString(sb, attrs, format);
+        // The concrete indices a pattern resolved to, each routed through the index mapper. Rendered
+        // in both modes — useful when debugging from a failure log. NOTE: this is NEW under the
+        // identity mapper (previously anon-only), so for the cases below EXPLAIN gains a suffix it did
+        // not have before. Shown only when resolution actually changed the pattern (see
+        // resolvedIndicesAddInfo) — an explicit "FROM a,b" that resolves to exactly itself adds only
+        // redundant noise, so it is suppressed.
+        if (resolvedIndicesAddInfo()) {
+            sb.append('[');
+            boolean first = true;
+            for (var e : indexNameWithModes.entrySet()) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(mapper.index(e.getKey())).append('=').append(e.getValue().name());
+            }
+            sb.append(']');
+        }
+        NodeUtils.toString(sb, attrs, format, mapper);
+    }
+
+    /**
+     * Whether the resolved concrete indices add information beyond the index pattern itself — i.e.
+     * resolution expanded or changed the index NAMES (a wildcard / alias resolving to different
+     * concrete indices). An explicit {@code FROM a,b} that resolves to exactly {@code {a, b}} echoes
+     * the pattern and is suppressed; the relation's {@code indexMode} is already rendered separately,
+     * so a mode difference alone (with the names unchanged) is not on its own informative here.
+     */
+    private boolean resolvedIndicesAddInfo() {
+        if (indexNameWithModes == null || indexNameWithModes.isEmpty()) {
+            return false;
+        }
+        Set<String> patternParts = new HashSet<>();
+        for (String part : indexPattern.split(",")) {
+            patternParts.add(part.trim());
+        }
+        return patternParts.equals(indexNameWithModes.keySet()) == false;
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }
 
-    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
-        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+    public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
+        if (additionalAttributes.isEmpty()) {
+            return this;
+        }
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + additionalAttributes.size());
         newAttrs.addAll(attrs);
-        newAttrs.add(additionalAttribute);
+        newAttrs.addAll(additionalAttributes);
         return withAttributes(newAttrs);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        return withAdditionalAttributes(List.of(additionalAttribute));
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {

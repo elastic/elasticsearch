@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -26,8 +25,6 @@ import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
-import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
-
 public class TransportEmbeddingAction extends BaseTransportInferenceAction<EmbeddingAction.Request> {
 
     @Inject
@@ -39,7 +36,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -52,7 +48,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
             inferenceStats,
             streamingTaskManager,
             EmbeddingAction.Request::new,
-            nodeClient,
             threadPool
         );
     }
@@ -81,11 +76,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.embeddingInfer(
-            model,
-            request.getEmbeddingRequest(),
-            resolveTimeoutForTaskType(model.getTaskType(), request.getTimeout()),
-            listener
-        );
+        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), listener);
     }
 }

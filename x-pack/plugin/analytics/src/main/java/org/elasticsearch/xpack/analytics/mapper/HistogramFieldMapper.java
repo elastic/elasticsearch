@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -229,6 +230,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                     }
 
                                     @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
+                                    }
+
+                                    @Override
                                     public HistogramValue histogram() throws IOException {
                                         try {
                                             value.reset(values.binaryValue());
@@ -268,6 +274,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                     public Object nextValue() throws IOException {
                                         value.reset(values.binaryValue());
                                         return value;
+                                    }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
                                     }
                                 };
                             } catch (IOException e) {

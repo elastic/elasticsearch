@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -318,6 +320,41 @@ public class DatafeedConfigProvider {
         BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
         ActionListener<DatafeedConfig> updatedConfigListener
     ) {
+        updateDatefeedConfigInternal(
+            datafeedId,
+            update,
+            headers,
+            CredentialTransitions.Change.KEEP,
+            validator,
+            updatedConfigListener.delegateFailureAndWrap((l, tuple) -> l.onResponse(tuple.v1()))
+        );
+    }
+
+    /**
+     * Updates an existing datafeed config, applying a {@link CredentialTransitions.Change} to the persisted cloud credential envelope.
+     * <p>
+     * On success, the listener receives the persisted config and, when a superseded credential was removed or replaced,
+     * that credential (for best-effort revocation); otherwise {@code null} in the second tuple position.
+     */
+    public void updateDatefeedConfig(
+        String datafeedId,
+        DatafeedUpdate update,
+        Map<String, String> headers,
+        CredentialTransitions.Change change,
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+        ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> updatedConfigListener
+    ) {
+        updateDatefeedConfigInternal(datafeedId, update, headers, change, validator, updatedConfigListener);
+    }
+
+    private void updateDatefeedConfigInternal(
+        String datafeedId,
+        DatafeedUpdate update,
+        Map<String, String> headers,
+        CredentialTransitions.Change change,
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+        ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> updatedConfigListener
+    ) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
 
         executeAsyncWithOrigin(
@@ -343,28 +380,75 @@ public class DatafeedConfigProvider {
                         return;
                     }
 
-                    DatafeedConfig updatedConfig;
+                    final DatafeedConfig configAfterApply;
                     try {
-                        updatedConfig = update.apply(configBuilder.build(), headers, clusterService.state());
+                        configAfterApply = update.apply(configBuilder.build(), headers, clusterService.state());
                     } catch (Exception e) {
                         delegate.onFailure(e);
                         return;
                     }
 
-                    validator.accept(
-                        updatedConfig,
-                        delegate.delegateFailureAndWrap(
-                            (l, ok) -> indexUpdatedConfig(
-                                updatedConfig,
-                                seqNo,
-                                primaryTerm,
-                                l.delegateFailureAndWrap((ll, indexResponse) -> {
-                                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                    ll.onResponse(updatedConfig);
-                                })
-                            )
-                        )
-                    );
+                    switch (change) {
+                        case CredentialTransitions.Change.Mint(var mintHook) -> {
+                            // Invoke the hook with the applied config; it runs probe + mint and calls
+                            // credentialListener.onResponse(newCredential) on success.
+                            mintHook.accept(configAfterApply, delegate.delegateFailureAndWrap((hookListener, newCredential) -> {
+                                PersistedCloudCredential superseded = configAfterApply.getCloudInternalCredential();
+                                DatafeedConfig configToPersist = new DatafeedConfig.Builder(configAfterApply).setCloudInternalCredential(
+                                    newCredential
+                                ).build();
+                                validator.accept(
+                                    configToPersist,
+                                    hookListener.delegateFailureAndWrap(
+                                        (l, ok) -> indexUpdatedConfig(
+                                            configToPersist,
+                                            seqNo,
+                                            primaryTerm,
+                                            l.delegateFailureAndWrap((ll, indexResponse) -> {
+                                                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                                ll.onResponse(Tuple.tuple(configToPersist, superseded));
+                                            })
+                                        )
+                                    )
+                                );
+                            }));
+                        }
+                        case CredentialTransitions.Change.Clear ignored -> {
+                            PersistedCloudCredential supersededCredential = configAfterApply.getCloudInternalCredential();
+                            DatafeedConfig configToPersist = new DatafeedConfig.Builder(configAfterApply).setCloudInternalCredential(null)
+                                .build();
+                            validator.accept(
+                                configToPersist,
+                                delegate.delegateFailureAndWrap(
+                                    (l, ok) -> indexUpdatedConfig(
+                                        configToPersist,
+                                        seqNo,
+                                        primaryTerm,
+                                        l.delegateFailureAndWrap((ll, indexResponse) -> {
+                                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                            ll.onResponse(Tuple.tuple(configToPersist, supersededCredential));
+                                        })
+                                    )
+                                )
+                            );
+                        }
+                        case CredentialTransitions.Change.Keep ignored -> {
+                            validator.accept(
+                                configAfterApply,
+                                delegate.delegateFailureAndWrap(
+                                    (l, ok) -> indexUpdatedConfig(
+                                        configAfterApply,
+                                        seqNo,
+                                        primaryTerm,
+                                        l.delegateFailureAndWrap((ll, indexResponse) -> {
+                                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                                            ll.onResponse(Tuple.tuple(configAfterApply, null));
+                                        })
+                                    )
+                                )
+                            );
+                        }
+                    }
                 }
             }
         );

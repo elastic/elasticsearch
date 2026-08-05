@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -24,8 +23,6 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
-import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
-
 public class TransportInferenceAction extends BaseTransportInferenceAction<InferenceAction.Request> {
 
     @Inject
@@ -37,7 +34,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -50,7 +46,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             inferenceStats,
             streamingTaskManager,
             InferenceAction.Request::new,
-            nodeClient,
             threadPool
         );
     }
@@ -74,14 +69,11 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
     ) {
         service.infer(
             model,
-            request.getQuery(),
-            request.getReturnDocuments(),
-            request.getTopN(),
             request.getInput(),
             request.isStreaming(),
             request.getTaskSettings(),
             request.getInputType(),
-            resolveTimeoutForTaskType(model.getTaskType(), request.getInferenceTimeout()),
+            request.getInferenceTimeout(),
             listener
         );
     }

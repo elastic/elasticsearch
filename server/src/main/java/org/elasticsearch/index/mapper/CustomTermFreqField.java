@@ -19,7 +19,10 @@ import org.apache.lucene.index.IndexOptions;
 
 /**
  * Custom field that allows storing an integer value as a term frequency in lucene.
+ * <p>
+ * This class is deprecated and numeric doc values should be used instead.
  */
+@Deprecated
 public final class CustomTermFreqField extends Field {
 
     private static final FieldType FIELD_TYPE;

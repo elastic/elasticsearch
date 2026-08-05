@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
-public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
+public class EqlSearchRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
@@ -68,6 +69,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private Boolean allowPartialSequenceResults;
     private String projectRouting;
     private ResolvedIndexExpressions resolvedIndexExpressions;
+    private transient TargetProjects resolvedTargetProjects;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -322,6 +324,16 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     @Override
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     public QueryBuilder filter() {

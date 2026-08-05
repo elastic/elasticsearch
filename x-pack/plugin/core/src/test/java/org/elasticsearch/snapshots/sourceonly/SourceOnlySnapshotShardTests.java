@@ -50,6 +50,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
@@ -90,6 +91,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -215,6 +217,64 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             );
         }
         closeShards(shard);
+    }
+
+    public void testColumnarIndexRejectsSourceOnlySnapshot() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            ShardRouting shardRouting = shardRoutingBuilder(
+                new ShardId("index", "_na_", 0),
+                randomAlphaOfLength(10),
+                true,
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .build();
+            IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName())
+                .settings(settings)
+                .primaryTerm(0, primaryTerm)
+                .build();
+            IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+            recoverShardFromStore(shard);
+            SnapshotId snapshotId = new SnapshotId("test", "test");
+            IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
+            final var projectId = ProjectId.DEFAULT;
+            SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+            repository.start();
+            try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
+                IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                    new ShardGeneration(-1L),
+                    randomLongBetween(1, Long.MAX_VALUE)
+                );
+                final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
+                runAsSnapshot(
+                    shard.getThreadPool(),
+                    () -> repository.snapshotShard(
+                        new LocalPrimarySnapshotShardContext(
+                            shard.store(),
+                            shard.mapperService(),
+                            snapshotId,
+                            indexId,
+                            new SnapshotIndexCommit(snapshotRef),
+                            null,
+                            indexShardSnapshotStatus,
+                            IndexVersion.current(),
+                            randomMillisUpToYear9999(),
+                            future
+                        )
+                    )
+                );
+                IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+                assertEquals(
+                    "Can't snapshot _source only on a columnar index; source-only snapshots are not supported for columnar index modes",
+                    e.getMessage()
+                );
+            }
+            closeShards(shard);
+        }
     }
 
     public void testIncrementalSnapshot() throws IOException {

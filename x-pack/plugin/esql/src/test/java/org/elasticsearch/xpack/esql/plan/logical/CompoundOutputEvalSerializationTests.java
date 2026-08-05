@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOutputEval<T>> extends AbstractLogicalPlanSerializationTests<
     T> {
@@ -22,8 +23,8 @@ public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOut
     protected T createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        Expression input = FieldAttributeTests.createFieldAttribute(0, false);
-        Attribute outputFieldPrefix = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression input = createFieldAttribute(0, false);
+        Attribute outputFieldPrefix = createFieldAttribute(0, false);
         return createInitialInstance(source, child, input, outputFieldPrefix);
     }
 
@@ -39,7 +40,7 @@ public abstract class CompoundOutputEvalSerializationTests<T extends CompoundOut
                 child = randomValueOtherThan(child, () -> randomChild(0));
                 break;
             case 1:
-                input = randomValueOtherThan(input, () -> FieldAttributeTests.createFieldAttribute(0, false));
+                input = randomValueOtherThan(input, () -> createFieldAttribute(0, false));
                 break;
             case 2:
                 final int nameSize = outputFieldNames.size();

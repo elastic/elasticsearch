@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -84,7 +85,14 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new MonitoringTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new MonitoringTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After
@@ -117,7 +125,8 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getLegacyTemplateConfigs(), is(empty()));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
@@ -196,7 +205,8 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 client,
-                NamedXContentRegistry.EMPTY
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
             );
             testRegistry.clusterChanged(event);
         } else {

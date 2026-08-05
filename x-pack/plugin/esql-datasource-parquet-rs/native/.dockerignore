@@ -1,0 +1,8 @@
+# Build artifacts
+target/
+libraries/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml

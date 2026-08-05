@@ -30,6 +30,18 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         LTE;
 
         @Override
+        public String toString() {
+            return switch (this) {
+                case EQ -> "==";
+                case NEQ -> "!=";
+                case GT -> ">";
+                case GTE -> ">=";
+                case LT -> "<";
+                case LTE -> "<=";
+            };
+        }
+
+        @Override
         public ScalarFunctionFactory asFunction() {
             return switch (this) {
                 case EQ -> (s, l, r, c) -> new Equals(s, l, r);

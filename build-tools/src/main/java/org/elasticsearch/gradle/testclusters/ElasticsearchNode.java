@@ -180,6 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
+    private String leakMessage = null;
 
     ElasticsearchNode(
         String clusterName,
@@ -318,6 +319,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void module(Provider<RegularFile> module) {
         checkFrozen();
         this.modules.add(module.map(RegularFile::getAsFile));
+    }
+
+    /**
+     * Adds a module directory directly from a plain file provider.
+     * Used by {@link ElasticsearchCluster} when wiring a {@link org.gradle.api.tasks.Sync} task output,
+     * where the destination directory is already resolved as a {@link java.io.File} and does not need
+     * to go through the {@code Provider<RegularFile>} abstraction.
+     */
+    void addModuleDirectory(Provider<File> moduleDir) {
+        checkFrozen();
+        this.modules.add(moduleDir);
     }
 
     public void module(TaskProvider<Sync> module) {
@@ -987,6 +999,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
+    /**
+     * Returns the resource leak message if one was detected during node shutdown, or null if no leaks were found.
+     */
+    @Internal
+    public String getLeakMessage() {
+        return leakMessage;
+    }
+
     @Override
     public synchronized void stop(boolean tailLogs) {
         logToProcessStdout("Stopping node");
@@ -1165,7 +1185,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundLeaks) {
-            throw new TestClustersException("Found resource leaks in node log: " + from);
+            leakMessage = "Found resource leaks in node log: " + from;
         }
     }
 

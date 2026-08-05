@@ -44,6 +44,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -69,9 +71,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
     private TransportService transportService;
     private DiscoveryNode localNode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("TransportUnpromotableShardRefreshActionTests");
         localNode = DiscoveryNodeUtils.create("local");
         clusterService = createClusterService(threadPool, localNode);
@@ -89,9 +90,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeServices() throws Exception {
         clusterService.close();
         transportService.stop();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);

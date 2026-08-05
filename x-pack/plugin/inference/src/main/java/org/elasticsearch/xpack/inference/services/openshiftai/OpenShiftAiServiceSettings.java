@@ -162,13 +162,7 @@ public abstract class OpenShiftAiServiceSettings extends FilteredXContentObject 
     ) {
         var model = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = extractUri(map, URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            OpenShiftAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new OpenShiftAiCommonServiceSettings(model, uri, rateLimitSettings);
     }
 

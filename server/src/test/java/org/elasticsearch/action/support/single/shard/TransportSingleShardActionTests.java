@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.support.single.shard.TransportSingleShardAction.ROUTE_REFRESH_TIMEOUT;
+import static org.elasticsearch.action.support.ReshardingActionHelper.ROUTE_REFRESH_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.isA;
@@ -311,4 +311,5 @@ public class TransportSingleShardActionTests extends ESTestCase {
             return new PlainShardsIterator(List.of(shardRouting));
         }
     }
+
 }

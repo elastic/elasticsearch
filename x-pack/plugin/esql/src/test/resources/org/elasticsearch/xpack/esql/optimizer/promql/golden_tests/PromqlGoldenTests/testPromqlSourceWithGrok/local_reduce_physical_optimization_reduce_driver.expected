@@ -1,0 +1,3 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$0$values{r}#3, $$_timeseries$values{r}#4],false]
+\_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#5,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#6) AS LASTOVERTIME_$1#7, DIMENSIONVALUES(_timeseries{f}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#9, step{r}#1],INTERMEDIATE,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#10, $$LASTOVERTIME_$0$values{r}#11, $$_timeseries$values{r}#12],66,BUCKET(@timestamp{f}#6,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#6,PT1H[TIME_DURATION]),false]
+  \_ExchangeSourceExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$0$values{r}#3, $$_timeseries$values{r}#4],false]

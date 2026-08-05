@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -18,7 +19,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testAllKeyword() {
         String[] cols = { "name", "city" };
         List<String[]> rows = List.of(new String[] { "Alice", "London" }, new String[] { "Bob", "Paris" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(2, schema.size());
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
@@ -28,7 +29,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testIntegerDetection() {
         String[] cols = { "id", "age" };
         List<String[]> rows = List.of(new String[] { "1", "30" }, new String[] { "2", "25" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
         assertEquals(DataType.INTEGER, schema.get(1).dataType());
@@ -37,7 +38,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testLongDetection() {
         String[] cols = { "big" };
         List<String[]> rows = List.of(new String[] { "9999999999" }, new String[] { "42" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.LONG, schema.get(0).dataType());
     }
@@ -45,7 +46,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testDoubleDetection() {
         String[] cols = { "score" };
         List<String[]> rows = List.of(new String[] { "95.5" }, new String[] { "87.3" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DOUBLE, schema.get(0).dataType());
     }
@@ -53,7 +54,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testBooleanDetection() {
         String[] cols = { "active" };
         List<String[]> rows = List.of(new String[] { "true" }, new String[] { "false" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.BOOLEAN, schema.get(0).dataType());
     }
@@ -61,7 +62,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testBooleanCaseInsensitive() {
         String[] cols = { "flag" };
         List<String[]> rows = List.of(new String[] { "True" }, new String[] { "FALSE" }, new String[] { "true" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.BOOLEAN, schema.get(0).dataType());
     }
@@ -69,7 +70,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testDatetimeDetection() {
         String[] cols = { "ts" };
         List<String[]> rows = List.of(new String[] { "2021-01-01T00:00:00Z" }, new String[] { "2022-06-15T12:00:00Z" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DATETIME, schema.get(0).dataType());
     }
@@ -77,7 +78,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testDateOnlyDetection() {
         String[] cols = { "date" };
         List<String[]> rows = List.of(new String[] { "2021-01-01" }, new String[] { "2022-06-15" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DATETIME, schema.get(0).dataType());
     }
@@ -85,7 +86,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testZonelessTimestampDetection() {
         String[] cols = { "ts" };
         List<String[]> rows = List.<String[]>of(new String[] { "2021-01-01T10:30:00" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DATETIME, schema.get(0).dataType());
     }
@@ -93,7 +94,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testMixedTypesWiden() {
         String[] cols = { "value" };
         List<String[]> rows = List.of(new String[] { "42" }, new String[] { "9999999999" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.LONG, schema.get(0).dataType());
     }
@@ -101,7 +102,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testIntToDoubleWidening() {
         String[] cols = { "value" };
         List<String[]> rows = List.of(new String[] { "42" }, new String[] { "3.14" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DOUBLE, schema.get(0).dataType());
     }
@@ -109,7 +110,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testBooleanMismatchSkipsToKeyword() {
         String[] cols = { "flag" };
         List<String[]> rows = List.of(new String[] { "true" }, new String[] { "maybe" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
     }
@@ -117,7 +118,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testDatetimeMismatchSkipsToKeyword() {
         String[] cols = { "ts" };
         List<String[]> rows = List.of(new String[] { "2021-01-01T00:00:00Z" }, new String[] { "not_a_date" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
     }
@@ -125,7 +126,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testNullValuesPreserveCandidate() {
         String[] cols = { "value" };
         List<String[]> rows = List.of(new String[] { "42" }, new String[] { null }, new String[] { "" }, new String[] { "7" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
     }
@@ -133,7 +134,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testAllNullsDefaultToKeyword() {
         String[] cols = { "empty" };
         List<String[]> rows = List.of(new String[] { null }, new String[] { "" }, new String[] { "null" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
     }
@@ -141,7 +142,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testEmptyRowsDefaultToKeyword() {
         String[] cols = { "col" };
         List<String[]> rows = List.of();
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
     }
@@ -152,7 +153,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
             new String[] { "Alice", "30", "95.5", "true", "2021-01-01T00:00:00Z" },
             new String[] { "Bob", "25", "87.3", "false", "2022-06-15T12:00:00Z" }
         );
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(5, schema.size());
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
@@ -165,7 +166,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testFewerValuesThanColumns() {
         String[] cols = { "a", "b", "c" };
         List<String[]> rows = List.<String[]>of(new String[] { "1", "hello" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(3, schema.size());
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
@@ -176,7 +177,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testNegativeNumbers() {
         String[] cols = { "value" };
         List<String[]> rows = List.of(new String[] { "-42" }, new String[] { "-7" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
     }
@@ -184,7 +185,7 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testNegativeDouble() {
         String[] cols = { "value" };
         List<String[]> rows = List.<String[]>of(new String[] { "-3.14" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals(DataType.DOUBLE, schema.get(0).dataType());
     }
@@ -192,9 +193,30 @@ public class CsvSchemaInferrerTests extends ESTestCase {
     public void testColumnNames() {
         String[] cols = { " name ", " age " };
         List<String[]> rows = List.<String[]>of(new String[] { "Alice", "30" });
-        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
 
         assertEquals("name", schema.get(0).name());
         assertEquals("age", schema.get(1).name());
+    }
+
+    public void testInferredAttributesAreNullable() {
+        String[] cols = { "name", "age" };
+        List<String[]> rows = List.of(new String[] { "Alice", "30" }, new String[] { "Bob", "25" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows, null);
+
+        for (Attribute attr : schema) {
+            assertEquals(Nullability.TRUE, attr.nullable());
+        }
+    }
+
+    public void testSynthesizeColumnNames() {
+        String[] names = CsvFormatReader.synthesizeColumnNames(4, "col");
+        assertArrayEquals(new String[] { "col0", "col1", "col2", "col3" }, names);
+
+        String[] custom = CsvFormatReader.synthesizeColumnNames(3, "f_");
+        assertArrayEquals(new String[] { "f_0", "f_1", "f_2" }, custom);
+
+        String[] zero = CsvFormatReader.synthesizeColumnNames(0, "col");
+        assertEquals(0, zero.length);
     }
 }

@@ -37,6 +37,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {
             super(
                 USE_FIXTURE,
+                null,
                 "bucket",
                 "base_path_integration_tests",
                 () -> consistencyModel,

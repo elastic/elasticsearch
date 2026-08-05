@@ -446,7 +446,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
             final SortedNumericDoubleValues values = source.doubleValues(ctx);
-            final DoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 

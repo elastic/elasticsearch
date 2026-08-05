@@ -25,7 +25,9 @@ public sealed interface ReceivedTelemetry {
     /**
      * A set of metrics from a single instrumentation scope (e.g. "elasticsearch").
      */
-    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples) implements ReceivedTelemetry {
+    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples, long collectionTime)
+        implements
+            ReceivedTelemetry {
         public ReceivedMetricSet {
             requireNonNull(instrumentationScopeName);
             requireNonNull(samples);
@@ -38,13 +40,38 @@ public sealed interface ReceivedTelemetry {
 
     /**
      * Root span (aka "transaction") has {@code parentSpanId} empty.
+     * {@code attributes} is a flat map of span attributes using dot-notation keys.
+     * For APM intake NDJSON these are nested keys (e.g. {@code "context.request.method"});
+     * for OTLP, {@link org.elasticsearch.test.apmintegration.OtlpTracesParser} normalises
+     * raw OTel semantic keys into the {@code otel.attributes.*} namespace (e.g.
+     * {@code "otel.attributes.http.method"}) so that both export paths satisfy the same
+     * assertions in {@code AbstractTracesIT}.
      */
-    record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId) implements ReceivedTelemetry {
+    record ReceivedSpan(String name, String traceId, String spanId, Optional<String> parentSpanId, Map<String, Object> attributes)
+        implements
+            ReceivedTelemetry {
         public ReceivedSpan {
             requireNonNull(name);
             requireNonNull(traceId);
             requireNonNull(spanId);
             parentSpanId.ifPresent(Objects::requireNonNull);
+            attributes = Map.copyOf(requireNonNull(attributes));
+        }
+    }
+
+    /**
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
+     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
+     * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
+     * <p>
+     * Attribute keys are passed through verbatim from each protocol — no translation. The
+     * cross-path contract therefore asserts on the keys downstream consumers actually observe,
+     * so an exporter that drops a legacy APM key (or fails to emit an OTel-side counterpart)
+     * fails the assertion rather than being silently normalised away.
+     */
+    record ReceivedResource(Map<String, Object> attributes) implements ReceivedTelemetry {
+        public ReceivedResource {
+            attributes = Map.copyOf(requireNonNull(attributes));
         }
     }
 
@@ -64,13 +91,45 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
-     * A histogram of counts.
-     * @param counts the individual count values
+     * A histogram of non-zero bucket data. Each export path carries its native representation:
+     * the APM agent path populates {@code midpoints} (representative values per non-zero bucket);
+     * the OTLP path populates {@code bounds} (the explicit bucket boundaries of the histogram).
+     * Exactly one of {@code midpoints} or {@code bounds} will be non-empty for a given sample.
+     * @param midpoints representative midpoint values for each non-zero bucket (APM agent path; empty on OTLP path)
+     * @param bounds explicit bucket boundaries (OTLP path; empty on APM agent path)
+     * @param counts bucket counts in bucket order; on the APM agent path only non-zero buckets are present,
+     *               on the OTLP path all buckets are present including zeros
      */
-    record HistogramSample(List<Integer> counts) implements ReceivedMetricValue {
+    record HistogramSample(List<Double> midpoints, List<Double> bounds, List<Integer> counts) implements ReceivedMetricValue {
         public HistogramSample {
+            requireNonNull(midpoints);
+            requireNonNull(bounds);
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);
+        }
+    }
+
+    /**
+     * A single OTLP log record, as emitted by the OTel SDK audit-log export path.
+     * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
+     * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
+     * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
+     * rename.
+     */
+    record ReceivedLog(
+        long timeUnixNano,
+        int severityNumber,
+        String severityText,
+        String body,
+        Map<String, Object> attributes,
+        Optional<String> traceId,
+        String scopeName
+    ) implements ReceivedTelemetry {
+        public ReceivedLog {
+            requireNonNull(attributes);
+            attributes = Map.copyOf(attributes);
+            requireNonNull(traceId);
+            requireNonNull(scopeName);
         }
     }
 }

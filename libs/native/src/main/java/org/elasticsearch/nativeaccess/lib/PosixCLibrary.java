@@ -9,14 +9,14 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.foreign.CloseableByteBuffer;
 
 import java.lang.foreign.MemorySegment;
 
 /**
  * Provides access to methods in libc.so available on POSIX systems.
  */
-public non-sealed interface PosixCLibrary extends NativeLibrary {
+public interface PosixCLibrary {
 
     /** socket domain indicating unix file socket */
     short AF_UNIX = 1;

@@ -45,7 +45,7 @@ public class GenericDenseEmbeddingFloatResultsTests extends AbstractWireSerializ
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new GenericDenseEmbeddingFloatResults(List.of(new GenericDenseEmbeddingFloatResults.Embedding(new float[] { 0.1F })));
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings" : [
@@ -67,7 +67,7 @@ public class GenericDenseEmbeddingFloatResultsTests extends AbstractWireSerializ
 
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings" : [

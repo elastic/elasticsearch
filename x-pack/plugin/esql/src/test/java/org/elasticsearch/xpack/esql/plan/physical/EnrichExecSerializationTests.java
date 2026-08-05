@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class EnrichExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EnrichExec> {
     public static EnrichExec randomEnrichExec(int depth) {
@@ -23,7 +24,7 @@ public class EnrichExecSerializationTests extends AbstractPhysicalPlanSerializat
         PhysicalPlan child = randomChild(depth);
         Enrich.Mode mode = randomFrom(Enrich.Mode.values());
         String matchType = randomAlphaOfLength(3);
-        NamedExpression matchField = FieldAttributeTests.createFieldAttribute(0, false);
+        NamedExpression matchField = createFieldAttribute(0, false);
         String policyName = randomAlphaOfLength(4);
         String policyMatchField = randomAlphaOfLength(5);
         Map<String, String> concreteIndices = randomMap(1, 4, () -> Tuple.tuple(randomAlphaOfLength(3), randomAlphaOfLength(5)));
@@ -50,7 +51,7 @@ public class EnrichExecSerializationTests extends AbstractPhysicalPlanSerializat
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> mode = randomValueOtherThan(mode, () -> randomFrom(Enrich.Mode.values()));
             case 2 -> matchType = randomValueOtherThan(matchType, () -> randomAlphaOfLength(3));
-            case 3 -> matchField = randomValueOtherThan(matchField, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 3 -> matchField = randomValueOtherThan(matchField, () -> createFieldAttribute(0, false));
             case 4 -> policyName = randomValueOtherThan(policyName, () -> randomAlphaOfLength(4));
             case 5 -> policyMatchField = randomValueOtherThan(policyMatchField, () -> randomAlphaOfLength(5));
             case 6 -> concreteIndices = randomValueOtherThan(

@@ -1,0 +1,68 @@
+// esql-planning#1056: over a top-level Parquet list column COUNT returned 0 and IS NOT NULL dropped
+// every row, because the footer fast path addresses the column by its attribute name while the file
+// keys its stats at the leaf path ("job_positions.list.element"). The fix makes both decline so the
+// scan answers. employees_ds carries job_positions (list<keyword>) and salary_change (list<double>).
+// ES|QL COUNT counts VALUES, so COUNT(<list>) is the total non-null element count, not the row count.
+//
+// Authored as FROM <dataset>: dataset-capable backends (S3) run FROM; others rebuild the EXTERNAL query.
+
+listCountKeyword
+required_capability: external_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| STATS c = COUNT(job_positions);
+
+c:long
+221
+;
+
+listCountDouble
+required_capability: external_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| STATS c = COUNT(salary_change);
+
+c:long
+183
+;
+
+listIsNotNullKeyword
+required_capability: external_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE job_positions IS NOT NULL
+| STATS c = COUNT(*);
+
+c:long
+89
+;
+
+listIsNotNullDouble
+required_capability: external_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| WHERE salary_change IS NOT NULL
+| STATS c = COUNT(*);
+
+c:long
+79
+;
+
+// Fingerprint of the root cause: COUNT(list) alone is served from footer stats (returned 0 before
+// the fix); adding MAX(list) in the same STATS aborts the stats substitution and forces the scan, so
+// MAX was always correct. After the fix both are scan-answered and COUNT agrees with the value above.
+listCountWithMaxAgrees
+required_capability: external_command
+dataset: employees_ds: "{{employees}}"
+
+FROM employees_ds
+| STATS c = COUNT(job_positions), m = MAX(job_positions)
+| KEEP c;
+
+c:long
+221
+;

@@ -100,9 +100,8 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            FileList.UNRESOLVED
-        );
+            null
+        ).withFileList(FileList.UNRESOLVED);
 
         SplitProvider failingProvider = ctx -> { throw new UncheckedIOException(new IOException("connection reset")); };
         ExternalSourceFactory factory = testFactory(failingProvider);
@@ -177,6 +176,12 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
 
     private static ExternalSourceFactory testFactory(SplitProvider provider) {
         return new ExternalSourceFactory() {
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException("test stub does not implement validation");
+            }
+
             @Override
             public String type() {
                 return "test";

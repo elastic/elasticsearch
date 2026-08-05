@@ -283,6 +283,23 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     }
 
     /**
+     * Append all bytes from {@code cursor}, advancing it to exhaustion.
+     */
+    public void append(PagedBytesCursor cursor) {
+        cursor.appendTo(this);
+    }
+
+    /**
+     * Append all bytes from {@code cursor} with a leading variable-length integer
+     * recording the byte count. Advances the {@code cursor} to exhaustion.
+     * The encoding is compatible with {@link PagedBytesCursor#readLengthPrefixed}.
+     */
+    public void appendLengthPrefixed(PagedBytesCursor cursor) {
+        appendVInt(cursor.remaining());
+        cursor.appendTo(this);
+    }
+
+    /**
      * Append an int in big-endian order.
      */
     public void append(int v) {
@@ -372,7 +389,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
             scratch.init(tail, 0, tailOffset);
             return scratch;
         }
-        byte[][] bytePages = new byte[usedPages][];
+        byte[][] bytePages = new byte[usedPages][]; // TODO see if we can remove this allocation
         for (int i = 0; i < usedPages; i++) {
             bytePages[i] = pages[i].v();
         }
@@ -545,7 +562,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         breaker.addEstimateBytesAndMaybeBreak(extraBytesToReserve + pagesRamBytesUsed(size), label);
         boolean success = false;
         try {
-            pages = new Recycler.V[size];
+            pages = (Recycler.V<byte[]>[]) new Recycler.V<?>[size];
             grabNextPageFromRecycler();
             success = true;
         } finally {

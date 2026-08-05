@@ -11,17 +11,18 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class ParameterizedQuerySerializationTests extends AbstractLogicalPlanSerializationTests<ParameterizedQuery> {
 
     public static ParameterizedQuery randomParameterizedQuery() {
         List<Attribute> output = randomFieldAttributes(1, 5, false);
         List<MatchConfig> matchFields = randomList(1, 3, ParameterizedQuerySerializationTests::randomMatchConfig);
-        Expression joinOnConditions = randomBoolean() ? null : FieldAttributeTests.createFieldAttribute(3, false);
+        Expression joinOnConditions = randomBoolean() ? null : createFieldAttribute(3, false);
         return new ParameterizedQuery(randomSource(), output, matchFields, joinOnConditions);
     }
 
@@ -47,7 +48,7 @@ public class ParameterizedQuerySerializationTests extends AbstractLogicalPlanSer
             );
             case 2 -> joinOnConditions = randomValueOtherThan(
                 joinOnConditions,
-                () -> randomBoolean() ? null : FieldAttributeTests.createFieldAttribute(3, false)
+                () -> randomBoolean() ? null : createFieldAttribute(3, false)
             );
             default -> throw new IllegalArgumentException();
         }

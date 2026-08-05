@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -229,7 +231,7 @@ class PushDownUtils {
             if (p instanceof PipelineBreaker && p instanceof OrderBy == false) {
                 hasPipelineBreaker.set(true);
             }
-            if (p instanceof EsRelation) {
+            if (p instanceof EsRelation || p instanceof ExternalRelation) {
                 hasEsRelation.set(true);
             }
 
@@ -247,6 +249,27 @@ class PushDownUtils {
         }
 
         return hasEsRelation.get() && hasPipelineBreaker.get() == false;
+    }
+
+    /**
+     * Returns {@code true} when every child of {@code unionAll} is a direct leaf source —
+     * either an {@link EsRelation} or an {@link ExternalRelation} — or a {@link Project}
+     * wrapping one of those leaves (the shape produced by the analyzer's {@code resolveFork}
+     * for heterogeneous-FROM when the branches have matching schemas). Optimizer rules use
+     * this to distinguish the heterogeneous-FROM shape from the subquery-shape where each
+     * branch is {@code Project > Eval? > Subquery}.
+     */
+    static boolean isLeafUnionAll(UnionAll unionAll) {
+        return unionAll.children().stream().allMatch(c -> {
+            if (c instanceof EsRelation || c instanceof ExternalRelation) {
+                return true;
+            }
+            if (c instanceof Project p) {
+                LogicalPlan child = p.child();
+                return child instanceof EsRelation || child instanceof ExternalRelation;
+            }
+            return false;
+        });
     }
 
     public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {

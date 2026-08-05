@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -46,11 +44,11 @@ public class SplitFilterClassifierTests extends ESTestCase {
     private static final ReferenceAttribute AGE = referenceAttribute(COL, DataType.LONG);
 
     /** Standard stats: age in [10, 20], 100 rows, no nulls. */
-    private static final Map<String, Object> STATS_10_20 = colStats(COL, 10L, 20L, 100L, 0L);
+    private static final SplitStats STATS_10_20 = colStats(COL, 10L, 20L, 100L, 0L);
     /** Stats: age in [30, 50], 100 rows, no nulls. */
-    private static final Map<String, Object> STATS_30_50 = colStats(COL, 30L, 50L, 100L, 0L);
+    private static final SplitStats STATS_30_50 = colStats(COL, 30L, 50L, 100L, 0L);
     /** Stats: constant column age = 42, 100 rows, no nulls. */
-    private static final Map<String, Object> STATS_CONST_42 = colStats(COL, 42L, 42L, 100L, 0L);
+    private static final SplitStats STATS_CONST_42 = colStats(COL, 42L, 42L, 100L, 0L);
 
     // --- GreaterThan ---
 
@@ -164,49 +162,53 @@ public class SplitFilterClassifierTests extends ESTestCase {
     // --- AND conjunction ---
 
     public void testConjunctionAllMatch() {
-        assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20));
+        assertEquals(MATCH, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOrEqualOf(AGE, of(20L))), STATS_10_20, true));
     }
 
     public void testConjunctionOneMiss() {
-        assertEquals(MISS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(5L))), STATS_10_20));
+        assertEquals(MISS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(5L))), STATS_10_20, true));
     }
 
     public void testConjunctionMixedMatchAndAmbiguous() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(15L))), STATS_10_20));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOrEqualOf(AGE, of(10L)), lessThanOf(AGE, of(15L))), STATS_10_20, true));
     }
 
     // --- Edge cases ---
 
     public void testEmptyConjuncts() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(), STATS_10_20));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(), STATS_10_20, true));
     }
 
     public void testNullStats() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), null));
+        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), null, true));
     }
 
     public void testEmptyStats() {
-        assertEquals(AMBIGUOUS, classifySplit(List.of(greaterThanOf(AGE, of(5L))), Map.of()));
+        assertEquals(AMBIGUOUS, classifyExpression(greaterThanOf(AGE, of(5L)), SplitStats.EMPTY, true));
     }
 
     public void testMissingColumnStats() {
-        var stats = Map.<String, Object>of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        SplitStats stats = new SplitStats.Builder().rowCount(100).build();
         assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     public void testMissingNullCount() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        stats.put("_stats.columns.age.min", 10L);
-        stats.put("_stats.columns.age.max", 20L);
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("age");
+        builder.min(col, 10L);
+        builder.max(col, 20L);
+        SplitStats stats = builder.build();
         assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), stats));
     }
 
     public void testMissDoesNotRequireNullCount() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        stats.put("_stats.columns.age.min", 10L);
-        stats.put("_stats.columns.age.max", 20L);
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("age");
+        builder.min(col, 10L);
+        builder.max(col, 20L);
+        SplitStats stats = builder.build();
         assertEquals(MISS, classify(greaterThanOf(AGE, of(25L)), stats));
     }
 
@@ -219,21 +221,21 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     public void testDoubleStats() {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        stats.put("_stats.columns.score.min", 1.5);
-        stats.put("_stats.columns.score.max", 9.5);
-        stats.put("_stats.columns.score.null_count", 0L);
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int scoreCol = builder.addColumn("score", 0L, 1.5, 9.5, -1);
+        builder.valueCount(scoreCol, 100); // single-valued (one value per row) — required for comparison MATCH
+        SplitStats stats = builder.build();
         assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
     }
 
     public void testStringStats() {
         ReferenceAttribute name = referenceAttribute("name", DataType.KEYWORD);
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        stats.put("_stats.columns.name.min", "alice");
-        stats.put("_stats.columns.name.max", "charlie");
-        stats.put("_stats.columns.name.null_count", 0L);
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int nameCol = builder.addColumn("name", 0L, "alice", "charlie", -1);
+        builder.valueCount(nameCol, 100); // single-valued (one value per row) — required for comparison MATCH
+        SplitStats stats = builder.build();
         assertEquals(MATCH, classify(greaterThanOf(name, of("aaron")), stats));
     }
 
@@ -312,11 +314,34 @@ public class SplitFilterClassifierTests extends ESTestCase {
     }
 
     public void testIsNullAmbiguousWhenNoNullCount() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
-        stats.put("_stats.columns.age.min", 30L);
-        stats.put("_stats.columns.age.max", 50L);
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(100);
+        int col = builder.addColumn("age");
+        builder.min(col, 30L);
+        builder.max(col, 50L);
+        SplitStats stats = builder.build();
         assertEquals(AMBIGUOUS, classify(isNull(AGE), stats));
+    }
+
+    /**
+     * WRONG-DATA regression: for a format WITHOUT implicit nulls (partially-harvested text stats), an
+     * ABSENT column means "not harvested" — its null count is unknowable, NOT rowCount. Classifying it
+     * as all-null would MATCH {@code IS NULL} (COUNT(*) served as N where the truth is 0) or MISS
+     * {@code IS NOT NULL} (COUNT(*) served as 0 where the truth is N). Both must be AMBIGUOUS so the
+     * engine re-scans. Under implicit nulls (footer formats) the all-null classification stays correct.
+     */
+    public void testIsNullFamilyAmbiguousForUnharvestedTextColumn() {
+        // Stats harvested only for "other" — the filtered column "age" was never observed.
+        SplitStats partial = colStats("other", 1L, 9L, 100L, 0L);
+        assertEquals(AMBIGUOUS, classifyExpression(isNull(AGE), partial, false));
+        assertEquals(AMBIGUOUS, classifyExpression(isNotNull(AGE), partial, false));
+        // Footer semantics: absent == all-null stays classifiable.
+        assertEquals(MATCH, classifyExpression(isNull(AGE), partial, true));
+        assertEquals(MISS, classifyExpression(isNotNull(AGE), partial, true));
+        // A column the text harvest DID observe classifies normally without implicit nulls.
+        SplitStats harvested = colStats(COL, 30L, 50L, 100L, 0L);
+        assertEquals(MISS, classifyExpression(isNull(AGE), harvested, false));
+        assertEquals(MATCH, classifyExpression(isNotNull(AGE), harvested, false));
     }
 
     // --- IS NOT NULL ---
@@ -385,17 +410,37 @@ public class SplitFilterClassifierTests extends ESTestCase {
 
     // --- helpers ---
 
-    private static SplitFilterClassifier.SplitMatch classify(Expression filter, Map<String, Object> stats) {
-        return classifyExpression(filter, stats);
+    private static SplitFilterClassifier.SplitMatch classify(Expression filter, SplitStats stats) {
+        return classifyExpression(filter, stats, true);
     }
 
-    private static Map<String, Object> colStats(String colName, Object min, Object max, long rowCount, long nullCount) {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
-        stats.put("_stats.columns." + colName + ".min", min);
-        stats.put("_stats.columns." + colName + ".max", max);
-        stats.put("_stats.columns." + colName + ".null_count", nullCount);
-        return stats;
+    private static SplitStats colStats(String colName, Object min, Object max, long rowCount, long nullCount) {
+        // Single-valued: value_count == rowCount - nullCount (one value per non-null row). A comparison MATCH is
+        // only sound for single-valued columns, so the classifier requires this; these fixtures model that reality.
+        return colStats(colName, min, max, rowCount, nullCount, rowCount - nullCount);
+    }
+
+    private static SplitStats colStats(String colName, Object min, Object max, long rowCount, long nullCount, long valueCount) {
+        SplitStats.Builder builder = new SplitStats.Builder();
+        builder.rowCount(rowCount);
+        int col = builder.addColumn(colName);
+        builder.nullCount(col, nullCount);
+        builder.valueCount(col, valueCount);
+        builder.min(col, min);
+        builder.max(col, max);
+        return builder.build();
+    }
+
+    public void testComparisonOnMultivaluedColumnIsAmbiguousNotMatch() {
+        // B3 (elastic/elasticsearch#150920): a MULTIVALUED column's comparison evaluates to NULL in the engine
+        // (e.g. [5,5] == 5 -> NULL, so the row does NOT match), yet min==max would classify MATCH and serve the
+        // full count -> an over-count. A split where value_count > rowCount - nullCount (some row has >1 value)
+        // must NOT MATCH a comparison/IN -> AMBIGUOUS (the engine re-scans). MISS stays sound.
+        SplitStats mv = colStats(COL, 10L, 20L, 100L, 0L, 150L); // 100 rows, 0 nulls, 150 values -> multivalued
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(AGE, of(5L)), mv)); // min 10 > 5 -> MATCH if single-valued
+        assertEquals(AMBIGUOUS, classify(equalsOf(AGE, of(15L)), colStats(COL, 15L, 15L, 100L, 0L, 200L))); // == on MV
+        // MISS is still sound on a multivalued column (every value out of range -> no row can match).
+        assertEquals(MISS, classify(greaterThanOf(AGE, of(25L)), mv));
     }
 
     private static Expression or(Expression left, Expression right) {

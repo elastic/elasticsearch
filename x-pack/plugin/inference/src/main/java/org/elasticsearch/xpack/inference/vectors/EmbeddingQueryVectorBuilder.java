@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
@@ -49,8 +48,6 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INPUT_FIELD = new ParseField("input");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
-
-    public static final TimeValue DEFAULT_TIMEOUT = BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING);
 
     public static final NodeFeature EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE = new NodeFeature("embedding_query_vector_builder");
 
@@ -123,8 +120,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         }
 
         var embeddingRequest = new EmbeddingRequest(List.of(input), InputType.SEARCH, null);
-        var actualTimeout = Objects.requireNonNullElse(timeout, DEFAULT_TIMEOUT);
-        var request = new EmbeddingAction.Request(inferenceId, TaskType.ANY, embeddingRequest, actualTimeout);
+        var request = new EmbeddingAction.Request(inferenceId, TaskType.ANY, embeddingRequest, timeout);
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,

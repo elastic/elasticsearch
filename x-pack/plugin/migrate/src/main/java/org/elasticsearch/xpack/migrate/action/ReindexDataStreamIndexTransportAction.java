@@ -48,7 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -175,7 +175,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
-            .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
+            .<BulkByPaginatedSearchResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
@@ -286,7 +286,12 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     }
 
     // Visible for testing
-    void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener, TaskId parentTaskId) {
+    void reindex(
+        String sourceIndexName,
+        String destIndexName,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        TaskId parentTaskId
+    ) {
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
@@ -298,9 +303,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         reindexRequest.setRequestsPerSecond(clusterService.getClusterSettings().get(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING));
         reindexRequest.setSlices(0); // equivalent to slices=auto in rest api
         // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
-        ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
-            if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
-                PaginatedSearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+        ActionListener<BulkByPaginatedSearchResponse> checkForFailuresListener = ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            if (bulkByPaginatedSearchResponse.getSearchFailures().isEmpty() == false) {
+                PaginatedSearchFailure firstSearchFailure = bulkByPaginatedSearchResponse.getSearchFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Failure reading data from {} caused by {}",
@@ -309,8 +314,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                         firstSearchFailure.getReason().getMessage()
                     )
                 );
-            } else if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                BulkItemResponse.Failure firstBulkFailure = bulkByScrollResponse.getBulkFailures().get(0);
+            } else if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
+                BulkItemResponse.Failure firstBulkFailure = bulkByPaginatedSearchResponse.getBulkFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Failure loading data from {} into {} caused by {}",
@@ -321,7 +326,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                     )
                 );
             } else {
-                listener.onResponse(bulkByScrollResponse);
+                listener.onResponse(bulkByPaginatedSearchResponse);
             }
         }, listener::onFailure);
         /*
@@ -341,7 +346,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 reindexRequest,
                 new ActionListenerResponseHandler<>(
                     checkForFailuresListener,
-                    BulkByScrollResponse::new,
+                    BulkByPaginatedSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
             );

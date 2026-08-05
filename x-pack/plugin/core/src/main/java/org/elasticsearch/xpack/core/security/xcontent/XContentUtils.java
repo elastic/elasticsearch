@@ -109,6 +109,19 @@ public class XContentUtils {
         builder.endObject();
     }
 
+    /**
+     * Renders the UIAM cloud API key id as {@code authorization.cloud_api_key.id} — the shared GET-response
+     * shape used by datafeeds and transforms during UIAM switchover. Only the id is emitted; the secret is
+     * never included.
+     */
+    public static void addCloudApiKeyAuthorization(final XContentBuilder builder, final String cloudApiKeyId) throws IOException {
+        builder.startObject("authorization");
+        builder.startObject("cloud_api_key");
+        builder.field("id", cloudApiKeyId);
+        builder.endObject();
+        builder.endObject();
+    }
+
     private static void addSubjectInfo(XContentBuilder builder, Subject subject) throws IOException {
         switch (subject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());

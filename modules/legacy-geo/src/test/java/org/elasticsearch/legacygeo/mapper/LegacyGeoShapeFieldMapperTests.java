@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
@@ -62,6 +63,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
     }
@@ -74,6 +80,16 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
         assertWarnings(getParseMinimalWarnings());
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
+    }
+
+    @Override
+    public void testNotIndexed() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
     }
 
     @Override

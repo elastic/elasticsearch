@@ -65,7 +65,7 @@ public class IndexGraveyardTests extends ESTestCase {
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
             assertThat(
-                Strings.toString(graveyard, false, true),
+                Strings.toTruncatedString(graveyard, false, true),
                 containsString(
                     XContentElasticsearchExtension.DEFAULT_FORMATTER.format(
                         Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis())

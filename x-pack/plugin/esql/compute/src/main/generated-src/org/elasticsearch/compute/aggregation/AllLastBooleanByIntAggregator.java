@@ -346,22 +346,22 @@ public class AllLastBooleanByIntAggregator {
             try (var valuesBuilder = blockFactory.newBooleanBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        ByteArray tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            valuesBuilder.appendBoolean(firstValues.get(group) == 1);
-                            for (int i = 0; i < tailCount; ++i) {
-                                valuesBuilder.appendBoolean(tail.get(i) == 1);
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    ByteArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendBoolean(firstValues.get(group) == 1);
+                    for (int i = 0; i < tailCount; ++i) {
+                        valuesBuilder.appendBoolean(tail.get(i) == 1);
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

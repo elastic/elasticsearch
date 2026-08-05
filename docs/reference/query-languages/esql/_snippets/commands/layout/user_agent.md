@@ -56,7 +56,7 @@ Custom regex files are typically variants of the default [uap-core regexes.yaml]
 The `USER_AGENT` command parses a user-agent string and extracts its parts into new columns.
 The new columns are prefixed with the specified `prefix` followed by a dot (`.`).
 
-This command is the query-time equivalent of the [User-Agent ingest processor](/reference/enrich-processor/user-agent-processor.md).
+This command is the query-time equivalent of the [User-Agent ingest processor](/reference/ingest-processor/user-agent-processor.md).
 
 The following columns may be created (depending on `properties` and `extract_device_type`):
 
@@ -88,7 +88,7 @@ If the expression evaluates to `null` or blank, all output columns are `null`.
 
 The following example parses a user-agent string and extracts its parts:
 
-:::{include} ../examples/user_agent.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/user_agent.csv-spec/basic.md
 :::
 
 To limit output to specific properties or include device type, use the `properties` and `extract_device_type` options:

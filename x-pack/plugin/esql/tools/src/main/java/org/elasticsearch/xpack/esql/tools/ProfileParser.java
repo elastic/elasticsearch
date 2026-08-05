@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,7 +29,6 @@ import java.util.Map;
 public class ProfileParser {
 
     public static void main(String[] args) throws IOException {
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         Logger logger = LogManager.getLogger(ProfileParser.class);
 

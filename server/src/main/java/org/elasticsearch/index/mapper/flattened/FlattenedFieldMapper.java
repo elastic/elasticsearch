@@ -10,9 +10,12 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -29,9 +32,12 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -47,6 +53,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -65,8 +77,10 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -104,12 +118,15 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1814,6 +1831,246 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         return (FlattenedFieldArrayContext) context.getOffSetContext(
             mappedFieldType.name(),
             () -> new FlattenedFieldArrayContext(mappedFieldType.name())
+        );
+    }
+
+    /**
+     * Whether this flattened field can be driven through the columnar batch-mapping path. Only the strict-columnar
+     * {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} configuration is supported, which writes exactly two output
+     * columns ({@code <root>._keyed} plus its {@code .counts} companion). Everything else — the sorted-unique keyed encoding, root
+     * doc values, the inverted index, the {@code _offsets} sidecar, mapped sub-fields, dimensions, scripts, {@code copy_to} and
+     * multi-fields — falls back to the row path.
+     */
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
+        // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
+        // mappers, which the driver resolves as ordinary leaves rather than as part of this group.
+        return indexSettings.getMode().isStrictColumnar()
+            && fieldType().usesArrayOrderBinaryDocValues()
+            && fieldType().hasDocValues()
+            && fieldType().indexType().hasTerms() == false
+            && fieldType().hasRootDocValues == false
+            && mappedSubFields.isEmpty()
+            && fieldType().dimensions().isEmpty()
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false;
+    }
+
+    @Override
+    public boolean resolvesColumnGroup() {
+        return true;
+    }
+
+    /**
+     * Handles a leaf column at the flattened field's own path. A flattened value is always an object, and a non-empty object is
+     * exploded by the columnar encoder into one dotted leaf per key — delivered to {@link #mapColumnGroupBatch} instead. So this is
+     * only reached for {@code null} and {@code {}} values, for which the row path emits no fields either
+     * ({@link #parseCreateField} returns early on {@code VALUE_NULL}; an empty object has no leaves to index).
+     */
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (EscfColumnTransforms.allNullOrEmptyObject(source) == false) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: flattened field ["
+                    + fullPath()
+                    + "] has a leaf column at its own path holding something other than null or an empty object"
+            );
+        }
+    }
+
+    /**
+     * Maps a batch of documents for this flattened field from the group of ESCF leaf columns rooted at its path, where
+     * {@code relativeKeys[k]} is the flattened key of {@code columns[k]}.
+     *
+     * <p>Emits the two columns of the strict-columnar keyed channel:
+     * <ol>
+     *   <li>{@code <root>._keyed} — one {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} blob per document, holding
+     *       every {@code key\0value} slot (and {@code key\0} for a JSON null) with duplicates and order preserved.</li>
+     *   <li>{@code <root>._keyed.counts} — the slot count per document, including null slots.</li>
+     * </ol>
+     *
+     * <p>Two known divergences from the row path, both inherent to the columnar source encoding:
+     * <ul>
+     *   <li><b>Slot order.</b> The row path emits slots in JSON document order. {@code EscfRowBuffer} records only which columns a row
+     *       touched, not the order it touched them in, so slots are emitted in schema-leaf order — the order keys were first seen
+     *       across the batch. The two agree whenever every document in the batch lists its flattened keys in the same order, which is
+     *       the common case, and the blob byte order is load-bearing when they do not.
+     *       TODO: preserve per-row key order in the ESCF encoder so this is exact.</li>
+     *   <li><b>Number rendering.</b> Values arrive already parsed, so {@code 1.50} renders as the canonical {@code 1.5} rather than
+     *       the original source characters the row path preserves via {@code parser.text()}. Same divergence as
+     *       {@link org.elasticsearch.index.mapper.KeywordFieldMapper#mapColumnBatch}.</li>
+     * </ul>
+     *
+     * <p>TODO: {@code depth_limit} is not enforced. The depth is available — {@code SourceSchema} is a parent-pointer tree that keeps
+     * {@code {"a.b": v}} (a leaf literally named {@code a.b}) structurally distinct from {@code {"a": {"b": v}}} (a leaf under a
+     * non-leaf), which is exactly the distinction the row path's on-descent {@code path.length() + 1} check makes. It is
+     * {@code SourceSchema#getFullPath} that flattens both to the same dotted string, and this signature only carries that already
+     * flattened form. Enforcing it means passing the leaf indices and schema through instead of (or alongside) {@code relativeKeys},
+     * so the depth can be recovered by counting non-leaf hops up to this field. Note the same erasure is why
+     * {@code relativeKeys} is not necessarily unique within a group: both shapes above yield the relative key {@code a.b}, so one
+     * batch containing both produces two distinct columns sharing that key. That is handled correctly today (each emits its own slot,
+     * as the row path does) but only under the slot-order caveat above.
+     *
+     * <p>Both of these are deferred to the production hook-up in {@code ShardBatchMapper}, where the real construction site for these
+     * arrays will exist and the cost of a richer signature can be judged against actual batches; the harness is currently the only
+     * caller. That evaluation also has to account for dot expansion: whether the columnar path normalizes dotted keys into nested
+     * non-leaves (or collapses nested objects into dotted leaves) determines what the schema tree looks like in the first place, and
+     * therefore what a depth check would even be measuring. Settling the depth semantics before that behaviour is decided risks
+     * encoding the wrong rule.
+     *
+     * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
+     *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
+     */
+    @Override
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
+        final int docCount = ctx.docCount();
+        final int columnCount = columns.length;
+
+        // The "key\0" prefix is constant across documents for a given column, so build it once.
+        final BytesRef[] keyPrefixes = new BytesRef[columnCount];
+        final BytesRefBuilder prefixScratch = new BytesRefBuilder();
+        for (int k = 0; k < columnCount; k++) {
+            final String key = relativeKeys[k];
+            if (key.indexOf(FlattenedFieldParser.SEPARATOR_BYTE) >= 0) {
+                throw new IllegalArgumentException(
+                    "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+                );
+            }
+            prefixScratch.clear();
+            prefixScratch.copyChars(key);
+            prefixScratch.append(FlattenedFieldParser.SEPARATOR_BYTE);
+            keyPrefixes[k] = prefixScratch.toBytesRef();
+        }
+
+        final List<ObjectTupleCursor<BytesRef>> cursors = new ArrayList<>(columnCount);
+        // Doc each cursor is currently positioned on, or NO_MORE_DOCS once drained.
+        final int[] cursorDocs = new int[columnCount];
+        for (int k = 0; k < columnCount; k++) {
+            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k]);
+            cursors.add(cursor);
+            cursorDocs[k] = cursor.nextDoc();
+        }
+
+        final EscfColumnBuilder keyed = mergeStringColumn();
+        final EscfColumnBuilder counts = mergeLongColumn();
+        final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
+
+        // Per-document slot buffer, reused across documents. nullMarkers[i] tracks whether slot i is a null slot, which the
+        // uniform encoding cannot infer from the bytes alone (a null slot and an empty-string value differ only by their prefix).
+        BytesRef[] slots = new BytesRef[4];
+        final BitSet nullMarkers = new BitSet();
+        final BytesRefBuilder slotScratch = new BytesRefBuilder();
+
+        for (int doc = 0; doc < docCount; doc++) {
+            int slotCount = 0;
+            nullMarkers.clear();
+            // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
+            for (int k = 0; k < columnCount; k++) {
+                final BytesRef keyPrefix = keyPrefixes[k];
+                final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
+                while (cursorDocs[k] == doc) {
+                    BytesRef value = cursor.value();
+                    final boolean isNull;
+                    if (value == null && nullValueBytes != null) {
+                        // null_value substitution, mirroring FlattenedFieldParser#addNull.
+                        value = nullValueBytes;
+                    }
+                    if (value == null) {
+                        // A null slot carries the key only, so synthetic source can tell which key was null.
+                        isNull = true;
+                        slotScratch.clear();
+                        slotScratch.append(keyPrefix);
+                    } else {
+                        isNull = false;
+                        if (fieldType().ignoreAbove().isIgnored(value)) {
+                            throw new UnsupportedOperationException(
+                                "mapColumnGroupBatch: value for key ["
+                                    + relativeKeys[k]
+                                    + "] of flattened field ["
+                                    + fullPath()
+                                    + "] in doc ["
+                                    + doc
+                                    + "] exceeds ignore_above; the ignored-values channel is not yet supported"
+                            );
+                        }
+                        slotScratch.clear();
+                        slotScratch.append(keyPrefix);
+                        slotScratch.append(value);
+                        if (slotScratch.length() > IndexWriter.MAX_TERM_LENGTH) {
+                            throw immenseKeyedValueException(relativeKeys[k], value.length);
+                        }
+                    }
+
+                    if (slotCount == slots.length) {
+                        slots = Arrays.copyOf(slots, ArrayUtil.oversize(slotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                    }
+                    // toBytesRef copies, which is required: the scratch buffer is reused for the very next slot.
+                    slots[slotCount] = slotScratch.toBytesRef();
+                    if (isNull) {
+                        nullMarkers.set(slotCount);
+                    }
+                    slotCount++;
+
+                    cursorDocs[k] = cursor.nextDoc();
+                }
+            }
+
+            if (slotCount > 0) {
+                // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
+                keyed.setString(doc, MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encode(slots, slotCount, nullMarkers));
+                counts.setLong(doc, slotCount);
+            }
+        }
+
+        if (keyed.isEmpty()) {
+            counts.discard();
+            keyed.discard();
+            return;
+        }
+
+        final String keyedFieldName = fieldType().name() + KEYED_FIELD_SUFFIX;
+        ctx.addColumn(LuceneBinaryColumn.of(keyed.finish(docCount), keyedFieldName, CustomDocValuesField.TYPE));
+        ctx.addColumn(
+            LuceneLongColumn.of(
+                counts.finish(docCount),
+                keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
+                MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
+                LongColumn.NumericKind.LONG
+            )
+        );
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
+    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
+        return new IllegalArgumentException(
+            "Flattened field ["
+                + fieldType().name()
+                + "] contains one immense field"
+                + " whose keyed encoding is longer than the allowed max length of "
+                + IndexWriter.MAX_TERM_LENGTH
+                + " bytes. Key length: "
+                + key.length()
+                + ", value length: "
+                + valueLength
+                + " for key starting with ["
+                + key.substring(0, Math.min(key.length(), 50))
+                + "]"
         );
     }
 

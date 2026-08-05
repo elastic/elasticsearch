@@ -44,6 +44,33 @@ public final class EscfColumnTransforms {
     }
 
     /**
+     * Returns {@code true} when every present row of {@code column} is either JSON {@code null} or an
+     * empty object — the latter being the zero-entry {@code KEY_VALUE} row that
+     * {@link EscfRowBuffer#emptyObject} writes to keep {@code {}} distinguishable from an absent field.
+     * <p>
+     * Exists for object-valued mappers such as {@code flattened}, whose non-empty values are exploded
+     * into a group of dotted leaf columns rather than a leaf at the field's own path. A leaf at that
+     * path can therefore only be {@code null} or {@code {}}, neither of which produces any Lucene
+     * field, so such a column is a no-op. The per-row type inspection this needs
+     * ({@link EscfColumn#getTypeByte}, {@link EscfColumn#getKeyValue}) is package-private, hence the
+     * predicate lives here rather than in the mapper.
+     */
+    public static boolean allNullOrEmptyObject(EscfColumn column) {
+        final int docCount = column.docCount();
+        for (int row = 0; row < docCount; row++) {
+            final byte type = column.getTypeByte(row);
+            if (type == SourceValueType.ABSENT || type == SourceValueType.NULL) {
+                continue;
+            }
+            // next() returning true means the object has at least one entry.
+            if (type != SourceValueType.KEY_VALUE || column.getKeyValue(row).next()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.

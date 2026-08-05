@@ -154,7 +154,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          * The field type produced by {@link NumericDocValuesField#indexedField} — used for the
          * {@code <name>.counts} columnar output column.
          */
-        static final IndexableFieldType COUNTS_FIELD_TYPE = NumericDocValuesField.indexedField("_sentinel", 0).fieldType();
+        static final IndexableFieldType COUNTS_FIELD_TYPE = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE;
 
         static {
             FieldType ft = new FieldType();

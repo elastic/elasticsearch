@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -239,6 +240,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
 
         public static final String COUNT_FIELD_SUFFIX = ".counts";
+
+        /**
+         * The field type of the {@code .counts} companion, as produced by {@link NumericDocValuesField#indexedField}. Exposed so the
+         * columnar batch-mapping path can attach a {@code .counts} output column carrying exactly the type the row path writes.
+         */
+        public static final IndexableFieldType COUNT_FIELD_TYPE = NumericDocValuesField.indexedField("_sentinel", 0).fieldType();
 
         // Held here so addToDoc can update the count on each value without a second keyedFields lookup.
         NumericDocValuesField countField;
@@ -684,28 +691,57 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             for (BytesRef slot : slots) {
                 byteCount += slot.length;
             }
-            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
                 for (int i = 0; i < slotCount; i++) {
-                    BytesRef slot = slots.get(i);
-                    if (nullMarkers.get(i)) {
-                        // Null slot: [0]key\0
-                        out.writeVInt(0);
-                        out.writeBytes(slot.bytes, slot.offset, slot.length);
-                    } else {
-                        // Non-null slot: [valueLen+1]key\0value
-                        // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
-                        int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
-                        assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
-                        int valueLen = slot.length - keyLen - 1;
-                        out.writeVInt(valueLen + 1);
-                        out.writeBytes(slot.bytes, slot.offset, slot.length);
-                    }
+                    writeSlot(out, slots.get(i), nullMarkers.get(i));
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
             }
+        }
+
+        /**
+         * Array-backed variant of {@link #encode(ArrayList, BitSet)} for the columnar batch-mapping path, which buffers a document's
+         * slots into a reused {@code BytesRef[]} rather than a fresh list per document. Only the first {@code slotCount} entries of
+         * {@code slots} are read, and only the first {@code slotCount} bits of {@code nullMarkers} are consulted.
+         */
+        public static BytesRef encode(BytesRef[] slots, int slotCount, BitSet nullMarkers) {
+            assert slotCount >= 1 : "encode(array) requires at least one slot";
+            int byteCount = 0;
+            for (int i = 0; i < slotCount; i++) {
+                byteCount += slots[i].length;
+            }
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
+                for (int i = 0; i < slotCount; i++) {
+                    writeSlot(out, slots[i], nullMarkers.get(i));
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
+            }
+        }
+
+        private static int streamSize(int byteCount, int slotCount) {
+            return byteCount + slotCount * VINT_MAX_BYTES;
+        }
+
+        /**
+         * Writes a single slot in the wire format. {@code slot} is {@code key\0value} for a non-null slot and {@code key\0} for a null
+         * one; the length prefix measures only the VALUE portion, so a null slot is distinguishable by its {@code 0} prefix.
+         */
+        private static void writeSlot(BytesStreamOutput out, BytesRef slot, boolean isNull) throws IOException {
+            if (isNull) {
+                // Null slot: [0]key\0
+                out.writeVInt(0);
+            } else {
+                // Non-null slot: [valueLen+1]key\0value
+                // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
+                int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
+                assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
+                out.writeVInt(slot.length - keyLen);
+            }
+            out.writeBytes(slot.bytes, slot.offset, slot.length);
         }
 
     }

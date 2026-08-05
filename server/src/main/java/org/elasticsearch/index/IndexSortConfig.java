@@ -307,14 +307,14 @@ public final class IndexSortConfig {
         if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
             List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
             for (String field : fields) {
-                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.PARAM_NAME)) {
+                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.FIELD_NAME)) {
                     throw new IllegalArgumentException(
                         "setting ["
                             + INDEX_SORT_FIELD_SETTING.getKey()
                             + "] must not contain ["
                             + RoutingFieldMapper.NAME
                             + "] or ["
-                            + SliceIndexing.PARAM_NAME
+                            + SliceIndexing.FIELD_NAME
                             + "] when ["
                             + IndexSettings.SLICE_ENABLED.getKey()
                             + "] is true"

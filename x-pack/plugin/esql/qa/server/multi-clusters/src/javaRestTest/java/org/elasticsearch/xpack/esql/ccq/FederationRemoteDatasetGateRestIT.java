@@ -42,19 +42,20 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Exercises the federation kill switch's remote-dataset gate in {@code EsqlResolveFieldsAction} at its call site,
- * which the pure-unit {@code FederationTests} cannot: that helper test drives {@code Federation.ensureEnabled(boolean)}
- * directly, so deleting the {@code && Federation.isAvailable()} guard from the resolve action would not make it fail.
+ * Exercises the incoming half of federation's remote-dataset gate in {@code EsqlResolveFieldsAction} at its call site,
+ * which the pure-unit {@code FederationTests} cannot: that helper test drives {@code Federation.ensureEnabled} directly,
+ * so deleting the guard that makes a remote report no datasets would not make it fail. The outgoing half (a coordinator
+ * without federation not asking its remotes for datasets) is covered by {@link FederationOutgoingDatasetGateRestIT}.
  *
  * <p>The gate only runs on a remote cluster (the {@code resolveDatasets} option is set only on the request the
- * originating cluster sends to a remote), and to go red on removal the disabled remote must still hold a dataset in
- * its cluster state. A dataset can only be created while federation is enabled (the REST route is gone once the switch
- * is engaged), so this test creates the dataset on the remote while enabled, then bounces the remote with the switch
- * off. Because a remote restart lands on new ports, the remote connection is configured dynamically through the
- * cluster settings API (see {@link Clusters#localClusterForDynamicRemote}) so the seed can be re-pointed after the
- * bounce.
+ * originating cluster sends to a remote), and to go red on removal the remote must still hold a dataset in its cluster
+ * state while federation is off there. A dataset can only be created while federation is available (the REST route is
+ * gone otherwise), so this test creates the dataset on the remote while enabled, then bounces the remote with
+ * {@code esql.federation.enabled} set back to {@code false}. Because a remote restart lands on new ports, the remote
+ * connection is configured dynamically through the cluster settings API (see
+ * {@link Clusters#localClusterForDynamicRemote}) so the seed can be re-pointed after the bounce.
  *
- * <p>With the switch engaged the remote reports no datasets, so {@code FROM <remote>:<dataset>} falls through to normal
+ * <p>With federation off the remote reports no datasets, so {@code FROM <remote>:<dataset>} falls through to normal
  * remote index resolution and fails as a plain missing index, exactly like a nonexistent name. If the gate were
  * removed the still-present dataset would instead surface a {@code RemoteDatasetNotSupportedException} naming it, so
  * the phase-2 assertions go red exactly when the wiring is lost.
@@ -64,9 +65,9 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
 
     private static final Path DATA_PATH = org.elasticsearch.xpack.esql.CsvTestUtils.createCsvDataDirectory();
 
-    private static final AtomicReference<String> remoteRegisterFederationFeature = new AtomicReference<>("true");
+    private static final AtomicReference<String> remoteFederationEnabled = new AtomicReference<>("true");
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(DATA_PATH, emptyMap(), false, remoteRegisterFederationFeature::get);
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(DATA_PATH, emptyMap(), false, remoteFederationEnabled::get);
     static ElasticsearchCluster localCluster = Clusters.localClusterForDynamicRemote(DATA_PATH);
 
     @ClassRule
@@ -86,15 +87,26 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
 
     public void testDisabledRemoteResolvesDatasetAsMissingIndex() throws Exception {
         assumeTrue("datasources are only available in snapshot builds", Build.current().isSnapshot());
-        // The remote-dataset gate needs the federation kill switch on both nodes: the coordinator sends the
-        // resolveDatasets option to the remote, and the remote honors the switch by dropping its datasets. Older nodes
-        // predate the feature and do not report the capability, so a mixed cluster correctly skips this scenario.
-        List<String> killSwitchCapability = List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName());
+        // The remote-dataset gate needs federation on both clusters: the coordinator only sends the resolveDatasets
+        // option to the remote when federation is available locally, and the remote honors its own state by dropping its
+        // datasets. Phase 2 turns the remote off through the setting, so the remote also has to be a version that reads
+        // it; one that only has the operator kill switch cannot be turned off per node and skips here.
         try (RestClient capabilityClient = remoteClusterClient()) {
             assumeTrue(
-                "federation kill switch requires the feature on both clusters",
-                clusterHasCapability("POST", "/_query", List.of(), killSwitchCapability).orElse(false)
-                    && clusterHasCapability(capabilityClient, "POST", "/_query", List.of(), killSwitchCapability).orElse(false)
+                "the remote-dataset gate requires the feature locally and the federation setting on the remote",
+                clusterHasCapability(
+                    "POST",
+                    "/_query",
+                    List.of(),
+                    List.of(EsqlCapabilities.Cap.REGISTER_FEDERATION_FEATURE.capabilityName())
+                ).orElse(false)
+                    && clusterHasCapability(
+                        capabilityClient,
+                        "POST",
+                        "/_query",
+                        List.of(),
+                        List.of(EsqlCapabilities.Cap.FEDERATION_ENABLED_SETTING.capabilityName())
+                    ).orElse(false)
             );
         }
 
@@ -127,13 +139,13 @@ public class FederationRemoteDatasetGateRestIT extends ESRestTestCase {
         assertThat(enabledBody, containsString("remote datasets are not supported"));
         assertThat(enabledBody, containsString(dataset));
 
-        // Suppress federation on the remote and bounce it so it re-reads the property, then re-point the seed at the
+        // Turn federation off on the remote and bounce it so it re-reads the setting, then re-point the seed at the
         // remote's new transport port.
-        remoteRegisterFederationFeature.set("false");
+        remoteFederationEnabled.set("false");
         remoteCluster.restart(false);
         configureRemoteConnection(remoteCluster.getTransportEndpoint(0));
 
-        // Phase 2: remote federation disabled. The remote reports no datasets (the gate), so the qualified name falls
+        // Phase 2: federation off on the remote. The remote reports no datasets (the gate), so the qualified name falls
         // through to normal remote index resolution and fails as a plain missing index, the same error a nonexistent
         // name gives. Removing the gate would instead surface RemoteDatasetNotSupportedException for the still-present
         // dataset, so both assertions below go red exactly when the wiring is lost.

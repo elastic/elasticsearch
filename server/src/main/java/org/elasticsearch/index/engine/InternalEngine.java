@@ -12,7 +12,9 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -93,6 +95,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -4115,6 +4118,7 @@ public class InternalEngine extends Engine {
      */
     private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, IndexVersion indexVersionCreated, IdLoader idLoader)
         throws IOException {
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
@@ -4129,6 +4133,7 @@ public class InternalEngine extends Engine {
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
+        final boolean columnar = engineConfig.getMapperService().mappingLookup().isColumnarId();
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
@@ -4138,6 +4143,11 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
+            // For columnar, the BinaryDocValues bytes ARE the compound uid (deep-copied so the buffer can advance).
+            // For stored, leafStoredFieldLoader.id() decodes via Uid.decodeId to "id#slice" which we re-encode.
+            final BinaryDocValues sliceColumnarIdDV = (sliceEnabled && columnar)
+                ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
+                : null;
 
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -4145,16 +4155,34 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 leafStoredFieldLoader.advanceTo(docId);
-                String id = leafIdLoader.getId(docId);
-                if (id == null) {
-                    assert dv.isTombstone(docId);
-                    continue;
+                final boolean isTombstone = dv.isTombstone(docId);
+
+                final String id;
+                final BytesRef uid;
+                if (sliceEnabled) {
+                    if (columnar) {
+                        uid = sliceColumnarIdDV.advanceExact(docId) ? BytesRef.deepCopyOf(sliceColumnarIdDV.binaryValue()) : null;
+                    } else {
+                        final String compoundIdStr = leafStoredFieldLoader.id();
+                        uid = compoundIdStr != null ? Uid.encodeId(compoundIdStr) : null;
+                    }
+                    if (uid == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    id = SliceIdFieldMapper.decodeCompoundId(uid);
+                } else {
+                    id = leafIdLoader.getId(docId);
+                    if (id == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    uid = Uid.encodeId(id);
                 }
-                final BytesRef uid = Uid.encodeId(id);
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
-                        if (dv.isTombstone(docId)) {
+                        if (isTombstone) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
                             // when the local checkpoint advances (i.e., after a recovery completed).
                             final long startTime = 0L;

@@ -94,6 +94,7 @@ public class SearchCommitPrefetcher {
     private final StatelessSharedBlobCacheService cacheService;
     private final CacheBlobReaderSupplier cacheBlobReaderSupplier;
     private final FileTimestampResolver fileTimestampResolver;
+    private final RegionTimestampResolver regionTimestampResolver;
     private final Executor executor;
     private final ThreadPool threadPool;
     private final boolean prefetchInBackground;
@@ -110,6 +111,7 @@ public class SearchCommitPrefetcher {
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderSupplier cacheBlobReaderSupplier,
         FileTimestampResolver fileTimestampResolver,
+        RegionTimestampResolver regionTimestampResolver,
         ThreadPool threadPool,
         Executor executor,
         ClusterSettings clusterSettings,
@@ -119,6 +121,7 @@ public class SearchCommitPrefetcher {
         this.cacheService = cacheService;
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.fileTimestampResolver = fileTimestampResolver;
+        this.regionTimestampResolver = regionTimestampResolver;
         this.executor = executor;
         this.threadPool = threadPool;
         // we're using a component that manages the dynamic settings needed for the prefetch component because
@@ -247,7 +250,8 @@ public class SearchCommitPrefetcher {
             Map<BlobFile, Long> timestampPerBlob = computeTimestampPerBlob(
                 compoundCommit,
                 bccRangesToPrefetch.keySet(),
-                fileTimestampResolver
+                fileTimestampResolver,
+                regionTimestampResolver
             );
 
             for (Map.Entry<BlobFile, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
@@ -418,7 +422,8 @@ public class SearchCommitPrefetcher {
     static Map<BlobFile, Long> computeTimestampPerBlob(
         StatelessCompoundCommit compoundCommit,
         Set<BlobFile> blobFilesToPrefetch,
-        FileTimestampResolver fileTimestampResolver
+        FileTimestampResolver fileTimestampResolver,
+        RegionTimestampResolver regionTimestampResolver
     ) {
         final long notificationCommitTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
             compoundCommit.getTimestampFieldValueRange()
@@ -438,8 +443,13 @@ public class SearchCommitPrefetcher {
                 : fileTimestampResolver.getTimestampMillis(fileName);
             timestampPerBlob.merge(blobFile, fileTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
         }
-        // A blob can have an UNKNOWN timestamp if the directory doesn't know about any of the referenced files it contains.
-        // TODO: Avoid pinning such regions forever.
+        // When a blob has no known timestamp of its own, prefer this (triggering) commit's timestamp, then resolve the raw value to a
+        // stampable region timestamp.
+        timestampPerBlob.replaceAll(
+            (blobFile, rawMillis) -> regionTimestampResolver.resolveRegionTimestampMillis(
+                BlobFileRanges.firstKnownTimestamp(rawMillis, notificationCommitTimestamp)
+            )
+        );
         assert timestampPerBlob.keySet().containsAll(blobFilesToPrefetch);
         return timestampPerBlob;
     }
@@ -502,6 +512,14 @@ public class SearchCommitPrefetcher {
     @FunctionalInterface
     public interface FileTimestampResolver {
         long getTimestampMillis(String fileName);
+    }
+
+    /**
+     * Resolves a raw cache-region timestamp (epoch millis or negative sentinel) into a stampable region timestamp.
+     */
+    @FunctionalInterface
+    public interface RegionTimestampResolver {
+        long resolveRegionTimestampMillis(long rawMillis);
     }
 
     public static class PrefetchExecutor implements Executor {

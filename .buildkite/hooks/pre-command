@@ -94,8 +94,8 @@ export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 # secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
 if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   # LiteLLM API key — the bundled models.json resolves it automatically.
-  ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ELASTIC_LITELLM_API_KEY
+  OPENROUTER_API_KEY=$(vault_with_retry read -field=openrouter_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export OPENROUTER_API_KEY
 
   # Cursor API key — the fallback when litellm is not available.
   CURSOR_ACCESS_TOKEN=$(vault_with_retry read -field=cursor_token secret/ci/elastic-elasticsearch/agentic-workflows)

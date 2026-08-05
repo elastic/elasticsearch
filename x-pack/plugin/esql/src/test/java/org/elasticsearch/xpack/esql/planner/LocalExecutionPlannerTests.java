@@ -17,6 +17,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -378,6 +381,43 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             notNullValue()
         );
         assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * The data-node backstop: building the operator for an external source is refused on a node that does not have
+     * federation, whoever planned the query. An already-rewritten {@link ExternalSourceExec} can arrive from an
+     * enabled coordinator, from a remote cluster, or from a rolling restart that has not reached this node yet.
+     */
+    public void testExternalSourceRefusedWhenFederationIsNotAvailable() throws IOException {
+        SourceOperatorFactoryProvider provider = capturingProvider(new AtomicReference<>());
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner(operatorFactoryRegistry, false).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance()
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external data sources are not available"));
     }
 
     /**
@@ -744,7 +784,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -802,6 +843,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry) throws IOException {
+        return planner(operatorFactoryRegistry, true);
+    }
+
+    private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry, boolean federationEnabled) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -812,6 +857,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "dev-cluster")
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+                // several tests here plan an ExternalSourceExec, which the federation gate refuses unless it is enabled
+                .put(Federation.FEDERATION_ENABLED.getKey(), federationEnabled)
                 .build(),
             config(),
             null,

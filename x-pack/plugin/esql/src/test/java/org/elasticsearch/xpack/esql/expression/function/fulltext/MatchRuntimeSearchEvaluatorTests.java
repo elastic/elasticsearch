@@ -14,15 +14,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -57,21 +53,6 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
         Match match = new Match(Source.EMPTY, field, query, options);
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
-    }
-
-    /**
-     * Builds a {@link MapExpression} from alternating key/value string pairs. All values are keyword literals,
-     * which {@code Options.populateMap} converts to the option's declared type (BOOLEAN, INTEGER, etc.) via
-     * {@code DataTypeConverter.convert}.
-     */
-    private static MapExpression mapOptions(String... kvs) {
-        assert kvs.length % 2 == 0;
-        List<Expression> entries = new ArrayList<>(kvs.length);
-        for (int i = 0; i < kvs.length; i += 2) {
-            entries.add(Literal.keyword(Source.EMPTY, kvs[i]));
-            entries.add(Literal.keyword(Source.EMPTY, kvs[i + 1]));
-        }
-        return new MapExpression(Source.EMPTY, entries);
     }
 
     // ---- text: analyzed full-text matching (the to_text case) ----
@@ -388,6 +369,42 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             factory -> bytesRefBlock(factory, builder -> builder.appendBytesRef(new BytesRef("the quick brown fox")))
         );
         assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Fox"), KEYWORD, mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Fox jumped"));
+                builder.appendBytesRef(new BytesRef("the fox jumped"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("brown fox"), KEYWORD, mapOptions("analyzer", "keyword")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("brown fox"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndOperatorCombined() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Quick Fox"), KEYWORD, mapOptions("analyzer", "whitespace", "operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("Quick brown Fox"));
+                builder.appendBytesRef(new BytesRef("quick brown fox"));
+                builder.appendBytesRef(new BytesRef("Quick brown dog"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
     }
 
     /**

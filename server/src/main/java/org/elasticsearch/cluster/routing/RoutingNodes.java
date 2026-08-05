@@ -517,14 +517,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         String nodeId,
         long expectedShardSize,
         String reason,
-        RoutingChangesObserver changes
+        RoutingChangesObserver changes,
+        ShardRouting.RecoveryPriority recoveryPriority
     ) {
         ensureMutable();
         relocatingShards++;
         if (isDedicatedFrozenNode(nodeId)) {
             relocatingFrozenShards++;
         }
-        ShardRouting source = startedShard.relocate(nodeId, expectedShardSize);
+        ShardRouting source = startedShard.relocate(nodeId, expectedShardSize, recoveryPriority);
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
@@ -587,7 +588,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
                                 "restarting relocation",
-                                routingChangesObserver
+                                routingChangesObserver,
+                                sourceShard.recoveryPriority()
                             );
                         } else {
                             ShardRouting reinitializedReplica = reinitReplica(routing);
@@ -675,7 +677,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver);
                 } else {
                     // initializing shard that is not relocation target, just move to unassigned
-                    moveToUnassigned(failedShard, unassignedInfo);
+                    moveFailedShardToUnassigned(failedShard, unassignedInfo);
                 }
             } else {
                 // The shard is a target of a relocating shard. In that case we only need to remove the target shard and cancel the source
@@ -698,7 +700,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (failedShard.relocating()) {
                     remove(failedShard);
                 } else {
-                    moveToUnassigned(failedShard, unassignedInfo);
+                    moveFailedShardToUnassigned(failedShard, unassignedInfo);
                 }
             }
         }
@@ -715,11 +717,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert failedPrimary.primary();
         ShardRouting replicaToPromote = activePromotableReplicaWithHighestVersion(failedPrimary.shardId());
         if (replicaToPromote == null) {
-            moveToUnassigned(failedPrimary, unassignedInfo);
+            moveFailedShardToUnassigned(failedPrimary, unassignedInfo);
             for (ShardRouting unpromotableReplica : List.copyOf(assignedShards(failedPrimary.shardId()))) {
                 assert unpromotableReplica.primary() == false : unpromotableReplica;
                 assert unpromotableReplica.isPromotableToPrimary() == false : unpromotableReplica;
-                moveToUnassigned(
+                moveFailedShardToUnassigned(
+                    // okay, this is not directly failed, but it is in response to a failure and is unexpected
                     unpromotableReplica,
                     new UnassignedInfo(
                         UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
@@ -903,10 +906,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         shardsWithMatchingShardId.set(previousShardIndex, newShard);
     }
 
-    private ShardRouting moveToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
+    private ShardRouting moveFailedShardToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo);
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED);
         unassignedShards.add(unassigned);
         return unassigned;
     }
@@ -919,7 +922,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         assert shard.primary() : "only primary can be demoted to replica (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo).moveUnassignedFromPrimary();
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED)
+            .moveUnassignedFromPrimary();
         unassignedShards.add(unassigned);
         return unassigned;
     }

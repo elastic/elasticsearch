@@ -142,7 +142,19 @@ public class SigtermTerminationHandler implements TerminationHandler {
             if (migrationStartMillis.get() >= 0) {
                 final boolean migrationCompleted = migrationCompleteMillis.get() >= 0;
                 final long migrationEndMillis = migrationCompleted ? migrationCompleteMillis.get() : end;
-                metrics.recordMigrationTime(migrationEndMillis - migrationStartMillis.get(), migrationCompleted);
+                final long migrationDuration = migrationEndMillis - migrationStartMillis.get();
+                logger.info(
+                    new ESLogMessage("shutdown shard migration took [{}] ms, completed [{}]", migrationDuration, migrationCompleted) //
+                        .withFields(
+                            Map.of(
+                                "elasticsearch.shutdown.migration.duration",
+                                migrationDuration,
+                                "elasticsearch.shutdown.migration.completed",
+                                migrationCompleted
+                            )
+                        )
+                );
+                metrics.recordMigrationTime(migrationDuration, migrationCompleted);
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();

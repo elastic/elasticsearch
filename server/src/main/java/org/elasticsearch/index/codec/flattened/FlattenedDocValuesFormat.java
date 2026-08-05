@@ -14,6 +14,8 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 
 import java.io.IOException;
 
@@ -63,22 +65,28 @@ import java.io.IOException;
  *
  * <pre>
  * [byte  flags]
- *       bit0 = FLAG_VALUES_COMPRESSED    payload is ZSTD-compressed; otherwise stored raw
- *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted from payload
- *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted from payload
+ *       bit0 = FLAG_VALUES_COMPRESSED    value payload is ZSTD-compressed; otherwise stored raw
+ *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
+ *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
  * [vint  numDocs]
+ * [byte  bitsPerDelta]                   absent when FLAG_DOCS_CONTIGUOUS
+ * [bit-packed (gap-1) x (numDocs-1)]     absent when FLAG_DOCS_CONTIGUOUS; MSB-first, bitsPerDelta bits each
  * [vint  uncompressedLen]
  * -- if FLAG_VALUES_COMPRESSED:
  *    [vint compressedLen][compressedLen bytes]   written by ZstdCompressionMode.ZstdCompressor
  * -- otherwise:
  *    [uncompressedLen bytes]                     raw
  * The (un)compressed payload contains:
- * [vint  docDelta] x (numDocs-1)   absent when FLAG_DOCS_CONTIGUOUS
- * [vint  slotCount] x numDocs      absent when FLAG_ALL_SINGLE_SLOT
- * [vint  valueLen+1][value bytes] x ...   per doc in ascending docId order, per slot
+ * [byte  bitsPerSlot]                    absent when FLAG_ALL_SINGLE_SLOT
+ * [bit-packed slotCount x numDocs]       absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlot bits each
+ * [vint  valueLen+1][value bytes] x ...  per doc in ascending docId order, per slot
  * </pre>
  *
- * <p>The compressed payload contains, per doc in ascending docId order, per slot in document
+ * <p>The docId-delta array is stored outside the compressed payload so that
+ * {@link FlattenedDocValuesProducer.ColumnCursor#advanceToDoc} can binary-search docIds without
+ * decompressing the block — absent docs cost nothing. The slot-count array lives inside the
+ * compressed region because it is only needed after a doc is confirmed present; ZSTD can exploit
+ * its redundancy alongside the value bytes. Per doc in ascending docId order, per slot in document
  * order: {@code [vint valueLen+1][value bytes]}, where a {@code 0} prefix denotes a null slot
  * (no bytes follow).
  *
@@ -119,13 +127,14 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
     static final String META_EXTENSION = "fdvm";
     static final int VERSION_START = 0;
     /**
-     * Version 3: docId-delta and slot-count arrays moved inside the compressed payload region.
-     * The raw block header now contains only {@code flags} and {@code numDocs}; the arrays that
-     * were previously written raw between the header and the payload boundary are now prepended
-     * to the value bytes before (optional) ZSTD compression, so that the compressor can exploit
-     * their redundancy alongside the values.
+     * Version 4: docId-delta and slot-count arrays stored outside the compressed payload as
+     * MSB-first bit-packed streams. The block header now contains {@code flags}, {@code numDocs},
+     * an optional {@code bitsPerDelta} byte + packed delta array, an optional {@code bitsPerSlot}
+     * byte + packed slot-count array, then the uncompressed-length vint and the value payload.
+     * Storing the index arrays outside the payload allows a doc-presence check to binary-search
+     * the docId array without decompressing the value payload first.
      */
-    static final int VERSION_CURRENT = 3;
+    static final int VERSION_CURRENT = 4;
 
     // Block flag bits
     /** Bit 0: block payload is ZSTD-compressed; otherwise stored raw. */
@@ -206,5 +215,64 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new FlattenedDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+    }
+
+    /**
+     * Writes {@code n} values from {@code arr[0..n-1]} to {@code out} as an MSB-first bit-packed
+     * stream. Each value occupies exactly {@code bitsPerValue} bits. The last byte is zero-padded
+     * on the right if {@code n * bitsPerValue} is not a multiple of 8.
+     */
+    static void packInts(IndexOutput out, int[] arr, int n, int bitsPerValue) throws IOException {
+        long accumulator = 0;
+        int bitsInAcc = 0;
+        for (int i = 0; i < n; i++) {
+            accumulator = (accumulator << bitsPerValue) | (arr[i] & ((1L << bitsPerValue) - 1));
+            bitsInAcc += bitsPerValue;
+            while (bitsInAcc >= 8) {
+                bitsInAcc -= 8;
+                out.writeByte((byte) (accumulator >>> bitsInAcc));
+            }
+        }
+        if (bitsInAcc > 0) {
+            out.writeByte((byte) (accumulator << (8 - bitsInAcc)));
+        }
+    }
+
+    /**
+     * Reads {@code n} values from {@code in} into {@code arr[arrOffset..arrOffset+n-1]} from an
+     * MSB-first bit-packed stream written by {@link #packInts}. Partial trailing bits are consumed.
+     */
+    static void unpackInts(IndexInput in, int[] arr, int arrOffset, int n, int bitsPerValue) throws IOException {
+        final long mask = (1L << bitsPerValue) - 1;
+        long accumulator = 0;
+        int bitsInAcc = 0;
+        for (int i = 0; i < n; i++) {
+            while (bitsInAcc < bitsPerValue) {
+                accumulator = (accumulator << 8) | (in.readByte() & 0xFFL);
+                bitsInAcc += 8;
+            }
+            bitsInAcc -= bitsPerValue;
+            arr[arrOffset + i] = (int) ((accumulator >>> bitsInAcc) & mask);
+        }
+    }
+
+    /**
+     * Reads {@code n} values from {@code src[srcOff..]} into {@code arr[arrOffset..arrOffset+n-1]}
+     * from an MSB-first bit-packed stream written by {@link #packInts}. Returns the new source
+     * offset (past the last consumed byte, including any partial trailing byte).
+     */
+    static int unpackInts(byte[] src, int srcOff, int[] arr, int arrOffset, int n, int bitsPerValue) {
+        final long mask = (1L << bitsPerValue) - 1;
+        long accumulator = 0;
+        int bitsInAcc = 0;
+        for (int i = 0; i < n; i++) {
+            while (bitsInAcc < bitsPerValue) {
+                accumulator = (accumulator << 8) | (src[srcOff++] & 0xFFL);
+                bitsInAcc += 8;
+            }
+            bitsInAcc -= bitsPerValue;
+            arr[arrOffset + i] = (int) ((accumulator >>> bitsInAcc) & mask);
+        }
+        return srcOff;
     }
 }

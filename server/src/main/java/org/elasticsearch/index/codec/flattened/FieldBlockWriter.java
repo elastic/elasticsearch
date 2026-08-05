@@ -32,9 +32,9 @@ import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.F
  *
  * <p>One instance is reused for every column of a field: call {@link #reset(IndexOutput)} at each column
  * boundary rather than allocating a new writer. The block-accumulation arrays are pre-sized from
- * the configured thresholds (~{@code 2 * 4 * maxDocsPerBlock + targetBlockBytes} bytes) and the
- * ZSTD compressor is stateful to allocate, so allocating per column turned into hundreds of
- * megabytes of short-lived garbage per flush on fields with a large sub-field cardinality.
+ * the configured thresholds ({@code 2 * 4 * maxDocsPerBlock + targetBlockBytes} bytes) and the
+ * ZSTD compressor is expensive to allocate, so allocating per column produces hundreds of
+ * megabytes of short-lived garbage per flush on fields with large sub-field cardinality.
  *
  * <h2>On-disk column structure</h2>
  *
@@ -51,13 +51,6 @@ final class FieldBlockWriter implements Closeable {
     private final int maxDocsPerBlock;
     private final int minCompressBytes;
     private final Compressor compressor = new ZstdCompressionMode(1).newCompressor();
-
-    /**
-     * Scratch buffer for the docId-delta / slot-count prefix written before the value payload
-     * inside the compressed region. Upper-bound per block: 10 * maxDocsPerBlock bytes
-     * (5 bytes/vint × (numDocs-1) deltas + 5 bytes/vint × numDocs slot counts).
-     */
-    private byte[] prefixBuf;
 
     /** Absolute data-file offset of the first block for this column. Updated by {@link #reset}. */
     private long columnStartOffset;
@@ -102,7 +95,6 @@ final class FieldBlockWriter implements Closeable {
         this.blockDocIds = new int[maxDocsPerBlock];
         this.blockSlotCounts = new int[maxDocsPerBlock];
         this.blockPayload = new byte[targetBlockBytes];
-        this.prefixBuf = new byte[10 * maxDocsPerBlock];
     }
 
     /**
@@ -212,39 +204,19 @@ final class FieldBlockWriter implements Closeable {
             if (blockSlotCounts[i] != 1) allSingleSlot = false;
         }
 
-        // Build the combined payload: [docDelta × (n-1)][slotCount × n][value bytes].
-        // The docId and slot-count arrays are now inside the (optionally) compressed region so
-        // that ZSTD can exploit their redundancy alongside the value bytes. The old layout wrote
-        // them raw before the compression boundary, which made them incompressible overhead.
-        //
-        // We encode the prefix into the separate prefixBuf scratch buffer, then shift the value
-        // payload right in blockPayload to make room, and copy the prefix in. This keeps a single
-        // contiguous buffer for the compressor.
-        // Upper-bound: (numDocs-1) * 5 + numDocs * 5 = 10 * numDocs bytes.
-        if (prefixBuf.length < 10 * numDocsInBlock) {
-            prefixBuf = new byte[10 * numDocsInBlock];
-        }
-        int prefixLen = 0;
-        if (contiguous == false) {
-            for (int i = 1; i < numDocsInBlock; i++) {
-                prefixLen = writeVIntToArray(prefixBuf, prefixLen, blockDocIds[i] - blockDocIds[i - 1] - 1);
-            }
-        }
+        // Compute slot-count prefix size before the compress decision (it's part of the payload).
+        int bitsPerSlot = 0;
+        int slotPrefixLen = 0;
         if (allSingleSlot == false) {
+            int maxSlot = 0;
             for (int i = 0; i < numDocsInBlock; i++) {
-                prefixLen = writeVIntToArray(prefixBuf, prefixLen, blockSlotCounts[i]);
+                if (blockSlotCounts[i] > maxSlot) maxSlot = blockSlotCounts[i];
             }
+            bitsPerSlot = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxSlot));
+            slotPrefixLen = 1 + (numDocsInBlock * bitsPerSlot + 7) / 8;
         }
-        final int totalPayloadLen = prefixLen + blockPayloadLen;
-        // Grow blockPayload to hold both prefix and value bytes, shift the value bytes right,
-        // then copy the prefix into the freed front region.
-        if (prefixLen > 0) {
-            blockPayload = ArrayUtil.grow(blockPayload, totalPayloadLen);
-            System.arraycopy(blockPayload, 0, blockPayload, prefixLen, blockPayloadLen);
-            System.arraycopy(prefixBuf, 0, blockPayload, 0, prefixLen);
-        }
+        final int totalPayloadLen = slotPrefixLen + blockPayloadLen;
         maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, totalPayloadLen);
-
         final boolean compress = totalPayloadLen >= minCompressBytes;
 
         byte flags = 0;
@@ -254,6 +226,44 @@ final class FieldBlockWriter implements Closeable {
 
         currentOut.writeByte(flags);
         writeVInt(currentOut, numDocsInBlock);
+
+        // Bit-pack docId deltas into currentOut (outside the compressed region).
+        // Absent docs can be detected without decompressing the value payload.
+        // delta[i] = blockDocIds[i+1] - blockDocIds[i] - 1, stored in-place in blockDocIds[0..numDocs-2].
+        if (contiguous == false) {
+            int maxDelta = 0;
+            for (int i = 0; i < numDocsInBlock - 1; i++) {
+                final int delta = blockDocIds[i + 1] - blockDocIds[i] - 1;
+                if (delta > maxDelta) maxDelta = delta;
+                blockDocIds[i] = delta;
+            }
+            final int bitsPerDelta = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxDelta));
+            currentOut.writeByte((byte) bitsPerDelta);
+            FlattenedDocValuesFormat.packInts(currentOut, blockDocIds, numDocsInBlock - 1, bitsPerDelta);
+        }
+
+        // Prepend bit-packed slot counts inside the (optionally compressed) payload.
+        // They are only needed when consuming slot values, so they belong in the compressed
+        // region where ZSTD can exploit their redundancy with the value bytes.
+        if (allSingleSlot == false) {
+            blockPayload = ArrayUtil.grow(blockPayload, totalPayloadLen);
+            System.arraycopy(blockPayload, 0, blockPayload, slotPrefixLen, blockPayloadLen);
+            blockPayload[0] = (byte) bitsPerSlot;
+            long acc = 0;
+            int bitsInAcc = 0;
+            int pos = 1;
+            for (int i = 0; i < numDocsInBlock; i++) {
+                acc = (acc << bitsPerSlot) | (blockSlotCounts[i] & ((1L << bitsPerSlot) - 1));
+                bitsInAcc += bitsPerSlot;
+                while (bitsInAcc >= 8) {
+                    bitsInAcc -= 8;
+                    blockPayload[pos++] = (byte) (acc >>> bitsInAcc);
+                }
+            }
+            if (bitsInAcc > 0) {
+                blockPayload[pos] = (byte) (acc << (8 - bitsInAcc));
+            }
+        }
 
         writeVInt(currentOut, totalPayloadLen);
         if (compress) {
@@ -277,16 +287,4 @@ final class FieldBlockWriter implements Closeable {
         out.writeByte((byte) v);
     }
 
-    /**
-     * Encodes {@code v} as a VInt into {@code buf} starting at {@code off}.
-     * Returns the new offset after the encoded bytes.
-     */
-    static int writeVIntToArray(byte[] buf, int off, int v) {
-        while ((v & ~0x7F) != 0) {
-            buf[off++] = (byte) ((v & 0x7F) | 0x80);
-            v >>>= 7;
-        }
-        buf[off++] = (byte) v;
-        return off;
-    }
 }

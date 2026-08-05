@@ -372,8 +372,8 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
 
         // Cursor state within current block.
         private int docCursorIdx = -1;  // last doc index consumed (−1 = before first)
-        private int payloadCursor = 0;  // byte offset in payload[] (past the docId/slotCount prefix)
-        private int valueStartOffset = 0; // payloadCursor after the docId/slotCount prefix (set by ensurePayloadLoaded)
+        private int payloadCursor = 0;  // byte offset in payload[]
+        private int valueStartOffset = 0; // payloadCursor after the slot-count prefix (set by ensurePayloadLoaded)
         private int slotsRemaining = 0;
 
         // Reusable slot result (reset for each nextSlot() call that returns non-null).
@@ -414,9 +414,10 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         }
 
         /**
-         * Loads the header of block {@code blockIdx} (flags, numDocs).
-         * The docId/slotCount arrays and the value payload are inside the compressed region and
-         * are populated lazily by {@link #ensurePayloadLoaded}.
+         * Loads the header of block {@code blockIdx}: flags, numDocs, and the bit-packed docId-delta
+         * and slot-count arrays (stored outside the compressed payload region). Eagerly decoding these
+         * arrays allows {@link #advanceToDoc} to binary-search the docId array without first
+         * decompressing the value payload, so absent-doc checks are free.
          */
         private void loadBlockHeader(int blockIdx) throws IOException {
             if (loadedBlock == blockIdx) return;
@@ -436,27 +437,32 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             numDocsInBlock = dataIn.readVInt();
             firstDocInBlock = firstDocIds[blockIdx];
 
-            // The docId deltas and slot counts are now inside the compressed payload.
-            // They are parsed out in ensurePayloadLoaded, after decompression.
+            // Eagerly read bit-packed docId deltas (outside the compressed region).
+            if (contiguous == false) {
+                if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
+                docIds[0] = firstDocInBlock;
+                final int bitsPerDelta = dataIn.readByte() & 0xFF;
+                FlattenedDocValuesFormat.unpackInts(dataIn, docIds, 1, numDocsInBlock - 1, bitsPerDelta);
+                for (int i = 1; i < numDocsInBlock; i++) {
+                    docIds[i] = docIds[i - 1] + docIds[i] + 1;
+                }
+            }
+
             uncompPayloadLen = dataIn.readVInt();
-            // payloadAbsOff points at [vint compressedLen][bytes] for compressed blocks,
-            // or directly at [bytes] for raw blocks. The decompressor reads the vint itself.
             payloadAbsOff = dataIn.getFilePointer();
-            valueStartOffset = 0; // will be set by ensurePayloadLoaded
         }
 
         /**
          * Decompresses (or reads) the payload for the current loaded block, if not already done,
-         * then parses the docId-delta and slot-count prefix arrays out of the front of the payload.
+         * then parses the slot-count prefix out of the front of the payload.
          *
          * <p>The uncompressed payload layout is:
          * <pre>
-         * [vint docDelta] × (numDocs-1)   absent when FLAG_DOCS_CONTIGUOUS
-         * [vint slotCount] × numDocs       absent when FLAG_ALL_SINGLE_SLOT
+         * [byte bitsPerSlot][bit-packed slotCount × numDocs]   absent when FLAG_ALL_SINGLE_SLOT
          * [vint valueLen+1][value bytes] × ...
          * </pre>
-         * After this method returns, {@link #payloadCursor} is positioned at the start of the
-         * value bytes (past the docId and slotCount prefix).
+         * After this method returns, {@link #payloadCursor} and {@link #valueStartOffset} are
+         * positioned at the start of the value bytes (past the slot-count prefix).
          */
         private void ensurePayloadLoaded() throws IOException {
             if (payloadLoaded) return;
@@ -473,39 +479,15 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             } else {
                 dataIn.readBytes(payload, 0, uncompPayloadLen);
             }
-
-            // Parse the docId-delta prefix (absent when contiguous).
-            payloadCursor = 0;
-            if (contiguous == false) {
-                if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
-                docIds[0] = firstDocInBlock;
-                for (int i = 1; i < numDocsInBlock; i++) {
-                    int delta = 0, shift = 0;
-                    while (true) {
-                        final int b = payload[payloadCursor++] & 0xFF;
-                        delta |= (b & 0x7F) << shift;
-                        if ((b & 0x80) == 0) break;
-                        shift += 7;
-                    }
-                    docIds[i] = docIds[i - 1] + delta + 1;
-                }
-            }
             // Parse the slot-count prefix (absent when allSingleSlot).
+            int cursor = 0;
             if (allSingleSlot == false) {
                 if (slotCounts.length < numDocsInBlock) slotCounts = new int[numDocsInBlock];
-                for (int i = 0; i < numDocsInBlock; i++) {
-                    int count = 0, shift = 0;
-                    while (true) {
-                        final int b = payload[payloadCursor++] & 0xFF;
-                        count |= (b & 0x7F) << shift;
-                        if ((b & 0x80) == 0) break;
-                        shift += 7;
-                    }
-                    slotCounts[i] = count;
-                }
+                final int bitsPerSlot = payload[cursor++] & 0xFF;
+                cursor = FlattenedDocValuesFormat.unpackInts(payload, cursor, slotCounts, 0, numDocsInBlock, bitsPerSlot);
             }
-            // payloadCursor now sits at the start of the value bytes.
-            valueStartOffset = payloadCursor;
+            valueStartOffset = cursor;
+            payloadCursor = cursor;
             payloadLoaded = true;
         }
 
@@ -545,9 +527,9 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         /**
          * Positions this cursor on {@code docId}.
          *
-         * <p>For contiguous columns a doc presence check is O(1) and does not require
-         * decompressing the block. For non-contiguous columns the block must be decompressed first
-         * so that the docId array (now embedded inside the compressed region) can be searched.
+         * <p>The docId array is decoded eagerly in {@link #loadBlockHeader}, so a presence check
+         * never requires decompressing the value payload. Decompression happens only when the doc
+         * is confirmed present and slot values must be read.
          *
          * @return the slot count for this doc (1 if allSingleSlot), or 0 if not present
          */
@@ -555,41 +537,22 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             final int blockIdx = findBlockFor(docId);
             if (blockIdx < 0) return 0;
             loadBlockHeader(blockIdx);
-            if (contiguous) {
-                // Free O(1) check without decompression.
-                final int docIdx = findDocInBlock(docId);
-                if (docIdx < 0) return 0;
-                ensurePayloadLoaded();
-                if (docIdx < docCursorIdx) {
-                    // Backwards movement: reset to start of value bytes (past the prefix).
-                    payloadCursor = valueStartOffset;
-                    docCursorIdx = -1;
-                    slotsRemaining = 0;
-                }
-                for (int i = docCursorIdx + 1; i < docIdx; i++) {
-                    skipSlots(allSingleSlot ? 1 : slotCounts[i]);
-                }
-                docCursorIdx = docIdx;
-                slotsRemaining = allSingleSlot ? 1 : slotCounts[docIdx];
-                return slotsRemaining;
-            } else {
-                // Non-contiguous: docIds[] lives inside the compressed payload; must decompress first.
-                ensurePayloadLoaded();
-                final int docIdx = findDocInBlock(docId);
-                if (docIdx < 0) return 0;
-                if (docIdx < docCursorIdx) {
-                    // Backwards movement: reset to start of value bytes (past the prefix).
-                    payloadCursor = valueStartOffset;
-                    docCursorIdx = -1;
-                    slotsRemaining = 0;
-                }
-                for (int i = docCursorIdx + 1; i < docIdx; i++) {
-                    skipSlots(allSingleSlot ? 1 : slotCounts[i]);
-                }
-                docCursorIdx = docIdx;
-                slotsRemaining = allSingleSlot ? 1 : slotCounts[docIdx];
-                return slotsRemaining;
+            // docIds[] is always available after loadBlockHeader (or firstDocInBlock for contiguous).
+            final int docIdx = findDocInBlock(docId);
+            if (docIdx < 0) return 0;
+            ensurePayloadLoaded();
+            if (docIdx < docCursorIdx) {
+                // Backwards movement: reset to start of value bytes (past the slot-count prefix).
+                payloadCursor = valueStartOffset;
+                docCursorIdx = -1;
+                slotsRemaining = 0;
             }
+            for (int i = docCursorIdx + 1; i < docIdx; i++) {
+                skipSlots(allSingleSlot ? 1 : slotCounts[i]);
+            }
+            docCursorIdx = docIdx;
+            slotsRemaining = allSingleSlot ? 1 : slotCounts[docIdx];
+            return slotsRemaining;
         }
 
         /**

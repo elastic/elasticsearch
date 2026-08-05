@@ -188,7 +188,7 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                     // Pre-encode slot as [vint (isNull?0:valueLen+1)][value bytes].
                     final int encodedPrefix = isNull ? 0 : (valueLen + 1);
                     if (slotBuf.length < 5 + valueLen) slotBuf = new byte[5 + valueLen];
-                    int pLen = FieldBlockWriter.writeVIntToArray(slotBuf, 0, encodedPrefix);
+                    int pLen = writeVIntToArray(slotBuf, 0, encodedPrefix);
                     if (valueLen > 0) {
                         System.arraycopy(blob.bytes, pos, slotBuf, pLen, valueLen);
                         pLen += valueLen;
@@ -736,6 +736,16 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) {
         throw unsupported(field, "SORTED_SET");
+    }
+
+    /** Encodes {@code v} as a VInt into {@code buf[off..]} and returns the new offset. */
+    private static int writeVIntToArray(byte[] buf, int off, int v) {
+        while ((v & ~0x7F) != 0) {
+            buf[off++] = (byte) ((v & 0x7F) | 0x80);
+            v >>>= 7;
+        }
+        buf[off++] = (byte) v;
+        return off;
     }
 
     private static UnsupportedOperationException unsupported(FieldInfo field, String type) {

@@ -38,6 +38,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -124,6 +125,7 @@ public class AzureStorageService {
     }
 
     private AzureBlobServiceClient buildClient(
+        @Nullable ProjectId projectId,
         String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
@@ -133,6 +135,7 @@ public class AzureStorageService {
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(
+            projectId,
             clientName,
             azureStorageSettings,
             locationMode,
@@ -211,8 +214,8 @@ public class AzureStorageService {
         clientsManager.refreshClusterClientSettings(clientsSettings);
     }
 
-    public void clearCache() {
-        azureClientProvider.clearCache();
+    public void refreshCache(Set<AzureClientProvider.ConnectionProviderKey> keys) {
+        azureClientProvider.refreshCache(keys);
     }
 
     /**
@@ -315,12 +318,20 @@ public class AzureStorageService {
             }
 
             // Removed projects
+            Set<AzureClientProvider.ConnectionProviderKey> keysToRemove = new HashSet<>();
             for (var projectId : perProjectStorageSettings.keySet()) {
                 if (currentProjects.containsKey(projectId) == false) {
                     assert ProjectId.DEFAULT.equals(projectId) == false;
-                    perProjectStorageSettings.remove(projectId);
+
+                    var settings = perProjectStorageSettings.remove(projectId);
+                    for (var clientName : settings.keySet()) {
+                        var key = new AzureClientProvider.ConnectionProviderKey(projectId, clientName, settings.get(clientName));
+                        keysToRemove.add(key);
+                    }
                 }
             }
+
+            refreshCache(keysToRemove);
         }
 
         public AzureBlobServiceClient client(
@@ -331,7 +342,7 @@ public class AzureStorageService {
             AzureClientProvider.RequestMetricsHandler requestMetricsHandler
         ) {
             final var azureStorageSettings = getClientSettings(projectId, clientName); // ensure the client exists
-            return buildClient(clientName, locationMode, purpose, requestMetricsHandler, azureStorageSettings);
+            return buildClient(projectId, clientName, locationMode, purpose, requestMetricsHandler, azureStorageSettings);
         }
 
         public AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {
@@ -364,8 +375,25 @@ public class AzureStorageService {
         }
 
         private void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
+            boolean noPreviouslySetClusterSTorageSettings = clusterStorageSettings == null;
+
             this.clusterStorageSettings = Map.copyOf(clientsSettings);
             // clients are built lazily by {@link client(String, LocationMode)}
+
+            if (noPreviouslySetClusterSTorageSettings) {
+                return;
+            }
+
+            // go through the previously-set settings to finds the settings that no longer appear
+            Set<AzureClientProvider.ConnectionProviderKey> toRemove = new HashSet<>();
+            for (String clientName : clusterStorageSettings.keySet()) {
+                if (!clientsSettings.containsKey(clientName)) {
+                    // this key was removed from the old ones
+                    // null because there's no projectId here ...
+                    toRemove.add(new AzureClientProvider.ConnectionProviderKey(null, clientName, clusterStorageSettings.get(clientName)));
+                }
+            }
+            refreshCache(toRemove);
         }
 
         private boolean newOrUpdated(ProjectId projectId, Map<String, AzureStorageSettings> currentClientSettings) {

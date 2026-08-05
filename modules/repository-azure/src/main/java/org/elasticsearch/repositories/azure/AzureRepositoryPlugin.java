@@ -151,7 +151,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshClusterClientSettings(clientsSettings);
-        storageService.clearCache();
     }
 
     private static boolean assertRepositoryAzureMaxThreads(Settings settings, ThreadPool threadPool) {

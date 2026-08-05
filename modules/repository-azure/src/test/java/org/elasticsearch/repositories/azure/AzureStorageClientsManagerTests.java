@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.azure.AzureStorageService.AzureStorageClientsManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -416,6 +417,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
 
         @Override
         TestAzureBlobServiceClient createClient(
+            @Nullable ProjectId projectId,
             String clientName,
             AzureStorageSettings settings,
             LocationMode locationMode,

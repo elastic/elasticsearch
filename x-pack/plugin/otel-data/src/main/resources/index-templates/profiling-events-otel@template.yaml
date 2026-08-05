@@ -6,7 +6,7 @@ data_stream:
   hidden: false
 allow_auto_create: true
 _meta:
-  description: OTel data stream template for Universal Profiling events
+  description: OTel data stream template for eBPF Profiler events
   managed: true
 composed_of:
   - profiling-events-otel@mappings

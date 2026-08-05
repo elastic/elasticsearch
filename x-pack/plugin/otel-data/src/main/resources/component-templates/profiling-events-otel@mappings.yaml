@@ -1,7 +1,7 @@
 ---
 version: ${xpack.oteldata.template.version}
 _meta:
-  description: Mappings for Universal Profiling events OTel data stream
+  description: Mappings for eBPF Profiler events OTel data stream
   managed: true
 template:
   settings:

@@ -5,7 +5,7 @@ priority: 100
 data_stream: {}
 allow_auto_create: true
 _meta:
-  description: OTel data stream template for Universal Profiling executables
+  description: OTel data stream template for eBPF Profiler executables
   managed: true
 composed_of:
   - profiling-executables-otel@mappings

@@ -73,6 +73,7 @@ public class RejectionActionIT extends ESIntegTestCase {
         try {
             safeAwait(latch, TimeValue.ONE_MINUTE);
         } catch (AssertionError e) {
+            // Temporary measures to help us debug https://github.com/elastic/elasticsearch/issues/153848
             logger.error(
                 "Search requests stuck: numAsyncOps: {}, responses: {}, count: {}",
                 numberOfAsyncOps,

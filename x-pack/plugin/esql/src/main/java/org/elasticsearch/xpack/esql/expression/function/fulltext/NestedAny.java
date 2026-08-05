@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -122,13 +124,16 @@ public class NestedAny extends FullTextFunction {
                 format(null, "predicate of [{}] must be a boolean expression, found [{}]", sourceText(), predicate.dataType().typeName())
             );
         }
-        // Every reference in the predicate must be a sub-field of the nested field. This also guards against
-        // the generic resolution pass having resolved a cross-scope reference (e.g. a top-level column) that
-        // would otherwise be translated, incorrectly, inside the nested query.
         String prefix = fieldAttr.name() + ".";
         Holder<TypeResolution> failure = new Holder<>();
         predicate.forEachDown(FieldAttribute.class, ref -> {
-            if (failure.get() == null && ref.name().startsWith(prefix) == false) {
+            if (failure.get() != null) {
+                return;
+            }
+            // Every reference in the predicate must be a sub-field of the nested field. This also guards
+            // against the generic resolution pass having resolved a cross-scope reference (e.g. a top-level
+            // column) that would otherwise be translated, incorrectly, inside the nested query.
+            if (ref.name().startsWith(prefix) == false) {
                 failure.set(
                     new TypeResolution(
                         format(
@@ -140,14 +145,50 @@ public class NestedAny extends FullTextFunction {
                         )
                     )
                 );
+                return;
+            }
+            // The predicate is only ever executed as a Lucene query (pushed to the source, or run by a
+            // LuceneQueryExpressionEvaluator); there is no per-nested-object compute path. So a sub-field
+            // that cannot produce an exact-match query — e.g. a text field with no keyword multi-field —
+            // can never be evaluated, and must be rejected here rather than throwing during translation.
+            // This condition is deliberately independent of SearchStats: LucenePushdownPredicates.DEFAULT
+            // would also reject text fields that *do* have a usable keyword multi-field.
+            if (ref.getExactInfo().hasExact() == false) {
+                failure.set(
+                    new TypeResolution(
+                        format(null, "predicate of [{}] cannot be pushed to Lucene: {}", sourceText(), ref.getExactInfo().errorMsg())
+                    )
+                );
             }
         });
         return failure.get() != null ? failure.get() : TypeResolution.TYPE_RESOLVED;
     }
 
+    /**
+     * Pushable only when the inner predicate is: the nested query wraps the predicate's translation, so an
+     * untranslatable predicate makes the whole function untranslatable. When this reports {@code NO} the
+     * clause stays in the {@code FilterExec} and is executed by a {@link org.elasticsearch.compute.lucene
+     * .query.LuceneQueryExpressionEvaluator} over the {@code nested} query that the coordinator already
+     * materialized — the same fallback the other full-text functions use, e.g. for a disjunction.
+     */
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return super.translatable(pushdownPredicates).merge(TranslationAware.translatable(predicate, pushdownPredicates));
+    }
+
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         String path = ((FieldAttribute) field()).name();
+        // Defensive: resolveParams already rejects a predicate that cannot produce an exact-match query, so
+        // this should be unreachable. It guards the unguarded asQuery call in QueryBuilderResolver, which
+        // would otherwise surface as a raw QlIllegalArgumentException from deep inside translation.
+        predicate.forEachDown(FieldAttribute.class, ref -> {
+            if (ref.getExactInfo().hasExact() == false) {
+                throw new EsqlIllegalArgumentException(
+                    format(null, "predicate of [{}] cannot be pushed to Lucene: {}", sourceText(), ref.getExactInfo().errorMsg())
+                );
+            }
+        });
         // Translate through the handler so each leaf predicate keeps its SingleValueQuery wrapper: a nested
         // object's sub-field may itself be multi-valued, and ES|QL comparison semantics treat a multi-valued
         // field as no-match. The wrapper enforces that per child document, inside the nested scope.

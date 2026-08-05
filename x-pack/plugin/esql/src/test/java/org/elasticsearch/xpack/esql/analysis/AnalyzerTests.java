@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -1105,7 +1106,7 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
         var plan = multiFieldWithNested().query("""
             from test
-            | where nested_any(dep, d -> d.dep_name == "eng")
+            | where nested_any(dep, d -> d.dep_id == "eng")
             """);
         var filters = new ArrayList<Filter>();
         plan.forEachDown(Filter.class, filters::add);
@@ -1117,7 +1118,7 @@ public class AnalyzerTests extends ESTestCase {
         // the lambda's sub-field reference is rewritten to the real nested path
         var refs = new ArrayList<FieldAttribute>();
         nestedAny.predicate().forEachDown(FieldAttribute.class, refs::add);
-        assertTrue("predicate should reference dep.dep_name", refs.stream().anyMatch(f -> f.name().equals("dep.dep_name")));
+        assertTrue("predicate should reference dep.dep_id", refs.stream().anyMatch(f -> f.name().equals("dep.dep_id")));
     }
 
     public void testNestedAnyTranslatesToNestedQuery() {
@@ -1137,6 +1138,34 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(ScoreMode.Max, nested.scoreMode());
         // the inner predicate targets the real nested sub-field path
         assertThat(nested.child().toQueryBuilder().toString(), containsString("dep.dep_id"));
+    }
+
+    public void testNestedAnyTranslatabilityFollowsPredicate() {
+        assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
+        var plan = multiFieldWithNested().query("""
+            from test
+            | where nested_any(dep, d -> d.dep_id == "eng")
+            """);
+        var filters = new ArrayList<Filter>();
+        plan.forEachDown(Filter.class, filters::add);
+        var nestedAny = as(filters.get(0).condition(), NestedAny.class);
+        // The nested query wraps the predicate's translation, so translatability tracks the predicate's.
+        // Under DEFAULT (no SearchStats) a text sub-field is treated as non-pushable, which keeps the clause
+        // in the FilterExec — where it is executed by a LuceneQueryExpressionEvaluator over the nested query.
+        assertEquals(
+            TranslationAware.translatable(nestedAny.predicate(), LucenePushdownPredicates.DEFAULT),
+            nestedAny.translatable(LucenePushdownPredicates.DEFAULT)
+        );
+    }
+
+    public void testNestedAnyRejectsNonPushablePredicate() {
+        assumeTrue("NESTED_ANY lambda arrow is snapshot-only", Build.current().isSnapshot());
+        // dep_name is a text field with no keyword multi-field, so the equality cannot become an exact-match
+        // query. There is no per-nested-object compute path, so this must fail cleanly during analysis.
+        multiFieldWithNested().error("""
+            from test
+            | where nested_any(dep, d -> d.dep_name == "eng")
+            """, containsString("cannot be pushed to Lucene: No keyword/multi-field defined exact matches for [dep_name]"));
     }
 
     public void testNestedAnyRejectsCrossScopeReference() {

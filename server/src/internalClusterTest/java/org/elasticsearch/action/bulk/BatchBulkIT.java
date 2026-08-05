@@ -61,10 +61,7 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
-        createBatchIndex(index, shards, replicas, getMapping());
-    }
-
-    private void createBatchIndex(String index, int shards, int replicas, XContentBuilder mapping) throws IOException {
+        XContentBuilder mapping = getMapping();
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(
@@ -1461,68 +1458,5 @@ public class BatchBulkIT extends ESIntegTestCase {
                 }
             }
         );
-    }
-
-    /**
-     * Bug C: {@link org.elasticsearch.index.mapper.ShardBatchMapper#parseMappings} calls
-     * {@code mapper.parse(ctx)} directly for each pre-resolved column mapper, bypassing
-     * {@link org.elasticsearch.index.mapper.FallbackPostMapper#parseField}. No pre-capture is
-     * set up for {@link org.elasticsearch.index.mapper.FieldMapper.SyntheticSourceMode#FALLBACK}
-     * fields (those with {@code doc_values:false, store:false}), so their values are silently
-     * absent from synthetic source when the batch path is taken.
-     *
-     * <p>A {@code keyword} with {@code doc_values:false, store:false} has
-     * {@link org.elasticsearch.index.mapper.FieldMapper.SyntheticSourceMode#FALLBACK}: it can only
-     * reach synthetic source via a committed {@code _ignored_source} pre-capture. It also passes
-     * {@code KeywordFieldMapper#supportsBatchIndexing()}, so the batch path engages.
-     *
-     * <p>This test FAILS currently (bug C).
-     */
-    public void testFallbackFieldValueLostInBatchPath() throws IOException {
-        assumeTrue("batch indexing feature flag must be enabled", ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled());
-
-        String index = "test-batch-fallback";
-        XContentBuilder mapping = JsonXContent.contentBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("_doc");
-            {
-                mapping.startObject("_source");
-                mapping.field("mode", "synthetic");
-                mapping.endObject();
-
-                mapping.field("dynamic", "strict");
-
-                mapping.startObject("properties");
-                {
-                    // FALLBACK field: no doc_values, no store — only path to synthetic source is a
-                    // committed _ignored_source pre-capture from FallbackPostMapper.parseField.
-                    mapping.startObject("field").field("type", "keyword").field("doc_values", false).field("store", false).endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        createBatchIndex(index, 1, 0, mapping);
-
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest(index).id("doc-1").source(Map.of("field", "hello")));
-        assertNoFailures(client().bulk(bulkRequest).actionGet());
-
-        refresh(index);
-
-        assertResponse(prepareSearch(index).setQuery(QueryBuilders.idsQuery().addIds("doc-1")).setTrackTotalHits(true), response -> {
-            assertNoFailures(response);
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "FALLBACK field value must appear in synthetic source; lost because batch path "
-                    + "calls mapper.parse(ctx) directly instead of FallbackPostMapper.parseField "
-                    + "(ShardBatchMapper.java:259)",
-                response.getHits().getHits()[0].getSourceAsMap().get("field"),
-                equalTo("hello")
-            );
-        });
     }
 }

@@ -202,7 +202,10 @@ public final class FallbackPostMapper {
             }
             case FieldMapper.ParseResult.Ignored() -> {
                 if (precaptured) {
-                    if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                    Reason precaptureReason = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)).orElse(null);
+                    if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                        || precaptureReason == Reason.SOURCE_KEEP_ALL
+                        || precaptureReason == Reason.COPY_TO_DESTINATION) {
                         context.commitPendingPreCapture(fieldPath);
                     } else {
                         context.discardPendingPreCapture(fieldPath);

@@ -591,10 +591,15 @@ public abstract class DocumentParserContext {
 
     /**
      * Moves the pending pre-capture entry for {@code fieldPath} into the committed ignored-field list.
+     * Any void placeholder previously added for this field (e.g. by copy_to processing) is evicted first,
+     * so {@code _ignored_source} holds exactly one entry for the field.
      */
     final void commitPendingPreCapture(String fieldPath) {
         IgnoredSourceFieldMapper.NameValue nv = pendingIgnoredFieldValues.remove(fieldPath);
-        if (nv != null) ignoredFieldValues.add(nv);
+        if (nv != null) {
+            ignoredFieldValues.removeIf(e -> e.name().equals(fieldPath) && XContentDataHelper.isDataPresent(e.value()) == false);
+            ignoredFieldValues.add(nv);
+        }
     }
 
     /**
@@ -1188,7 +1193,15 @@ public abstract class DocumentParserContext {
             // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly after the dynamic update
             if (parent != null) {
                 int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+                // Skip the void placeholder when a real captured value is already committed for this field
+                // (e.g. COPY_TO_DESTINATION pre-capture that was already committed before this copy fires).
+                // Adding void on top of a real value causes two entries in _ignored_source, which produces
+                // inconsistent round-trip binary when JSON field order changes between original and round-trip.
+                boolean hasRealValue = ignoredFieldValues.stream()
+                    .anyMatch(e -> e.name().equals(copyToField) && XContentDataHelper.isDataPresent(e.value()));
+                if (hasRealValue == false) {
+                    ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+                }
             }
         }
 

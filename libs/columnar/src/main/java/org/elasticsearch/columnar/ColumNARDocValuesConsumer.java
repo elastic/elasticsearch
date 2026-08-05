@@ -29,6 +29,8 @@ import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -49,11 +51,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IndexOutput data;
     private final IndexOutput meta;
     private final List<FieldEntry> fields = new ArrayList<>();
+    private final NumericPipelineSelector pipelineSelector;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, NumericColumnMetadata metadata) {}
 
-    ColumNARDocValuesConsumer(SegmentWriteState state) throws IOException {
+    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector) throws IOException {
+        this.pipelineSelector = pipelineSelector;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -198,11 +202,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
         // during the value-encode pass — no extra cursor over the data.
+        final NumericPipeline pipeline = pipelineSelector.select(field.name, type, NumericColumnWriter.BLOCK_SIZE);
         NumericColumnMetadata metadata = NumericColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
             cursors,
+            pipeline,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
             SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
             directory,

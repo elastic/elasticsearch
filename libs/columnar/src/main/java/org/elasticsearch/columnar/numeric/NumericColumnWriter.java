@@ -48,6 +48,8 @@ public final class NumericColumnWriter {
      * @param numValues        total number of values across all documents
      * @param cursors          supplies fresh forward cursors over the documents that have a value;
      *                         called once for iterator and once for the values
+     * @param pipeline         the encoding pipeline; obtain via {@link NumericPipelineSelector} or
+     *                         a {@link NumericPipeline} named factory
      * @param blockBytesCodec  terminal byte codec applied to each block
      * @param skipCodec        skip-index codec fed inline during the value-encode pass, or {@code null}
      *                         to write no skip index
@@ -60,6 +62,7 @@ public final class NumericColumnWriter {
         int numDocsWithField,
         int numValues,
         IOSupplier<NumericColumnValues> cursors,
+        NumericPipeline pipeline,
         BlockBytesCodec blockBytesCodec,
         SkipIndexCodec skipCodec,
         Directory directory,
@@ -94,8 +97,6 @@ public final class NumericColumnWriter {
                 );
             }
 
-            // Seam: a non-default pipeline could be selected per field here (e.g. from a field attribute).
-            NumericPipeline pipeline = NumericPipeline.defaultPipeline(BLOCK_SIZE);
             NumericBlockEncoder encoder = new NumericBlockEncoder(pipeline, BLOCK_SIZE);
             long[] buffer = new long[BLOCK_SIZE];
             // One reusable encoder closure over the buffer, so no lambda is allocated per block flush;

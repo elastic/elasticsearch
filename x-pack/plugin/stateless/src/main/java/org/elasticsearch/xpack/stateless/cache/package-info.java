@@ -56,7 +56,8 @@
 ///   - Prefetching, in [org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher#computeTimestampPerBlob], picks a single
 ///     timestamp per blob for the blobs being prefetched, both for the blob containing the new commit and for other referenced blobs.
 ///     Blob containing the new commit gets the timestamp of the new commit, and other referenced blobs get the most recent known
-///     timestamp among the CCs referenced in each blob.
+///     timestamp among the CCs referenced in each blob. Each blob is resolved once, preferring the triggering commit's timestamp when the
+///     blob's own timestamp is unknown before the terminal fallback value.
 ///
 ///   - On-demand search reads, served through [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory] for regions that
 ///     were not prewarmed or that have been evicted, use the per-CC timestamp of the file being read.

@@ -115,6 +115,8 @@ public class PromqlFunctionRegistry {
         PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
         PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -183,7 +185,6 @@ public class PromqlFunctionRegistry {
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
         "group",
         "count_values",
 

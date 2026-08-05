@@ -35,7 +35,8 @@ import java.util.Map;
 public class LuceneBinaryColumnTests extends ESTestCase {
 
     private static LuceneBinaryColumn buildArrayColumn(int docCount, int[] docs, String[] values) {
-        EscfRowColumnBuilder builder = EscfRowColumnBuilder.strings(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.hintScalar(EscfColumnKind.STRING); // an all-absent column still finishes as STRING
         for (int i = 0; i < docs.length; i++) {
             builder.setString(docs[i], new BytesRef(values[i]));
         }

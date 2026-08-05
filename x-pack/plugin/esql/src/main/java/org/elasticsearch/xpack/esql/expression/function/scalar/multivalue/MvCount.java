@@ -61,6 +61,7 @@ public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull
                 "date_nanos",
                 "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",

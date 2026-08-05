@@ -365,17 +365,13 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
+    /// Reused across schedule attempts. Cleared [pendingSnapshotCancellationRun] at the start of each run so a
+    /// concurrent trigger can queue a follow-up against a (possibly) fresher cluster state.
     private class CancelRecoveriesBlockingSnapshotRunnable extends AbstractRunnable {
-        private volatile long lastProcessedClusterStateVersion = -1L;
-
         @Override
         protected synchronized void doRun() {
             pendingSnapshotCancellationRun.set(false);
             final ClusterState currentState = clusterService.state();
-            if (currentState.version() <= lastProcessedClusterStateVersion) {
-                return;
-            }
-            lastProcessedClusterStateVersion = currentState.version();
             final var requests = computeCancellationCandidatesForSnapshots(currentState);
             if (requests.isEmpty()) {
                 return;
@@ -388,6 +384,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
             logger.warn("failed to compute or send snapshot recovery cancellations", e);
         }
 
+        @Override
         public void onRejection(Exception e) {
             pendingSnapshotCancellationRun.set(false);
             onFailure(e);

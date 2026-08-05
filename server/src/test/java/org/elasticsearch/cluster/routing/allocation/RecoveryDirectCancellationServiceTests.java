@@ -1433,20 +1433,6 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             service.sentCancellations.get(targetAllocationId.getId()),
             equalTo(new RecoveryDirectCancellationService.SentCancellation(currentState.get().term(), false))
         );
-
-        // Same cluster-state version: the run should bail out before computing candidates for cancellations.
-        service.sentCancellations.invalidateAll();
-        final var processedState = currentState.get();
-        final var sameVersionState = ClusterState.builder(processedState)
-            .routingTable(RoutingTable.builder(processedState.routingTable()).build())
-            .build();
-        assertThat(sameVersionState.version(), equalTo(processedState.version()));
-        currentState.set(sameVersionState);
-        service.clusterChanged(new ClusterChangedEvent("test", sameVersionState, processedState));
-
-        taskQueue.runAllRunnableTasks();
-        assertThat("same-version follow-up must bail out without sending any cancellations ", sendCount.get(), equalTo(1));
-        assertThat(service.sentCancellations.get(targetAllocationId.getId()), nullValue());
     }
 
     private SnapshotsInProgress.Entry snapshotWithShards(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {

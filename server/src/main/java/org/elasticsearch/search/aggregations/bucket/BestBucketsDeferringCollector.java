@@ -135,9 +135,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
-                // Periodically give the real-memory parent breaker a chance to check heap
-                // usage for in-flight builder allocations that are not yet committed to entries.
-                if ((++callCount % 1024) == 0) {
+                // Every 1024 calls, give the real-memory breaker a chance to observe
+                if ((++callCount & 0x3FF) == 0) {
                     bytesAccounter.accept(0);
                 }
             }
@@ -218,11 +217,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // collection was terminated prematurely
                 // continue with the following leaf
             }
-            // release resources and return the circuit breaker bytes for this entry
-            long entryBytes = entry.ramBytesUsed;
             entry.buckets = null;
             entry.docDeltas = null;
-            bytesAccounter.accept(-entryBytes);
+            bytesAccounter.accept(-entry.ramBytesUsed);
         }
         collector.postCollection();
     }
@@ -277,15 +274,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
-        // Return bytes for all committed entries before rebuilding them.
-        // The old packed structures remain referenced throughout the rebuild loop below
-        // (we iterate over their contents), so actual heap usage temporarily exceeds
-        // breaker tracking by up to the total size of the old entries. This is bounded
-        // and acceptable. If bytesAccounter throws while recharging a new entry in the
-        // second loop, entries still points at the old list whose bytes have already
-        // been returned; the resulting CircuitBreakingException propagates to the
-        // caller, failing the query, and AggregatorBase.close() reconciles
-        // requestBytesUsed with the breaker on the way out.
+
         for (Entry sourceEntry : entries) {
             bytesAccounter.accept(-sourceEntry.ramBytesUsed);
         }

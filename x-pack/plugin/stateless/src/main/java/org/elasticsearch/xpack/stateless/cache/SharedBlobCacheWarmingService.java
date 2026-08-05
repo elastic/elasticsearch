@@ -128,7 +128,7 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
     public static final String BLOB_CACHE_WARMING_RATIO_METRIC = "es.blob_cache_warming.ratio.histogram";
-    public static final String BLOB_CACHE_WARMING_BYTES_TOTAL_METRIC = "es.blob_cache_warming.bytes.total";
+    public static final String BLOB_CACHE_WARMING_REQUESTED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.requested_bytes.total";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
 
     /**
@@ -487,7 +487,7 @@ public class SharedBlobCacheWarmingService {
             );
         this.warmingOfflineByteRangeBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
-                BLOB_CACHE_WARMING_BYTES_TOTAL_METRIC,
+                BLOB_CACHE_WARMING_REQUESTED_BYTES_TOTAL_METRIC,
                 "Total byte range length requested for offline blob cache warming, broken down by the ["
                     + BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",

@@ -392,6 +392,8 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     if (otherRouting.started()) {
                         unchanged = true;
                     } else {
+                        final var originalState = otherRouting.state();
+                        final var originalRelocatingNodeId = otherRouting.relocatingNodeId();
                         otherRouting = new ShardRouting(
                             otherRouting.shardId(),
                             otherRouting.currentNodeId(),
@@ -399,7 +401,10 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                             otherRouting.primary(),
                             otherRouting.state(),
                             otherRouting.recoverySource(),
-                            TestShardRouting.buildRecoveryPriority(otherRouting.state(), otherRouting.relocatingNodeId() != null),
+                            randomValueOtherThan(
+                                otherRouting.recoveryPriority(),
+                                () -> TestShardRouting.buildRecoveryPriority(originalState, originalRelocatingNodeId != null)
+                            ),
                             otherRouting.unassignedInfo(),
                             otherRouting.relocationFailureInfo(),
                             otherRouting.allocationId(),
@@ -449,6 +454,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
                     otherRouting.primary(),
                     otherRouting.state()
                 ).withRelocatingNodeId(otherRouting.relocatingNodeId())
+                    .withRecoveryPriority(otherRouting.recoveryPriority())
                     .withUnassignedInfo(
                         otherRouting.unassignedInfo() == null
                             ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")

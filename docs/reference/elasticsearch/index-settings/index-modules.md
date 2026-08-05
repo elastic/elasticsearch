@@ -54,9 +54,7 @@ $$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
 $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
-:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
-
-        **Example**
+:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance. For example:
 
       ```console
       PUT my-index-000001
@@ -69,7 +67,6 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
       }
       ```
       1. This index uses the `standard` index mode
-    **Supported values**
 
     The `index.mode` setting supports the following values:
        - `null`:   Default value (same as `standard`).
@@ -78,6 +75,8 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
        - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
        - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
        - `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`: Index mode optimized for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
+       - `columnar`: {applies_to}`stack: preview 9.5+`  {applies_to}`serverless: preview` Index mode that turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, refer to [Columnar index mode](/reference/columnar/index.md).
+       - `logsdb_columnar`: {applies_to}`stack: preview 9.5+`  {applies_to}`serverless: preview` Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping. For more information, refer to [Columnar index mode](/reference/columnar/index.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).

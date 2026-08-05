@@ -569,7 +569,9 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 }
                 assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
                 try (
-                    IVFVectorsReader.CentroidData centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(vectorField)
+                    IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                        vectorField
+                    )
                 ) {
                     assertNotNull(centroidData);
                     assertThat(centroidData.numCentroids(), equalTo(1));

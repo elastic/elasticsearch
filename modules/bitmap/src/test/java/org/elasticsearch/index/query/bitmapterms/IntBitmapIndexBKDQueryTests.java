@@ -13,6 +13,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
@@ -23,6 +25,9 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IntBitmapIndexBKDQueryTests extends ESTestCase {
 
@@ -160,6 +165,37 @@ public class IntBitmapIndexBKDQueryTests extends ESTestCase {
         // Bitmap entirely below the indexed range: no match
         assertThat(searcher.count(new IntBitmapIndexBKDQuery(FIELD, RoaringBitmap.bitmapOf(0))), equalTo(0));
 
+        w.close();
+        reader.close();
+        dir.close();
+    }
+
+    /**
+     * A cached query must report its bitmap's footprint, since that is what a large entry costs and the
+     * cache would otherwise treat it as negligible. Asserting growth rather than an absolute figure
+     * keeps this independent of RamUsageEstimator's shallow-size arithmetic.
+     */
+    public void testRamBytesUsedGrowsWithBitmap() {
+        RoaringBitmap small = RoaringBitmap.bitmapOf(1, 2, 3);
+        RoaringBitmap large = new RoaringBitmap();
+        large.add(0L, 200_000L);
+        long smallBytes = new IntBitmapIndexBKDQuery(FIELD, small).ramBytesUsed();
+        long largeBytes = new IntBitmapIndexBKDQuery(FIELD, large).ramBytesUsed();
+        assertThat(smallBytes, greaterThan(0L));
+        assertThat(largeBytes, greaterThan(smallBytes));
+        assertThat(largeBytes, greaterThanOrEqualTo(large.getLongSizeInBytes()));
+    }
+
+    public void testEmptyBitmapRewritesToMatchNoDocs() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new IntPoint(FIELD, 1));
+        w.addDocument(doc);
+        IndexReader reader = w.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        Query rewritten = searcher.rewrite(new IntBitmapIndexBKDQuery(FIELD, new RoaringBitmap()));
+        assertThat(rewritten, instanceOf(MatchNoDocsQuery.class));
         w.close();
         reader.close();
         dir.close();

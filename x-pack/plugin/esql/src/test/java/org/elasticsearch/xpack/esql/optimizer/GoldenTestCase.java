@@ -19,6 +19,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -76,6 +77,7 @@ import org.junit.runner.notification.RunListener;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -1235,14 +1237,30 @@ public abstract class GoldenTestCase extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets,
         boolean trackUnmappedFieldIndices
     ) {
-        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
-        Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
+        Map<String, IndexMode> indexModes = datasets.datasets()
+            .stream()
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, GoldenTestCase::indexModeOf));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    /**
+     * The dataset's real index mode, read from its settings file (e.g. k8s-settings.json declares
+     * {@code index.mode: time_series}) rather than assumed - a golden test's query can reference the
+     * same index via TS or FROM, and TS requires every matched index to genuinely be time-series
+     * mode (see https://github.com/elastic/elasticsearch/issues/153030), so this must reflect the
+     * dataset's actual settings, not a blanket default.
+     */
+    private static IndexMode indexModeOf(CsvTestsDataLoader.TestDataset dataset) {
+        try {
+            return IndexSettings.MODE.get(dataset.loadSettings());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile

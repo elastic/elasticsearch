@@ -90,7 +90,8 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return;
         }
 
-        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;

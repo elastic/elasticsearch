@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -74,7 +75,6 @@ public class IndexResolver {
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
-    public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions DEFAULT_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -128,7 +128,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -176,7 +176,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -219,7 +219,7 @@ public class IndexResolver {
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createFieldCapsRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -239,7 +239,7 @@ public class IndexResolver {
     }
 
     private void doResolveIndices(
-        FieldCapabilitiesRequest request,
+        EsqlResolveFieldsRequest request,
         String indexPattern,
         boolean allowEmpty,
         TransportVersion minimumVersion,
@@ -678,7 +678,7 @@ public class IndexResolver {
         return minTransportVersion != null && minTransportVersion.supports(CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(
+    private static EsqlResolveFieldsRequest createResolveFieldRequest(
         IndicesOptions options,
         String index,
         @Nullable String projectRouting,
@@ -705,7 +705,7 @@ public class IndexResolver {
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);
         request.projectRouting(projectRouting);
-        return request;
+        return new EsqlResolveFieldsRequest(request);
     }
 
     public interface OriginalIndexExtractor {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.processor.model.InlineArrayFieldModel;
+import org.elasticsearch.foreign.processor.model.InlineStringFieldModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
 
@@ -21,6 +23,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayou
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_PaddingLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 
 /**
@@ -47,12 +50,30 @@ final class StructLayoutUtil {
         List<LayoutField> result = new ArrayList<>();
         long offset = 0;
         for (StructFieldModel field : fields) {
-            long align = alignmentOf(field.type());
+            long align = fieldAlignment(field);
             long padding = (offset % align == 0) ? 0 : (align - offset % align);
             result.add(new LayoutField(field, padding));
-            offset += padding + sizeOf(field.type());
+            offset += padding + fieldSize(field);
         }
         return result;
+    }
+
+    /** Total byte size of a field in the struct layout. */
+    static long fieldSize(StructFieldModel field) {
+        return switch (field) {
+            case InlineArrayFieldModel inlineArray -> (long) inlineArray.length() * sizeOf(inlineArray.elementType());
+            case InlineStringFieldModel inlineString -> inlineString.length();
+            default -> sizeOf(field.type());
+        };
+    }
+
+    /** Natural alignment of a field in the struct layout. */
+    static long fieldAlignment(StructFieldModel field) {
+        return switch (field) {
+            case InlineArrayFieldModel inlineArray -> sizeOf(inlineArray.elementType());
+            case InlineStringFieldModel ignored -> 1;
+            default -> sizeOf(field.type());
+        };
     }
 
     /** Static byte size for a native type, assuming a 64-bit ABI. */
@@ -96,10 +117,31 @@ final class StructLayoutUtil {
             }
             cb.dup();
             cb.loadConstant(arrayIndex++);
-            emitValueLayout(cb, lf.field().type());
+            emitFieldLayout(cb, lf.field());
             cb.ldc(lf.field().name());
             cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
             cb.aastore();
+        }
+    }
+
+    /**
+     * Emits the base layout for a field (before {@code withName}): a scalar {@code ValueLayout} for
+     * scalar and array-pointer fields, or a {@code sequenceLayout(length, elementLayout)} for inline
+     * array and inline string fields.
+     */
+    private static void emitFieldLayout(CodeBuilder cb, StructFieldModel field) {
+        switch (field) {
+            case InlineArrayFieldModel inlineArray -> {
+                cb.loadConstant((long) inlineArray.length());
+                emitValueLayout(cb, inlineArray.elementType());
+                cb.invokestatic(CD_MemoryLayout, "sequenceLayout", MTD_sequenceLayout, true);
+            }
+            case InlineStringFieldModel inlineString -> {
+                cb.loadConstant((long) inlineString.length());
+                emitValueLayout(cb, NativeType.BYTE);
+                cb.invokestatic(CD_MemoryLayout, "sequenceLayout", MTD_sequenceLayout, true);
+            }
+            default -> emitValueLayout(cb, field.type());
         }
     }
 }

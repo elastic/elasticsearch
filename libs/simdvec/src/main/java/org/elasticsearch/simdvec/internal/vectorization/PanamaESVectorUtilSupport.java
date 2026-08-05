@@ -909,6 +909,33 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public float squareDistance(byte[] a, float[] b) {
+        int i = 0;
+        float result = 0;
+        // SIMD path: load bytes as floats, load floats, subtract, square, accumulate.
+        // BYTES_FOR_4BYTE_SPECIES is a byte vector species sized so that each byte lane maps to
+        // exactly one float lane after castShape — i.e., its lane count equals FLOAT_SPECIES.length().
+        if (a.length >= BYTES_FOR_4BYTE_SPECIES.length()) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+            int limit = a.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
+                ByteVector va = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, a, i);
+                FloatVector fa = (FloatVector) va.castShape(FLOAT_SPECIES, 0);
+                FloatVector fb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+                FloatVector diff = fa.sub(fb);
+                acc = fma(diff, diff, acc);
+            }
+            result = acc.reduceLanes(ADD);
+        }
+        // Scalar tail
+        for (; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            result = fma(diff, diff, result);
+        }
+        return result;
+    }
+
+    @Override
     public void centerAndCalculateOSQStatsEuclidean(float[] vector, float[] centroid, float[] centered, float[] stats) {
         assert vector.length == centroid.length;
         assert vector.length == centered.length;

@@ -248,6 +248,57 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testBackfillRegionTimestamps() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+
+            // region 0 and region 2 start BACKFILL_IN_PROGRESS and should be backfilled
+            final var region0 = cacheService.get(cacheKey, size(500), 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region0.timestampMillis());
+            final var region2 = cacheService.get(cacheKey, size(500), 2, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region2.timestampMillis());
+
+            // region 1 already carries a real timestamp; the guard must keep it
+            final long realTs = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final var region1 = cacheService.get(cacheKey, size(500), 1, realTs);
+            assertEquals(realTs, region1.timestampMillis());
+
+            // UNKNOWN regions must not be modified by backfill
+            final var unknownRegion = cacheService.get(cacheKey, size(500), 3);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
+
+            // Backfill all present regions of the blob with a single timestamp.
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+
+            assertEquals(backfill, region0.timestampMillis());
+            assertEquals(realTs, region1.timestampMillis()); // the guard kept the pre-existing real value
+            assertEquals(backfill, region2.timestampMillis());
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
+
+            // backfilling an already-resolved region is a no-op (transition only from BACKFILL_IN_PROGRESS)
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill + 1 : null);
+            assertEquals(backfill, region0.timestampMillis());
+        }
+    }
+
     public void testFetchOverloadsStampTimestamp() throws Exception {
         final long cacheSize = size(500L);
         final long regionSize = size(100L);

@@ -25,7 +25,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.additionalTopK;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.toDocument;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.translati
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.NONE_TOOL_CHOICE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.REQUIRED_TOOL_CHOICE;
 
-public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest implements ChatCompletionRequest {
+public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest implements OutboundUnifiedCompletionRequest {
     private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
 
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;
@@ -88,6 +89,15 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest imp
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
+
+        // top_k has no field on the Bedrock InferenceConfiguration, so providers that support it
+        // (Anthropic, Cohere, Mistral) get it via additional model fields. Mirrors the wiring used
+        // in AmazonBedrockCompletionRequest for the non-unified completion path.
+        var topKFields = additionalTopK(requestEntity.topK());
+        if (topKFields != null) {
+            converseStreamRequest.additionalModelResponseFieldPaths(topKFields);
+        }
+
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build(), amazonBedrockModel);
     }
 

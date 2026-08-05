@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.rank;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.DataInput;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,7 +56,7 @@ public class ShardFailingQueryBuilder extends LeafQueryBuilder<ShardFailingQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.getShardId() % 2 == 0) {
-            throw new CorruptIndexException("simulated failure", (DataInput) null);
+            throw new IllegalArgumentException("simulated failure");
         } else {
             return Queries.ALL_DOCS_INSTANCE;
         }

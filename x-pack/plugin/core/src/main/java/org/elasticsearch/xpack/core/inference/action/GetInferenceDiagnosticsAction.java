@@ -36,6 +36,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
     private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
     private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
+    private static final TransportVersion INFERENCE_OAUTH2_TOKEN_CACHE_DIAGNOSTICS = TransportVersion.fromName(
+        "inference_api_oauth2_token_cache_diagnostics"
+    );
 
     public GetInferenceDiagnosticsAction() {
         super(NAME);
@@ -124,22 +127,27 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         private static final String EIS_FIELD = "eis_mtls";
         private static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
         static final String INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME = "inference_endpoint_registry";
+        static final String OAUTH2_TOKEN_CACHE_STATS_FIELD_NAME = "oauth2_token_cache";
 
         private final ConnectionPoolStats externalConnectionPoolStats;
         private final ConnectionPoolStats eisMtlsConnectionPoolStats;
         @Nullable
         private final Stats inferenceEndpointRegistryStats;
+        @Nullable
+        private final Stats oauth2TokenCacheStats;
 
         public NodeResponse(
             DiscoveryNode node,
             PoolStats poolStats,
             PoolStats eisPoolStats,
-            @Nullable Stats inferenceEndpointRegistryStats
+            @Nullable Stats inferenceEndpointRegistryStats,
+            @Nullable Stats oauth2TokenCacheStats
         ) {
             super(node);
             externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
             eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
             this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
+            this.oauth2TokenCacheStats = oauth2TokenCacheStats;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -154,6 +162,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             inferenceEndpointRegistryStats = in.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)
                 ? in.readOptionalWriteable(Stats::new)
                 : null;
+            oauth2TokenCacheStats = in.getTransportVersion().supports(INFERENCE_OAUTH2_TOKEN_CACHE_DIAGNOSTICS)
+                ? in.readOptionalWriteable(Stats::new)
+                : null;
         }
 
         @Override
@@ -166,6 +177,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             }
             if (out.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)) {
                 out.writeOptionalWriteable(inferenceEndpointRegistryStats);
+            }
+            if (out.getTransportVersion().supports(INFERENCE_OAUTH2_TOKEN_CACHE_DIAGNOSTICS)) {
+                out.writeOptionalWriteable(oauth2TokenCacheStats);
             }
         }
 
@@ -185,6 +199,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (inferenceEndpointRegistryStats != null) {
                 builder.field(INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME, inferenceEndpointRegistryStats, params);
             }
+            if (oauth2TokenCacheStats != null) {
+                builder.field(OAUTH2_TOKEN_CACHE_STATS_FIELD_NAME, oauth2TokenCacheStats, params);
+            }
             return builder;
         }
 
@@ -195,12 +212,18 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             NodeResponse response = (NodeResponse) o;
             return Objects.equals(externalConnectionPoolStats, response.externalConnectionPoolStats)
                 && Objects.equals(eisMtlsConnectionPoolStats, response.eisMtlsConnectionPoolStats)
-                && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats);
+                && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats)
+                && Objects.equals(oauth2TokenCacheStats, response.oauth2TokenCacheStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(externalConnectionPoolStats, eisMtlsConnectionPoolStats, inferenceEndpointRegistryStats);
+            return Objects.hash(
+                externalConnectionPoolStats,
+                eisMtlsConnectionPoolStats,
+                inferenceEndpointRegistryStats,
+                oauth2TokenCacheStats
+            );
         }
 
         ConnectionPoolStats getExternalConnectionPoolStats() {
@@ -213,6 +236,10 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
         public Stats getInferenceEndpointRegistryStats() {
             return inferenceEndpointRegistryStats;
+        }
+
+        public Stats getOauth2TokenCacheStats() {
+            return oauth2TokenCacheStats;
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {

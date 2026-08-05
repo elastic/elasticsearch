@@ -103,6 +103,13 @@ $$$reindex-remote-whitelist$$$
 `reindex.remote.blocklist` {applies_to}`stack: ga 9.4+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the hosts that *cannot* be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex), even if they would be allowed by `reindex.remote.whitelist`. For example, you could whitelist `*.example.com:*` and then blocklist `*.qa.example.com:*`. Consists of a list of `host:port` entries or patterns. Empty by default.
 
+$$$cluster-reindex-pit-keep-alive$$$
+
+`cluster.reindex.pit.keep_alive` {applies_to}`stack: ga 9.5+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long {{es}} keeps [point-in-time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) search contexts open when a reindex uses PIT-based pagination (including when opening a PIT on a compatible remote cluster). If reindex falls back to the scroll API, the scroll timeout is taken from the reindex request’s `scroll` parameter instead of this setting. Defaults to `15m`. Minimum `1ms`. Use a value long enough for your batching and network latency, but avoid unnecessarily large values because they retain resources on data nodes until the PIT expires or is closed.
+
+$$$reindex-ssl$$$
+
 `reindex.ssl.certificate` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies the path to the PEM encoded certificate (or certificate chain) to be used for HTTP client authentication (if required by the remote cluster) This setting requires that `reindex.ssl.key` also be set. You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.
 

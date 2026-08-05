@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
+
 public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsField> {
     @Override
     protected FunctionEsField createTestInstance() {
-        EsField esField = randomAnyEsField(4);
+        EsField esField = randomSerializableEsField(4);
         DataType dataType = randomFrom(DataType.types());
         DenseVectorFieldMapper.VectorSimilarityFunctionConfig functionConfig = randomFunctionConfig();
         return new FunctionEsField(esField, dataType, functionConfig);
@@ -36,7 +38,7 @@ public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsFie
         DataType dataType = instance.getDataType();
         BlockLoaderFunctionConfig functionConfig = instance.functionConfig();
         switch (between(0, 2)) {
-            case 0 -> esField = randomValueOtherThan(esField, () -> randomAnyEsField(4));
+            case 0 -> esField = randomValueOtherThan(esField, () -> randomSerializableEsField(4));
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> functionConfig = randomValueOtherThan(functionConfig, this::randomFunctionConfig);
             default -> throw new IllegalArgumentException();

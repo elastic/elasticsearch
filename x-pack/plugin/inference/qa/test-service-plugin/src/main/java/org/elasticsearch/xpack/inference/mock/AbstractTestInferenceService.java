@@ -105,8 +105,8 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    public void start(Model model, TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override
@@ -116,7 +116,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
         InferenceString inferenceString = chunkInput.input().value();
         String inferenceStringValue = inferenceString.value();
-        if (chunkingSettings == null || inferenceString.isText() == false) {
+        if (chunkingSettings == null || inferenceString.isNonText()) {
             return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
         }
 

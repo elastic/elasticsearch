@@ -11,6 +11,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
@@ -23,11 +24,8 @@ import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -52,8 +50,7 @@ class ESSynonymMapBuilder {
 
     private static class MapEntry {
         boolean includeOrig;
-        // can't use Lucene's IntArrayList
-        final List<Integer> ords = new ArrayList<>();
+        final IntList ords = new IntList();
     }
 
     ESSynonymMapBuilder(boolean dedup, CircuitBreaker circuitBreaker) {
@@ -111,10 +108,9 @@ class ESSynonymMapBuilder {
         BytesRefBuilder scratch = new BytesRefBuilder();
         ByteArrayDataOutput scratchOutput = new ByteArrayDataOutput();
 
-        // can't use Lucene's IntHashSet
-        final Set<Integer> dedupSet;
+        final IntList dedupSet;
         if (dedup) {
-            dedupSet = new HashSet<>();
+            dedupSet = new IntList();
         } else {
             dedupSet = null;
         }
@@ -176,6 +172,8 @@ class ESSynonymMapBuilder {
             fstCompiler.add(Util.toUTF32(input, scratchIntsRef), scratch.toBytesRef());
         }
 
+        workingSet.clear();
+
         FST<BytesRef> fst = FST.fromFSTReader(fstCompiler.compile(), fstCompiler.getFSTReader());
         return new SynonymMap(fst, words, maxHorizontalContext);
     }
@@ -206,5 +204,38 @@ class ESSynonymMapBuilder {
             }
         }
         return wordCount;
+    }
+
+    /** Minimal primitive int list — avoids {@code Integer} boxing overhead. */
+    private static final class IntList {
+        private int[] buf = new int[4];
+        private int size;
+
+        void add(int v) {
+            if (size == buf.length) {
+                buf = ArrayUtil.grow(buf, size + 1);
+            }
+            buf[size++] = v;
+        }
+
+        int get(int i) {
+            return buf[i];
+        }
+
+        int size() {
+            return size;
+        }
+
+        /** Linear scan — acceptable because per-key dedup lists are small. */
+        boolean contains(int v) {
+            for (int i = 0; i < size; i++) {
+                if (buf[i] == v) return true;
+            }
+            return false;
+        }
+
+        void clear() {
+            size = 0;
+        }
     }
 }

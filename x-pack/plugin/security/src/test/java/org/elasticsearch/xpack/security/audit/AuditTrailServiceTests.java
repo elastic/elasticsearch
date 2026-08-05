@@ -7,12 +7,16 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -29,6 +33,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.mockito.Mockito.mock;
@@ -50,7 +55,10 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void init() throws Exception {
         auditTrail = mock(AuditTrail.class);
         licenseState = mock(MockLicenseState.class);
-        service = new AuditTrailService(auditTrail, licenseState);
+        var auditSettings = Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(auditSettings, Set.of(XPackSettings.AUDIT_ENABLED)));
+        service = new AuditTrailService(auditTrail, licenseState, clusterService);
         isAuditingAllowed = randomBoolean();
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(isAuditingAllowed);
         token = mock(AuthenticationToken.class);

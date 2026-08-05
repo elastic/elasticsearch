@@ -19,6 +19,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +33,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,6 +42,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -56,6 +61,8 @@ import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
+
     private static final String CRLF = "\r\n";
 
     private static final String IF_GENERATION_MATCH = "ifGenerationMatch";
@@ -71,6 +78,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     private static final int MAX_DELETE_FAILURES = 3;
 
     private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
+
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for the {@code updated} field in JSON responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -89,11 +100,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
-            int read = exchange.getRequestBody().read();
-            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
-        }
+        final String threadName = Thread.currentThread().getName();
+        logger.debug("handling GCS request [{}] on thread [{}]", request, threadName);
         try {
+            if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+                int read = exchange.getRequestBody().read();
+                assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+            }
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
             if (request.equals("GET /") && "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
@@ -152,14 +165,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
 
-                        if (range.start() >= blob.contents().length()) {
+                        final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                        if (resolved == null) {
                             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                             exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                             return;
                         }
 
-                        final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
-                        response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                        response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                         statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
                     // I think it's enough to use the generation here, at least until
@@ -211,7 +224,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     final MockGcsBlobStore.BlobVersion newBlobVersion = mockGcsBlobStore.updateBlob(
                         multipartUpload.name(),
                         ifGenerationMatch,
-                        multipartUpload.content()
+                        multipartUpload.content(),
+                        emptyToNull(multipartUpload.storageClass())
                     );
                     writeBlobVersionAsJson(exchange, newBlobVersion);
                 } catch (IllegalArgumentException e) {
@@ -224,7 +238,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
                     blobName,
-                    ifGenerationMatch
+                    ifGenerationMatch,
+                    parseStorageClass(requestBody)
                 );
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
@@ -292,7 +307,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     ? Long.parseLong(maxBytesStr)
                     : DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL;
 
-                var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
+                final String dstStorageClass = parseStorageClass(requestBody);
+                var rewriteResponse = mockGcsBlobStore.rewrite(
+                    srcObject,
+                    dstObject,
+                    dstStorageClass,
+                    rewriteToken,
+                    maxBytesRewrittenPerCall
+                );
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                     builder.startObject();
                     builder.field("kind", "storage#rewriteResponse");
@@ -314,11 +336,77 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     responseBytes.writeTo(exchange.getResponseBody());
                 }
             } else {
-                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                // XML API routes — match against the decoded path/request to handle percent-encoded URIs
+                final String decodedRequest = exchange.getRequestMethod()
+                    + " "
+                    + URLDecoder.decode(exchange.getRequestURI().toString(), UTF_8);
+                final String decodedPath = URLDecoder.decode(exchange.getRequestURI().getPath(), UTF_8);
+                if (Regex.simpleMatch("HEAD /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Head Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+                } else if (Regex.simpleMatch("GET /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Get Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                        final BytesReference response;
+                        final int statusCode;
+                        if (rangeHeader == null) {
+                            response = blob.contents();
+                            statusCode = RestStatus.OK.getStatus();
+                        } else {
+                            final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                            if (range == null) {
+                                throw new AssertionError("Range header does not match expected format: " + rangeHeader);
+                            }
+                            final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                            if (resolved == null) {
+                                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                                exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                                return;
+                            }
+                            response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
+                            exchange.getResponseHeaders()
+                                .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blob.contents().length());
+                            statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
+                        }
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.sendResponseHeaders(statusCode, response.length());
+                        response.writeTo(exchange.getResponseBody());
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                }
             }
         } catch (MockGcsBlobStore.GcsRestException e) {
             sendError(exchange, e);
         } finally {
+            logger.debug("finished handling GCS request [{}] on thread [{}]", request, threadName);
             exchange.close();
         }
     }
@@ -485,6 +573,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
+        builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
+        if (blobVersion.storageClass() != null) {
+            builder.field("storageClass", blobVersion.storageClass());
+        }
         builder.endObject();
     }
 
@@ -513,7 +605,47 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
      * without going through the HTTP API.
      */
     public void putBlob(String path, BytesReference contents) {
-        mockGcsBlobStore.updateBlob(path, null, contents);
+        mockGcsBlobStore.updateBlob(path, null, contents, null);
+    }
+
+    /**
+     * Returns the storage class recorded for the blob at the given object name, or {@code null} if none was set.
+     */
+    @Nullable
+    public String getBlobStorageClass(String path) {
+        return mockGcsBlobStore.getBlob(path, null, null).storageClass();
+    }
+
+    private static final Pattern STORAGE_CLASS_PATTERN = Pattern.compile("\"storageClass\"\\s*:\\s*\"([^\"]*)\"");
+
+    /**
+     * Extracts the {@code storageClass} field from a request body containing GCS object metadata JSON. The body may be gzip-compressed
+     * (the GCS client compresses request bodies for some operations such as object rewrites), so this transparently decompresses it.
+     */
+    @Nullable
+    private static String parseStorageClass(@Nullable BytesReference body) throws IOException {
+        if (body == null || body.length() == 0) {
+            return null;
+        }
+        final String content;
+        if (isGzip(body)) {
+            try (var in = new GZIPInputStream(body.streamInput())) {
+                content = new String(in.readAllBytes(), UTF_8);
+            }
+        } else {
+            content = body.utf8ToString();
+        }
+        final var matcher = STORAGE_CLASS_PATTERN.matcher(content);
+        return matcher.find() ? emptyToNull(matcher.group(1)) : null;
+    }
+
+    private static boolean isGzip(BytesReference body) {
+        return body.length() >= 2 && (body.get(0) & 0xff) == 0x1f && (body.get(1) & 0xff) == 0x8b;
+    }
+
+    @Nullable
+    private static String emptyToNull(@Nullable String value) {
+        return Strings.hasText(value) ? value : null;
     }
 
     private static String httpServerUrl(final HttpExchange exchange) {

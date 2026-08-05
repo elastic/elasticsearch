@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -84,7 +84,7 @@ public class JinaAIRerankModelTests extends ESTestCase {
     public static JinaAIRerankModel createModel(String modelName) {
         return new JinaAIRerankModel(
             "id",
-            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(modelName, null)),
+            new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(modelName, null)),
             new JinaAIRerankTaskSettings(null, null),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8)),
             null
@@ -94,7 +94,7 @@ public class JinaAIRerankModelTests extends ESTestCase {
     public static JinaAIRerankModel createModel(String modelName, String apiKey, @Nullable Integer topN) {
         return new JinaAIRerankModel(
             "id",
-            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(modelName, null)),
+            new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(modelName, null)),
             new JinaAIRerankTaskSettings(topN, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             null
@@ -104,7 +104,7 @@ public class JinaAIRerankModelTests extends ESTestCase {
     public static JinaAIRerankModel createModel(String url, String modelName, @Nullable Integer topN, @Nullable Boolean returnDocuments) {
         return new JinaAIRerankModel(
             "id",
-            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(modelName, null)),
+            new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(modelName, null)),
             new JinaAIRerankTaskSettings(topN, returnDocuments),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8)),
             url
@@ -120,7 +120,7 @@ public class JinaAIRerankModelTests extends ESTestCase {
     ) {
         return new JinaAIRerankModel(
             "id",
-            new JinaAIRerankServiceSettings(new JinaAIServiceSettings(modelName, null)),
+            new JinaAIRerankServiceSettings(new JinaAICommonServiceSettings(modelName, null)),
             new JinaAIRerankTaskSettings(topN, returnDocuments),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             url

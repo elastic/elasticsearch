@@ -15,9 +15,10 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -27,7 +28,9 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest extends ElasticInferenceServiceRequest implements ChatCompletionRequest {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest extends ElasticInferenceServiceRequest
+    implements
+        OutboundUnifiedCompletionRequest {
 
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
@@ -38,9 +41,10 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
         ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata requestMetadata,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata, authApplier);
+        super(requestMetadata, preferences, authApplier);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
@@ -68,7 +72,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation
         return this;
     }

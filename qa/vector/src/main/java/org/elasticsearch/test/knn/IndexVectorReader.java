@@ -21,9 +21,9 @@
 package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.test.knn.data.PartitionDataGenerator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -33,6 +33,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
@@ -40,62 +41,21 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
  * Provide vectors for indexing. Implementations must be thread-safe.
  */
 public interface IndexVectorReader extends Closeable {
-    /** Returns the next float vector. Thread-safe. */
-    float[] nextFloatVector(int docOrd) throws IOException;
+    record OrdinalVector<T>(int ordinal, T vector) {}
 
-    /** Returns the next byte vector. Thread-safe. */
-    byte[] nextByteVector(int docOrd) throws IOException;
+    /** Returns the next float vector with its ordinal. Thread-safe and atomic. */
+    OrdinalVector<float[]> nextFloatVector() throws IOException;
+
+    /** Returns the next byte vector with its ordinal. Thread-safe and atomic. */
+    OrdinalVector<byte[]> nextByteVector() throws IOException;
+
+    /** Returns the total number of vectors, or -1 if unknown. */
+    default int totalVectors() {
+        return -1;
+    }
 
     @Override
     default void close() throws IOException {}
-
-    /**
-     * An {@link IndexVectorReader} that reads vectors from a file channel.
-     */
-    class FileVectorReader implements IndexVectorReader {
-        private final VectorReader reader;
-        private final int dim;
-
-        FileVectorReader(VectorReader reader, int dim) {
-            this.reader = reader;
-            this.dim = dim;
-        }
-
-        @Override
-        public float[] nextFloatVector(int docOrd) throws IOException {
-            float[] dest = new float[dim];
-            reader.next(dest);
-            return dest;
-        }
-
-        @Override
-        public byte[] nextByteVector(int docOrd) throws IOException {
-            byte[] dest = new byte[dim];
-            reader.next(dest);
-            return dest;
-        }
-    }
-
-    /**
-     * An {@link IndexVectorReader} that generates vectors from a {@link PartitionDataGenerator}.
-     */
-    class PartitionGeneratingVectorReader implements IndexVectorReader {
-        private final PartitionDataGenerator generator;
-
-        public PartitionGeneratingVectorReader(PartitionDataGenerator generator) {
-            this.generator = generator;
-        }
-
-        @Override
-        public float[] nextFloatVector(int docOrd) {
-            return generator.nextVector();
-        }
-
-        @Override
-        public byte[] nextByteVector(int docOrd) {
-            return generator.nextByteVector();
-        }
-    }
 
     /**
      * An {@link IndexVectorReader} that reads vectors sequentially across multiple files.
@@ -107,21 +67,37 @@ public interface IndexVectorReader extends Closeable {
         private final int[] docsPerReader;
         private final int totalDocs;
         private final int dim;
+        private final boolean normalizeVectors;
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
         private int currentReaderIdx;
         private int docsReadFromCurrent;
 
-        private MultiFileVectorReader(List<VectorReader> readers, List<FileChannel> channels, int[] docsPerReader, int totalDocs, int dim) {
+        private MultiFileVectorReader(
+            List<VectorReader> readers,
+            List<FileChannel> channels,
+            int[] docsPerReader,
+            int totalDocs,
+            int dim,
+            boolean normalizeVectors
+        ) {
             this.readers = readers;
             this.channels = channels;
             this.docsPerReader = docsPerReader;
             this.totalDocs = totalDocs;
             this.dim = dim;
+            this.normalizeVectors = normalizeVectors;
             this.currentReaderIdx = 0;
             this.docsReadFromCurrent = 0;
         }
 
-        public static MultiFileVectorReader create(List<Path> docPaths, int requestedDim, VectorEncoding vectorEncoding, int maxDocs)
-            throws IOException {
+        public static MultiFileVectorReader create(
+            List<Path> docPaths,
+            int requestedDim,
+            VectorEncoding vectorEncoding,
+            int maxDocs,
+            boolean normalizeVectors
+        ) throws IOException {
             List<VectorReader> readers = new ArrayList<>();
             List<FileChannel> channels = new ArrayList<>();
             int[] docsPerReader = new int[docPaths.size()];
@@ -174,7 +150,7 @@ public interface IndexVectorReader extends Closeable {
             for (int d : docsPerReader) {
                 totalDocs += d;
             }
-            return new MultiFileVectorReader(readers, channels, docsPerReader, totalDocs, resolvedDim);
+            return new MultiFileVectorReader(readers, channels, docsPerReader, totalDocs, resolvedDim, normalizeVectors);
         }
 
         public int totalDocs() {
@@ -194,21 +170,31 @@ public interface IndexVectorReader extends Closeable {
         }
 
         @Override
-        public synchronized float[] nextFloatVector(int docOrd) throws IOException {
+        public synchronized OrdinalVector<float[]> nextFloatVector() throws IOException {
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             float[] dest = new float[dim];
             reader.next(dest);
-            return dest;
+            if (normalizeVectors) {
+                VectorUtil.l2normalize(dest);
+            }
+            return new OrdinalVector<>(ordinal, dest);
         }
 
         @Override
-        public synchronized byte[] nextByteVector(int docOrd) throws IOException {
+        public synchronized OrdinalVector<byte[]> nextByteVector() throws IOException {
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             byte[] dest = new byte[dim];
             reader.next(dest);
-            return dest;
+            return new OrdinalVector<>(ordinal, dest);
+        }
+
+        @Override
+        public int totalVectors() {
+            return totalDocs;
         }
 
         @Override
@@ -275,6 +261,42 @@ public interface IndexVectorReader extends Closeable {
         public synchronized void next(byte[] dest) throws IOException {
             readNext();
             bytes.get(0, dest);
+        }
+    }
+
+    class RandomVectorReader implements IndexVectorReader {
+
+        private final Random random;
+        private final int dimensions;
+        private final boolean normalizeVectors;
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
+
+        public RandomVectorReader(long seed, int dimensions, boolean normalizeVectors) {
+            this.random = new Random(seed);
+            this.dimensions = dimensions;
+            this.normalizeVectors = normalizeVectors;
+        }
+
+        @Override
+        public synchronized OrdinalVector<float[]> nextFloatVector() {
+            int ordinal = nextOrdinal++;
+            float[] vector = new float[dimensions];
+            for (int i = 0; i < dimensions; i++) {
+                vector[i] = random.nextFloat() * 2 - 1; // uniform in [-1, 1]
+            }
+            if (normalizeVectors) {
+                VectorUtil.l2normalize(vector);
+            }
+            return new OrdinalVector<>(ordinal, vector);
+        }
+
+        @Override
+        public synchronized OrdinalVector<byte[]> nextByteVector() {
+            int ordinal = nextOrdinal++;
+            byte[] vector = new byte[dimensions];
+            random.nextBytes(vector);
+            return new OrdinalVector<>(ordinal, vector);
         }
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,8 +45,8 @@ import static org.hamcrest.Matchers.lessThan;
 public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private List<SearchShard> shards;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupShards() throws Exception {
         shards = createRandomIndices(client());
     }
 

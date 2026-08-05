@@ -14,12 +14,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -116,8 +116,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, null, null);
@@ -126,8 +124,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
                 listener
             );
 
@@ -153,8 +151,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -169,8 +165,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
                 listener
             );
 
@@ -192,8 +188,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(
@@ -209,8 +203,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
                 listener
             );
 
@@ -232,8 +226,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(TWO_RESULTS_RESPONSE_JSON));
 
             var model = ContextualAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, TEST_MODEL_ID, INITIAL_TEST_TOP_N, null);
@@ -242,8 +234,14 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, NEW_TEST_TOP_N, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(
+                    InferenceString.ofText(TEST_QUERY),
+                    InferenceString.fromStringList(TEST_DOCUMENTS),
+                    null,
+                    NEW_TEST_TOP_N,
+                    false
+                ),
+                null,
                 listener
             );
 
@@ -264,8 +262,6 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "not_results": [
@@ -283,8 +279,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
                 listener
             );
 

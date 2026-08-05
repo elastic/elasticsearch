@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.time.Duration;
@@ -85,7 +86,7 @@ public class CrossClusterSearchStats {
      * @param linkedClusterStates per-cluster states extracted from the latest {@code SearchResponse};
      *                            empty for local-only datafeeds (in which case this is a no-op)
      */
-    public ScopeChangeResult update(List<LinkedClusterState> linkedClusterStates) {
+    public synchronized ScopeChangeResult update(List<LinkedClusterState> linkedClusterStates) {
         if (linkedClusterStates.isEmpty()) {
             return ScopeChangeResult.NO_CHANGE;
         }
@@ -214,12 +215,49 @@ public class CrossClusterSearchStats {
         return availabilityRatio;
     }
 
-    public Set<String> getConfirmedAliases() {
+    public synchronized Set<String> getConfirmedAliases() {
         return Set.copyOf(confirmedAliases);
     }
 
-    public Map<String, Integer> getConsecutiveUnavailable() {
+    public synchronized Map<String, Integer> getConsecutiveUnavailable() {
         return Map.copyOf(consecutiveUnavailable);
+    }
+
+    /**
+     * Whether the last processed search cycle saw at least one skipped or unavailable linked project.
+     * Returns {@code false} until the baseline search cycle has been processed.
+     */
+    public synchronized boolean hasUnavailableLinkedProjects() {
+        if (baselineEstablished == false) {
+            return false;
+        }
+        if (skippedClusters > 0) {
+            return true;
+        }
+        for (int consecutiveSkipCount : consecutiveUnavailable.values()) {
+            if (consecutiveSkipCount > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns an immutable snapshot of the current stats for serialization in the datafeed stats API.
+     * Returns {@code null} if the baseline has not yet been established (no cycles processed).
+     */
+    public synchronized CrossClusterSearchStatsSnapshot snapshot() {
+        if (baselineEstablished == false) {
+            return null;
+        }
+        return new CrossClusterSearchStatsSnapshot(
+            totalClusters,
+            availableClusters,
+            skippedClusters,
+            availabilityRatio,
+            Set.copyOf(confirmedAliases),
+            Map.copyOf(consecutiveUnavailable)
+        );
     }
 
     /**

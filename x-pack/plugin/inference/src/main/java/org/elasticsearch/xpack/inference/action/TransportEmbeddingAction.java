@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -37,7 +36,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         super(
@@ -50,7 +48,6 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
             inferenceStats,
             streamingTaskManager,
             EmbeddingAction.Request::new,
-            nodeClient,
             threadPool
         );
     }

@@ -11,13 +11,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
 import java.util.Objects;
 
-public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest<AzureOpenAiEmbeddingsModel> implements DenseEmbeddingRequest {
+public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest<AzureOpenAiEmbeddingsModel> implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
@@ -48,7 +48,7 @@ public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest<AzureOpenAi
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);
     }

@@ -15,6 +15,7 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
   classname ='org.elasticsearch.xpack.ml.MachineLearning'
   hasNativeController =true
+  nativeControllerEnabledSettings = ['xpack.ml.enabled', 'xpack.ml.autodetect_process']
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 

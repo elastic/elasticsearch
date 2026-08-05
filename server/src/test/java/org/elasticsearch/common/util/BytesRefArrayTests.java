@@ -15,8 +15,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
+
+    @Before
+    public void setIntOffsetLimit() {
+        if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(1, 1024);
+        } else if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofKb(1).getBytes(),
+                (int) ByteSizeValue.ofMb(10).getBytes()
+            );
+        } else {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofMb(10).getBytes(),
+                (int) ByteSizeValue.ofGb(1).getBytes()
+            );
+        }
+    }
 
     public static BytesRefArray randomArray() {
         return randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), mockBigArrays());
@@ -182,6 +201,19 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testValueMaxByteSize() {
+        int size = randomIntBetween(0, 100);
+        try (BytesRefArray array = new BytesRefArray(size, mockBigArrays())) {
+            int expectedMax = 0;
+            for (int i = 0; i < size; i++) {
+                BytesRef value = new BytesRef(randomByteArrayOfLength(between(0, 20)));
+                array.append(value);
+                expectedMax = Math.max(expectedMax, value.length);
+            }
+            assertThat(array.valueMaxByteSize(), equalTo(expectedMax));
+        }
+    }
+
     public void testAppendPagedBytesCursorSinglePage() {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             byte[] data = randomByteArrayOfLength(between(1, 100));
@@ -238,6 +270,153 @@ public class BytesRefArrayTests extends ESTestCase {
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < count; i++) {
                 assertThat(array.get(i, scratch), equalTo(expected[i]));
+            }
+        }
+    }
+
+    public void testEmptyEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(pageSize, mockBigArrays())) {
+            var v0 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var v1 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var empty = new BytesRef();
+            array.append(v0);
+            array.append(v1);
+            array.append(empty);
+            assertTrue(array.bytesEqual(0, v0));
+            assertTrue(array.bytesEqual(1, v1));
+            assertTrue(array.bytesEqual(2, empty));
+            assertFalse(array.bytesEqual(0, empty));
+            assertFalse(array.bytesEqual(1, empty));
+        }
+    }
+
+    public void testRandomEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(1, pageSize), mockBigArrays())) {
+            int numValues = between(10, 100);
+            BytesRef[] values = new BytesRef[numValues];
+            for (int i = 0; i < numValues; i++) {
+                int length = randomFrom(0, between(1, 1024), pageSize / 2, pageSize, pageSize * 2);
+                var value = new BytesRef(length);
+                array.append(value);
+                values[i] = value;
+            }
+            for (int i = 0; i < numValues; i++) {
+                assertTrue(array.bytesEqual(i, values[i]));
+            }
+            for (int i = 0; i < numValues; i++) {
+                BytesRef other = randomFrom(values);
+                if (other.equals(values[i])) {
+                    assertTrue(array.bytesEqual(i, other));
+                } else {
+                    assertFalse(array.bytesEqual(i, other));
+                }
+            }
+        }
+    }
+
+    public void testTruncateThenRead() {
+        int total = randomIntBetween(2, 50);
+        int kept = randomIntBetween(1, total - 1);
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(kept);
+            assertThat(array.size(), equalTo((long) kept));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < kept; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
+    public void testTruncateThenAppend() {
+        int total = randomIntBetween(2, 50);
+        int kept = randomIntBetween(0, total - 1);
+        int extra = randomIntBetween(1, 20);
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> expected = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                if (i < kept) {
+                    expected.add(BytesRef.deepCopyOf(v));
+                }
+            }
+            array.truncateTo(kept);
+            for (int i = 0; i < extra; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                expected.add(BytesRef.deepCopyOf(v));
+            }
+            assertThat(array.size(), equalTo((long) (kept + extra)));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+            }
+        }
+    }
+
+    public void testTruncateNoOp() {
+        int size = randomIntBetween(1, 20);
+        try (BytesRefArray array = new BytesRefArray(size, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(size);
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
+    public void testTruncateNoOpAtPageBoundary() {
+        // Append one entry of exactly PAGE_SIZE_IN_BYTES bytes. After the append the byte stream's
+        // currentPagePos == PAGE_SIZE, so size() == PAGE_SIZE. Calling truncateTo(1) passes
+        // lastOffset == PAGE_SIZE to Bytes.truncateTo — the boundary that previously computed
+        // targetPageIndex == pageCount and threw ArrayIndexOutOfBoundsException.
+        int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(1, mockBigArrays())) {
+            BytesRef v = new BytesRef(new byte[pageSize]);
+            array.append(v);
+            array.truncateTo(1); // no-op: keep the single entry
+            assertThat(array.size(), equalTo(1L));
+            BytesRef scratch = new BytesRef();
+            assertThat(array.get(0, scratch), equalTo(v));
+        }
+    }
+
+    public void testTruncateMultiPageRelease() {
+        // Fill enough entries to span multiple internal pages, truncate back, verify that
+        // all released-page bytes are gone and the kept entries still read correctly.
+        int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        int entrySize = pageSize / 2 + 1; // each entry straddles a page boundary
+        int total = 6;
+        int kept = 2;
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                byte[] data = new byte[entrySize];
+                java.util.Arrays.fill(data, (byte) i);
+                BytesRef v = new BytesRef(data);
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(kept);
+            assertThat(array.size(), equalTo((long) kept));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < kept; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
             }
         }
     }

@@ -44,6 +44,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         });
     }
 
+    @Override
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
+        // The _id is derived from the _tsid and @timestamp, which aren't parsed yet, so postParse propagates it to the
+        // nested documents (which it asserts start without an _id).
+        return null;
+    }
+
     private static final long SEED = 0;
 
     public static BytesRef createField(DocumentParserContext context, RoutingHashBuilder routingBuilder, BytesRef tsid) {
@@ -64,7 +71,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
-                || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+                || id.equals(
+                    indexRouting.createId(
+                        context.sourceToParse().source().xContentType(),
+                        context.sourceToParse().source().originalBytes(),
+                        suffix
+                    )
+                );
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             if (context.indexSettings().useTimeSeriesSyntheticId()) {
@@ -213,11 +226,21 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(id.bytes);
     }
 
+    // See #createSyntheticId
     public static BytesRef extractTimeSeriesIdFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
-        // See #createSyntheticId
-        byte[] tsId = new byte[Math.toIntExact(id.length - Long.BYTES - Integer.BYTES)];
-        System.arraycopy(id.bytes, id.offset, tsId, 0, tsId.length);
+        int len = Math.toIntExact(id.length - Long.BYTES - Integer.BYTES);
+        int offset = id.offset;
+        final int firstByte = Byte.toUnsignedInt(id.bytes[offset]);
+        assert firstByte <= Uid.BASE64_ESCAPE : "invalid first byte [" + id + "]";
+        if (firstByte >= Uid.BASE64_ESCAPE) {
+            assert len > 2 && Byte.toUnsignedInt(id.bytes[offset + 1]) >= Uid.BASE64_ESCAPE
+                : "invalid second byte with escaped [" + id + "]";
+            offset++;
+            --len;
+        }
+        byte[] tsId = new byte[len];
+        System.arraycopy(id.bytes, offset, tsId, 0, tsId.length);
         return new BytesRef(tsId);
     }
 
@@ -281,9 +304,4 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
     }
 
-    @Override
-    public String reindexId(String id) {
-        // null the _id so we recalculate it on write
-        return null;
-    }
 }

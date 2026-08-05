@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= faultCount) {
-                throw new IOException("503 Service Unavailable");
+                throw new ExternalUnavailableException(true, "503 Service Unavailable");
             }
             return "data";
         }, "GET_OBJECT", path);
@@ -44,9 +45,9 @@ public class FaultInjectionRetryTests extends ESTestCase {
         AtomicInteger calls = new AtomicInteger();
         StoragePath path = StoragePath.of("s3://bucket/data.parquet");
 
-        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+        ExternalUnavailableException ex = expectThrows(ExternalUnavailableException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new IOException("503 Service Unavailable");
+            throw new ExternalUnavailableException(true, "503 Service Unavailable");
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));
@@ -109,7 +110,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
         String result = policy.execute(() -> {
             calls.incrementAndGet();
             if (faultCounter.decrementAndGet() >= 0) {
-                throw new IOException("503 Service Unavailable");
+                throw new ExternalUnavailableException(true, "503 Service Unavailable");
             }
             return "success";
         }, "GET_OBJECT", path);
@@ -137,9 +138,9 @@ public class FaultInjectionRetryTests extends ESTestCase {
         AtomicInteger calls = new AtomicInteger();
         StoragePath path = StoragePath.of("s3://bucket/data.parquet");
 
-        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+        ExternalUnavailableException ex = expectThrows(ExternalUnavailableException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new IOException("503 Service Unavailable");
+            throw new ExternalUnavailableException(true, "503 Service Unavailable");
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));

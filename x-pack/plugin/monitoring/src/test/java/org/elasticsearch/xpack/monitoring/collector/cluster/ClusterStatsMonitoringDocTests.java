@@ -348,7 +348,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             false,
             false,
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            Collections.emptyList()
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
@@ -704,6 +705,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "classname": "_plugin_class",
                       "extended_plugins": [],
                       "has_native_controller": false,
+                      "native_controller_enabled_settings": [],
                       "licensed": false,
                       "is_official": false
                     }
@@ -749,7 +751,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "primary_rejections": 0,
                         "replica_rejections": 0,
                         "primary_document_rejections": 0,
-                        "large_operation_rejections":0
+                        "large_operation_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }

@@ -20,10 +20,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toMap;
 
 public class Maps {
 
@@ -330,4 +334,10 @@ public class Maps {
         return copy;
     }
 
+    /**
+     * Merges two maps into one using {@code merger} to merge values belonging to the same key
+     */
+    public static <K, V> Map<K, V> merge(Map<K, V> m1, Map<K, V> m2, BinaryOperator<V> merger) {
+        return Stream.concat(m1.entrySet().stream(), m2.entrySet().stream()).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, merger));
+    }
 }

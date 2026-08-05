@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.analytics.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,7 +50,7 @@ public class PostAnalyticsEventAction {
 
     private PostAnalyticsEventAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest implements AnalyticsEvent.Context, ToXContentObject {
+    public static class Request extends UntypedActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 

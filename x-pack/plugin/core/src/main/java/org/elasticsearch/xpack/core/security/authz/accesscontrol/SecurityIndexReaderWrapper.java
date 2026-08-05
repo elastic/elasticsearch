@@ -68,10 +68,6 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     @Override
     public DirectoryReader apply(final DirectoryReader reader) {
-        if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
-            return reader;
-        }
-
         try {
             final IndicesAccessControl indicesAccessControl = getIndicesAccessControl();
             assert indicesAccessControl.isGranted();
@@ -84,6 +80,10 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
+                return reader;
+            }
+
+            if (!permissions.isDlsFlsImplicit() && !DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
                 return reader;
             }
 

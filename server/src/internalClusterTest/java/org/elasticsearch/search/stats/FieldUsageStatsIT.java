@@ -90,7 +90,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         logger.info("Stats after first query: {}", stats);
 
         assertTrue(stats.hasField("_id"));
-        assertEquals(Set.of(UsageContext.STORED_FIELDS), stats.get("_id").keySet());
+        assertEquals(Set.of(indexColumnarIdMode("test") ? UsageContext.DOC_VALUES : UsageContext.STORED_FIELDS), stats.get("_id").keySet());
         assertTrue(stats.hasField("_source"));
         assertEquals(Set.of(UsageContext.STORED_FIELDS), stats.get("_source").keySet());
 

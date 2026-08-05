@@ -22,10 +22,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Generative test that creates random Elasticsearch indices with varied mappings
@@ -59,17 +59,18 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
-    private static final Set<String> ADDITIONAL_ALLOWED_ERRORS = Set.of(
-        // DateRangeDocValuesReader produces blocks with incorrect position counts when reading date_range
-        // fields with multi-value documents. The mismatch causes an IllegalStateException at the compute layer,
-        // surfaced as partial results. https://github.com/elastic/elasticsearch/issues/146380
-        "RangeArrayBlock.*has \\[\\d+\\] positions instead of"
+    // FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
+    // Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
+    // instead of the proper "Cannot use field" message. https://github.com/elastic/elasticsearch/issues/147094
+    private static final Pattern UNSUPPORTED_TYPE_IN_FUNCTION = Pattern.compile(
+        ".*argument of \\[.*\\] must be \\[.*\\], found value \\[.*\\] type \\[unsupported\\].*",
+        Pattern.DOTALL
     );
 
-    private static final Set<Pattern> ADDITIONAL_ALLOWED_PATTERNS = ADDITIONAL_ALLOWED_ERRORS.stream()
-        .map(x -> ".*" + x + ".*")
-        .map(x -> Pattern.compile(x, Pattern.DOTALL))
-        .collect(Collectors.toSet());
+    // Full-text functions (match, match_phrase, qstr) pushed down to Lucene can fail with
+    // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
+    // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
+    private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
 
     @Before
     public void setupRandomIndices() throws IOException {
@@ -99,7 +100,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     @Override
     public void test() throws IOException {
         List<String> names = indexNames();
-        CommandGenerator.QuerySchema schema = new CommandGenerator.QuerySchema(names, List.of(), List.of());
+        CommandGenerator.QuerySchema schema = new CommandGenerator.QuerySchema(names, List.of(), List.of(), Set.of());
 
         for (int i = 0; i < RM_ITERATIONS; i++) {
             var exec = new EsqlQueryGenerator.Executor() {
@@ -155,7 +156,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 QueryExecuted previousResult;
             };
             try {
-                EsqlQueryGenerator.generatePipeline(RM_MAX_DEPTH, sourceCommand(), schema, exec, false, this);
+                EsqlQueryGenerator.generatePipeline(RM_MAX_DEPTH, sourceCommand(), schema, exec, false, this, rootGenerationContext());
             } catch (AssertionError ae) {
                 // Thrown by checkPipelineResults/checkPipelineException via fail();
                 // augment with full reproduction context.
@@ -163,10 +164,10 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 throw new AssertionError(ae.getMessage() + formatReproductionContext(query), ae.getCause() != null ? ae.getCause() : ae);
             } catch (Exception e) {
                 String errorMessage = e.getMessage();
-                if (isAdditionalAllowedError(errorMessage) || isAllowedError(errorMessage)) {
+                String query = exec.previousResult != null ? exec.previousResult.query() : null;
+                if (isAdditionalAllowedError(errorMessage, query) || isAllowedError(errorMessage)) {
                     continue;
                 }
-                String query = exec.previousResult != null ? exec.previousResult.query() : null;
                 throw new AssertionError(
                     "Random mapping generative tests, error generating new command" + formatReproductionContext(query),
                     e
@@ -208,7 +209,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         List<Column> currentSchema
     ) {
         if (query.exception() != null && query.exception().getMessage() != null) {
-            if (isAdditionalAllowedError(query.exception().getMessage())) {
+            if (isAdditionalAllowedError(query.exception().getMessage(), query.query())) {
                 return;
             }
         }
@@ -216,13 +217,36 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     }
 
     private static boolean isAdditionalAllowedError(String errorMessage) {
+        return isAdditionalAllowedError(errorMessage, null);
+    }
+
+    private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
-        for (Pattern p : ADDITIONAL_ALLOWED_PATTERNS) {
-            if (isAllowedError(errorMessage, p)) {
-                return true;
-            }
+        // FORK converts UnsupportedAttribute to ReferenceAttribute(UNSUPPORTED), causing functions
+        // to reject the field with a generic "type [unsupported]" error.
+        // https://github.com/elastic/elasticsearch/issues/147094
+        if (query != null && isAllowedError(errorMessage, UNSUPPORTED_TYPE_IN_FUNCTION) && queryContainsFork(query)) {
+            return true;
+        }
+        // Full-text functions pushed to Lucene can throw QueryShardException("failed to create query: ...")
+        // when the target field has an incompatible type or is not indexed in the random mapping.
+        // https://github.com/elastic/elasticsearch/issues/147610
+        if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
+            return true;
         }
         return false;
+    }
+
+    private static boolean queryContainsFork(String query) {
+        return query != null && query.toUpperCase(Locale.ROOT).contains("FORK");
+    }
+
+    private static boolean queryContainsFullTextFunction(String query) {
+        if (query == null) {
+            return false;
+        }
+        String upper = query.toUpperCase(Locale.ROOT);
+        return upper.contains("MATCH(") || upper.contains("MATCH_PHRASE(") || upper.contains("QSTR(") || upper.contains("KQL(");
     }
 
     private static String formatReproductionContext(String query) {

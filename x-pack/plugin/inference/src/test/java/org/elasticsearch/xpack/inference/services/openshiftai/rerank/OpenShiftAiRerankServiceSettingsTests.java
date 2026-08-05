@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -26,8 +27,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.hamcrest.Matchers.is;
 
 public class OpenShiftAiRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<OpenShiftAiRerankServiceSettings> {
+
+    private static final String TEST_MODEL_ID = "model";
+    private static final String TEST_URL = "http://www.abc.com";
+    private static final int TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 3000;
+
+    private static final String INITIAL_TEST_MODEL_ID = "initial_model";
+    private static final String INITIAL_TEST_URL = "http://www.initial.com";
+    private static final int INITIAL_TEST_RATE_LIMIT = 50;
 
     private static OpenShiftAiRerankServiceSettings createRandom() {
         var modelId = randomAlphaOfLengthOrNull(8);
@@ -36,32 +47,66 @@ public class OpenShiftAiRerankServiceSettingsTests extends AbstractBWCWireSerial
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
-        var url = "http://www.abc.com";
-        var model = "model";
-        var rateLimitSettings = new RateLimitSettings(100);
+        var rateLimitSettings = new RateLimitSettings(TEST_RATE_LIMIT);
 
-        assertXContentEquals(new OpenShiftAiRerankServiceSettings(model, url, rateLimitSettings), """
+        assertXContentEquals(new OpenShiftAiRerankServiceSettings(TEST_MODEL_ID, TEST_URL, rateLimitSettings), Strings.format("""
             {
-                "model_id":"model",
-                "url":"http://www.abc.com",
+                "model_id":"%s",
+                "url":"%s",
                 "rate_limit": {
-                    "requests_per_minute": 100
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_URL, TEST_RATE_LIMIT));
     }
 
     public void testToXContent_WritesDefaultRateLimitAndOmitsModelIdIfNotSet() throws IOException {
-        var url = "http://www.abc.com";
-
-        assertXContentEquals(new OpenShiftAiRerankServiceSettings(null, url, null), """
+        assertXContentEquals(new OpenShiftAiRerankServiceSettings(null, TEST_URL, null), Strings.format("""
             {
-                "url":"http://www.abc.com",
+                "url":"%s",
                 "rate_limit": {
-                    "requests_per_minute": 3000
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_URL, DEFAULT_RATE_LIMIT));
+    }
+
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new OpenShiftAiRerankServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URL,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    TEST_MODEL_ID,
+                    ServiceFields.URL,
+                    TEST_URL,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                )
+            )
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(new OpenShiftAiRerankServiceSettings(INITIAL_TEST_MODEL_ID, INITIAL_TEST_URL, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new OpenShiftAiRerankServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URL,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     private static void assertXContentEquals(OpenShiftAiRerankServiceSettings serviceSettings, String expectedString) throws IOException {

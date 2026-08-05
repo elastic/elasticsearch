@@ -42,7 +42,6 @@ public class MappingParserContext {
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
-    private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
@@ -60,7 +59,6 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
@@ -75,7 +73,6 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
@@ -93,7 +90,6 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper,
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
@@ -107,7 +103,6 @@ public class MappingParserContext {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper,
             bitSetProducer,
             vectorsFormatProviders,
             null,
@@ -125,10 +120,6 @@ public class MappingParserContext {
 
     public IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    public IdFieldMapper idFieldMapper() {
-        return idFieldMapper;
     }
 
     public Settings getSettings() {
@@ -225,7 +216,6 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
@@ -258,7 +248,6 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper,
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,

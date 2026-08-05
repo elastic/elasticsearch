@@ -199,7 +199,12 @@ $endif$
     }
 
     @Override
-    $Type$Block filter(boolean mayContainDuplicates, int... positions);
+    $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -222,6 +227,16 @@ $endif$
 
     @Override
     $Type$Block expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+$if(BytesRef)$
+     * Scans all value indices to find the maximum.
+$else$
+     * Always {@code $BYTES$} since all $type$ values encode to the same number of bytes.
+$endif$
+     */
+    int valueMaxByteSize();
 
     static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

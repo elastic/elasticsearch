@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
@@ -17,6 +20,15 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PushDownAndCombineLimitByGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     @BeforeClass
     public static void checkLimitByCapability() {}
@@ -134,6 +146,18 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
             | EVAL language_name = 2*salary
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY language_name
+            """, STAGES, STATS);
+    }
+
+    /**
+     * LIMIT BY groups by the MV_EXPAND target, so it must stay above the expand and must not be
+     * duplicated below it. See https://github.com/elastic/elasticsearch/issues/148513
+     */
+    public void testLimitByNotDuplicatedPastMvExpandWhenGroupingByExpandTarget() {
+        runGoldenTest("""
+            ROW x = 1
+            | MV_EXPAND x
+            | LIMIT 1 BY x
             """, STAGES, STATS);
     }
 

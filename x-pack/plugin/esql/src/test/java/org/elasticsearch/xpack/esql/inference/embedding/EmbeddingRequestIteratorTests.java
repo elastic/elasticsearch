@@ -12,12 +12,13 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
 import java.util.Base64;
 
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,7 +42,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             assertFalse(requestIterator.hasNext());
@@ -61,7 +62,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             int totalPositionsProcessed = 0;
@@ -118,7 +119,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -164,7 +165,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -202,7 +203,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -243,7 +244,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 // First batch: "text1" with trailing null
@@ -287,7 +288,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
@@ -309,7 +310,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -354,7 +355,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 BytesRef scratch = new BytesRef();
@@ -394,7 +395,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -428,7 +429,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    InferenceAction.Request.DEFAULT_TIMEOUT
+                    BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
                 )
             ) {
                 assertTrue(requestIterator.hasNext());
@@ -455,7 +456,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 dataType,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
             )
         ) {
             BytesRef scratch = new BytesRef();
@@ -489,6 +490,26 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
     private static DataType randomDataType() {
         return randomFrom(DataType.TEXT, DataType.IMAGE);
+    }
+
+    public void testProductUseCase() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final BytesRefBlock inputBlock = randomInputBlock(1);
+
+        try (
+            EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
+                inferenceId,
+                inputBlock,
+                DataType.TEXT,
+                BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING)
+            )
+        ) {
+            assertTrue(requestIterator.hasNext());
+            EmbeddingAction.Request request = (EmbeddingAction.Request) requestIterator.next().inferenceRequest();
+            assertThat(request.getContext().productUseCase(), equalTo(ESQL_PRODUCT_USE_CASE));
+        }
+
+        allBreakersEmpty();
     }
 
     private static String randomInputValue(DataType dataType) {

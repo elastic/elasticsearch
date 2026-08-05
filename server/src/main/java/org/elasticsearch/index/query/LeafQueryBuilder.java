@@ -24,9 +24,7 @@ import java.io.IOException;
  */
 public abstract class LeafQueryBuilder<QB extends LeafQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
-    protected LeafQueryBuilder() {
-
-    }
+    protected LeafQueryBuilder() {}
 
     protected LeafQueryBuilder(StreamInput in) throws IOException {
         super(in);

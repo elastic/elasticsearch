@@ -14,6 +14,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -27,6 +29,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.floatVect
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloatVectorData;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
@@ -102,10 +106,10 @@ public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark 
 
             vectorData = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
-                vectorData[v] = randomFloatArray(random, dims);
+                vectorData[v] = VectorTestUtils.randomFloatVector(random, dims);
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override
@@ -142,10 +146,16 @@ public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark 
                     queryScorer = luceneScorer(values, function.function(), ((VectorData) vectorData).queryVector);
                 }
                 break;
-            case NATIVE:
-                scorer = factory.getFloatVectorScorerSupplier(function, in, values).orElseThrow().scorer();
+            case PANAMA:
+                scorer = panamaScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getFloatVectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
+                    queryScorer = panamaScorer(values, function.function(), ((VectorData) vectorData).queryVector);
+                }
+                break;
+            case NATIVE:
+                scorer = factory.getFloat32VectorScorerSupplier(function, in, values).orElseThrow().scorer();
+                if (supportsHeapSegments()) {
+                    queryScorer = factory.getFloat32VectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
                         .orElseThrow();
                 }
                 break;

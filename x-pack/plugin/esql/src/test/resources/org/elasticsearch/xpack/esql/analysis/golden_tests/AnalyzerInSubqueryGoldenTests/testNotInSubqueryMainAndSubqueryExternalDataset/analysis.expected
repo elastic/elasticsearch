@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_AntiJoin[[emp_no{r}#0],[emp_no{r}#1]]
+  |_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#0, name{r}#2, salary{r}#3]
+  \_Project[[emp_no{r}#1]]
+    \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#1, name{r}#4, salary{r}#5]

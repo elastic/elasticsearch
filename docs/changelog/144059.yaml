@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144059
-summary: Fix Parquet type support gaps
-type: enhancement

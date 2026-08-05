@@ -63,6 +63,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final int DEFAULT_SIZE_VALUE = 10;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
+    public static final NodeFeature MMR_NULL_DENSE_VECTOR_FIX = new NodeFeature("retriever.mmr_null_dense_vector_fix");
     private static final VectorSimilarityFunction QUERY_VECTOR_SIMILARITY_FUNCTION = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
     public static final String NAME = "diversify";
@@ -399,17 +400,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             } catch (IOException ioEx) {
                 throw new UncheckedIOException(ioEx);
             }
-        }
-
-        if (fieldVectors.isEmpty()) {
-            throw new ElasticsearchStatusException(
-                String.format(
-                    Locale.ROOT,
-                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field with text embeddings?",
-                    diversificationField
-                ),
-                RestStatus.BAD_REQUEST
-            );
         }
 
         diversificationContext.setFieldVectors(fieldVectors);

@@ -131,4 +131,83 @@ public class StoragePathTests extends ESTestCase {
         StoragePath sp = StoragePath.of(uri);
         assertEquals(absPath, sp.path());
     }
+
+    // -- userInfo handling --
+
+    public void testUserInfoAbsent() {
+        StoragePath path = StoragePath.of("wasbs://account.blob.core.windows.net/container/file.parquet");
+        assertNull(path.userInfo());
+        assertEquals("account.blob.core.windows.net", path.host());
+        assertEquals("/container/file.parquet", path.path());
+    }
+
+    public void testUserInfoHadoopWasbForm() {
+        StoragePath path = StoragePath.of("wasbs://nyctlc@azureopendatastorage.blob.core.windows.net/yellow/puYear=2019/file.parquet");
+        assertEquals("wasbs", path.scheme());
+        assertEquals("nyctlc", path.userInfo());
+        assertEquals("azureopendatastorage.blob.core.windows.net", path.host());
+        assertEquals("/yellow/puYear=2019/file.parquet", path.path());
+    }
+
+    public void testUserInfoEmptyNormalizedToNull() {
+        StoragePath path = StoragePath.of("wasbs://@account.blob.core.windows.net/c/x");
+        assertNull(path.userInfo());
+        assertEquals("account.blob.core.windows.net", path.host());
+    }
+
+    public void testUserInfoToStringRoundTrip() {
+        String uri = "wasbs://nyctlc@azureopendatastorage.blob.core.windows.net/yellow/file.parquet";
+        StoragePath path = StoragePath.of(uri);
+        assertEquals(uri, path.toString());
+    }
+
+    public void testUserInfoLastAtIsBoundary() {
+        // Per RFC 3986 the userInfo extends to the last '@' so values containing '@' (e.g. SAS tokens) survive.
+        StoragePath path = StoragePath.of("s3://a@b@host/p");
+        assertEquals("a@b", path.userInfo());
+        assertEquals("host", path.host());
+    }
+
+    public void testUserInfoWithColonPreserved() {
+        StoragePath path = StoragePath.of("https://user:pass@example.com/x");
+        assertEquals("user:pass", path.userInfo());
+        assertEquals("example.com", path.host());
+        assertEquals("/x", path.path());
+    }
+
+    public void testUserInfoWithPort() {
+        StoragePath path = StoragePath.of("https://u@host:8443/x");
+        assertEquals("u", path.userInfo());
+        assertEquals("host", path.host());
+        assertEquals(8443, path.port());
+    }
+
+    public void testUserInfoWithIpv6() {
+        StoragePath path = StoragePath.of("https://u@[::1]:8080/x");
+        assertEquals("u", path.userInfo());
+        assertEquals("[::1]", path.host());
+        assertEquals(8080, path.port());
+        assertEquals("/x", path.path());
+    }
+
+    public void testParentDirectoryPreservesUserInfo() {
+        StoragePath path = StoragePath.of("wasbs://c@a.host/data/2024/file.parquet");
+        StoragePath parent = path.parentDirectory();
+        assertEquals("wasbs://c@a.host/data/2024", parent.toString());
+        assertEquals("c", parent.userInfo());
+    }
+
+    public void testAppendPathPreservesUserInfo() {
+        StoragePath path = StoragePath.of("wasbs://c@a.host/data");
+        StoragePath child = path.appendPath("file.parquet");
+        assertEquals("wasbs://c@a.host/data/file.parquet", child.toString());
+        assertEquals("c", child.userInfo());
+    }
+
+    public void testPatternPrefixPreservesUserInfo() {
+        StoragePath path = StoragePath.of("wasbs://c@a.host/data/*.parquet");
+        StoragePath prefix = path.patternPrefix();
+        assertEquals("wasbs://c@a.host/data/", prefix.toString());
+        assertEquals("c", prefix.userInfo());
+    }
 }

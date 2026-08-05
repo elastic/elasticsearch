@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TAN` function [esql-tan]
 
-:::{include} ../../_snippets/functions/layout/tan.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/tan.md
 :::

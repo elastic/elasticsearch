@@ -577,3 +577,32 @@ composite_id_parsed:
   - is_true: profile.shards.0.cluster
   - contains: { $composite_id: $first_node_id }
   - contains: { $composite_id: $first_index }
+
+---
+profile includes coordinator request metadata:
+  - requires:
+      cluster_features: "search.profile.coordinator_request_metadata"
+      reason: coordinator profile.request requires TransportVersion include_original_query_indices_in_search_profile_results; not serialized on mixed 9.4.x BWC nodes
+
+  - do:
+      indices.put_alias:
+        index: test
+        name: pr_coordinator_meta_alias
+
+  - do:
+      search:
+        index: pr_coordinator_meta_alias
+        body:
+          profile: true
+          size: 3
+          query:
+            term:
+              keyword: "a"
+
+  - is_true: profile.request
+  - length: { profile.request.indices: 1 }
+    # Handle both the CCS and the non-CCS case in matching the returned target index.
+  - match: { profile.request.indices.0: "/(remote_cluster:)?pr_coordinator_meta_alias/" }
+  - match: { profile.request.source.profile: true }
+  - match: { profile.request.source.size: 3 }
+  - match: { profile.request.source.query.term.keyword.value: "a" }

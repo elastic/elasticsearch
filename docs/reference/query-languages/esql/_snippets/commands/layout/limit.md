@@ -9,15 +9,15 @@ The `LIMIT` processing command limits the number of rows returned.
 
 ::::{applies-switch}
 
-:::{applies-item} { stack: ga, "serverless": "ga"}
-```esql
-LIMIT max_number_of_rows
-```
-:::
-
 :::{applies-item} { "stack": "preview 9.4+", "serverless": "preview" }
 ```esql
 LIMIT max_number_of_rows [BY grouping_expr1[, ..., grouping_exprN]]
+```
+:::
+
+:::{applies-item} { stack: ga 9.0+}
+```esql
+LIMIT max_number_of_rows
 ```
 :::
 ::::
@@ -46,7 +46,7 @@ Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 
 ### Limit
 
-:::{include} ../examples/limit.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/basic.md
 :::
 
 ### With groups
@@ -55,7 +55,7 @@ stack: preview 9.4
 serverless: preview
 ```
 
-:::{include} ../examples/limit.csv-spec/limitBy.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/limitBy.md
 :::
 
 ### Group by multiple values
@@ -64,5 +64,5 @@ stack: preview 9.4
 serverless: preview
 ```
 
-:::{include} ../examples/limit.csv-spec/limitByMultipleGroups.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/limitByMultipleGroups.md
 :::

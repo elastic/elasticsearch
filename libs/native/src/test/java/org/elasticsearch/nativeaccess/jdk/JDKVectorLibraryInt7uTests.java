@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -24,32 +24,32 @@ import java.util.List;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt7uTests extends SimdVecLibraryTests {
 
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt7uTests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // cosine is not used on float vectors, and quantization is only used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
         return baseParams;
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt7BinaryVectors() {
@@ -317,10 +317,12 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
 
-        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("Dimensions differ"));
+        // Segments can differ in size and be larger than length: only length bytes are read
+        var aTail = randomIntBetween(0, size);
+        var bTail = randomIntBetween(0, size);
+        similarity(segment.asSlice(0L, size + aTail), segment.asSlice(0L, size + bTail), size);
 
-        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        Exception ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
@@ -378,9 +380,14 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     public void testBulkSparseIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         int count = 3;
-        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         var query = arena.allocate(size);
         var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate(size);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
 
         var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
         Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, size, count, scores));
@@ -401,28 +408,24 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         // null (zero) address in the addresses segment
-        ex = expectThrows(IAE, () -> similarityBulkSparse(addresses, query, size, count, scores));
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
         assertThat(ex.getMessage(), containsString("null"));
     }
 
     int similarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (int) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7u(a, b, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7u(a, b, length);
+            default -> throw new UnsupportedOperationException(function.toString());
+        };
     }
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulk(a, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulk(a, b, dims, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
@@ -435,26 +438,18 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulkSparse(addresses, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulkSparse(addresses, b, dims, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 }

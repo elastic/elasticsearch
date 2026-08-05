@@ -74,6 +74,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     @FunctionInfo(
         preview = true,
         returnType = "aggregate_metric_double",
+        briefSummary = "Converts a numeric value to an aggregate_metric_double.",
         description = "Encode a numeric to an aggregate_metric_double.",
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),
@@ -500,7 +501,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                         continue;
                     }
                     if (valueCount == 1) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(start));
                         builder.min().appendDouble(current);
                         builder.max().appendDouble(current);
                         builder.sum().appendDouble(current);
@@ -510,7 +511,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                     double min = Double.POSITIVE_INFINITY;
                     double max = Double.NEGATIVE_INFINITY;
                     for (int i = start; i < end; i++) {
-                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(i));
                         min = Math.min(min, current);
                         max = Math.max(max, current);
                         sum.add(current);

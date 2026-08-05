@@ -45,13 +45,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(
-            serviceSettingsMap,
-            defaultRateLimit,
-            validationException,
-            ContextualAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(serviceSettingsMap, defaultRateLimit, validationException, context);
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
@@ -68,7 +62,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
             serviceSettings,
             this.commonSettings.rateLimitSettings(),
             validationException,
-            ContextualAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
         return new CommonSettings(this.commonSettings.modelId(), rateLimitSettings);

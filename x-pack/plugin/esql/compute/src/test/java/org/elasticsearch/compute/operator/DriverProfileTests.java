@@ -45,7 +45,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
-        assertThat(Strings.toString(status, true, true), equalTo("""
+        assertThat(Strings.toTruncatedString(status, true, true), equalTo("""
             {
               "description" : "test",
               "cluster_name" : "elasticsearch",
@@ -60,6 +60,9 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "cpu_time" : "10micros",
               "documents_found" : 222,
               "values_loaded" : 1000,
+              "rows_emitted" : 444,
+              "bytes_read" : 12288,
+              "read_nanos" : 0,
               "iterations" : 12,
               "operators" : [
                 {

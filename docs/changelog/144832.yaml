@@ -1,6 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144832
-summary: "Add Parquet filter pushdown with bloom filter, statistics, and dictionary\
-  \ row-group skipping"
-type: enhancement

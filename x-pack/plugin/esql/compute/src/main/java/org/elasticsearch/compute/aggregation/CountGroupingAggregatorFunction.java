@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.PriorityQueue;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -20,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class CountGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -29,7 +33,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         new IntermediateStateDesc("seen", ElementType.BOOLEAN)
     );
 
-    private final LongArrayState state;
+    private LongArray counts;
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final boolean countAll;
@@ -40,8 +44,8 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = new LongArrayState(driverContext.bigArrays(), 0);
         this.driverContext = driverContext;
+        this.counts = driverContext.bigArrays().newLongArray(256);
         this.countAll = channels.isEmpty();
     }
 
@@ -112,7 +116,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupId = groups.getInt(groupPosition);
-            state.increment(groupId, getBlockValueCountAtPosition(values, position));
+            accumulateCount(groupId, getBlockValueCountAtPosition(values, position));
         }
     }
 
@@ -136,7 +140,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, getBlockValueCountAtPosition(values, position));
+                accumulateCount(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }
@@ -151,7 +155,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, getBlockValueCountAtPosition(values, position));
+                accumulateCount(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }
@@ -161,11 +165,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
      */
     private void addRawInput(IntVector groups) {
         if (groups.isConstant()) {
-            state.increment(groups.getInt(0), groups.getPositionCount());
+            accumulateCount(groups.getInt(0), groups.getPositionCount());
         } else {
             for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
                 int groupId = groups.getInt(groupPosition);
-                state.increment(groupId, 1);
+                accumulateCount(groupId, 1);
             }
         }
     }
@@ -182,7 +186,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, 1);
+                accumulateCount(groupId, 1);
             }
         }
     }
@@ -199,7 +203,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, 1);
+                accumulateCount(groupId, 1);
             }
         }
     }
@@ -224,7 +228,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, count.getLong(groupPosition + positionOffset));
+                accumulateCount(groupId, count.getLong(groupPosition + positionOffset));
             }
         }
     }
@@ -244,7 +248,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, count.getLong(groupPosition + positionOffset));
+                accumulateCount(groupId, count.getLong(groupPosition + positionOffset));
             }
         }
     }
@@ -257,7 +261,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            state.increment(groups.getInt(groupPosition), count.getLong(groupPosition + positionOffset));
+            accumulateCount(groups.getInt(groupPosition), count.getLong(groupPosition + positionOffset));
         }
     }
 
@@ -270,16 +274,10 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
-        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
-            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
-                int si = selectedInPage.getInt(i);
-                values.appendLong(state.getOrDefault(si));
-            }
-            blocks[offset] = values.build().asBlock();
-            // Unlike other aggregations, we return 0 for groups without values instead of null.
-            // Therefore, we can always return true for seen, and do not need to track seen groups.
-            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selectedInPage.getPositionCount());
-        }
+        evaluateFinal(blocks, offset, selectedInPage);
+        // Unlike other aggregations, we return 0 for groups without values instead of null.
+        // Therefore, we can always return true for seen, and do not need to track seen groups.
+        blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selectedInPage.getPositionCount());
     }
 
     @Override
@@ -290,13 +288,78 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return this::evaluateFinal;
     }
 
+    private void accumulateCount(int groupId, long value) {
+        if (groupId < counts.size()) {
+            counts.increment(groupId, value);
+        } else {
+            counts = driverContext.bigArrays().grow(counts, groupId + 1);
+            counts.set(groupId, value);
+        }
+    }
+
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
         try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
-            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
-                int si = selectedInPage.getInt(i);
-                builder.appendLong(state.getOrDefault(si));
+            final int positionCount = selectedInPage.getPositionCount();
+            for (int i = 0; i < positionCount; i++) {
+                final int si = selectedInPage.getInt(i);
+                if (si < counts.size()) {
+                    builder.appendLong(counts.get(si));
+                } else {
+                    builder.appendLong(0L);
+                }
             }
             blocks[offset] = builder.build().asBlock();
+        }
+    }
+
+    @Override
+    public IntVector selectTopN(IntVector selected, int limit, boolean asc) {
+        int positionCount = selected.getPositionCount();
+        if (positionCount <= limit) {
+            selected.incRef();
+            return selected;
+        }
+        record GroupIdAndCount(int groupId, long count) {
+
+        }
+        long usedBytes = ((long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2L + Long.BYTES + Integer.BYTES + Integer.BYTES) * limit;
+        driverContext.blockFactory().adjustBreaker(usedBytes);
+        try {
+            final PriorityQueue<GroupIdAndCount> pq;
+            if (asc) {
+                pq = new PriorityQueue<>(limit) {
+                    @Override
+                    protected boolean lessThan(GroupIdAndCount a, GroupIdAndCount b) {
+                        return a.count > b.count;
+                    }
+                };
+            } else {
+                pq = new PriorityQueue<>(limit) {
+                    @Override
+                    protected boolean lessThan(GroupIdAndCount a, GroupIdAndCount b) {
+                        return a.count < b.count;
+                    }
+                };
+            }
+            for (int i = 0; i < positionCount; i++) {
+                final int groupId = selected.getInt(i);
+                final long count = groupId < counts.size() ? counts.get(groupId) : 0L;
+                pq.insertWithOverflow(new GroupIdAndCount(groupId, count));
+            }
+            final int[] topGroupIds = new int[pq.size()];
+            int idx = 0;
+            for (GroupIdAndCount groupIdAndCount : pq) {
+                topGroupIds[idx++] = groupIdAndCount.groupId;
+            }
+            // sort the new selected
+            Arrays.sort(topGroupIds);
+            IntVector vector = driverContext.blockFactory().newIntArrayVector(topGroupIds, topGroupIds.length, usedBytes);
+            usedBytes = 0;
+            return vector;
+        } finally {
+            if (usedBytes > 0) {
+                driverContext.blockFactory().adjustBreaker(-usedBytes);
+            }
         }
     }
 
@@ -311,6 +374,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void close() {
-        state.close();
+        counts.close();
     }
 }

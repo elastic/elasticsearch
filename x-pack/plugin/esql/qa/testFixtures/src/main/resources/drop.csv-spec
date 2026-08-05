@@ -33,6 +33,8 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 ;
 
 whereWithEvalGeneratedValue_DropHeight
+skip_flattened_rewrite: field_extract_multivalue_null
+request_stored: skip
 from employees | sort emp_no | eval x = salary / 2 | where x > 37000 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
@@ -133,21 +135,21 @@ c:l  | mi:i | s:l
 
 
 // see https://github.com/elastic/elasticsearch/issues/102121
-dropGrouping#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+dropGrouping
 row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
 
 bar:long
 1
 ;
 
-dropGroupingMulti#[skip:-8.11.99]
+dropGroupingMulti
 row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo;
 
 baz:long  | bar:integer
 1         | 2
 ;
 
-dropGroupingMulti2#[skip:-8.11.99]
+dropGroupingMulti2
 row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo, bar;
 
 baz:long
@@ -155,7 +157,7 @@ baz:long
 ;
 
 
-dropGroupingMultirow#[skip:-8.11.99]
+dropGroupingMultirow
 from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar;
 
 bar:long
@@ -164,7 +166,7 @@ bar:long
 57
 ;
 
-dropColumnWithQuotedWildcard#[skip:-8.12.99]
+dropColumnWithQuotedWildcard
 FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
 ;
 
@@ -172,7 +174,7 @@ ROUND(AVG(height * 1.5)):d | COUNT(*):l
 3.0                        | 100
 ;
 
-dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+dropColumnWithQuotedWildcardBasic
 FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
 ;
 

@@ -51,8 +51,7 @@ public abstract class TransportWriteActionTestHelper {
             location,
             writerResult,
             logger,
-            new PostWriteRefresh(transportService),
-            null
+            new PostWriteRefresh(transportService)
         ).run();
         ESTestCase.safeAwait(latch);
     }

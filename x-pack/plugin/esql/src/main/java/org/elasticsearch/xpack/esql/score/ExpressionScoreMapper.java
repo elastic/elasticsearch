@@ -25,4 +25,8 @@ public interface ExpressionScoreMapper {
     }
 
     ExpressionScorer.Factory toScorer(ToScorer toScorer);
+
+    default boolean contributesToScore() {
+        return true;
+    }
 }

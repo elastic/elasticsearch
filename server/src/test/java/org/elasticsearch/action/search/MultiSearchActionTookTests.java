@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -64,17 +65,15 @@ public class MultiSearchActionTookTests extends ESTestCase {
     public static void afterClass() {}
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("MultiSearchActionTookTests");
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         clusterService.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     // test unit conversion using a controller clock
@@ -174,7 +173,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 availableProcessors,
                 expected::get,
                 client,
-                DefaultProjectResolver.INSTANCE
+                DefaultProjectResolver.INSTANCE,
+                new NoopCircuitBreaker("test")
             ) {
                 @Override
                 void executeSearch(
@@ -182,10 +182,11 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     final AtomicArray<MultiSearchResponse.Item> responses,
                     final AtomicInteger responseCounter,
                     final ActionListener<MultiSearchResponse> listener,
-                    long startTimeInNanos
+                    long startTimeInNanos,
+                    TransportMultiSearchAction.MultiSearchBreakerAccounting breakerAccounting
                 ) {
                     expected.set(1000000);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, breakerAccounting);
                 }
             };
         } else {
@@ -196,7 +197,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 availableProcessors,
                 System::nanoTime,
                 client,
-                DefaultProjectResolver.INSTANCE
+                DefaultProjectResolver.INSTANCE,
+                new NoopCircuitBreaker("test")
             ) {
                 @Override
                 void executeSearch(
@@ -204,11 +206,12 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     final AtomicArray<MultiSearchResponse.Item> responses,
                     final AtomicInteger responseCounter,
                     final ActionListener<MultiSearchResponse> listener,
-                    long startTimeInNanos
+                    long startTimeInNanos,
+                    TransportMultiSearchAction.MultiSearchBreakerAccounting breakerAccounting
                 ) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, breakerAccounting);
                 }
             };
         }

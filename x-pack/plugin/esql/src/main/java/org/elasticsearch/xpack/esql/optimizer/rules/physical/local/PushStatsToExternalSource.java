@@ -7,71 +7,99 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
  * required statistics are available in the file metadata. Replaces the AggregateExec +
  * ExternalSourceExec subtree with a LocalSourceExec containing pre-computed results.
  * <p>
- * Handles intermediate EvalExec (from EVAL) and ProjectExec (from RENAME) nodes between
- * the aggregate and external source by resolving aliased attribute names back to the
- * original column names before metadata lookup.
+ * Supports both SINGLE and INITIAL modes. In SINGLE mode the replacement produces final-value
+ * blocks (one block per aggregate). In INITIAL mode the replacement produces intermediate-format
+ * blocks matching {@link AggregateExec#intermediateAttributes()}: for each aggregate, a typed
+ * value block followed by a {@code seen} boolean block.
+ * <p>
+ * Handles intermediate EvalExec (from EVAL), ProjectExec (from RENAME), and FilterExec
+ * nodes between the aggregate and external source by resolving aliased attribute names
+ * back to the original column names before metadata lookup, and by classifying filters
+ * against per-split statistics when present.
  * <p>
  * Supports multi-split queries when per-split statistics are available in
- * {@link FileSplit#statistics()}. Statistics are merged across splits (sum row counts,
- * min-of-mins, max-of-maxes). Falls back to normal execution when any split lacks stats.
+ * {@link org.elasticsearch.xpack.esql.datasources.FileSplit#splitStats()}.
+ * Statistics are merged across splits (sum row counts, min-of-mins, max-of-maxes).
+ * Falls back to normal execution when any split lacks stats.
  * <p>
- * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
- * the raw values may not match ESQL's millisecond representation. A future enhancement
- * should convert these values using the column's data type.
+ * Substitution from metadata statistics is skipped when {@link ExternalSourceExec} carries
+ * {@link ExternalSourceExec#pushedExpressions()} or {@link ExternalSourceExec#pushedFilter()}:
+ * those predicates narrow the scanned rows; footer split stats do not reflect them after
+ * {@link PushFiltersToSource} removes the enclosing {@code FilterExec}.
+ * <p>
+ * Note: MIN/MAX pushdown uses values from file metadata. Temporal columns (DATE/TIMESTAMP/INT96)
+ * are decoded to ESQL's epoch-millisecond representation at stat-publication time by the format
+ * reader (see {@code ParquetColumnDecoding#decodeTemporalStat}), so the pushed values already match
+ * the scan path.
  */
-public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
+public class PushStatsToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    AggregateExec,
+    LocalPhysicalOptimizerContext> {
+
+    private static final Logger logger = LogManager.getLogger(PushStatsToExternalSource.class);
 
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec) {
-        PhysicalPlan child = aggregateExec.child();
-        ExternalSourceExec externalExec;
-        AttributeMap<Attribute> aliasReplacedBy;
+    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
+        ExternalSourceAggregatePushdown.ExternalSourceInfo info = ExternalSourceAggregatePushdown.extractExternalSource(
+            aggregateExec.child()
+        );
+        if (info == null) {
+            return aggregateExec;
+        }
+        ExternalSourceExec externalExec = info.externalExec();
+        AttributeMap<Attribute> aliasReplacedBy = info.aliasReplacedBy();
+        Expression filterCondition = info.filterCondition();
 
-        if (child instanceof ExternalSourceExec ext) {
-            externalExec = ext;
-            aliasReplacedBy = AttributeMap.emptyAttributeMap();
-        } else if (child instanceof EvalExec evalExec && evalExec.child() instanceof ExternalSourceExec ext) {
-            externalExec = ext;
-            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(evalExec);
-        } else if (child instanceof ProjectExec projectExec && projectExec.child() instanceof ExternalSourceExec ext) {
-            externalExec = ext;
-            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(projectExec);
-        } else {
+        // Consulting the format's implicit-nulls declaration requires the registry. Honor the
+        // ExternalOptimizerContext.NONE contract — treat a missing registry as "no information" and bail.
+        // (A NONE context never carries an ExternalSourceExec today, but bailing keeps the rule and the
+        // documented contract in lockstep.)
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        if (formatReaderRegistry == null) {
+            return aggregateExec;
+        }
+        FormatReader formatReader = formatReaderRegistry.findByName(externalExec.sourceType());
+        if (formatReader == null || formatReader.aggregatePushdownSupport() == AggregatePushdownSupport.UNSUPPORTED) {
+            return aggregateExec;
+        }
+        boolean implicitNullsForAbsentColumn = formatReader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
+
+        AggregatorMode mode = aggregateExec.getMode();
+        if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
             return aggregateExec;
         }
 
@@ -79,114 +107,117 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return aggregateExec;
         }
 
-        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
-            externalExec.splits(),
-            externalExec.sourceMetadata()
-        );
-        if (sourceMetadata == null) {
+        // Row counts and column statistics in file metadata describe whole splits before scan-time predicates.
+        // COUNT(*), MIN/MAX from those stats ignore {@code pushedExpressions}/{@code pushedFilter} readers apply when
+        // {@link PushFiltersToSource} has already removed upstream FilterExec.
+        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+            logger.info(
+                () -> Strings.format(
+                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
+                    externalExec.sourcePath(),
+                    externalExec.pushedExpressions().size(),
+                    externalExec.sourceType()
+                )
+            );
+            return aggregateExec;
+        }
+
+        Expression filterForClassification = filterCondition;
+        if (filterCondition != null && aliasReplacedBy.isEmpty() == false) {
+            filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+        }
+
+        // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
+        // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
+        // path, not the payload, so they are absent from every file's stats and would misclassify
+        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
+        // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
+        // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
+        // Read the partition set from serialized sourceMetadata (not the coordinator-only fileList): on a data node
+        // externalExec.fileList() is UNRESOLVED, so COUNT(partition_col) would otherwise fold to 0 there.
+        Set<String> pathDerivedColumns = externalExec.partitionColumnNames();
+        if (filterForClassification != null && referencesAnyColumn(filterForClassification, pathDerivedColumns)) {
+            return aggregateExec;
+        }
+
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats;
+        if (filterForClassification != null) {
+            stats = ExternalSourceAggregatePushdown.resolveFilteredStats(
+                externalExec,
+                filterForClassification,
+                implicitNullsForAbsentColumn
+            );
+        } else {
+            stats = externalExec.effectiveSplitStats();
+        }
+        if (stats == null) {
             return aggregateExec;
         }
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
-        List<Object> values = new ArrayList<>(aggregates.size());
-        List<Attribute> outputAttrs = new ArrayList<>(aggregates.size());
-
+        // Resolve each aggregate's alias children back to the source columns once (identity for the direct
+        // ExternalSourceExec shape), so both the format type-gate below and the value loop see the true columns.
+        List<Expression> resolvedAggExprs = new ArrayList<>(aggregates.size());
         for (NamedExpression agg : aggregates) {
             if (agg instanceof Alias == false) {
                 return aggregateExec;
             }
-            Alias alias = (Alias) agg;
-            Expression aggExpr = alias.child();
+            Expression aggExpr = ((Alias) agg).child();
             if (aliasReplacedBy.isEmpty() == false) {
                 aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             }
-            Object value = resolveFromMetadata(aggExpr, sourceMetadata);
+            resolvedAggExprs.add(aggExpr);
+        }
+
+        // Consult the format's declared aggregate pushability before touching stats — each pushdown path (this
+        // fold and ComputeService's split-discovery gate) gates on canPushAggregates so the two cannot diverge.
+        // Gate on the ALIAS-RESOLVED functions so the type/virtual-column checks see the real columns. No
+        // isEmpty() bail: canPushAggregates(List.of(), List.of()) is YES in every impl, preserving today's
+        // empty/no-AggregateFunction behavior exactly.
+        List<Expression> aggFunctions = ExternalSourceAggregatePushdown.extractAggregateFunctions(resolvedAggExprs);
+        if (formatReader.aggregatePushdownSupport()
+            .canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return aggregateExec;
+        }
+
+        List<Object> values = new ArrayList<>(aggregates.size());
+        List<DataType> dataTypes = new ArrayList<>(aggregates.size());
+
+        for (Expression aggExpr : resolvedAggExprs) {
+            Object value = ExternalSourceAggregatePushdown.resolveFromStats(
+                aggExpr,
+                stats,
+                implicitNullsForAbsentColumn,
+                pathDerivedColumns
+            );
             if (value == null) {
                 return aggregateExec;
             }
             values.add(value);
-            outputAttrs.add(agg.toAttribute());
+            dataTypes.add(aggExpr instanceof AggregateFunction af ? af.dataType() : DataType.LONG);
         }
 
-        Block[] blocks = buildBlocks(values);
+        List<Attribute> outputAttrs;
+        Block[] blocks;
+        if (mode == AggregatorMode.SINGLE) {
+            outputAttrs = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                outputAttrs.add(agg.toAttribute());
+            }
+            blocks = ExternalSourceAggregatePushdown.buildFinalBlocks(values, dataTypes);
+        } else {
+            outputAttrs = aggregateExec.intermediateAttributes();
+            blocks = ExternalSourceAggregatePushdown.buildIntermediateBlocks(values, dataTypes);
+        }
+
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    private static Object resolveFromMetadata(Expression aggFunction, Map<String, Object> sourceMetadata) {
-        if (aggFunction instanceof Count count) {
-            return resolveCount(count, sourceMetadata);
-        } else if (aggFunction instanceof Min min) {
-            return resolveMin(min, sourceMetadata);
-        } else if (aggFunction instanceof Max max) {
-            return resolveMax(max, sourceMetadata);
+    private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        if (columnNames.isEmpty()) {
+            return false;
         }
-        return null;
-    }
-
-    private static Object resolveCount(Count count, Map<String, Object> sourceMetadata) {
-        if (count.hasFilter()) {
-            return null;
-        }
-        Expression target = count.field();
-        if (target.foldable()) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            return rc.isPresent() ? rc.getAsLong() : null;
-        }
-        if (target instanceof ReferenceAttribute ref) {
-            OptionalLong rc = SourceStatisticsSerializer.extractRowCount(sourceMetadata);
-            OptionalLong nc = SourceStatisticsSerializer.extractColumnNullCount(sourceMetadata, ref.name());
-            if (rc.isPresent() && nc.isPresent()) {
-                return rc.getAsLong() - nc.getAsLong();
-            }
-        }
-        return null;
-    }
-
-    private static Object resolveMin(Min min, Map<String, Object> sourceMetadata) {
-        if (min.hasFilter()) {
-            return null;
-        }
-        Expression target = min.field();
-        if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> minVal = SourceStatisticsSerializer.extractColumnMin(sourceMetadata, ref.name());
-            return minVal.orElse(null);
-        }
-        return null;
-    }
-
-    private static Object resolveMax(Max max, Map<String, Object> sourceMetadata) {
-        if (max.hasFilter()) {
-            return null;
-        }
-        Expression target = max.field();
-        if (target instanceof ReferenceAttribute ref) {
-            Optional<Object> maxVal = SourceStatisticsSerializer.extractColumnMax(sourceMetadata, ref.name());
-            return maxVal.orElse(null);
-        }
-        return null;
-    }
-
-    private static Block[] buildBlocks(List<Object> values) {
-        BlockFactory blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
-        Block[] blocks = new Block[values.size()];
-        for (int i = 0; i < values.size(); i++) {
-            Object value = values.get(i);
-            if (value instanceof Long l) {
-                blocks[i] = blockFactory.newConstantLongBlockWith(l, 1);
-            } else if (value instanceof Integer n) {
-                blocks[i] = blockFactory.newConstantIntBlockWith(n, 1);
-            } else if (value instanceof Double d) {
-                blocks[i] = blockFactory.newConstantDoubleBlockWith(d, 1);
-            } else if (value instanceof Boolean b) {
-                blocks[i] = blockFactory.newConstantBooleanBlockWith(b, 1);
-            } else if (value instanceof String s) {
-                blocks[i] = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef(s), 1);
-            } else if (value instanceof Number n) {
-                blocks[i] = blockFactory.newConstantLongBlockWith(n.longValue(), 1);
-            } else {
-                blocks[i] = blockFactory.newConstantNullBlock(1);
-            }
-        }
-        return blocks;
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 }

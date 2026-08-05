@@ -46,7 +46,9 @@ public enum MissingValues {
     }
 
     public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
-        return new SortedBinaryDocValues() {
+        // We do not directly delegate to the SortedBinaryDocValues because it doesn't account for the missing values.
+        // If needed, this could be supported by using DocIdSetIterator.range() along with the maxDoc.
+        return new SortedBinaryDocValues(null) {
 
             private int count;
 
@@ -118,7 +120,7 @@ public enum MissingValues {
     }
 
     public static SortedNumericLongValues replaceMissing(final SortedNumericLongValues values, final long missing) {
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(null) {
 
             private int count;
 
@@ -157,7 +159,7 @@ public enum MissingValues {
     }
 
     static SortedNumericDoubleValues replaceMissing(final SortedNumericDoubleValues values, final double missing) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(values.isSingleton(), null) {
 
             private int count;
 

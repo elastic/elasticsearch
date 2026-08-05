@@ -16,12 +16,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.LiteralsEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -157,30 +157,24 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
 
     @Override
     public String toString(NodeStringFormat format) {
-        String str;
-        if (dataType == KEYWORD || dataType == TEXT) {
-            str = BytesRefs.toString(value);
-        } else if (dataType == VERSION && value instanceof BytesRef br) {
-            str = new Version(br).toString();
-            // TODO review how we manage IPs: https://github.com/elastic/elasticsearch/issues/129605
-            // } else if (dataType == IP && value instanceof BytesRef ip) {
-            // str = DocValueFormat.IP.format(ip);
-        } else {
-            str = String.valueOf(value);
-        }
+        // The identity mapper holds the canonical raw rendering (KEYWORD/TEXT/VERSION handling,
+        // geo-safe fallback); truncation is a presentation concern applied here.
+        return truncate(NodeStringMapper.IDENTITY.literal(value, dataType), format);
+    }
 
-        if (str == null) {
-            str = "null";
-        }
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // The mapper renders the value: raw under IDENTITY, an interned token under anonymization.
+        // 500-char LIMITED truncation is applied uniformly (tokens are short, so it is a no-op for
+        // them) — no identity branch. Caller-visible shape: <value>[<type>].
+        sb.append(truncate(mapper.literal(value, dataType), format)).append('[').append(dataType).append(']');
+    }
+
+    private static String truncate(String str, NodeStringFormat format) {
         if (str.length() > 500 && format == NodeStringFormat.LIMITED) {
             return str.substring(0, 500) + "...";
         }
         return str;
-    }
-
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(toString(format)).append("[").append(dataType).append("]");
     }
 
     @Override

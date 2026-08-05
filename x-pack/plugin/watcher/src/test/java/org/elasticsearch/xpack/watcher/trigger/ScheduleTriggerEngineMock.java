@@ -49,6 +49,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         logger.info("starting scheduler");
+        watches.get().clear();
         jobs.forEach((watch) -> watches.get().put(watch.id(), watch));
         paused.set(false);
     }
@@ -60,9 +61,21 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void add(Watch watch) {
-        logger.info("adding watch [{}]", watch.id());
+    public synchronized boolean add(Watch watch) {
+        logger.info("adding watch [{}] (paused: {})", watch.id(), paused.get());
+        if (paused.get()) {
+            return false;
+        }
         watches.get().put(watch.id(), watch);
+        return true;
+    }
+
+    public boolean isPaused() {
+        return paused.get();
+    }
+
+    public Map<String, Watch> getWatches() {
+        return Collections.unmodifiableMap(watches.get());
     }
 
     @Override

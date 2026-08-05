@@ -60,6 +60,10 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
         this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
+    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth);
+    }
+
     public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
         this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth);
     }
@@ -85,6 +89,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state)
         );
     }
@@ -113,6 +118,14 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
      */
     public static int cagraIntermediateGraphDegree(int m, int efConstruction) {
         return m + m * efConstruction / 256;
+    }
+
+    /**
+     * Translates HNSW {@code efConstruction} to the CAGRA NN-Descent max iterations,
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraNNDescentNumIterations(int efConstruction) {
+        return 5 + efConstruction / 16;
     }
 
     @Override

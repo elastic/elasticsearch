@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseEmbeddingsRequest;
 
 import java.io.IOException;
@@ -74,8 +74,8 @@ public class ElasticInferenceServiceDenseEmbeddingsResponseEntity {
      *  }
      * </pre>
      */
-    public static EmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
-        if (request instanceof ElasticInferenceServiceDenseEmbeddingsRequest embeddingRequest) {
+    public static EmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+        if (outboundRequest instanceof ElasticInferenceServiceDenseEmbeddingsRequest embeddingRequest) {
             try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
                 return EmbeddingFloatResult.PARSER.apply(p, null).toEmbeddingFloatResults(embeddingRequest.getTaskType());
             }
@@ -83,7 +83,7 @@ public class ElasticInferenceServiceDenseEmbeddingsResponseEntity {
             throw new IllegalStateException(
                 Strings.format(
                     "Invalid request type [%s]. Expected [%s]",
-                    request.getClass().getSimpleName(),
+                    outboundRequest.getClass().getSimpleName(),
                     ElasticInferenceServiceDenseEmbeddingsRequest.class.getSimpleName()
                 )
             );

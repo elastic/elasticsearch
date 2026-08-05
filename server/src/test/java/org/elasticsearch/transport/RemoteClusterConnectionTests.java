@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.After;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -88,9 +89,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -149,15 +149,17 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                     SearchHits searchHits;
                     if ("null_target".equals(request.preference())) {
-                        searchHits = SearchHits.unpooled(
-                            new SearchHit[] { SearchHit.unpooled(0) },
+                        searchHits = new SearchHits(
+                            new SearchHit[] { new SearchHit(0) },
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             1F
                         );
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    try (var searchResponseRef = ReleasableRef.of(SearchResponseUtils.successfulResponse(searchHits))) {
+                    var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                    searchHits.decRef(); // transfer ownership to searchResponse
+                    try (var searchResponseRef = ReleasableRef.of(searchResponse)) {
                         channel.sendResponse(searchResponseRef.get());
                     }
                 }

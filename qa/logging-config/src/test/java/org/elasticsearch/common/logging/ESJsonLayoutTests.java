@@ -18,7 +18,6 @@ import org.junit.BeforeClass;
 public class ESJsonLayoutTests extends ESTestCase {
     @BeforeClass
     public static void initNodeName() {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         JsonLogsTestSetup.init();
     }
 

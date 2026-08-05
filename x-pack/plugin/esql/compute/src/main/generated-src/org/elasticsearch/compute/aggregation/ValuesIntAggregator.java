@@ -13,9 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
-import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
@@ -97,10 +95,10 @@ class ValuesIntAggregator {
     }
 
     public static class SingleState implements AggregatorState {
-        private final LongHash values;
+        private final LongHashTable values;
 
         private SingleState(BigArrays bigArrays) {
-            values = new LongHash(1, bigArrays);
+            values = HashImplFactory.newLongHash(bigArrays);
         }
 
         @Override

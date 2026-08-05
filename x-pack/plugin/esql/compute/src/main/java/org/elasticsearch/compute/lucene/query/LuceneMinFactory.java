@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Factory that generates an operator that finds the min value of a field using the {@link LuceneMinMaxOperator}.
@@ -123,18 +125,23 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
         int taskConcurrency,
         String fieldName,
         NumberType numberType,
-        int limit
+        int limit,
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(
             contexts,
             queryFunction,
             dataPartitioning,
-            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             limit,
             false,
-            shardContext -> ScoreMode.COMPLETE_NO_SCORES
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES,
+            directoryBytesRead,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            singleValueQueryWarnings
         );
         this.shardRefCounters = contexts;
         this.fieldName = fieldName;
@@ -145,12 +152,14 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
     public SourceOperator get(DriverContext driverContext) {
         return new LuceneMinMaxOperator(
             shardRefCounters,
-            driverContext.blockFactory(),
+            driverContext,
             sliceQueue,
             fieldName,
             numberType,
             limit,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            directoryBytesRead,
+            singleValueQueryWarnings
         );
     }
 

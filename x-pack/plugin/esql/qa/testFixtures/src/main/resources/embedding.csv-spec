@@ -72,7 +72,12 @@ required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score, _id
 | WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_embedding_inference"))
-| SORT _score DESC, _id
+// The two matching docs score near-identically (each is the exact match for one of the OR'd
+// KNN queries); their relative order is not bit-stable across score-math optimizations (e.g. FMA
+// contraction in native vs. Java scorers). Round the score to collapse that meaningless tie so the
+// _id tiebreaker deterministically decides it, while still asserting the matches outrank the unrelated doc.
+| EVAL rounded_score = ROUND(_score, 2)
+| SORT rounded_score DESC, _id
 | LIMIT 10
 | KEEP text_field
 ;
@@ -84,27 +89,34 @@ all we have to decide is what to do with the time that is given to us
 ;
 
 
-embedding with multiple knn queries in fork#[skip:-9.4.99,reason:vector scoring order differs on older versions]
+// Requires embedding_function (GA in 9.5.0) as a proxy for the scoring-order
+// fix; no dedicated capability exists for the underlying behavior change.
+embedding with multiple knn queries in fork
 required_capability: embedding_function
 required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 required_capability: fork_v9
 
 FROM dense_vector_text METADATA _score
-| FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference") | WHERE KNN(text_embedding_field, query_embedding))
-       (EVAL query_embedding = EMBEDDING("live long and prosper", "test_embedding_inference") | WHERE KNN(text_embedding_field, query_embedding))
-| SORT _score DESC, _fork ASC
-| LIMIT 10
-| KEEP text_field, query_embedding, _fork
+| FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference") 
+    | WHERE KNN(text_embedding_field, query_embedding)
+    | SORT _score DESC
+    | LIMIT 10)
+       (EVAL query_embedding = EMBEDDING("live long and prosper", "test_embedding_inference") 
+       | WHERE KNN(text_embedding_field, query_embedding)
+       | SORT _score DESC
+       | LIMIT 10)
+| SORT text_field DESC, _fork ASC
+| KEEP text_field, query_embedding, _fork, _score
 ;
 
-text_field:text                                                       | query_embedding:dense_vector | _fork:keyword
-live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2
-be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1
-live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1
-be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2
-all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1
-all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2
+text_field:text                                                       | query_embedding:dense_vector | _fork:keyword | _score:double
+live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1         | 0.02..0.3
+live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2         | 0.9..1.0
+be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1         | 0.9..1.0
+be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2         | 0.02..0.3
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1         | 0.02..0.03
+all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2         | 0.01..0.02
 ;
 
 embedding with explicit text type option

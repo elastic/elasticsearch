@@ -629,8 +629,8 @@ public final class SearchPhaseController {
                 assert fetchResults.stream().map(SearchPhaseResult::fetchResult).allMatch(r -> r == null || r.profileResult() == null)
                     : "found fetch profile without search profile";
                 return null;
-
             }
+
             return profileBuilder.build(fetchResults);
         }
     }

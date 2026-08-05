@@ -1,5 +1,0 @@
-pr: 139752
-summary: Take control of max clause count verification in Lucene searcher
-area: Search
-type: enhancement
-issues: []

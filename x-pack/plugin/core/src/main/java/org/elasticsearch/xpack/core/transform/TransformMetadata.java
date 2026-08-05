@@ -60,7 +60,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         return resetMode;
     }
 
-    public boolean upgradeMode() {
+    public boolean isUpgradeMode() {
         return upgradeMode;
     }
 
@@ -155,7 +155,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override
@@ -246,11 +246,11 @@ public class TransformMetadata implements Metadata.ProjectCustom {
     }
 
     @Deprecated(forRemoval = true)
-    public static boolean upgradeMode(ClusterState state) {
-        return getTransformMetadata(state).upgradeMode();
+    public static boolean isUpgradeMode(ClusterState state) {
+        return getTransformMetadata(state).isUpgradeMode();
     }
 
-    public static boolean upgradeMode(ProjectMetadata project) {
-        return transformMetadata(project).upgradeMode();
+    public static boolean isUpgradeMode(ProjectMetadata project) {
+        return transformMetadata(project).isUpgradeMode();
     }
 }

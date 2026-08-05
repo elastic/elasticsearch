@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -121,6 +122,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         return new Builder().init(this);
     }
 
+    @Override
     public void doValidate(MappingLookup lookup) {
         if (enabled == false) {
             // not configured, so skip the validation
@@ -148,6 +150,31 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
+
+        // Serialize the @timestamp mapper to detect explicitly configured attributes before running
+        // field-level checks, so that explicit misconfigurations get a precise error message first.
+        Map<?, ?> configuredSettings;
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            dateFieldMapper.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+            configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        // Only the following attributes are allowed:
+        configuredSettings.remove("type");
+        configuredSettings.remove("meta");
+        configuredSettings.remove("format");
+        configuredSettings.remove("locale");
+
+        Object value = configuredSettings.remove("index");
+        if (Boolean.FALSE.equals(value)) {
+            throw new IllegalArgumentException("data stream timestamp field [@timestamp] indexing can't be explicitly disabled");
+        }
+
         IndexType indexType = dateFieldMapper.fieldType().indexType();
         if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
@@ -166,39 +193,21 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             );
         }
 
-        // Catch all validation that validates whether disallowed mapping attributes have been specified
-        // on the field this meta field refers to:
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            dateFieldMapper.toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            Map<?, ?> configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-            configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
+        // ignoring malformed values is disallowed (see previous check),
+        // however if `index.mapping.ignore_malformed` has been set to true then
+        // there is no way to disable ignore_malformed for the timestamp field mapper,
+        // other then not using 'index.mapping.ignore_malformed' at all.
+        // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
+        // index setting to be set to true and then turned off for the timestamp field mapper.
+        // (ignore_malformed will here always be false, otherwise previous check would have failed)
+        value = configuredSettings.remove("ignore_malformed");
+        assert value == null || Boolean.FALSE.equals(value);
 
-            // Only type, meta, format, and locale attributes are allowed:
-            configuredSettings.remove("type");
-            configuredSettings.remove("meta");
-            configuredSettings.remove("format");
-            configuredSettings.remove("locale");
-
-            // ignoring malformed values is disallowed (see previous check),
-            // however if `index.mapping.ignore_malformed` has been set to true then
-            // there is no way to disable ignore_malformed for the timestamp field mapper,
-            // other then not using 'index.mapping.ignore_malformed' at all.
-            // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
-            // index setting to be set to true and then turned off for the timestamp field mapper.
-            // (ignore_malformed will here always be false, otherwise previous check would have failed)
-            Object value = configuredSettings.remove("ignore_malformed");
-            assert value == null || Boolean.FALSE.equals(value);
-
-            // All other configured attributes are not allowed:
-            if (configuredSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "data stream timestamp field [@timestamp] has disallowed attributes: " + configuredSettings.keySet()
-                );
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        // All other configured attributes are not allowed:
+        if (configuredSettings.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [@timestamp] has disallowed attributes: " + configuredSettings.keySet()
+            );
         }
     }
 
@@ -272,6 +281,20 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                     + Instant.ofEpochMilli(endTime)
             );
         }
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // postParse is a no-op when disabled (the common case for non-data-stream indices).
+        // The enabled case validates @timestamp against the index's time bounds, which requires
+        // reading the value a columnar @timestamp field mapper recorded — not yet supported.
+        return enabled == false;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Implement validation and enable this mapper once we can map timetstamps
     }
 
     @Override

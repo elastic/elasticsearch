@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -33,7 +34,7 @@ public class TextEmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TextEmbedding(source, args.get(0), args.get(1));
+        return new TextEmbedding(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 
     @Override
@@ -54,6 +55,9 @@ public class TextEmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCa
             }
 
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
+                if (i == 2) {
+                    return format(null, "third argument of [{}] must be a map expression, received []", sourceForSignature(signature));
+                }
                 break;
             }
         }

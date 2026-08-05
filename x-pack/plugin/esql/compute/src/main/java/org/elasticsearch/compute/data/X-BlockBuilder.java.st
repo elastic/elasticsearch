@@ -31,8 +31,12 @@ $if(BytesRef)$
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        this(estimatedSize, bigArrays, blockFactory, 0L);
+    }
+
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory, long byteHint) {
         super(blockFactory);
-        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
+        values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays, byteHint);
     }
 
 $else$
@@ -118,6 +122,13 @@ $if(BytesRef)$
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
     }
+
+    @Override
+    public $Type$BlockBuilder cancelPositionEntry() {
+        values.truncateTo(firstValueIndexes[positionCount]);
+        super.cancelPositionEntry();
+        return this;
+    }
 $endif$
 
     @Override
@@ -164,14 +175,20 @@ $endif$
     private void copyFromVector($Type$Vector vector, int beginInclusive, int endExclusive) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
-$endif$
         for (int p = beginInclusive; p < endExclusive; p++) {
-$if(BytesRef)$
             appendBytesRef(vector.getBytesRef(p, scratch));
-$else$
-            append$Type$(vector.get$Type$(p));
-$endif$
         }
+$else$
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
+        }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
+$endif$
     }
 
     /**

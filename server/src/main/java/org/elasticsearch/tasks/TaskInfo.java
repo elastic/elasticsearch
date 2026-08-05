@@ -106,6 +106,35 @@ public record TaskInfo(
     }
 
     /**
+     * Returns a {@link TaskInfo} snapshot for API responses where a relocated task should appear as one continuous job:
+     * {@link #taskId}, {@link #node}, {@link #startTime}, and {@link #runningTimeNanos} reflect the original task identity
+     * and elapsed time since that original start, while {@link #originalTaskId} and {@link #originalStartTimeMillis}
+     * match the returned {@code taskId} / {@code startTime} (the 12-argument constructor shape).
+     * <p>
+     * For tasks that were not relocated, {@code originalTaskId == taskId} and {@code originalStartTimeMillis == startTime},
+     * so this is a NOP.
+     */
+    public TaskInfo withOriginalRelocationIdentity() {
+        TaskId originalId = originalTaskId();
+        long originalStartMillis = originalStartTimeMillis();
+        long adjustedRunningTimeNanos = runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(startTime() - originalStartMillis);
+        return new TaskInfo(
+            originalId,
+            type(),
+            originalId.getNodeId(),
+            action(),
+            description(),
+            status(),
+            originalStartMillis,
+            adjustedRunningTimeNanos,
+            cancellable(),
+            cancelled(),
+            parentTaskId(),
+            headers()
+        );
+    }
+
+    /**
      * Read from a stream.
      */
     public static TaskInfo from(StreamInput in) throws IOException {

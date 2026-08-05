@@ -40,7 +40,7 @@ public final class IndexResolution {
     }
 
     public static IndexResolution empty(String indexPattern) {
-        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Map.of(), Map.of(), Map.of()));
+        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Map.of(), Map.of()));
     }
 
     public static IndexResolution invalid(String invalid) {

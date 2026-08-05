@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -41,8 +43,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -221,14 +223,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     /**
      * Push filters to external source using the SPI-based FilterPushdownSupport.
      * <p>
-     * This method uses the {@link FilterPushdownRegistry} to look up the appropriate
-     * {@link FilterPushdownSupport} implementation for the source type. The pushdown
-     * support converts ESQL expressions to source-specific filters (e.g., Iceberg expressions).
+     * Resolves pushdown support via {@link FormatReader#filterPushdownSupport()} through
+     * the {@link FormatReaderRegistry}. The pushdown support converts ESQL expressions to
+     * source-specific filters (e.g., ORC SearchArgument, Parquet FilterPredicate).
      * <p>
      * The pushed filter is stored as an opaque Object in {@link ExternalSourceExec#pushedFilter()}.
-     * Since external sources execute on coordinator only ({@code ExecutesOn.Coordinator}),
-     * the filter is never serialized - it's created during local optimization and consumed
-     * immediately by the operator factory in the same JVM.
+     * It is built locally during physical plan optimization and consumed by the operator factory
+     * in the same JVM — it is never part of the wire protocol.
      *
      * @param filterExec the filter execution node
      * @param externalExec the external source execution node
@@ -249,106 +250,103 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        // Look up pushdown support: first try the registry (for connector-based sources like Iceberg),
-        // then fall back to the FormatReader (for file-based formats like Parquet, ORC).
         String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(externalExec.sourceType(), formatName, ctx);
+        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
         if (pushdownSupport == null) {
             return filterExec;
         }
 
-        // Split filter condition by AND
+        // Split filter condition by AND and reorder by estimated selectivity
         List<Expression> filters = splitAnd(filterExec.condition());
 
+        // Conjuncts that reference partition columns are evaluated against the constant blocks
+        // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
+        List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> pushableCandidates = new ArrayList<>();
+        if (partitionColumnNames.isEmpty()) {
+            pushableCandidates = filters;
+        } else {
+            for (Expression filter : filters) {
+                if (referencesAnyColumn(filter, partitionColumnNames)) {
+                    partitionConjuncts.add(filter);
+                } else {
+                    pushableCandidates.add(filter);
+                }
+            }
+        }
+
+        var effectiveStats = externalExec.effectiveSplitStats();
+        pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
+
+        // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = externalExec.declaredReadSpec().renames();
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
+
         // Use the SPI to push filters
-        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);
+        FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
+            ? FilterPushdownSupport.PushdownResult.none(List.of())
+            : pushdownSupport.pushFilters(mintInput);
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
                 result.pushedFilter(),
-                result.pushedExpressions()
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // If there are non-pushable filters, keep FilterExec
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
+            List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(result.remainder()));
-            } else {
-                // All filters pushed down - remove FilterExec
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
+            }
+            if (remainder.isEmpty()) {
                 return newExternalExec;
             }
+            return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(remainder));
         }
 
         // No pushable filters - return original plan
         return filterExec;
     }
 
-    /**
-     * Resolves the format name for file-based external sources, used for format-aware
-     * pushdown dispatch. Checks the config map first (explicit format override from WITH clause),
-     * then falls back to extracting the extension from the source path.
-     *
-     * @return the format name (e.g., "orc", "parquet", "csv"), or null if undetermined
-     */
+    static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
+    }
+
     static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        // Priority 1: explicit format override from config (WITH clause)
-        if (config != null) {
-            Object formatOverride = config.get("format");
-            if (formatOverride != null) {
-                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
-                if (name.isEmpty() == false) {
-                    return name;
-                }
-            }
-        }
-        // Priority 2: extract from file extension
-        if (sourcePath != null) {
-            int lastDot = sourcePath.lastIndexOf('.');
-            if (lastDot >= 0 && lastDot < sourcePath.length() - 1) {
-                String ext = sourcePath.substring(lastDot + 1);
-                // Strip query string or fragment if present (e.g., s3://bucket/file.orc?versionId=... or #frag)
-                int queryStart = ext.indexOf('?');
-                if (queryStart >= 0) {
-                    ext = ext.substring(0, queryStart);
-                }
-                int fragmentStart = ext.indexOf('#');
-                if (fragmentStart >= 0) {
-                    ext = ext.substring(0, fragmentStart);
-                }
-                if (ext.isEmpty() == false) {
-                    return ext.toLowerCase(Locale.ROOT);
-                }
-            }
-        }
-        return null;
+        return FormatNameResolver.resolve(config, sourcePath);
     }
 
     /**
-     * Resolves filter pushdown support for the given source type.
-     * Checks the FilterPushdownRegistry first (for connector-based sources like Iceberg),
-     * then falls back to FormatReader.filterPushdownSupport() (for file-based formats).
+     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
      */
-    private static FilterPushdownSupport resolveFilterPushdownSupport(
-        String sourceType,
-        String formatName,
-        LocalPhysicalOptimizerContext ctx
-    ) {
-        // Try registry first (connector-based sources)
-        FilterPushdownRegistry registry = ctx.filterPushdownRegistry();
-        if (registry != null) {
-            FilterPushdownSupport support = registry.get(sourceType, formatName);
-            if (support != null) {
-                return support;
-            }
+    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
+        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        if (formatReaderRegistry == null) {
+            return null;
         }
-        // Fall back to FormatReader (file-based formats like Parquet, ORC)
-        String lookupName = formatName != null ? formatName : sourceType;
-        FormatReaderRegistry formatReaderRegistry = ctx.formatReaderRegistry();
-        if (formatReaderRegistry != null && formatReaderRegistry.hasFormat(lookupName)) {
-            FormatReader formatReader = formatReaderRegistry.byName(lookupName);
-            return formatReader.filterPushdownSupport();
-        }
-        return null;
+        FormatReader formatReader = formatReaderRegistry.findByName(formatName);
+        return formatReader != null ? formatReader.filterPushdownSupport() : null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {
@@ -414,9 +412,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         AttributeMap<Attribute> aliasReplacedBy
     ) {
+        List<Expression> conjuncts = splitAnd(condition);
+
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(condition)) {
+        for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));

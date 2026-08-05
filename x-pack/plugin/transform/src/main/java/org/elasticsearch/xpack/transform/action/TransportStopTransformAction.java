@@ -20,13 +20,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -74,6 +74,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private final ThreadPool threadPool;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStopTransformAction(
@@ -82,7 +83,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         ClusterService clusterService,
         ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(
             StopTransformAction.NAME,
@@ -96,10 +98,10 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
+        this.projectResolver = projectResolver;
     }
 
-    static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        final var project = state.metadata().getDefaultProject();
+    static void validateTaskState(ProjectMetadata project, List<String> transformIds, boolean isForce) {
         PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(project);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
@@ -129,7 +131,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
-        if (TransformMetadata.upgradeMode(state)) {
+        final var projectMetadata = projectResolver.getProjectMetadata(state);
+        if (TransformMetadata.isUpgradeMode(projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
             );
@@ -151,7 +154,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 );
             }
         } else {
-            TransformNodes.warnIfNoTransformNodes(state);
+            TransformNodes.warnIfNoTransformNodes(projectMetadata, state.getNodes());
 
             final ActionListener<Response> finalListener;
             if (request.waitForCompletion()) {
@@ -166,11 +169,11 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 request.getTimeout(),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
-                    validateTaskState(state, hitsAndIds.v2().v1(), request.isForce());
+                    validateTaskState(projectMetadata, hitsAndIds.v2().v1(), request.isForce());
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2().v1()));
                     final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
                         hitsAndIds.v2().v1(),
-                        state
+                        projectMetadata
                     );
 
                     final ActionListener<Response> doExecuteListener = cancelTransformTasksListener(
@@ -195,7 +198,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     if (e instanceof ResourceNotFoundException) {
                         final TransformNodeAssignments transformNodeAssignments = TransformNodes.findPersistentTasks(
                             request.getId(),
-                            state
+                            projectResolver.getProjectMetadata(state)
                         );
 
                         if (transformNodeAssignments.getAssigned().isEmpty()
@@ -390,8 +393,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         // This map is accessed in the predicate and the listener callbacks
         final Map<String, ElasticsearchException> exceptions = new ConcurrentHashMap<>();
 
-        @FixForMultiProject
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        final var projectId = projectResolver.getProjectId();
         persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
             if (persistentTasksCustomMetadata == null) {
                 return true;
@@ -449,8 +451,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             // waitForPersistentTasksCondition throws a IllegalStateException on timeout
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
-                final var project = clusterService.state().metadata().getDefaultProject();
-                PersistentTasksCustomMetadata persistentTasksCustomMetadata = PersistentTasksCustomMetadata.get(project);
+                PersistentTasksCustomMetadata persistentTasksCustomMetadata = PersistentTasksCustomMetadata.get(
+                    projectResolver.getProjectMetadata(clusterService.state())
+                );
 
                 if (persistentTasksCustomMetadata == null) {
                     listener.onResponse(new Response(Boolean.TRUE));

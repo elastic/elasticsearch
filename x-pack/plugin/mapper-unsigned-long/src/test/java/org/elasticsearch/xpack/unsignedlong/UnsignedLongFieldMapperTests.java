@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -113,14 +114,27 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+    public void testIndexingOversizedStringIsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
+    }
+
+    public void testRangeTermsRejectOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm(oversized, true)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm(oversized, true)
+        );
+    }
+
+    public void testTermRejectsOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm(oversized));
     }
 
     public void testNoDocValues() throws Exception {
@@ -375,12 +389,17 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed);
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) {
                 var example = super.example(maxVals);
@@ -430,12 +449,33 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "unsigned_long").endObject())
+        ).documentMapper();
+        // Stay in the signed-long range so JSON emits a plain number and Java's Long.toString matches the synthetic-source format.
+        long v1 = randomNonNegativeLong();
+        long v2 = randomNonNegativeLong();
+        long v3 = randomNonNegativeLong();
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
     class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
 
-        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -450,11 +490,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<BigInteger> outputFromDocValues = values.stream()
-                .filter(v -> v.malformedOutput == null)
-                .map(Value::output)
-                .sorted()
-                .toList();
+            Stream<BigInteger> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<BigInteger> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
             // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
             List<Object> malformedOutput = values.stream()
                 .filter(v -> v.malformedOutput != null)

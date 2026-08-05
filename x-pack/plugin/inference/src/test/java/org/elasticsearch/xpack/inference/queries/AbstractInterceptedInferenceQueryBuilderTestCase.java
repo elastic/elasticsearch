@@ -24,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -105,11 +106,22 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
+    protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
+    protected static final MinimalServiceSettings EMBEDDING_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+        null,
+        TaskType.EMBEDDING,
+        256,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
     private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
-        DENSE_INFERENCE_ID_SETTINGS
+        DENSE_INFERENCE_ID_SETTINGS,
+        EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID_SETTINGS
     );
 
     private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
@@ -203,6 +215,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             case TEXT_EMBEDDING:
                 inferenceId = DENSE_INFERENCE_ID;
                 serviceSettings = DENSE_INFERENCE_ID_SETTINGS;
+                break;
+            case EMBEDDING:
+                inferenceId = EMBEDDING_INFERENCE_ID;
+                serviceSettings = EMBEDDING_INFERENCE_ID_SETTINGS;
                 break;
             default:
                 throw new AssertionError("Unsupported task type");
@@ -530,6 +546,15 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> semanticTextFields,
         Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
+        return createIndexMetadataContext(indexName, semanticTextFields, nonInferenceFields, SemanticTextFieldMapper.CONTENT_TYPE);
+    }
+
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticFields,
+        Map<String, Map<String, Object>> nonInferenceFields,
+        String semanticFieldContentType
+    ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
         Index index = new Index(indexName, randomAlphaOfLength(10));
@@ -545,7 +570,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         try (XContentBuilder mappings = XContentFactory.jsonBuilder()) {
             mappings.startObject().startObject("_doc").startObject("properties");
 
-            for (var entry : semanticTextFields.entrySet()) {
+            for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
                 MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
@@ -554,7 +579,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 }
 
                 mappings.startObject(fieldName);
-                mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                mappings.field("type", semanticFieldContentType);
                 mappings.field("inference_id", inferenceId);
                 mappings.field("model_settings", modelSettings);
                 mappings.endObject();
@@ -721,7 +746,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool)));
+        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of())));
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

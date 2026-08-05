@@ -186,12 +186,13 @@ public class SearchTemplateResponseTests extends ESTestCase {
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = SearchHit.unpooled(1, "id");
+        SearchHit hit = new SearchHit(1, "id");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
+        SearchHits sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         SearchResponse searchResponse = new SearchResponse(
-            SearchHits.unpooled(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            sHits,
             null,
             null,
             false,
@@ -206,6 +207,7 @@ public class SearchTemplateResponseTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
+        sHits.decRef(); // transfer ownership to searchResponse
 
         SearchTemplateResponse response = new SearchTemplateResponse();
         try {

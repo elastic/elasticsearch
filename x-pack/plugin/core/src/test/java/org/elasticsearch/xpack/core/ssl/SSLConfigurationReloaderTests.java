@@ -48,6 +48,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -662,7 +663,25 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertThat(profileReloaded.get(), is(true));
     }
 
-    private static void atomicMoveIfPossible(Path source, Path target) throws IOException {
+    private static void atomicMoveIfPossible(Path source, Path target) throws IOException, InterruptedException {
+        // On Windows, the target file may be temporarily locked by the SSL reload thread that just
+        // read it. Retry with backoff to let Windows release the file handle before giving up.
+        IOException lastException = null;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            if (attempt > 0) {
+                Thread.sleep(100L * attempt);
+            }
+            try {
+                moveFile(source, target);
+                return;
+            } catch (AccessDeniedException e) {
+                lastException = e;
+            }
+        }
+        throw lastException;
+    }
+
+    private static void moveFile(Path source, Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {

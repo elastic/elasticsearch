@@ -39,7 +39,7 @@ public class DiskBbqTrialLicenseIT extends ESRestTestCase {
     }
 
     /**
-     * The default index type for dense_vector is bbq_disk when licenced.
+     * The default index type for dense_vector on stateful clusters is int8_hnsw.
      */
     public void testDefaultIndexOptionsForDenseVector() throws IOException {
         final String index = "test_default_index_options";
@@ -68,6 +68,6 @@ public class DiskBbqTrialLicenseIT extends ESRestTestCase {
         assertEquals("cosine", vector.get("similarity"));
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptions = (Map<String, Object>) vector.get("index_options");
-        assertEquals("bbq_disk", indexOptions.get("type"));
+        assertEquals("int8_hnsw", indexOptions.get("type"));
     }
 }

@@ -81,10 +81,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     @Override
     protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
         BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
-        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor);
+        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor, defaultMappingHints);
         var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
         context.groupDataPoints(metricsServiceRequest);
-        if (context.totalDataPoints() == 0) {
+        if (context.totalItems() == 0) {
             return context;
         }
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
@@ -97,9 +97,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     }
 
     @Override
-    protected ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    protected ExportMetricsServiceResponse responseWithRejectedItems(int rejectedItems, String message) {
         ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
-            .setRejectedDataPoints(rejectedDataPoints)
+            .setRejectedDataPoints(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

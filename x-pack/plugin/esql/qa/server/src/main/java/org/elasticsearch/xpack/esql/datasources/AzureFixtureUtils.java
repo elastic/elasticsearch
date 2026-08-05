@@ -98,13 +98,27 @@ public final class AzureFixtureUtils {
     public static class DataSourcesAzureHttpFixture extends AzureHttpFixture {
 
         public DataSourcesAzureHttpFixture() {
+            this(false);
+        }
+
+        /**
+         * @param anonymous when {@code true}, the fixture accepts requests carrying no (or any)
+         *        {@code Authorization} header, so a data source registered with {@code auth=anonymous} can
+         *        read from it — the Azure analog of the anonymous-capable S3 fixture. The spec harness
+         *        ({@code AbstractExternalSourceSpecTestCase}) uses this form to drive the {@code FROM
+         *        <dataset>} path without storing a shared-key secret (which would require a cluster
+         *        encryption key). When {@code false} the fixture enforces shared-key auth for the account,
+         *        as the multi-backend subquery ITs that register a real {@code key} secret rely on.
+         */
+        public DataSourcesAzureHttpFixture(boolean anonymous) {
             super(
                 AzureHttpFixture.Protocol.HTTP,
+                null,
                 ACCOUNT,
                 CONTAINER,
                 null,
                 null,
-                AzureHttpFixture.sharedKeyForAccountPredicate(ACCOUNT),
+                anonymous ? null : AzureHttpFixture.sharedKeyForAccountPredicate(ACCOUNT),
                 (currentLeaseId, requestLeaseId) -> false
             );
         }
@@ -138,14 +152,12 @@ public final class AzureFixtureUtils {
                 restOfQuery = " " + trimmed.substring(pipeIndex);
             }
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"account\": \"").append(ACCOUNT).append("\", ");
-            params.append("\"key\": \"").append(KEY).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"account\": \"").append(ACCOUNT).append("\", ");
+            entries.append("\"key\": \"").append(KEY).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
     }
 }

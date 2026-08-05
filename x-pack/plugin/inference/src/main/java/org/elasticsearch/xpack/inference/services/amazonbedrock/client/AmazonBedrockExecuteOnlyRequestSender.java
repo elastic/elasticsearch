@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
@@ -44,12 +44,13 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
     @Override
     public void send(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (request instanceof AmazonBedrockRequest awsRequest && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
+        if (outboundRequest instanceof AmazonBedrockRequest awsRequest
+            && responseHandler instanceof AmazonBedrockResponseHandler awsResponse) {
             try {
                 var executor = createExecutor(awsRequest, awsResponse, logger, hasRequestTimedOutFunction, listener);
 
@@ -57,8 +58,8 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
                 executor.run();
                 return;
             } catch (Exception e) {
-                logException(logger, request, e);
-                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
+                logException(logger, outboundRequest, e);
+                listener.onFailure(wrapWithElasticsearchException(e, outboundRequest.getInferenceEntityId()));
             }
         }
 
@@ -112,12 +113,15 @@ public class AmazonBedrockExecuteOnlyRequestSender implements RequestSender {
         }
     }
 
-    private void logException(Logger logger, Request request, Exception exception) {
+    private void logException(Logger logger, OutboundRequest outboundRequest, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttleManager.warn(
             logger,
-            format("Failed while sending request from inference entity id [%s] of type [amazonbedrock]", request.getInferenceEntityId()),
+            format(
+                "Failed while sending request from inference entity id [%s] of type [amazonbedrock]",
+                outboundRequest.getInferenceEntityId()
+            ),
             causeException
         );
     }

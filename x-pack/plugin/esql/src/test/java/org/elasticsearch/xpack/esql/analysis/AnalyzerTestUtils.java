@@ -118,7 +118,6 @@ public final class AnalyzerTestUtils {
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         return IndexResolution.valid(index);
@@ -148,7 +147,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {

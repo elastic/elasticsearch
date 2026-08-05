@@ -68,7 +68,7 @@ While Painless supports more than twenty specific contexts, they operate within 
 | :---- | :---- | :---- |
 | Runtime field | [Painless documentation](/reference/scripting-languages/painless/painless-runtime-fields-context.md) | [{{es}} documentation](docs-content://manage-data/data-store/mapping/runtime-fields.md) |
 | Field | [Painless documentation](/reference/scripting-languages/painless/painless-field-context.md) | [{{es}} documentation](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#script-fields) |
-| Ingest processor | [Painless documentation](/reference/scripting-languages/painless/painless-ingest-processor-context.md) | [{{es}} documentation](/reference/enrich-processor/script-processor.md) |
+| Ingest processor | [Painless documentation](/reference/scripting-languages/painless/painless-ingest-processor-context.md) | [{{es}} documentation](/reference/ingest-processor/script-processor.md) |
 | Filter | [Painless documentation](/reference/scripting-languages/painless/painless-filter-context.md) | [{{es}} documentation](/reference/query-languages/query-dsl/query-dsl-script-query.md) |
 | Score | [Painless documentation](/reference/scripting-languages/painless/painless-score-context.md) | [{{es}} documentation](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) |
 | Sort | [Painless documentation](/reference/scripting-languages/painless/painless-sort-context.md) | [{{es}} documentation](/reference/elasticsearch/rest-apis/sort-search-results.md) |

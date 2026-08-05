@@ -35,5 +35,5 @@ FROM index | SORT field | LIMIT 1000 | MV_EXPAND mv_field | WHERE mv_field == "v
 
 ## Example
 
-:::{include} ../examples/mv_expand.csv-spec/simple.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mv_expand.csv-spec/simple.md
 :::

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -176,6 +177,9 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             if (fuse == null) {
                 return e;
             }
+            if (fuse.field().field() instanceof UnionTypeEsField) {
+                return e;
+            }
             if (primaries.canPush(nodeWithExpression) == false) {
                 return e;
             }
@@ -204,7 +208,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
          * not just {@code TS} command queries.
          */
         private boolean hasTimeSeriesShards() {
-            return context.searchStats().targetShards().values().stream().anyMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES);
+            return context.searchStats().targetShards().values().stream().anyMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()));
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {

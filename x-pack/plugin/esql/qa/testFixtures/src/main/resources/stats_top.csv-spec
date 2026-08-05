@@ -431,3 +431,81 @@ FROM employees
 shortest_employee:integer | tallest_employee:integer
 10020                     | 10094
 ;
+
+fieldNumericOutputFieldKeyword
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_names = TOP(salary, 3, "desc", first_name)
+;
+
+top_names:keyword
+[Otmar, Moss, Tzvetan]
+;
+
+fieldKeywordOutputFieldNumeric
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_salaries = TOP(first_name, 3, "asc", salary)
+;
+
+top_salaries:integer
+[44307, 38645, 60335]
+;
+
+fieldKeywordOutputFieldKeyword
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_last_names = TOP(first_name, 3, "desc", last_name)
+;
+
+top_last_names:keyword
+[Nyanchama, Rosen, Berztiss]
+;
+
+fieldNumericOutputFieldKeywordGrouping
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_names = TOP(salary, 3, "desc", first_name) BY gender
+| SORT gender
+| KEEP gender, top_names
+;
+
+gender:keyword | top_names:keyword
+F              | [Tzvetan, Divier, Valter]
+M              | [Otmar, Moss, Remzi]
+null           | [Lillian, Kazuhito, Cristinel]
+;
+
+fieldKeywordOutputFieldNumericGrouping
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_salaries = TOP(first_name, 3, "desc", salary) BY gender
+| SORT gender
+| KEEP gender, top_salaries
+;
+
+gender:keyword | top_salaries:integer
+F              | [32272, 37112, 73578]
+M              | [42716, 50128, 28336]
+null           | [48942, 31120, 73717]
+;
+
+fieldKeywordOutputFieldKeywordGrouping
+required_capability: fn_top_output_field_string
+
+FROM employees
+| STATS top_last_names = TOP(first_name, 3, "desc", last_name) BY gender
+| SORT gender
+| KEEP gender, top_last_names
+;
+
+gender:keyword | top_last_names:keyword
+F              | [Eugenio, Meriste, Sullins]
+M              | [Nyanchama, Rosen, Berztiss]
+null           | [Bridgland, Sluis, Haddadi]
+;

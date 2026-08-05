@@ -1,5 +1,0 @@
-area: Codec
-issues: []
-pr: 146002
-summary: Ensure bloom filter is not shared across threads
-type: bug

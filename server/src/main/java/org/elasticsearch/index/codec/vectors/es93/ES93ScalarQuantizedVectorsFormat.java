@@ -24,14 +24,16 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
 import org.elasticsearch.index.codec.vectors.QuantizedAndRawFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -148,7 +150,6 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         private final FlatVectorsReader delegate;
 
         private ES93FlatVectorReader(FlatVectorsReader delegate, Lucene99ScalarQuantizedVectorsReader reader) {
-            super(reader.getFlatVectorScorer());
             this.reader = reader;
             this.delegate = delegate;
         }
@@ -175,8 +176,8 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatVectorsScorer getFlatVectorScorer() {
-            return reader.getFlatVectorScorer();
+        public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+            return reader.getFlatVectorScorer(field);
         }
 
         @Override
@@ -205,6 +206,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public CloseableRandomVectorScorerSupplier getRandomVectorScorerSupplierForMerge(
+            FieldInfo fieldInfo,
+            SegmentWriteState segmentWriteState
+        ) throws IOException {
+            return reader.getRandomVectorScorerSupplierForMerge(fieldInfo, segmentWriteState);
+        }
+
+        @Override
         public FlatVectorsReader getMergeInstance() throws IOException {
             return reader.getMergeInstance();
         }
@@ -225,7 +234,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+        public LegacyQuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
             return reader.getQuantizedVectorValues(fieldName);
         }
 
@@ -242,7 +251,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         private ESQuantizedFlatVectorsScorer(FlatVectorsScorer delegate) {
             this.delegate = delegate;
-            factory = VectorScorerFactory.instance().orElse(null);
+            factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         }
 
         @Override
@@ -253,21 +262,19 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorerSupplier(
-                        VectorSimilarityType.of(sim),
-                        qValues.getSlice(),
-                        qValues,
-                        qValues.getScalarQuantizer().getConstantMultiplier()
-                    );
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorerSupplier(
+                    VectorSimilarityType.of(sim),
+                    qValues.getSlice(),
+                    qValues,
+                    qValues.getScalarQuantizer().getConstantMultiplier()
+                );
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -276,16 +283,14 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorer(sim, values, query);

@@ -72,7 +72,7 @@ public class GroqChatCompletionModel extends GroqModel {
             service,
             GroqChatCompletionServiceSettings.fromMap(serviceSettings, context),
             new GroqChatCompletionTaskSettings(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

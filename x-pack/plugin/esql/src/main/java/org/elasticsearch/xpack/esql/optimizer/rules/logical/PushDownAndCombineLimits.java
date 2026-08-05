@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -57,7 +58,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof Project
                 || unary instanceof RegexExtract
                 || unary instanceof CompoundOutputEval<?>
-                || unary instanceof InferencePlan<?>) {
+                || unary instanceof InferencePlan<?>
+                || unary instanceof Highlight) {
                 if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
                     return limit;
@@ -107,8 +109,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     private static LogicalPlan maybePushDownLimitToFork(Limit limit, Fork fork, LogicalOptimizerContext ctx) {
-        // TODO: there's no reason why UnionAll should not benefit from this optimization
-        if (fork instanceof UnionAll) {
+        // Allow limit pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
+        // Subquery-shape UnionAll branches return false from shouldPushDownPipelineBreakerIntoForkBranch
+        // so the loop below is a no-op for them anyway, but skip explicitly for clarity.
+        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 

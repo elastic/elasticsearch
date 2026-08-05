@@ -71,6 +71,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -78,11 +79,13 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER;
@@ -171,14 +174,20 @@ public class SearchTransportService {
         Transport.Connection connection,
         final CanMatchNodeRequest request,
         SearchTask task,
-        final ActionListener<CanMatchNodeResponse> listener
+        final ActionListener<CanMatchNodeResponse> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
         transportService.sendChildRequest(
             connection,
             QUERY_CAN_MATCH_NODE_NAME,
-            request,
+            countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(
+                listener,
+                countingReader(CanMatchNodeResponse::new, resultBytesConsumer),
+                TransportResponseHandler.TRANSPORT_WORKER
+            )
         );
     }
 
@@ -196,14 +205,16 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final ActionListener<DfsSearchResult> listener
+        final ActionListener<DfsSearchResult> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
         transportService.sendChildRequest(
             connection,
             DFS_ACTION_NAME,
-            request,
+            countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, DfsSearchResult::new, connection)
+            new ConnectionCountingHandler<>(listener, countingReader(DfsSearchResult::new, resultBytesConsumer), connection)
         );
     }
 
@@ -211,7 +222,9 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
-        final ActionListener<SearchPhaseResult> listener
+        final ActionListener<SearchPhaseResult> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
 
         // Set coordinator node so data node can detect chunked fetch scenarios
@@ -229,9 +242,9 @@ public class SearchTransportService {
         transportService.sendChildRequest(
             connection,
             QUERY_ACTION_NAME,
-            request,
+            countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, reader, connection)
+            new ConnectionCountingHandler<>(handler, countingReader(reader, resultBytesConsumer), connection)
         );
     }
 
@@ -246,7 +259,9 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
-        final ActionListener<SearchPhaseResult> listener
+        final ActionListener<SearchPhaseResult> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
         final ActionListener<? super SearchPhaseResult> handler = responseWrapper != null
             ? responseWrapper.apply(connection, listener)
@@ -254,9 +269,9 @@ public class SearchTransportService {
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,
-            request,
+            countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, QuerySearchResult::new, connection)
+            new ConnectionCountingHandler<>(handler, countingReader(QuerySearchResult::new, resultBytesConsumer), connection)
         );
     }
 
@@ -279,14 +294,16 @@ public class SearchTransportService {
         Transport.Connection connection,
         final RankFeatureShardRequest request,
         SearchTask task,
-        final ActionListener<RankFeatureResult> listener
+        final ActionListener<RankFeatureResult> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
         transportService.sendChildRequest(
             connection,
             RANK_FEATURE_SHARD_ACTION_NAME,
-            request,
+            countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, RankFeatureResult::new, connection)
+            new ConnectionCountingHandler<>(listener, countingReader(RankFeatureResult::new, resultBytesConsumer), connection)
         );
     }
 
@@ -318,18 +335,21 @@ public class SearchTransportService {
      * on the local (coordinator) node, which registers a response stream before forwarding to the data node.
      * The data node then streams chunks back via {@link TransportFetchPhaseResponseChunkAction}.
      *
-     * @param connection      the transport connection to the data node
+     * @param connection        the transport connection to the data node
      * @param shardFetchRequest the fetch request containing doc IDs to retrieve
-     * @param context         the search context for this async action
-     * @param shardTarget     identifies the shard being fetched from
-     * @param listener        callback for the fetch result
+     * @param context           the search context for this async action
+     * @param shardTarget       identifies the shard being fetched from
+     * @param listener          callback for the fetch result
+     * @param resultBytesConsumer     receives the decompressed byte count of the shard response
      */
     public void sendExecuteFetch(
         Transport.Connection connection,
         ShardFetchSearchRequest shardFetchRequest,
         AbstractSearchAsyncAction<?> context,
         SearchShardTarget shardTarget,
-        ActionListener<FetchSearchResult> listener
+        ActionListener<FetchSearchResult> listener,
+        LongConsumer resultBytesConsumer,
+        LongConsumer requestBytesConsumer
     ) {
         SearchTask task = context.getTask();
 
@@ -372,10 +392,20 @@ public class SearchTransportService {
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
 
+            Transport.Connection localConnection = transportService.getConnection(transportService.getLocalNode());
+            // coordRequest is always routed to the local node. The consumers are carried as
+            // non-serialized fields and applied inside doExecute when sending to the data node.
+            var coordRequest = new TransportFetchPhaseCoordinationAction.Request(
+                shardFetchRequest,
+                connection.getNode(),
+                headers,
+                requestBytesConsumer,
+                resultBytesConsumer
+            );
             transportService.sendChildRequest(
-                transportService.getConnection(transportService.getLocalNode()),
+                localConnection,
                 TransportFetchPhaseCoordinationAction.TYPE.name(),
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
+                coordRequest,
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
@@ -385,7 +415,14 @@ public class SearchTransportService {
                 )
             );
         } else {
-            sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
+            sendExecuteFetch(
+                connection,
+                FETCH_ID_ACTION_NAME,
+                countingRequestForConnection(shardFetchRequest, connection, requestBytesConsumer),
+                task,
+                listener,
+                countingReader(FetchSearchResult::new, resultBytesConsumer)
+            );
         }
     }
 
@@ -395,23 +432,18 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener, FetchSearchResult::new);
     }
 
     private void sendExecuteFetch(
         Transport.Connection connection,
         String action,
-        final ShardFetchRequest request,
+        final TransportRequest request,
         SearchTask task,
-        final ActionListener<FetchSearchResult> listener
+        final ActionListener<FetchSearchResult> listener,
+        Writeable.Reader<FetchSearchResult> reader
     ) {
-        transportService.sendChildRequest(
-            connection,
-            action,
-            request,
-            task,
-            new ConnectionCountingHandler<>(listener, FetchSearchResult::new, connection)
-        );
+        transportService.sendChildRequest(connection, action, request, task, new ConnectionCountingHandler<>(listener, reader, connection));
     }
 
     /**
@@ -878,6 +910,89 @@ public class SearchTransportService {
         } else {
             return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
         }
+    }
+
+    /**
+     * Wraps {@code request} in an {@link AbstractTransportRequest} that measures serialized bytes via
+     * {@link StreamOutput#position()} delta and reports them to {@code requestBytesConsumer}. For local
+     * connections {@code writeTo} is never called by the transport layer, so the original request
+     * is returned unwrapped — byte counting is silently skipped for same-JVM sends.
+     */
+    AbstractTransportRequest countingRequestForConnection(
+        AbstractTransportRequest request,
+        Transport.Connection connection,
+        LongConsumer requestBytesConsumer
+    ) {
+        if (connection.getNode().equals(transportService.getLocalNode())) {
+            // skip counting bytes written for local connections
+            return request;
+        }
+        return countingRequest(request, requestBytesConsumer);
+    }
+
+    /**
+     * Wraps {@code request} so that {@code requestBytesConsumer} is called with the number of bytes
+     * written when {@link AbstractTransportRequest#writeTo} is invoked.
+     */
+    public static AbstractTransportRequest countingRequest(AbstractTransportRequest request, LongConsumer requestBytesConsumer) {
+        return new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(String parentTaskNodeId, long parentTaskId) {
+                request.setParentTask(parentTaskNodeId, parentTaskId);
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return request.getParentTask();
+            }
+
+            @Override
+            public void remoteAddress(InetSocketAddress remoteAddress) {
+                request.remoteAddress(remoteAddress);
+            }
+
+            @Override
+            public InetSocketAddress remoteAddress() {
+                return request.remoteAddress();
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                request.setRequestId(requestId);
+            }
+
+            @Override
+            public long getRequestId() {
+                return request.getRequestId();
+            }
+
+            @Override
+            public AbstractTransportRequest copyFieldsFrom(AbstractTransportRequest other) {
+                return request.copyFieldsFrom(other);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                long before = out.position();
+                request.writeTo(out);
+                requestBytesConsumer.accept(out.position() - before);
+            }
+        };
+    }
+
+    /**
+     * Wraps a {@link Writeable.Reader} to count the bytes read during deserialization and report them
+     * to {@code resultBytesConsumer}. The consumer is called with the total bytes read once the reader returns.
+     * Relies on {@link StreamInput#available()} returning the exact remaining byte count, which holds for
+     * all buffered transport implementations.
+     */
+    public static <T> Writeable.Reader<T> countingReader(Writeable.Reader<T> reader, LongConsumer resultBytesConsumer) {
+        return in -> {
+            long before = in.available();
+            T result = reader.read(in);
+            resultBytesConsumer.accept(before - in.available());
+            return result;
+        };
     }
 
     private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {

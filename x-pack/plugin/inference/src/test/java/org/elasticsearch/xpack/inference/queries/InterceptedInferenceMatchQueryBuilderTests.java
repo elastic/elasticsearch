@@ -172,5 +172,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
     @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.SPARSE_EMBEDDING, MatchQueryBuilder.NAME);
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, MatchQueryBuilder.NAME);
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.EMBEDDING, MatchQueryBuilder.NAME);
     }
 }

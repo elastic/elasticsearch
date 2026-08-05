@@ -145,7 +145,7 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = createFromMap(new HashMap<>(Map.of()));
+        var taskSettings = createFromMap(new HashMap<>());
         assertNull(taskSettings.user());
     }
 

@@ -12,6 +12,7 @@ package org.elasticsearch.plugins.internal;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -109,9 +110,9 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public java.util.List<IndexResult> indexBatch(java.util.List<Index> operations) throws IOException {
-                    List<IndexResult> results = super.indexBatch(operations);
-                    for (Index op : operations) {
+                public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+                    List<IndexResult> results = super.indexBatch(batch);
+                    for (Index op : batch.operations()) {
                         reportDocumentSize(op.parsedDoc());
                     }
                     return results;

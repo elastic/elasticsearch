@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase<Geometry> {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(SpatialPlugin.class, TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     public void testSimpleShapeContainsPolygon() {
@@ -673,10 +674,6 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         return shape.visit(visitor);
     }
 
-    private List<Double> getExtentBoundSorted(List<Rectangle> extents, Function<Rectangle, Double> extractor) {
-        return extents.stream().map(extractor).sorted().toList();
-    }
-
     private List<Double> getResponseSorted(TestQueryResponseCollection responses, int index, int column) {
         return responses.getResponses(index, column).stream().map(o -> (Double) o).sorted().toList();
     }
@@ -695,51 +692,102 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         boolean isCartesian = fieldType().equals("shape");
         try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
             List<Geometry> quantizedShapes = getQuantizedResponsesAsType(responses, 0, 0, Geometry.class);
-            List<Rectangle> quantizedExtents = quantizedShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
-            List<Double> xMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinX);
-            List<Double> xMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxX);
-            List<Double> yMinQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMinY);
-            List<Double> yMaxQuantized = getExtentBoundSorted(quantizedExtents, Rectangle::getMaxY);
-            for (int index = 0; index < ALL_INDEXES.length; index++) {
-                List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
-                int countDifferent = 0;
-                for (int i = 0; i < quantizedShapes.size(); i++) {
-                    if (quantizedShapes.get(i).equals(resultShapes.get(i)) == false) {
-                        countDifferent++;
+            // ST_X/YMIN/MAX on shapes is evaluated server-side as "envelope of raw shape, then quantize the bound",
+            // so the expected values must be computed the same way - not by quantizing each point before taking
+            // the envelope, which can disagree with the server at the dateline wrap tiebreak.
+            List<Geometry> rawShapes = getResponsesAsType(responses, 0, 0, Geometry.class);
+            List<Rectangle> rawExtents = rawShapes.stream().map(s -> getExtent(s, isCartesian)).toList();
+            List<Double> xMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinX, this::quantizeX);
+            List<Double> xMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxX, this::quantizeX);
+            List<Double> yMinQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMinY, this::quantizeY);
+            List<Double> yMaxQuantized = getQuantizedExtentBoundSorted(rawExtents, Rectangle::getMaxY, this::quantizeY);
+            try {
+                for (int index = 0; index < ALL_INDEXES.length; index++) {
+                    List<Geometry> resultShapes = getResponsesAsType(responses, index, 0, Geometry.class);
+                    int countDifferent = 0;
+                    for (int i = 0; i < quantizedShapes.size(); i++) {
+                        if (quantizedShapes.get(i).equals(resultShapes.get(i)) == false) {
+                            countDifferent++;
+                        }
                     }
-                }
-                assertThat(
-                    "Expected some different results in set of " + resultShapes.size() + " shapes for " + ALL_INDEXES[index],
-                    countDifferent,
-                    greaterThan(0)
-                );
-                for (int column = 1; column < 6; column++) {
-                    if (index > 0) {
-                        if (column == 1) {
-                            // Envelope
-                            List<Geometry> result = responses.getResponses(index, column).stream().map(o -> parse(o.toString())).toList();
-                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
-                        } else {
-                            List<Double> result = getResponseSorted(responses, index, column);
-                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
-                            if (column == 2) {
-                                // xmin
-                                assertEquals("Same xmin values " + ALL_INDEXES[index], xMinQuantized, result);
-                            } else if (column == 3) {
-                                // xmax
-                                assertEquals("Same xmax values " + ALL_INDEXES[index], xMaxQuantized, result);
-                            } else if (column == 4) {
-                                // ymin
-                                assertEquals("Same ymin values " + ALL_INDEXES[index], yMinQuantized, result);
+                    assertThat(
+                        "Expected some different results in set of " + resultShapes.size() + " shapes for " + ALL_INDEXES[index],
+                        countDifferent,
+                        greaterThan(0)
+                    );
+                    for (int column = 1; column < 6; column++) {
+                        if (index > 0) {
+                            if (column == 1) {
+                                // Envelope
+                                List<Geometry> result = responses.getResponses(index, column)
+                                    .stream()
+                                    .map(o -> parse(o.toString()))
+                                    .toList();
+                                assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
                             } else {
-                                // ymax
-                                assertEquals("Same ymax values " + ALL_INDEXES[index], yMaxQuantized, result);
+                                List<Double> result = getResponseSorted(responses, index, column);
+                                assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedShapes.size(), result.size());
+                                if (column == 2) {
+                                    // xmin
+                                    assertEquals("Same xmin values " + ALL_INDEXES[index], xMinQuantized, result);
+                                } else if (column == 3) {
+                                    // xmax
+                                    assertEquals("Same xmax values " + ALL_INDEXES[index], xMaxQuantized, result);
+                                } else if (column == 4) {
+                                    // ymin
+                                    assertEquals("Same ymin values " + ALL_INDEXES[index], yMinQuantized, result);
+                                } else {
+                                    // ymax
+                                    assertEquals("Same ymax values " + ALL_INDEXES[index], yMaxQuantized, result);
+                                }
                             }
                         }
                     }
                 }
+            } catch (AssertionError e) {
+                logMismatchedGeometries(rawShapes, rawExtents);
+                throw e;
             }
         }
+    }
+
+    /**
+     * Dumps the raw (pre-quantization) WKT and computed extent of every indexed shape, so that a CI failure
+     * in {@link #assertQuantizedXY()} can be correlated back to the specific geometry that triggered the
+     * dateline wrap/no-wrap disagreement, without needing to reproduce the failure again.
+     */
+    private void logMismatchedGeometries(List<Geometry> rawShapes, List<Rectangle> rawExtents) {
+        for (int i = 0; i < rawShapes.size(); i++) {
+            Rectangle extent = rawExtents.get(i);
+            logger.error(
+                "testQuantizedXY failure context: shape[{}] extent=[minX={}, maxX={}, minY={}, maxY={}] "
+                    + "quantized=[xMin={}, xMax={}, yMin={}, yMax={}] wkt={}",
+                i,
+                extent.getMinX(),
+                extent.getMaxX(),
+                extent.getMinY(),
+                extent.getMaxY(),
+                quantizeX(extent.getMinX()),
+                quantizeX(extent.getMaxX()),
+                quantizeY(extent.getMinY()),
+                quantizeY(extent.getMaxY()),
+                WellKnownText.toWKT(rawShapes.get(i))
+            );
+        }
+    }
+
+    /**
+     * Extract a bound from each extent, quantize it the same way the server does in
+     * {@code St{X,Y}{Min,Max}#buildEnvelopeResults}, and return the sorted list. Quantizing after the envelope
+     * (rather than quantizing every point first) is what the WKB-backed server evaluator does - pre-quantizing
+     * points can flip the wrap/no-wrap tiebreak in {@code GeoPointVisitor} for shapes that span both datelines.
+     */
+    private List<Double> getQuantizedExtentBoundSorted(
+        List<Rectangle> extents,
+        Function<Rectangle, Double> extractor,
+        Function<Double, Double> quantizer
+    ) {
+        return extents.stream().map(r -> quantizer.apply(extractor.apply(r))).sorted().toList();
     }
 
     protected class TestQuantizedGeometryVisitor implements GeometryVisitor<Geometry, RuntimeException> {

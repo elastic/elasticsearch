@@ -16,7 +16,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -74,11 +73,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -98,11 +93,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -116,11 +107,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -128,7 +115,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String location, String projectId, String modelName, Sender sender) {
-        var model = createModel(location, projectId, modelName, url, "{}");
+        var model = createModel(location, projectId, modelName, url, "{}", randomAlphaOfLength(8));
         var requestManager = new GoogleVertexAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);

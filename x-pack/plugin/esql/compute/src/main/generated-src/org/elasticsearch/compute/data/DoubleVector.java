@@ -38,7 +38,12 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     DoubleBlock asBlock();
 
     @Override
-    DoubleVector filter(boolean mayContainDuplicates, int... positions);
+    DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default DoubleVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     DoubleBlock keepMask(BooleanVector mask);
@@ -67,6 +72,12 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
      */
     @Override
     DoubleVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Double.BYTES} since all double values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

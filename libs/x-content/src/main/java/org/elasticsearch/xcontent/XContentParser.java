@@ -83,6 +83,13 @@ public interface XContentParser extends Closeable {
 
     String currentName() throws IOException;
 
+    /**
+     * Whether bulk map helpers ({@link #map()}, {@link #mapOrdered()}, etc.) are supported for this parser.
+     */
+    default boolean supportsMap() {
+        return true;
+    }
+
     Map<String, Object> map() throws IOException;
 
     Map<String, Object> mapOrdered() throws IOException;
@@ -100,6 +107,13 @@ public interface XContentParser extends Closeable {
      */
     <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException;
+
+    /**
+     * Whether bulk list helpers ({@link #list()}, {@link #listOrderedMap()}) are supported for this parser.
+     */
+    default boolean supportsList() {
+        return true;
+    }
 
     List<Object> list() throws IOException;
 

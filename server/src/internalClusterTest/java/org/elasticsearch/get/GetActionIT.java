@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -941,7 +942,10 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testRealTimeGetNestedFields() {
         String index = "test";
-        SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.values());
+        List<SourceFieldMapper.Mode> sourceModesAllowingNested = Arrays.stream(SourceFieldMapper.Mode.values())
+            .filter(mode -> mode != SourceFieldMapper.Mode.COLUMNAR_STORED)
+            .toList();
+        SourceFieldMapper.Mode sourceMode = randomFrom(sourceModesAllowingNested);
         assertAcked(
             prepareCreate(index).setMapping("title", "type=keyword", "author", "type=nested")
                 .setSettings(

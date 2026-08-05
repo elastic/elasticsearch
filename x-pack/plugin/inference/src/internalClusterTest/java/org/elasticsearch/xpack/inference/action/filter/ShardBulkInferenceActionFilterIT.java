@@ -580,7 +580,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         return cause;
     }
 
-    private static void registerModel(ModelRegistry modelRegistry, String inferenceId, TaskType taskType) throws Exception {
+    static void registerModel(ModelRegistry modelRegistry, String inferenceId, TaskType taskType) throws Exception {
         switch (taskType) {
             case SPARSE_EMBEDDING -> Utils.storeSparseModel(inferenceId, modelRegistry);
             case TEXT_EMBEDDING, EMBEDDING -> {

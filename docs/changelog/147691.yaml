@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147691
-summary: Filtered prefetch custom Parquet reader
-type: enhancement

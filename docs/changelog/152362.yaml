@@ -1,5 +1,0 @@
-area: Authentication
-issues: []
-pr: 152362
-summary: Provide default `jwt_audience`
-type: feature

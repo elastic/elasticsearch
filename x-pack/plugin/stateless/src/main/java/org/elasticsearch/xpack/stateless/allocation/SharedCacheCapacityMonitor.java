@@ -31,13 +31,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Watches the per-node shared cache commitments recorded in {@link ClusterInfo} and triggers a reroute, via
- * {@link RerouteService#reroute}, when a search node's cache commitment newly crosses the high watermark or newly drops back below the
- * low watermark. {@link SharedCacheCapacityAllocationDecider} is only consulted while a reroute is already in progress, but a node's
- * cache commitment can drift past a watermark on its own, for example as shards grow, as boost configuration changes, or as data ages
- * out of the boost window. This monitor is what notices that drift and asks for a reroute so the decider gets a chance to act on it. It
- * only does so when {@link SharedCacheCapacityAllocationDecider#CAN_REMAIN_ENABLED_SETTING} is also enabled, since a reroute would give
- * the decider's {@code canRemain} check no chance to act on the high watermark otherwise.
+ * Notices when a search node's cache commitment crosses a watermark on its own, for example as shards grow or data ages out of the
+ * boost window, and triggers a reroute via {@link RerouteService#reroute} so {@link SharedCacheCapacityAllocationDecider} gets a
+ * chance to act on it. Only active when {@link SharedCacheCapacityAllocationDecider#CAN_REMAIN_ENABLED_SETTING} is also enabled, since
+ * otherwise the decider's {@code canRemain} check would never see the reroute.
  */
 public class SharedCacheCapacityMonitor {
 

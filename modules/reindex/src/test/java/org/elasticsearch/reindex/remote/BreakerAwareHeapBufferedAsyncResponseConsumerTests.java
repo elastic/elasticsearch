@@ -26,6 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.reindex.remote.BreakerAwareHeapBufferedAsyncResponseConsumer.REMOTE_RESPONSE_BUFFER_BREAKER_LABEL;
@@ -70,6 +72,27 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         @Override
         public long getUsed() {
             return used.get();
+        }
+    }
+
+    private static class BlockingBreaker extends TrackingBreaker {
+        private final CountDownLatch addEstimateStarted = new CountDownLatch(1);
+        private final CountDownLatch unblockAddEstimate = new CountDownLatch(1);
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            // Hold the allocation path inside the breaker call so the test can
+            // attempt failure cleanup while the allocator mutex is still held.
+            addEstimateStarted.countDown();
+            try {
+                if (unblockAddEstimate.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("timed out waiting to unblock addEstimateBytesAndMaybeBreak");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
         }
     }
 
@@ -176,6 +199,87 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
         assertThat(breaker.getUsed(), equalTo(512L));
 
         consumer.failed(new IOException("boom"));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCloseWaitsForInProgressAllocationThenReleases() throws Exception {
+        var breaker = new BlockingBreaker();
+        var allocator = new BreakerAwareHeapBufferedAsyncResponseConsumer.AccountingByteBufferAllocator(breaker);
+
+        // allocate() blocks inside the breaker call while holding the allocator mutex.
+        Thread allocateThread = new Thread(() -> allocator.allocate(512), "allocate");
+        Thread closeThread = new Thread(allocator::close, "close");
+        try {
+            allocateThread.start();
+            assertTrue(breaker.addEstimateStarted.await(10, TimeUnit.SECONDS));
+
+            // close() must wait for the in-progress allocation rather than draining the reservation
+            // while allocate() is still mutating allocator state. This relies on the allocator holding
+            // its mutex across addEstimateBytesAndMaybeBreak().
+            closeThread.start();
+            assertBusy(() -> assertThat(closeThread.getState(), equalTo(Thread.State.BLOCKED)));
+
+            breaker.unblockAddEstimate.countDown();
+            allocateThread.join(10_000);
+            closeThread.join(10_000);
+
+            assertFalse(allocateThread.isAlive());
+            assertFalse(closeThread.isAlive());
+            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(allocator.currentReservation(), equalTo(0L));
+        } finally {
+            breaker.unblockAddEstimate.countDown();
+            allocateThread.join(10_000);
+            closeThread.join(10_000);
+        }
+    }
+
+    public void testAllocatorReleasesAllOutstandingOnClose() {
+        var breaker = new TrackingBreaker();
+        var allocator = new BreakerAwareHeapBufferedAsyncResponseConsumer.AccountingByteBufferAllocator(breaker);
+
+        allocator.allocate(100);
+        allocator.allocate(50);
+        assertThat(breaker.getUsed(), equalTo(150L));
+
+        allocator.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(allocator.currentReservation(), equalTo(0L));
+    }
+
+    public void testAllocateAfterCloseThrowsAndDoesNotChargeBreaker() {
+        var breaker = new TrackingBreaker();
+        var allocator = new BreakerAwareHeapBufferedAsyncResponseConsumer.AccountingByteBufferAllocator(breaker);
+
+        allocator.allocate(100);
+        allocator.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        expectThrows(IllegalStateException.class, () -> allocator.allocate(4096));
+        assertThat("allocate after close must not charge the breaker", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testReleaseAfterCloseDoesNotOverReleaseBreaker() {
+        var breaker = new TrackingBreaker();
+        var allocator = new BreakerAwareHeapBufferedAsyncResponseConsumer.AccountingByteBufferAllocator(breaker);
+
+        allocator.allocate(100);
+        allocator.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        // A late release from an in-flight expand() that lost the race to close() must be a no-op.
+        allocator.release(100);
+        assertThat("release after close must not drive the breaker negative", breaker.getUsed(), equalTo(0L));
+        assertThat(allocator.currentReservation(), equalTo(0L));
+    }
+
+    public void testAllocatorCloseIsIdempotent() {
+        var breaker = new TrackingBreaker();
+        var allocator = new BreakerAwareHeapBufferedAsyncResponseConsumer.AccountingByteBufferAllocator(breaker);
+
+        allocator.allocate(100);
+        allocator.close();
+        allocator.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

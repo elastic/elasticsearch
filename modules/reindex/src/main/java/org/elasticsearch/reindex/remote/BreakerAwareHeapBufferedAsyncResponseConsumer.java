@@ -168,13 +168,14 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         }
     }
 
-    private static final class AccountingByteBufferAllocator implements ByteBufferAllocator, Releasable {
+    // package-private for testing so the allocator's thread-safety contract can be unit-tested directly
+    static final class AccountingByteBufferAllocator implements ByteBufferAllocator, Releasable {
         private final CircuitBreaker breaker;
         private final Object mutex = new Object();
         private boolean closed; // guarded by mutex
         private long reservedBytes; // guarded by mutex
 
-        private AccountingByteBufferAllocator(CircuitBreaker breaker) {
+        AccountingByteBufferAllocator(CircuitBreaker breaker) {
             this.breaker = breaker;
         }
 

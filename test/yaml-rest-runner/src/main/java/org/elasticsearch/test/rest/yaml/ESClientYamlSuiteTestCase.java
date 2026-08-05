@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -397,22 +398,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     // pkg private for tests
     static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
-        Set<Path> declaredFiles = new HashSet<>();
-        for (Set<Path> files : declared.values()) {
-            declaredFiles.addAll(files);
-        }
+        Set<Path> declaredFiles = declared.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
         Map<String, Set<Path>> result = new HashMap<>();
-        for (Entry<String, Set<Path>> entry : requested.entrySet()) {
-            Set<Path> keep = new HashSet<>();
-            for (Path file : entry.getValue()) {
-                if (declaredFiles.contains(file)) {
-                    keep.add(file);
-                }
+        requested.forEach((group, files) -> {
+            Set<Path> kept = files.stream().filter(declaredFiles::contains).collect(Collectors.toSet());
+            if (kept.isEmpty() == false) {
+                result.put(group, kept);
             }
-            if (keep.isEmpty() == false) {
-                result.put(entry.getKey(), keep);
-            }
-        }
+        });
         return result;
     }
 

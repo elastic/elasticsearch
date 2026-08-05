@@ -784,3 +784,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=synonyms/110_synonyms_invalid/Load index with an invalid synonym rule with lenient set to false}
   issue: https://github.com/elastic/elasticsearch/issues/155922
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/155958

@@ -12,6 +12,7 @@ package org.elasticsearch.http;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -86,12 +87,15 @@ public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryInt
 
         @Override
         public void writeResponse(HttpExchange exchange, HttpHandler delegateHandler) throws IOException {
-            if (responseBody != null) {
-                byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(status.getStatus(), responseBytes.length == 0 ? -1 : responseBytes.length);
-                exchange.getResponseBody().write(responseBytes);
-            } else {
-                exchange.sendResponseHeaders(status.getStatus(), -1);
+            try (exchange) {
+                Streams.readFully(exchange.getRequestBody());
+                if (responseBody != null) {
+                    byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(status.getStatus(), responseBytes.length == 0 ? -1 : responseBytes.length);
+                    exchange.getResponseBody().write(responseBytes);
+                } else {
+                    exchange.sendResponseHeaders(status.getStatus(), -1);
+                }
             }
         }
     }

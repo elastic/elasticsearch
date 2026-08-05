@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.AbstractWarmingTask;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
@@ -515,6 +514,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomFrom(IOContext.DEFAULT, BlobCacheIndexInput.WARMING),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 referencedCC -> {},
+                (blobFile, bccSize) -> {},
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
@@ -628,6 +628,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 IOContext.DEFAULT,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 referencedCC -> {},
+                (blobFile, bccSize) -> {},
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
@@ -787,7 +788,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     fakeNode.searchDirectory,
                     Map.of(
                         new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()),
-                        WarmTarget.withUnknownTimestamp(endOffset)
+                        SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(endOffset, vbcc.getTotalSizeInBytes())
                     ),
                     warmListener
                 );
@@ -975,7 +976,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes())),
+                Map.of(
+                    blobFile,
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes())
+                ),
                 warmListener
             );
             safeGet(warmListener);
@@ -1118,7 +1122,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFileA, WarmTarget.withUnknownTimestamp(blobSize), blobFileB, WarmTarget.withUnknownTimestamp(blobSize)),
+                Map.of(
+                    blobFileA,
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(blobSize, blobSize),
+                    blobFileB,
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(blobSize, blobSize)
+                ),
                 warmFuture
             );
             safeGet(warmFuture);
@@ -1956,7 +1965,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     /**
-     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the {@link WarmTarget}.
+     * Check that offline (recovery) warming stamps the live cache region with the per-blob timestamp supplied in the
+     * {@link SharedBlobCacheWarmingService.WarmTarget}.
      */
     public void testOfflineWarmingStampsRegions() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
@@ -2013,7 +2023,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(
                 indexShard,
                 fakeNode.searchDirectory,
-                Map.of(blobFile, new WarmTarget(vbcc.getTotalSizeInBytes(), knownTimestamp)),
+                Map.of(
+                    blobFile,
+                    new SharedBlobCacheWarmingService.WarmTarget(vbcc.getTotalSizeInBytes(), vbcc.getTotalSizeInBytes(), knownTimestamp)
+                ),
                 warmListener
             );
             safeGet(warmListener);
@@ -2027,6 +2040,135 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 captured,
                 everyItem(equalTo(knownTimestamp))
             );
+        }
+    }
+
+    public void testOfflineWarmingRecordsRatioMetric() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long cacheSizeBytes = ByteSizeValue.ofMb(9).getBytes();
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                recordingMeterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSizeBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .build();
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    );
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    // Always use the object-store reader so warming proceeds through the blob container (not the indexing path).
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobFile blobFile,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor,
+                            String fileName
+                        ) {
+                            return new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
+                                cacheService.getRangeSize(),
+                                objectStoreFetchExecutor
+                            );
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    // Serve synthetic bytes for any ranged read so the warming succeeds without a real blob in the object store.
+                    return FakeStatelessNode.syntheticBytesContainer(innerContainer);
+                }
+            }
+        ) {
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            record WarmTarget(BlobFile blobFile, long endOffset, long blobSize) {
+                double ratio() {
+                    return (double) endOffset / blobSize;
+                }
+            }
+            final int numBlobs = randomIntBetween(1, 3);
+            final List<WarmTarget> blobSpecs = new ArrayList<>(numBlobs);
+            for (int i = 0; i < numBlobs; i++) {
+                final long gen = i + 1L;
+                final long blobSize = randomLongBetween(1, 1024 * 1024);
+                final long warmEndOffset = randomLongBetween(1, blobSize);
+                blobSpecs.add(
+                    new WarmTarget(
+                        new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                        warmEndOffset,
+                        blobSize
+                    )
+                );
+            }
+
+            final Map<BlobFile, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
+            for (var spec : blobSpecs) {
+                warmTargets.put(
+                    spec.blobFile(),
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(spec.endOffset(), spec.blobSize())
+                );
+            }
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(indexShard, fakeNode.searchDirectory, warmTargets, warmListener);
+            safeGet(warmListener);
+
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_RATIO_METRIC);
+            assertThat(measurements, hasSize(numBlobs));
+
+            for (var blobSpec : blobSpecs) {
+                assertThat(
+                    measurements.stream()
+                        .filter(
+                            measurement -> Double.compare(measurement.getDouble(), blobSpec.ratio()) == 0
+                                && measurement.attributes()
+                                    .get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY)
+                                    .equals(StatelessCommitService.bccSizeBucket(blobSpec.blobSize()))
+                        )
+                        .count(),
+                    is(1L)
+                );
+            }
         }
     }
 

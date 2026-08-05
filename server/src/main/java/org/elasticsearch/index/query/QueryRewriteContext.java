@@ -22,10 +22,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -517,6 +519,40 @@ public class QueryRewriteContext {
             : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
+    }
+
+    /**
+     * Returns {@code true} if {@code name} is a concrete mapped field in this index — either an
+     * explicitly mapped field, a runtime field, or a dynamically-resolved sub-field of a
+     * {@link MetadataFieldMapper} — and is permitted by the {@link #allowedFields} predicate when set.
+     * <p>
+     *     Unlike {@link SearchExecutionContext#isFieldMapped}, this does <em>not</em>
+     *     include fields that are only dynamically resolved, such as sub-keys of
+     *     {@code flattened} fields. Those sub-keys are not visible to the coordinator
+     *     via field caps and using them in a block loader would cause element-type
+     *     mismatches at runtime. Sub-fields of {@link MetadataFieldMapper} instances
+     *     (e.g. {@code _project._alias}) are allowed because they are registered
+     *     metadata mappers and are reported by field caps.
+     * </p>
+     * <p>
+     *      This is <strong>mostly</strong> used by ESQL because it exposes flattened
+     *      sub-fields using its own machinery.
+     * </p>
+     */
+    public boolean isMappedField(String name) {
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return false;
+        }
+        if (mappingLookup.getFullNameToFieldType().containsKey(name) || runtimeMappings.containsKey(name)) {
+            return true;
+        }
+        int dotIndex = name.indexOf('.');
+        if (dotIndex > 0) {
+            return mappingLookup.getMapper(name.substring(0, dotIndex)) instanceof MetadataFieldMapper metaMapper
+                && metaMapper.fieldType() instanceof DynamicFieldType dft
+                && dft.getChildFieldType(name.substring(dotIndex + 1)) != null;
+        }
+        return false;
     }
 
     public ResolvedIndices getResolvedIndices() {

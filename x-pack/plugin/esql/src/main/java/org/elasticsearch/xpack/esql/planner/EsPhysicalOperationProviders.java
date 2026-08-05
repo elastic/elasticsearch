@@ -105,6 +105,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * need one in ten documents.
          */
         double storedFieldsSequentialProportion();
+
+        /**
+         * Returns {@code true} if {@code name} is a concrete mapped field in this shard's
+         * index — including index-level runtime fields and dynamically-resolved sub-fields of
+         * {@link org.elasticsearch.index.mapper.MetadataFieldMapper} instances, but excluding
+         * dynamically-resolved sub-keys of {@code flattened} fields. Those sub-keys appear in
+         * Lucene's field infos even though they are absent from the mapping, and counting them
+         * with an EXISTS query would inflate aggregation results when field types differ across
+         * indices.
+         */
+        boolean isMappedField(String name);
     }
 
     private final List<ShardContext> shardContexts;
@@ -188,6 +199,29 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return ctx -> List.of(new LuceneSliceQueue.QueryAndTags(shardContexts.get(ctx.index()).toQuery(qb), List.of()));
     }
 
+    /**
+     * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
+     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
+     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
+     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
+     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     */
+    public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
+        QueryBuilder builder,
+        String fieldName
+    ) {
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> innerFn = querySupplier(builder);
+        if ("*".equals(fieldName)) {
+            return innerFn;
+        }
+        return ctx -> {
+            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
+                return List.of();
+            }
+            return innerFn.apply(ctx);
+        };
+    }
+
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
@@ -247,10 +281,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents in the search index.
      */
-    public LuceneCountOperator.Factory countSource(LocalExecutionPlannerContext context, QueryBuilder queryBuilder, Expression limit) {
+    public LuceneCountOperator.Factory countSource(
+        LocalExecutionPlannerContext context,
+        QueryBuilder queryBuilder,
+        String fieldName,
+        Expression limit
+    ) {
         return new LuceneCountOperator.Factory(
             shardContexts,
-            querySupplier(queryBuilder),
+            querySupplierForField(queryBuilder, fieldName),
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
@@ -365,6 +404,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
             }
+            // Don't use fieldType() for the existence check — it resolves sub-keys of
+            // flattened fields dynamically, but those are not reported by field caps
+            // and would cause element_type mismatches at runtime.
+            if (isMappedField(name) == false) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
             MappedFieldType fieldType = ctx.getFieldType(name);
             if (fieldType == null) {
                 // the field does not exist in this context
@@ -417,6 +462,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        @Override
+        public boolean isMappedField(String name) {
+            return ctx.isMappedField(name);
         }
     }
 

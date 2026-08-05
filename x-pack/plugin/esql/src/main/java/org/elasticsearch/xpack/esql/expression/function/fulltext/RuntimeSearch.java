@@ -29,6 +29,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -222,7 +223,9 @@ public final class RuntimeSearch {
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            namedAnalyzer,
+            // The values of a multivalued position are indexed as one document, so give the analyzer the same
+            // position increment gap as an indexed text field, keeping phrases from matching across value boundaries.
+            new NamedAnalyzer(namedAnalyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP),
             luceneQuery,
             context -> new BytesRef()
         );
@@ -259,18 +262,20 @@ public final class RuntimeSearch {
         }
         final var valueCount = fieldBlock.getValueCount(position);
         final var startIndex = fieldBlock.getFirstValueIndex(position);
-
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            MemoryIndex index = new MemoryIndex();
-            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            index.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
-            IndexSearcher searcher = index.createSearcher();
-
-            TopDocs topDocs = searcher.search(query, 1);
-            if (topDocs.scoreDocs.length > 0) {
-                return true;
-            }
+        if (valueCount == 0) {
+            return false;
         }
-        return false;
+
+        // All values of the position form one document, like an indexed multivalued text field: query terms may
+        // match across values, while the analyzer's position increment gap keeps phrases within a single value.
+        MemoryIndex memoryIndex = new MemoryIndex();
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            memoryIndex.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
+        }
+        IndexSearcher searcher = memoryIndex.createSearcher();
+
+        TopDocs topDocs = searcher.search(query, 1);
+        return topDocs.scoreDocs.length > 0;
     }
 }

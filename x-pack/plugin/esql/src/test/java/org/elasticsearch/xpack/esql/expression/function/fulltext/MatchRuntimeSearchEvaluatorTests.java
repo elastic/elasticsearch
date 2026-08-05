@@ -291,6 +291,47 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
     }
 
     /**
+     * With {@code operator: AND}, query terms spread across the values of a multivalued position still match:
+     * as with an indexed multi-valued text field, all values belong to one document.
+     */
+    public void testTextWithOperatorAndMatchesAcrossValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick dog"), KEYWORD, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox")); // "quick" here...
+                builder.appendBytesRef(new BytesRef("lazy dog"));  // ..."dog" here: together they satisfy the AND
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox")); // "quick" but no value has "dog"
+                builder.appendBytesRef(new BytesRef("lazy cat"));
+                builder.endPositionEntry();
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * {@code minimum_should_match} counts matched terms across all values of a multivalued position.
+     */
+    public void testTextWithMinimumShouldMatchAcrossValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick lazy fox"), KEYWORD, mapOptions("minimum_should_match", "2")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick cat")); // "quick" = 1
+                builder.appendBytesRef(new BytesRef("a lazy dog"));    // + "lazy" = 2
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick cat")); // only "quick" = 1
+                builder.appendBytesRef(new BytesRef("a brown dog"));
+                builder.endPositionEntry();
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
      * {@code zero_terms_query: none} returns no results when the query analyzes to zero tokens (the default).
      */
     public void testTextWithZeroTermsQueryNoneMatchesNothing() {

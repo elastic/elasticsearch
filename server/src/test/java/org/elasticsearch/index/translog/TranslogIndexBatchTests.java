@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -31,12 +32,14 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +75,10 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     private Translog create(Path path) throws IOException {
+        return create(path, (d, s, l) -> {});
+    }
+
+    private Translog create(Path path, OperationListener operationListener) throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.index.IndexVersion.current())
             .build();
@@ -83,7 +90,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             ByteSizeValue.ofBytes(8 * 1024),
             DiskIoBufferPool.INSTANCE,
-            (d, s, l) -> {},
+            operationListener,
             true
         );
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
@@ -230,6 +237,60 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 assertEquals(xContentType, XContentHelper.xContentType(idx.source()));
             }
             assertNull(snapshot.next());
+        }
+    }
+
+    public void testAddBatchNotifiesOperationListener() throws IOException {
+        final List<Long> singleOpSeqNos = new ArrayList<>();
+        final List<List<Long>> batchSeqNos = new ArrayList<>();
+        final List<Translog.Location> batchLocations = new ArrayList<>();
+        final List<BytesReference> batchRecords = new ArrayList<>();
+        final OperationListener listener = new OperationListener() {
+            @Override
+            public void operationAdded(Translog.Serialized operation, long seqNo, Translog.Location location) {
+                singleOpSeqNos.add(seqNo);
+            }
+
+            @Override
+            public void batchAdded(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) {
+                batchSeqNos.add(seqNos);
+                batchLocations.add(location);
+                try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                    operation.writeToTranslogBuffer(output);
+                    batchRecords.add(output.bytes());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
+
+        final Path dir = createTempDir();
+        final long term = primaryTerm.get();
+        try (Translog listeningTranslog = create(dir, listener)) {
+            final Translog.Index solo = new Translog.Index(Uid.encodeId("solo"), 0, term, 1L, new BytesArray("{\"k\":\"v\"}"), null, -1L);
+            listeningTranslog.add(solo);
+
+            final List<BytesReference> sources = List.of(
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v1"))),
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v2")))
+            );
+            final List<Translog.IndexBatch.Op> ops = List.of(
+                new Translog.IndexBatch.IndexOp(1L, 1L, 100L, 0, XContentType.JSON, Uid.encodeId("doc-0"), null),
+                new Translog.IndexBatch.IndexOp(1L, 2L, 101L, 1, XContentType.JSON, Uid.encodeId("doc-1"), null),
+                new Translog.IndexBatch.NoOpOp(3L, "test failure")
+            );
+            final Translog.IndexBatch batch = buildEscfBatch(sources, XContentType.JSON, term, ops);
+            final Translog.Location location = listeningTranslog.add(batch);
+
+            assertEquals(List.of(0L), singleOpSeqNos);
+            assertEquals(List.of(List.of(1L, 2L, 3L)), batchSeqNos);
+            assertEquals(List.of(location), batchLocations);
+
+            // The listener received the full framed record: it must round-trip through readRecord to an equal batch.
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(batchRecords.get(0).streamInput(), "test")) {
+                final Translog.Record record = Translog.readRecord(in);
+                assertEquals(batch, record);
+            }
         }
     }
 

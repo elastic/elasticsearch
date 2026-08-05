@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.translog;
 
+import java.util.List;
+
 @FunctionalInterface
 public interface OperationListener {
 
@@ -20,4 +22,11 @@ public interface OperationListener {
      * @param location the location written
      */
     void operationAdded(Translog.Serialized operation, long seqNo, Translog.Location location);
+
+    /**
+     * This method is called when a {@link Translog.IndexBatch} record is added to the translog.
+     * The default implementation is a no-op so that non-batch-aware listeners ({@link TranslogConfig#NOOP_OPERATION_LISTENER})
+     * are unaffected; batch-aware listeners override it to observe every operation in the batch.
+     */
+    default void batchAdded(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) {}
 }

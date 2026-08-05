@@ -34,8 +34,14 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** {@link org.apache.lucene.index.FieldInfo} attribute naming a field's {@link ColumnarFieldType}. The mapper sets it. */
     public static final String TYPE_ATTRIBUTE = "columnar.type";
 
-    /** Smallest allowed block size; also the default. Must be a power of 2. */
+    /** Smallest allowed block size. Must be a power of 2. */
     public static final int MIN_BLOCK_SIZE = 128;
+
+    /** Largest allowed block size. Caps O(blockSize) per-field allocations in the encoder. */
+    public static final int MAX_BLOCK_SIZE = 8192;
+
+    /** Default block size used when none is specified. */
+    public static final int DEFAULT_BLOCK_SIZE = MIN_BLOCK_SIZE;
 
     static final String DATA_CODEC = "ColumNARNumericData";
     static final String DATA_EXTENSION = "cnvd";
@@ -48,14 +54,16 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /**
      * Constructs the format with a custom per-field pipeline selector and an explicit block size.
      * The block size controls how many values are grouped into each encoded block; it must be a
-     * power of 2 and at least {@value #MIN_BLOCK_SIZE}.
+     * power of 2 between {@value #MIN_BLOCK_SIZE} and {@value #MAX_BLOCK_SIZE} inclusive.
      *
-     * @throws IllegalArgumentException if {@code blockSize} is not a power of 2 >= {@value #MIN_BLOCK_SIZE}
+     * @throws IllegalArgumentException if {@code blockSize} is not a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}]
      */
     public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector, int blockSize) {
         super(ColumnarFormat.NAME);
-        if (blockSize < MIN_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
-            throw new IllegalArgumentException("blockSize must be a power of 2 >= " + MIN_BLOCK_SIZE + ", got: " + blockSize);
+        if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
+            throw new IllegalArgumentException(
+                "blockSize must be a power of 2 in [" + MIN_BLOCK_SIZE + ", " + MAX_BLOCK_SIZE + "], got: " + blockSize
+            );
         }
         this.pipelineSelector = pipelineSelector;
         this.blockSize = blockSize;
@@ -63,7 +71,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
 
     /** Constructs the format with a custom per-field pipeline selector and the default block size. */
     public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector) {
-        this(pipelineSelector, MIN_BLOCK_SIZE);
+        this(pipelineSelector, DEFAULT_BLOCK_SIZE);
     }
 
     /** SPI constructor. Uses the default pipeline for every field. */

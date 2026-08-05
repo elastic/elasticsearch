@@ -607,3 +607,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/155980
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/156004

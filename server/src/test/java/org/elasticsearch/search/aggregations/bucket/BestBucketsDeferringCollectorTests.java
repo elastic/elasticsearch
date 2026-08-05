@@ -111,15 +111,14 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCrankyBreakerNeverLeaksOnCompletion() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            AtomicLong used = new AtomicLong();
-            LongConsumer cranky = bytes -> {
-                if (bytes > 0 && random().nextInt(20) == 0) {
-                    throw new CircuitBreakingException("cranky breaker", CircuitBreaker.Durability.TRANSIENT);
-                }
-                used.addAndGet(bytes);
-            };
+        AtomicLong used = new AtomicLong();
+        LongConsumer cranky = bytes -> {
+            if (bytes > 0 && random().nextInt(20) == 0) {
+                throw new CircuitBreakingException("cranky breaker", CircuitBreaker.Durability.TRANSIENT);
+            }
+            used.addAndGet(bytes);
+        };
+        withSearcher(searcher -> {
             BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, cranky);
             dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
             try {
@@ -136,7 +135,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             } catch (CircuitBreakingException e) {
                 assertThat(e.getMessage(), equalTo("cranky breaker"));
             }
-        }
+        }, 5, 5);
     }
 
     public void testCircuitBreakerChargesOneEventPerSegmentAndReleasesSymmetrically() throws IOException {
@@ -200,8 +199,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCircuitBreakerTripDuringFinishLeaf() throws IOException {
-        try (Directory dir = buildIndex(10); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
+        withSearcher(searcher -> {
             BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, bytes -> {
                 if (bytes > 0) {
                     throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
@@ -211,7 +209,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> delegate));
             expectThrows(CircuitBreakingException.class, dc::postCollection);
-        }
+        }, 10);
     }
 
     public void testCircuitBreakerNoChargeForSegmentWithNoMatchingDocs() throws IOException {
@@ -477,6 +475,19 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     @FunctionalInterface
     private interface BreakerTest {
         void run(IndexSearcher searcher, BestBucketsDeferringCollector dc, List<Long> events) throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface SearcherTest {
+        void run(IndexSearcher searcher) throws IOException;
+    }
+
+    /** Opens an index, creates a searcher, and passes it to {@code body}; segments default to one of 5 docs. */
+    private void withSearcher(SearcherTest body, int... docsPerSegment) throws IOException {
+        int[] segments = docsPerSegment.length == 0 ? new int[] { 5 } : docsPerSegment;
+        try (Directory dir = buildIndex(segments); IndexReader reader = DirectoryReader.open(dir)) {
+            body.run(newSearcher(reader));
+        }
     }
 
     /** Runs {@code body} with a two-segment index (5 docs each) and a fresh event-recording collector. */

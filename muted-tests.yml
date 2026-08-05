@@ -595,3 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
   method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
   issue: https://github.com/elastic/elasticsearch/issues/155887
+- class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
+  method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
+  issue: https://github.com/elastic/elasticsearch/issues/155916

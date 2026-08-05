@@ -37,9 +37,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -53,6 +56,24 @@ import static org.hamcrest.Matchers.instanceOf;
 public class JsonExtractStaticTests extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
+     * sink rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning} ThreadContext, since
+     * production consumes the sink at the response chokepoint. Identical strings are collapsed into a set to
+     * match the de-duplication that {@code HeaderWarning#addWarning} performs there.
+     */
+    private void assertDriverWarnings(String... expected) {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext ctx : driverContexts) {
+            if (ctx.isFinished() == false) {
+                ctx.finish();
+            }
+            collected.addAll(ctx.warnings());
+        }
+        assertThat(collected, containsInAnyOrder(expected));
+    }
 
     // --- Evaluator routing ---
 
@@ -98,7 +119,7 @@ public class JsonExtractStaticTests extends ESTestCase {
         try (var eval = factory.get(driverContext()); Block block = eval.eval(row(Collections.singletonList(null)))) {
             assertThat(block.isNull(0), equalTo(true));
         }
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: evaluation of [json_extract] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalStateException: " + NULL_SOURCE_EXPECTED_MESSAGE
         );
@@ -112,7 +133,7 @@ public class JsonExtractStaticTests extends ESTestCase {
         try (var eval = factory.get(driverContext()); Block block = eval.eval(row(Arrays.asList(null, new BytesRef("name"))))) {
             assertThat(block.isNull(0), equalTo(true));
         }
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: evaluation of [json_extract] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalStateException: " + NULL_SOURCE_EXPECTED_MESSAGE
         );
@@ -341,7 +362,9 @@ public class JsonExtractStaticTests extends ESTestCase {
     private DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        driverContexts.add(driverContext);
+        return driverContext;
     }
 
     @After

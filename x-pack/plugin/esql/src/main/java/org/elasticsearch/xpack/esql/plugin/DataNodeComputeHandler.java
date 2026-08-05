@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -795,7 +796,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-        ActionListener<DataNodeComputeResponse> listener = new ChannelActionListener<>(channel);
+        ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
+        final ActionListener<DataNodeComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {

@@ -71,6 +71,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,6 +89,7 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.getFirstParametersIndexForSignature;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -950,8 +953,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(result, testCase.getMatcher());
 
         if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
+            assertExpectedWarnings(testCase.getExpectedWarnings());
         }
+    }
+
+    /**
+     * Asserts that the union of the per-driver warnings sinks (raw evaluation warnings) and the ambient
+     * response-header ThreadContext (fold/build warnings surfaced during planning) equals {@code expectedWarnings}.
+     * Direct expression evaluation accumulates warnings into each {@link DriverContext}'s sink (production consumes
+     * it once at the response chokepoint), whereas folding intermediate results still routes through the
+     * ThreadContext. This consumes both channels so the per-driver leak-check and
+     * {@link org.elasticsearch.test.ESTestCase#ensureNoWarnings()} both see them as asserted.
+     */
+    private void assertExpectedWarnings(String... expectedWarnings) {
+        Set<String> expected = new LinkedHashSet<>(Arrays.asList(expectedWarnings));
+        // Direct expression evaluation accumulates warnings into each DriverContext's per-driver sink; folding of
+        // intermediate results (e.g. aggregation surrogates) still routes through the ambient response-header
+        // ThreadContext. A warning can appear in either or both channels, so assert on their de-duplicated union and
+        // consume both so the per-driver leak-check and ensureNoWarnings each see them as asserted.
+        Set<String> actual = new LinkedHashSet<>(consumeDriverWarnings());
+        actual.addAll(takeResponseWarnings());
+        assertThat(actual, equalTo(expected));
     }
 
     private static Class<?> classGeneratingSignatures = null;
@@ -1085,8 +1107,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
+    /**
+     * Every {@link DriverContext} this harness vends, tracked so evaluation warnings can be read from each
+     * context's per-driver sink and so {@link #ensureNoUnassertedWarnings()} can prove that no test silently
+     * drops warnings.
+     */
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Contexts whose per-driver warnings have already been asserted (consumed), and are therefore exempt from the
+     * empty-sink leak-check.
+     */
+    private final Set<DriverContext> assertedWarnings = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
     protected final DriverContext driverContext() {
-        return driverContext(breakers);
+        return registerDriverContext(driverContext(breakers));
     }
 
     public static DriverContext driverContext(List<CircuitBreaker> breakers) {
@@ -1099,13 +1134,69 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
             .withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        return registerDriverContext(new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null));
+    }
+
+    private DriverContext registerDriverContext(DriverContext driverContext) {
+        driverContexts.add(driverContext);
+        return driverContext;
+    }
+
+    /**
+     * Finishes and consumes every not-yet-asserted {@link DriverContext} this test built, returning the distinct
+     * set of warnings accumulated across their per-driver sinks. Consuming exempts them from
+     * {@link #ensureNoUnassertedWarnings()}. The sink holds the raw, fully-formatted warning strings, so callers
+     * compare against the raw expected strings (no escape/encode).
+     */
+    /**
+     * Drains and consumes the per-driver warnings sinks for auxiliary test methods (e.g. concurrent evaluation)
+     * that legitimately produce warnings but do not assert their exact content. Any produced warning must still be
+     * one of the test case's expected warnings, and consuming exempts the contexts from the leak-check.
+     */
+    protected final void consumeAndAssertExpectedDriverWarnings() {
+        Set<String> expected = testCase.getExpectedWarnings() == null
+            ? Set.of()
+            : new LinkedHashSet<>(Arrays.asList(testCase.getExpectedWarnings()));
+        Set<String> produced = consumeDriverWarnings();
+        assertThat("per-driver sink produced warnings that were not expected", expected.containsAll(produced), equalTo(true));
+    }
+
+    private Set<String> consumeDriverWarnings() {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext driverContext : driverContexts) {
+            if (assertedWarnings.add(driverContext) == false) {
+                continue;
+            }
+            if (driverContext.isFinished() == false) {
+                driverContext.finish();
+            }
+            collected.addAll(driverContext.warnings());
+        }
+        return collected;
     }
 
     @After
     public void allMemoryReleased() {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Leak-check counterpart of {@link org.elasticsearch.test.ESTestCase#ensureNoWarnings()} for the per-driver
+     * warnings sink: every {@link DriverContext} this harness handed out must end with an empty sink unless the
+     * test asserted (consumed) its warnings via {@link #consumeDriverWarnings()}.
+     */
+    @After
+    public void ensureNoUnassertedWarnings() {
+        for (DriverContext driverContext : driverContexts) {
+            if (assertedWarnings.contains(driverContext)) {
+                continue;
+            }
+            if (driverContext.isFinished() == false) {
+                driverContext.finish();
+            }
+            assertThat("un-asserted per-driver warnings", driverContext.warnings(), empty());
         }
     }
 

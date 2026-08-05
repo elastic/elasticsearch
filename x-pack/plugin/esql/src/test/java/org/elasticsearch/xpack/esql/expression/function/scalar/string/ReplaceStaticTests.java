@@ -32,10 +32,13 @@ import org.junit.After;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -67,7 +70,7 @@ public class ReplaceStaticTests extends ESTestCase {
 
         String result = process(textAndNewStr, regex, textAndNewStr);
         assertNull(result);
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: "
                 + "Creating strings with more than ["
@@ -88,7 +91,7 @@ public class ReplaceStaticTests extends ESTestCase {
 
         String result = process(text, regex, newStr);
         assertNull(result);
-        assertWarnings(
+        assertDriverWarnings(
             "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: "
                 + "Creating strings with more than ["
@@ -298,6 +301,23 @@ public class ReplaceStaticTests extends ESTestCase {
      * The following fields and methods were borrowed from AbstractScalarFunctionTestCase
      */
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
+     * sink (the raw, fully-formatted strings) rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning}
+     * ThreadContext, since production consumes the sink at the response chokepoint.
+     */
+    private void assertDriverWarnings(String... expected) {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext ctx : driverContexts) {
+            if (ctx.isFinished() == false) {
+                ctx.finish();
+            }
+            collected.addAll(ctx.warnings());
+        }
+        assertThat(collected, containsInAnyOrder(expected));
+    }
 
     private static Page row(List<Object> values) {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
@@ -310,7 +330,9 @@ public class ReplaceStaticTests extends ESTestCase {
     private DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        driverContexts.add(driverContext);
+        return driverContext;
     }
 
     @After

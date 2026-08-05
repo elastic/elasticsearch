@@ -230,15 +230,29 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Build the response.
+     *
+     * @param warnings warnings accumulated into the lookup {@link DriverContext}'s per-driver sink; they must be
+     *                 carried back to the requesting node so they can reach the response chokepoint, rather than
+     *                 being dropped with the (possibly remote) lookup driver.
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory, long bytesRead);
+    protected abstract LookupResponse createLookupResponse(
+        List<Page> resultPages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        List<String> warnings
+    );
 
     /**
      * Helper to create a LookupResponse from pages and send it to the listener.
      * The response is released after sending via {@link ActionListener#respondAndRelease}.
      */
-    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages, long bytesRead) {
-        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead));
+    protected final void respondWithPages(
+        ActionListener<LookupResponse> listener,
+        List<Page> pages,
+        long bytesRead,
+        List<String> warnings
+    ) {
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead, warnings));
     }
 
     /**
@@ -349,7 +363,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                respondWithPages(listener, nullResponse, 0L);
+                respondWithPages(listener, nullResponse, 0L, List.of());
                 return;
             }
         }
@@ -486,12 +500,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    long driverBytesRead = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L).bytesRead();
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    respondWithPages(listener, out, driverBytesRead);
+                    respondWithPages(listener, out, completionInfo.bytesRead(), completionInfo.warnings());
                 }
 
                 @Override
@@ -785,6 +799,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         protected abstract List<Page> takePages();
 
         public abstract long bytesRead();
+
+        /**
+         * Warnings accumulated by the lookup driver, to be replayed into the requesting driver's per-driver sink so
+         * they reach the response chokepoint. Never {@code null}.
+         */
+        public abstract List<String> warnings();
 
         /**
          * Returns the plan string for profile output, or null if not available.

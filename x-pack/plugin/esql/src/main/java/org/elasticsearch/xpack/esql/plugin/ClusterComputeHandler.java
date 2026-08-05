@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -222,7 +223,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     @Override
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-        ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+        ChannelActionListener<ComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // An old querying cluster receives warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Replay the merged warnings here — before the channel serialises its ThreadContext — so they ride
+        // the legacy channel back to the old cluster.
+        final ActionListener<ComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.getCompletionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {

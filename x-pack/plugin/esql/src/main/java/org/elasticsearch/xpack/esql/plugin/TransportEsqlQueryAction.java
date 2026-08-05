@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
@@ -566,6 +567,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             if (result.executionInfo() != null) {
                 result.executionInfo().markPartial();
             }
+        }
+        // Warnings are accumulated per driver into each DriverContext's sink, shipped back with the completion info,
+        // and emitted here — the single Result->response chokepoint — so every execution path (coordinator-only,
+        // distributed, subplan/fork) surfaces them uniformly and independently of which worker thread produced them.
+        // HeaderWarning deduplicates identical strings, collapsing any residual cross-driver duplicates.
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;

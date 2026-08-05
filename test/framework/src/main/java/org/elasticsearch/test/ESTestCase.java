@@ -741,6 +741,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
+    /**
+     * Reads and clears the deprecation warnings currently recorded on the thread context, returning the raw warning
+     * messages. Like {@link #assertWarnings}, this consumes the warnings so a subsequent {@link #ensureNoWarnings()}
+     * passes; it exists for tests that must combine ThreadContext warnings with warnings captured through another
+     * channel before asserting on the union.
+     */
+    protected final List<String> takeResponseWarnings() {
+        return getActualWarningStrings(true);
+    }
+
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove
     public static final String LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING =
         "A settings update to logger levels overrides child loggers with explicitly configured levels."

@@ -33,9 +33,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT.registerModel;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
@@ -58,27 +56,24 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
             @Override
             String getMapping() {
                 return Strings.format("""
-            {
-                "properties": {
-                    "sparse_field": {
-                        "type": "semantic_text",
-                        "inference_id": "%s"
-                    },
-                    "dense_field": {
-                        "type": "semantic_text",
-                        "inference_id": "%s"
+                    {
+                        "properties": {
+                            "sparse_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            },
+                            "dense_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            }
+                        }
                     }
-                }
-            }
-            """, SPARSE_INFERENCE_ID, DENSE_INFERENCE_ID);
+                    """, SPARSE_INFERENCE_ID, DENSE_INFERENCE_ID);
             }
 
             @Override
             Map<String, Object> sampleSource() {
-                return Map.of(
-                    "sparse_field", randomSemanticTextInput(),
-                    "dense_field", randomSemanticTextInput()
-                );
+                return Map.of("sparse_field", randomSemanticTextInput(), "dense_field", randomSemanticTextInput());
             }
 
             @Override
@@ -93,15 +88,15 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
             @Override
             String getMapping() {
                 return Strings.format("""
-            {
-                "properties": {
-                    "semantic_field": {
-                        "type": "semantic",
-                        "inference_id": "%s"
+                    {
+                        "properties": {
+                            "semantic_field": {
+                                "type": "semantic",
+                                "inference_id": "%s"
+                            }
+                        }
                     }
-                }
-            }
-            """, EMBEDDING_INFERENCE_ID);
+                    """, EMBEDDING_INFERENCE_ID);
             }
 
             @Override
@@ -118,7 +113,9 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         };
 
         abstract String getMapping();
+
         abstract Map<String, Object> sampleSource();
+
         abstract Map<String, Object> nullSource();
     }
 
@@ -129,8 +126,11 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { SemanticFieldType.SEMANTIC_TEXT, true }, new Object[] { SemanticFieldType.SEMANTIC_TEXT, false },
-            new Object[] { SemanticFieldType.SEMANTIC, false });
+        return List.of(
+            new Object[] { SemanticFieldType.SEMANTIC_TEXT, true },
+            new Object[] { SemanticFieldType.SEMANTIC_TEXT, false },
+            new Object[] { SemanticFieldType.SEMANTIC, false }
+        );
     }
 
     @Before
@@ -178,8 +178,11 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         int totalBulkReqs = randomIntBetween(2, 100);
         for (int i = 0; i < totalBulkReqs; i++) {
-            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME)
-                .setId(Long.toString(i)).setSource(fieldTypeTestParameter.sampleSource()));
+            bulkRequest.add(
+                new IndexRequestBuilder(client()).setIndex(INDEX_NAME)
+                    .setId(Long.toString(i))
+                    .setSource(fieldTypeTestParameter.sampleSource())
+            );
         }
 
         BulkResponse bulkResponse = bulkRequest.get();
@@ -199,8 +202,11 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         int totalBulkReqs = randomIntBetween(2, 100);
         for (int i = 0; i < totalBulkReqs; i++) {
-            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i))
-                .setSource(fieldTypeTestParameter.nullSource()));
+            bulkRequest.add(
+                new IndexRequestBuilder(client()).setIndex(INDEX_NAME)
+                    .setId(Long.toString(i))
+                    .setSource(fieldTypeTestParameter.nullSource())
+            );
         }
 
         BulkResponse bulkResponse = bulkRequest.get();

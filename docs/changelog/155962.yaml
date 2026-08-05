@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 155962
+summary: Fix `ClusterDisruptionIT` `testAckedIndexing`
+type: bug

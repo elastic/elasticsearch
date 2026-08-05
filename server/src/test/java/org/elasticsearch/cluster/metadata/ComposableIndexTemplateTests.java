@@ -221,6 +221,33 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
     }
 
+    public void testIsManaged() {
+        // _meta absent -> not managed
+        ComposableIndexTemplate noMeta = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(noMeta.isManaged(), equalTo(false));
+
+        // _meta present but without "managed" key -> not managed
+        ComposableIndexTemplate metaNoManaged = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .metadata(Map.of("description", "some template"))
+            .build();
+        assertThat(metaNoManaged.isManaged(), equalTo(false));
+
+        // _meta.managed = false -> not managed
+        ComposableIndexTemplate managedFalse = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .metadata(Map.of(ComposableIndexTemplate.MANAGED_META_KEY, false))
+            .build();
+        assertThat(managedFalse.isManaged(), equalTo(false));
+
+        // _meta.managed = true -> managed
+        ComposableIndexTemplate managedTrue = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .metadata(Map.of(ComposableIndexTemplate.MANAGED_META_KEY, true))
+            .build();
+        assertThat(managedTrue.isManaged(), equalTo(true));
+    }
+
     public void testComponentTemplatesEquals() {
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, null), equalTo(true));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, List.of()), equalTo(true));

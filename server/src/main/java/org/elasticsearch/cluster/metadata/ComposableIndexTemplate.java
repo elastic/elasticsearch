@@ -60,6 +60,17 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    /**
+     * The key within {@code _meta} that marks a template as managed by an {@code IndexTemplateRegistry}
+     * implementation (e.g. the stack, APM, Fleet, or OTel template registries). This is a hint used by
+     * Kibana and by index-setting providers to identify internally owned templates.
+     *
+     * <p>It is not a trust boundary: {@code _meta} is free-form, so any user-supplied template can also
+     * set this key. Use it only to relax product guardrails, never as a security or correctness control.
+     *
+     * @see #isManaged()
+     */
+    public static final String MANAGED_META_KEY = "managed";
     private static final ParseField CREATED_DATE_MILLIS = new ParseField("created_date_millis");
     private static final ParseField CREATED_DATE = new ParseField("created_date");
     private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
@@ -266,6 +277,19 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
     public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
+    }
+
+    /**
+     * Returns {@code true} when this template has {@code "_meta": {"managed": true}}, the convention used by
+     * {@code IndexTemplateRegistry} implementations to declare that they own and manage the template.
+     *
+     * <p>This is a hint, not a trust boundary: {@code _meta} is an untyped map and any user-supplied template
+     * can set this key. Use it only to relax product guardrails (e.g. allowing a managed template to pin a
+     * non-default index mode on a project type that would otherwise forbid it), never as a security or
+     * correctness control.
+     */
+    public boolean isManaged() {
+        return metadata != null && Boolean.TRUE.equals(metadata.get(MANAGED_META_KEY));
     }
 
     public Optional<Long> createdDateMillis() {

@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -75,9 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -663,9 +662,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (failIfAlreadyExists) {
             throw new UnsupportedOperationException("GCS XML API multipart upload does not support failIfAlreadyExists");
         }
-        final long partSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
-        final int nbParts = Math.toIntExact((blobSize + partSize - 1) / partSize);
-        final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
+        final long chunkSize = LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
 
         final StorageClass storageClass = resolveStorageClass(purpose);
         final var createRequestBuilder = CreateMultipartUploadRequest.builder().bucket(bucketName).key(blobName);
@@ -677,61 +675,19 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         boolean succeeded = false;
         try {
             final CompletedPart[] completedParts = new CompletedPart[nbParts];
-            final AtomicInteger nextPart = new AtomicInteger(1);
-            final CountDownLatch latch = new CountDownLatch(nbParts);
-            final AtomicReference<Throwable> firstError = new AtomicReference<>();
-
-            final Runnable worker = () -> {
-                int partNum;
-                while ((partNum = nextPart.getAndIncrement()) <= nbParts) {
-                    if (firstError.get() == null) {
-                        final boolean lastPart = partNum == nbParts;
-                        final long curPartSize = lastPart ? lastPartSize : partSize;
-                        final long offset = (long) (partNum - 1) * partSize;
-                        try {
-                            final var partRequest = UploadPartRequest.builder()
-                                .bucket(bucketName)
-                                .key(blobName)
-                                .uploadId(uploadId)
-                                .partNumber(partNum)
-                                .build();
-                            try (var stream = provider.apply(offset, curPartSize)) {
-                                final byte[] partBytes = stream.readNBytes(Math.toIntExact(curPartSize));
-                                final var partResponse = client().meteredUploadPart(
-                                    purpose,
-                                    partRequest,
-                                    RequestBody.of(ByteBuffer.wrap(partBytes))
-                                );
-                                completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(partResponse.eTag()).build();
-                            }
-                        } catch (Throwable t) {
-                            firstError.compareAndSet(null, t);
-                        }
-                    }
-                    latch.countDown();
+            ConcurrentMultipartHelper.runConcurrentParts(blobSize, chunkSize, executor, (partNum, offset, partSize, lastPart) -> {
+                final var partRequest = UploadPartRequest.builder()
+                    .bucket(bucketName)
+                    .key(blobName)
+                    .uploadId(uploadId)
+                    .partNumber(partNum)
+                    .build();
+                try (var stream = provider.apply(offset, partSize)) {
+                    final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
+                    final var partResponse = client().meteredUploadPart(purpose, partRequest, RequestBody.of(ByteBuffer.wrap(partBytes)));
+                    completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(partResponse.eTag()).build();
                 }
-            };
-
-            for (int i = 0; i < nbParts - 1; i++) {
-                try {
-                    executor.execute(worker);
-                } catch (Exception e) {
-                    // ignore rejections, the calling thread will process unclaimed parts
-                }
-            }
-            worker.run();
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                firstError.compareAndSet(null, e);
-            }
-
-            final Throwable error = firstError.get();
-            if (error != null) {
-                throw new IOException("Failed to upload parts for [" + blobName + "]", error);
-            }
+            });
 
             client().meteredCompleteMultipartUpload(
                 purpose,

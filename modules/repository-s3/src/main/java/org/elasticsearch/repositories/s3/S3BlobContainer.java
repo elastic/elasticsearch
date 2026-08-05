@@ -51,6 +51,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -84,11 +85,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -363,10 +361,8 @@ class S3BlobContainer extends AbstractBlobContainer {
             return;
         }
         ensureMultiPartUploadSize(blobSize);
-        final long partSize = blobStore.bufferSizeInBytes();
-        final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
-        final int nbParts = multiparts.v1().intValue();
-        final long lastPartSize = multiparts.v2();
+        final long chunkSize = blobStore.bufferSizeInBytes();
+        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
         boolean succeeded = false;
         final String uploadId;
         try (var clientReference = blobStore.clientReference()) {
@@ -379,64 +375,22 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
         try {
             final CompletedPart[] completedParts = new CompletedPart[nbParts];
-            final AtomicInteger nextPart = new AtomicInteger(1);
-            final CountDownLatch latch = new CountDownLatch(nbParts);
-            final AtomicReference<Throwable> firstError = new AtomicReference<>();
-
-            final Runnable worker = () -> {
-                int partNum;
-                while ((partNum = nextPart.getAndIncrement()) <= nbParts) {
-                    if (firstError.get() == null) {
-                        final boolean lastPart = (partNum == nbParts);
-                        final long curPartSize = lastPart ? lastPartSize : partSize;
-                        final long offset = (long) (partNum - 1) * partSize;
-                        try {
-                            final UploadPartRequest uploadRequest = createPartUploadRequest(
-                                purpose,
-                                uploadId,
-                                partNum,
-                                absoluteBlobKey,
-                                curPartSize,
-                                lastPart
-                            );
-                            final InputStream stream = provider.apply(offset, curPartSize);
-                            try (stream; var clientReference = blobStore.clientReference()) {
-                                final UploadPartResponse uploadResponse = clientReference.client()
-                                    .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, curPartSize));
-                                completedParts[partNum - 1] = CompletedPart.builder()
-                                    .partNumber(partNum)
-                                    .eTag(uploadResponse.eTag())
-                                    .build();
-                            }
-                        } catch (Throwable t) {
-                            firstError.compareAndSet(null, t);
-                        }
-                    }
-                    latch.countDown();
+            ConcurrentMultipartHelper.runConcurrentParts(blobSize, chunkSize, executor, (partNum, offset, partSize, lastPart) -> {
+                final UploadPartRequest uploadRequest = createPartUploadRequest(
+                    purpose,
+                    uploadId,
+                    partNum,
+                    absoluteBlobKey,
+                    partSize,
+                    lastPart
+                );
+                final InputStream stream = provider.apply(offset, partSize);
+                try (stream; var clientReference = blobStore.clientReference()) {
+                    final UploadPartResponse uploadResponse = clientReference.client()
+                        .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, partSize));
+                    completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
                 }
-            };
-
-            for (int i = 0; i < nbParts - 1; i++) {
-                try {
-                    executor.execute(worker);
-                } catch (Exception e) {
-                    // We ignore exceptions since the calling thread will process unclaimed tasks
-                }
-            }
-            // Calling thread also processes tasks
-            worker.run();
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                firstError.compareAndSet(null, e);
-            }
-
-            final Throwable error = firstError.get();
-            if (error != null) {
-                throw new IOException("Failed to upload parts for [" + blobName + "]", error);
-            }
+            });
 
             final var completeRequestBuilder = CompleteMultipartUploadRequest.builder()
                 .bucket(blobStore.bucket())

@@ -27,6 +27,26 @@ import java.lang.annotation.Target;
  *
  * <p>When a field has both a getter and a setter, {@code @Offset} must be placed on the
  * first-declared accessor; placing it on the second accessor is a compile error.
+ *
+ * <p>Example — placing each field of a sparse struct at its ABI offset:
+ *
+ * <pre>{@code
+ * @StructSpecification(sparse = true)
+ * @StructSize(144)
+ * interface Stat64 {
+ *     @Offset(48) long stSize();   void stSize(long v);
+ *     @Offset(56) long stBlocks(); void stBlocks(long v);
+ * }
+ * }</pre>
+ *
+ * <p>Example — a field at a different offset per platform (the bare {@code @Offset(96)} is the
+ * fallback for platforms without a specific entry):
+ *
+ * <pre>{@code
+ * @Offset(value = 48, platforms = { Platform.LINUX_X64, Platform.LINUX_AARCH64 })
+ * @Offset(96)
+ * long stSize();
+ * }</pre>
  */
 @Target({ ElementType.METHOD, ElementType.RECORD_COMPONENT })
 @Retention(RetentionPolicy.SOURCE)

@@ -25,6 +25,23 @@ import java.lang.annotation.Target;
  * the fallback for any platform without a specific entry. Every supported platform must resolve to
  * exactly one value; overlapping coverage and more than one platform-independent {@code @StructSize}
  * are compile errors.
+ *
+ * <p>Example — a sparse struct that is 144 bytes on every platform:
+ *
+ * <pre>{@code
+ * @StructSpecification(sparse = true)
+ * @StructSize(144)
+ * interface Stat64 {
+ *     @Offset(48) long stSize(); void stSize(long v);
+ * }
+ * }</pre>
+ *
+ * <p>Example — a struct whose total size differs per platform:
+ *
+ * <pre>{@code
+ * @StructSize(value = 144, platforms = { Platform.LINUX_X64, Platform.LINUX_AARCH64 })
+ * @StructSize(value = 152, platforms = { Platform.DARWIN_X64, Platform.DARWIN_AARCH64 })
+ * }</pre>
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)

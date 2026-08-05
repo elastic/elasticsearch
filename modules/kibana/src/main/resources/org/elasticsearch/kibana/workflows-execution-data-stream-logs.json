@@ -18,15 +18,39 @@
         "version": "${kibana.workflows.version}",
         "managed_index_mappings_version": ${kibana.workflows.execution.logs.managed.index.version}
       },
-      "dynamic": true,
+      "dynamic": false,
       "properties": {
         "@timestamp": {
           "type": "date"
+        },
+        "spaceId": {
+          "type": "keyword"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "workflow": {
+          "type": "object",
+          "dynamic": false,
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "execution_id": {
+              "type": "keyword"
+            },
+            "step_id": {
+              "type": "keyword"
+            },
+            "step_execution_id": {
+              "type": "keyword"
+            }
+          }
         }
       }
     }
   },
   "composed_of": [],
   "priority": 200,
-  "version": 2
+  "version": 3
 }

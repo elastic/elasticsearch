@@ -80,9 +80,11 @@ public final class ApmIntakeMessageParser {
             ? tags.get("otel_instrumentation_scope_name").toString()
             : "";
 
+        long timeUnixNano = (long) metricset.getOrDefault("time_unix_nano", 0L);
+
         Object samplesObj = metricset.get("samples");
         if (samplesObj == null) {
-            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of());
+            return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.of(), timeUnixNano);
         }
         if (samplesObj instanceof Map<?, ?> == false) {
             throw new IOException("metricset.samples is not an object");
@@ -97,7 +99,7 @@ public final class ApmIntakeMessageParser {
                 throw new IOException("metricset.samples entry [" + entry.getKey() + "] is not an object");
             }
         }
-        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples));
+        return new ReceivedTelemetry.ReceivedMetricSet(scopeName, Map.copyOf(samples), timeUnixNano);
     }
 
     private static ReceivedTelemetry.ReceivedMetricValue parseSample(Map<String, Object> sample) throws IOException {
@@ -110,6 +112,30 @@ public final class ApmIntakeMessageParser {
         }
         if (sample.containsKey("counts")) {
             Object c = sample.get("counts");
+            // APM agent message (with midpoints for non-zero counts only)
+            Object v = sample.get("values");
+            List<Double> midpoints = new ArrayList<>();
+            if (v instanceof List<?> vList) {
+                for (Object o : vList) {
+                    if (o instanceof Number n) {
+                        midpoints.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample values element is not a number");
+                    }
+                }
+            }
+            // OTel message (explicit bounds for all counts)
+            Object b = sample.get("bounds");
+            List<Double> bounds = new ArrayList<>();
+            if (b instanceof List<?> bList) {
+                for (Object o : bList) {
+                    if (o instanceof Number n) {
+                        bounds.add(n.doubleValue());
+                    } else {
+                        throw new IOException("metric sample bounds element is not a number");
+                    }
+                }
+            }
             if (c instanceof List<?> list) {
                 List<Integer> counts = new ArrayList<>();
                 for (Object o : list) {
@@ -119,7 +145,7 @@ public final class ApmIntakeMessageParser {
                         throw new IOException("metric sample counts element is not a number");
                     }
                 }
-                return new ReceivedTelemetry.HistogramSample(List.copyOf(counts));
+                return new ReceivedTelemetry.HistogramSample(List.copyOf(midpoints), List.copyOf(bounds), List.copyOf(counts));
             }
             throw new IOException("metric sample counts is not a list");
         }

@@ -28,7 +28,10 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -41,6 +44,10 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.completion.Goog
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequest;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.googleaistudio.response.GoogleAiStudioCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.googleaistudio.response.GoogleAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -51,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -60,6 +68,20 @@ import static org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAi
 public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
 
     public static final String NAME = "googleaistudio";
+
+    // public for testing
+    public static final ResponseHandler EMBEDDING_HANDLER = new GoogleAiStudioResponseHandler(
+        "google ai studio embedding",
+        GoogleAiStudioEmbeddingsResponseEntity::fromResponse
+    );
+
+    // public for testing
+    public static final ResponseHandler COMPLETION_HANDLER = new GoogleAiStudioResponseHandler(
+        "google ai studio completion",
+        GoogleAiStudioCompletionResponseEntity::fromResponse,
+        true,
+        GoogleAiStudioCompletionResponseEntity::content
+    );
 
     private static final String SERVICE_NAME = "Google AI Studio";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
@@ -147,23 +169,38 @@ public class GoogleAiStudioService extends SenderService<GoogleAiStudioModel> {
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof GoogleAiStudioCompletionModel completionModel) {
-            var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio completion");
+            var requestManager = new GenericRequestManager<>(
+                getServiceComponents().threadPool(),
+                completionModel,
+                COMPLETION_HANDLER,
+                (chatCompletionInput) -> new GoogleAiStudioCompletionRequest(chatCompletionInput, completionModel),
+                ChatCompletionInput.class
+            );
             var action = new SingleInputSenderExecutableAction(
                 getSender(),
                 requestManager,
-                failedToSendRequestErrorMessage,
+                constructFailedToSendRequestMessage("Google AI Studio completion"),
                 "Google AI Studio completion"
             );
             action.execute(inputs, timeout, listener);
         } else if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
-            var requestManager = new GoogleAiStudioEmbeddingsRequestManager(
+            var requestManager = new GenericRequestManager<>(
+                getServiceComponents().threadPool(),
                 embeddingsModel,
-                getServiceComponents().truncator(),
-                getServiceComponents().threadPool()
+                EMBEDDING_HANDLER,
+                (embeddingsInput) -> new GoogleAiStudioEmbeddingsRequest(
+                    getServiceComponents().truncator(),
+                    truncate(embeddingsInput.getTextInputs(), embeddingsModel.getServiceSettings().maxInputTokens()),
+                    embeddingsInput.getInputType(),
+                    embeddingsModel
+                ),
+                EmbeddingsInput.class
             );
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio embeddings");
-            var action = new SenderExecutableAction(getSender(), requestManager, failedToSendRequestErrorMessage);
+            var action = new SenderExecutableAction(
+                getSender(),
+                requestManager,
+                constructFailedToSendRequestMessage("Google AI Studio embeddings")
+            );
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));

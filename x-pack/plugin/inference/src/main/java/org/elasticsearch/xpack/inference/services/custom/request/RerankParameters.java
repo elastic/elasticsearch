@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 
 import java.util.HashMap;
@@ -17,7 +17,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 
 public class RerankParameters extends RequestParameters {
-    private static final String QUERY = "query";
 
     public static RerankParameters of(QueryAndDocsInputs queryAndDocsInputs) {
         Objects.requireNonNull(queryAndDocsInputs);
@@ -35,18 +34,15 @@ public class RerankParameters extends RequestParameters {
     @Override
     protected Map<String, String> taskTypeParameters() {
         var additionalParameters = new HashMap<String, String>();
-        additionalParameters.put(QUERY, toJson(queryAndDocsInputs.getQueryAsString(), QUERY));
+        additionalParameters.put(RerankRequest.QUERY_FIELD, toJson(queryAndDocsInputs.getQueryAsString(), RerankRequest.QUERY_FIELD));
         if (queryAndDocsInputs.getTopN() != null) {
-            additionalParameters.put(
-                InferenceAction.Request.TOP_N.getPreferredName(),
-                toJson(queryAndDocsInputs.getTopN(), InferenceAction.Request.TOP_N.getPreferredName())
-            );
+            additionalParameters.put(RerankRequest.TOP_N_FIELD, toJson(queryAndDocsInputs.getTopN(), RerankRequest.TOP_N_FIELD));
         }
 
         if (queryAndDocsInputs.getReturnDocuments() != null) {
             additionalParameters.put(
-                InferenceAction.Request.RETURN_DOCUMENTS.getPreferredName(),
-                toJson(queryAndDocsInputs.getReturnDocuments(), InferenceAction.Request.RETURN_DOCUMENTS.getPreferredName())
+                RerankRequest.RETURN_DOCUMENTS_FIELD,
+                toJson(queryAndDocsInputs.getReturnDocuments(), RerankRequest.RETURN_DOCUMENTS_FIELD)
             );
         }
         return additionalParameters;

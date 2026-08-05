@@ -20,7 +20,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperatorStatus> {
     public static ValuesSourceReaderOperatorStatus simple() {
-        return new ValuesSourceReaderOperatorStatus(Map.of("ReaderType", 3), Map.of(), 1022323, 123, 200, 111, 222, 1000);
+        return new ValuesSourceReaderOperatorStatus(
+            Map.of("ReaderType", 3),
+            Map.of(),
+            1022323,
+            123,
+            200,
+            111,
+            222,
+            1000,
+            8192,
+            100,
+            300,
+            4096
+        );
     }
 
     public static String simpleToJson() {
@@ -30,6 +43,10 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
                 "ReaderType" : 3
               },
               "values_loaded" : 1000,
+              "bytes_read" : 8192,
+              "source_docs_loaded" : 100,
+              "source_field_reads" : 300,
+              "source_bytes_loaded" : 4096,
               "process_nanos" : 1022323,
               "process_time" : "1ms",
               "pages_received" : 123,
@@ -58,6 +75,10 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -81,7 +102,11 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
         long valuesLoaded = instance.valuesLoaded();
-        switch (between(0, 7)) {
+        long bytesRead = instance.bytesRead();
+        long sourceDocsLoaded = instance.sourceDocsLoaded();
+        long sourceFieldReads = instance.sourceFieldReads();
+        long sourceBytesLoaded = instance.sourceBytesLoaded();
+        switch (between(0, 11)) {
             case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuiltOrConvertersUsed);
             case 1 -> convertersUsed = randomValueOtherThan(convertersUsed, this::randomReadersBuiltOrConvertersUsed);
             case 2 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
@@ -90,6 +115,10 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             case 5 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
             case 6 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
             case 7 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
+            case 8 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
+            case 9 -> sourceDocsLoaded = randomValueOtherThan(sourceDocsLoaded, ESTestCase::randomNonNegativeLong);
+            case 10 -> sourceFieldReads = randomValueOtherThan(sourceFieldReads, ESTestCase::randomNonNegativeLong);
+            case 11 -> sourceBytesLoaded = randomValueOtherThan(sourceBytesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new ValuesSourceReaderOperatorStatus(
@@ -100,7 +129,11 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 }

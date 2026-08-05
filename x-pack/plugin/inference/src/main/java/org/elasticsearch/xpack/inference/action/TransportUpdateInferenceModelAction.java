@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -40,8 +41,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
@@ -59,7 +61,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
 public class TransportUpdateInferenceModelAction extends TransportMasterNodeAction<
@@ -114,6 +118,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
         AtomicReference<InferenceService> service = new AtomicReference<>();
+        AtomicReference<Model> existingParsedModelRef = new AtomicReference<>();
+        AtomicReference<Model> mergedParsedModelRef = new AtomicReference<>();
 
         var inferenceEntityId = request.getInferenceEntityId();
 
@@ -132,6 +138,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                validateEndpointIsNotDefault(inferenceEntityId);
+
                 if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
                     listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
                     return;
@@ -146,14 +154,22 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 
+                var serviceName = service.get().name();
+                var newServiceSettingsMap = request.getServiceSettings();
+                var newTaskSettingsMap = request.getTaskSettings();
+                var newChunkingSettingsMap = request.getChunkingSettings();
+
                 ModelConfigurations mergedModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
                     existingParsedModel,
-                    request.getServiceSettings(),
-                    request.getTaskSettings(),
-                    service.get().name()
+                    newServiceSettingsMap,
+                    newTaskSettingsMap,
+                    newChunkingSettingsMap,
+                    serviceName
                 );
 
-                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, request.getServiceSettings());
+                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, newServiceSettingsMap);
+
+                validateConsumedUpdateSettings(service.get(), serviceName, newServiceSettingsMap, newTaskSettingsMap);
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
                 if (mergedParsedModel.equals(existingParsedModel)) {
@@ -162,20 +178,39 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
-                if (isInClusterService(service.get().name())) {
+                existingParsedModelRef.set(existingParsedModel);
+                mergedParsedModelRef.set(mergedParsedModel);
+
+                if (isInClusterService(serviceName)) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
-                    ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
-                        (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
+                    ActionListener<ModelValidationResult> updateModelListener = listener.delegateFailureAndWrap(
+                        (delegate, validationResult) -> modelRegistry.updateModelTransaction(
+                            validationResult.model(),
+                            existingParsedModel,
+                            delegate
+                        )
                     );
                     var taskType = mergedParsedModel.getTaskType();
                     ModelValidatorBuilder.buildModelValidator(taskType, service.get())
                         .validate(
                             service.get(),
                             mergedParsedModel,
-                            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
+                            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
                             updateModelListener
                         );
+                }
+            })
+            .<Boolean>andThen((listener, didUpdate) -> {
+                if (didUpdate && existingParsedModelRef.get() != null && mergedParsedModelRef.get() != null) {
+                    service.get()
+                        .onModelUpdated(
+                            existingParsedModelRef.get(),
+                            mergedParsedModelRef.get(),
+                            listener.delegateFailureAndWrap((delegate, v) -> delegate.onResponse(true))
+                        );
+                } else {
+                    listener.onResponse(didUpdate);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {
@@ -202,6 +237,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .addListener(masterListener);
     }
 
+    private static void validateEndpointIsNotDefault(String inferenceEntityId) {
+        if (inferenceEntityId.startsWith(".")) {
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] cannot be updated", inferenceEntityId);
+        }
+    }
+
     protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {
         if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
             throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
@@ -209,11 +250,40 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     /**
+     * Verifies update parsers consumed all keys from the request maps.
+     * @param inferenceService the inference service
+     * @param serviceName the name of the service
+     * @param serviceSettingsMap the map containing service settings
+     * @param taskSettingsMap the map containing task settings
+     */
+    static void validateConsumedUpdateSettings(
+        InferenceService inferenceService,
+        String serviceName,
+        @Nullable Map<String, Object> serviceSettingsMap,
+        @Nullable Map<String, Object> taskSettingsMap
+    ) {
+        if (inferenceService.usesParserForServiceSettings() == false) {
+            throwIfNotEmptyMap(serviceSettingsMap, serviceName);
+        }
+        if (inferenceService.usesParserForTaskSettings() == false) {
+            throwIfNotEmptyMap(taskSettingsMap, serviceName);
+        }
+    }
+
+    /**
      * Combines the existing model configurations with the new settings to create a new model configuration.
      *
+     * <p>Service settings and task settings are <em>merged</em> with the existing values via the
+     * provider-specific update parsers. Chunking settings, in contrast, are <em>replaced</em>:
+     * when {@code newChunkingSettings} is non-null the resulting configuration uses a fresh
+     * {@link ChunkingSettings} instance built from that map, because chunking settings have no
+     * merge semantics on the {@link ChunkingSettings} interface and the strategy plus its
+     * dependent fields must be re-validated together.
+     *
      * @param existingParsedModel  the Model representing a third-party service endpoint
-     * @param newServiceSettings   new service settings to update, or {@code null} to leave unchanged
-     * @param newTaskSettings      new task settings to update, or {@code null} to leave unchanged
+     * @param newServiceSettings   new service settings to merge, or {@code null} to leave unchanged
+     * @param newTaskSettings      new task settings to merge, or {@code null} to leave unchanged
+     * @param newChunkingSettings  new chunking settings to install (full replacement), or {@code null} to leave unchanged
      * @param serviceName          the name of the service
      * @return a new object representing the updated model configurations
      */
@@ -221,20 +291,26 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         Model existingParsedModel,
         @Nullable Map<String, Object> newServiceSettings,
         @Nullable Map<String, Object> newTaskSettings,
+        @Nullable Map<String, Object> newChunkingSettings,
         String serviceName
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
+        ChunkingSettings existingChunkingSettings = existingConfigs.getChunkingSettings();
 
         TaskSettings mergedTaskSettings = existingTaskSettings;
         ServiceSettings mergedServiceSettings = existingServiceSettings;
+        ChunkingSettings replacementChunkingSettings = existingChunkingSettings;
 
         if (newServiceSettings != null) {
             mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newServiceSettings);
         }
         if (newTaskSettings != null) {
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newTaskSettings);
+        }
+        if (newChunkingSettings != null) {
+            replacementChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
         }
 
         return new ModelConfigurations(
@@ -243,7 +319,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             serviceName,
             mergedServiceSettings,
             mergedTaskSettings,
-            existingConfigs.getChunkingSettings()
+            replacementChunkingSettings
         );
     }
 
@@ -255,13 +331,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      */
     ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, @Nullable Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
-        SecretSettings mergedSecretSettings = existingSecretSettings;
+        SecretSettings replacementSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            mergedSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
+            replacementSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
         }
 
-        return new ModelSecrets(mergedSecretSettings);
+        return new ModelSecrets(replacementSecretSettings);
     }
 
     private void updateInClusterEndpoint(

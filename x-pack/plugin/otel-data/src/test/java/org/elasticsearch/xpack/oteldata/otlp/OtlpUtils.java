@@ -179,6 +179,19 @@ public class OtlpUtils {
             .build();
     }
 
+    public static NumberDataPoint createNoValueDataPoint(long timestamp) {
+        return createNoValueDataPoint(timestamp, timestamp, List.of());
+    }
+
+    public static NumberDataPoint createNoValueDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        // Neither as_double nor as_int is set, leaving the oneof value in the VALUE_NOT_SET state.
+        return NumberDataPoint.newBuilder()
+            .setTimeUnixNano(timeUnixNano)
+            .setStartTimeUnixNano(startTimeUnixNano)
+            .addAllAttributes(attributes)
+            .build();
+    }
+
     public static SummaryDataPoint createSummaryDataPoint(long timestamp, List<KeyValue> attributes) {
         return SummaryDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)

@@ -226,8 +226,6 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     }
 
     public void testInterceptAndRewriteSemanticField() throws Exception {
-        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         final String field = "test_field";
         final TestIndex testIndex = new TestIndex("test-index-1", Map.of(field, EMBEDDING_INFERENCE_ID), Map.of());
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
@@ -526,9 +524,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
     public void testCcsMultipleInputsRejectedForOldRemoteTransportVersion() throws Exception {
         assertCcsInputRejectedForOldRemoteTransportVersion(
-            new InferenceStringGroup(
-                List.of(new InferenceString(DataType.TEXT, "first input"), new InferenceString(DataType.TEXT, "second input"))
-            )
+            new InferenceStringGroup(List.of(InferenceString.ofText("first input"), InferenceString.ofText("second input")))
         );
     }
 

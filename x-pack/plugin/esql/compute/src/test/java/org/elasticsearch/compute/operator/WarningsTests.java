@@ -14,7 +14,7 @@ public class WarningsTests extends ESTestCase {
     public void testRegisterCollect() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException());
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: null"
         );
@@ -32,7 +32,7 @@ public class WarningsTests extends ESTestCase {
             expected[i + 1] = "Line 1:1: java.lang.IllegalArgumentException: " + i;
         }
 
-        assertCriticalWarnings(expected);
+        assertWarnings(expected);
     }
 
     public void testRegisterCollectViews() {
@@ -47,7 +47,7 @@ public class WarningsTests extends ESTestCase {
             expected[i + 1] = "Line 1:1 (in view [view1]): java.lang.IllegalArgumentException: " + i;
         }
 
-        assertCriticalWarnings(expected);
+        assertWarnings(expected);
     }
 
     public void testRegisterIgnore() {
@@ -58,7 +58,7 @@ public class WarningsTests extends ESTestCase {
     public void testRegisterWarningCollect() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerWarning("some custom warning");
-        assertCriticalWarnings("Line 1:1 [foo]: some custom warning");
+        assertWarnings("Line 1:1 [foo]: some custom warning");
     }
 
     public void testRegisterWarningDeduplication() {
@@ -66,14 +66,14 @@ public class WarningsTests extends ESTestCase {
         warnings.registerWarning("duplicate warning");
         warnings.registerWarning("duplicate warning");
         warnings.registerWarning("duplicate warning");
-        assertCriticalWarnings("Line 1:1 [foo]: duplicate warning");
+        assertWarnings("Line 1:1 [foo]: duplicate warning");
     }
 
     public void testRegisterWarningMultipleDistinct() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerWarning("warning A");
         warnings.registerWarning("warning B");
-        assertCriticalWarnings("Line 1:1 [foo]: warning A", "Line 1:1 [foo]: warning B");
+        assertWarnings("Line 1:1 [foo]: warning A", "Line 1:1 [foo]: warning B");
     }
 
     public void testRegisterWarningCollectFilled() {
@@ -86,7 +86,7 @@ public class WarningsTests extends ESTestCase {
         for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS; i++) {
             expected[i] = "Line 1:1 [foo]: warning " + i;
         }
-        assertCriticalWarnings(expected);
+        assertWarnings(expected);
     }
 
     public void testRegisterWarningIgnore() {
@@ -97,14 +97,14 @@ public class WarningsTests extends ESTestCase {
     public void testRegisterWarningWithView() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo", "view1"));
         warnings.registerWarning("some custom warning");
-        assertCriticalWarnings("Line 1:1 [foo] (in view [view1]): some custom warning");
+        assertWarnings("Line 1:1 [foo] (in view [view1]): some custom warning");
     }
 
     public void testMixedRegisterExceptionThenWarning() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException("bad arg"));
         warnings.registerWarning("custom warning");
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: bad arg",
             "Line 1:1 [foo]: custom warning"
@@ -115,7 +115,7 @@ public class WarningsTests extends ESTestCase {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerWarning("custom warning");
         warnings.registerException(new IllegalArgumentException("bad arg"));
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1 [foo]: custom warning",
             "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: bad arg"
@@ -143,6 +143,6 @@ public class WarningsTests extends ESTestCase {
         for (int i = 0; i < halfLimit; i++) {
             expected[halfLimit + 1 + i] = "Line 1:1: java.lang.IllegalArgumentException: " + i;
         }
-        assertCriticalWarnings(expected);
+        assertWarnings(expected);
     }
 }

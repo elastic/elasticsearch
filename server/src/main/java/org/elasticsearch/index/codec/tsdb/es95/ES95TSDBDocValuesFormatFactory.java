@@ -10,12 +10,18 @@
 package org.elasticsearch.index.codec.tsdb.es95;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
  * Factory for creating {@link ES95TSDBDocValuesFormat} instances with block size
- * configuration matching index settings.
+ * configuration matching index settings. Every call allocates a fresh format because
+ * every production caller supplies a per index {@link FieldContextResolver}, which
+ * closes over {@code MapperService} state and cannot be globally cached.
+ * {@code PerFieldFormatSupplier} caches one format per supplier, which is the right
+ * boundary for the per index per shard reuse pattern.
  */
 public final class ES95TSDBDocValuesFormatFactory {
 
@@ -27,17 +33,23 @@ public final class ES95TSDBDocValuesFormatFactory {
     private ES95TSDBDocValuesFormatFactory() {}
 
     /**
-     * Creates an ES95 doc values format with block sizes matching the given settings.
+     * Allocates a fresh ES95 doc values format matching the given settings.
      *
-     * @param useLargeNumericBlockSize whether to use 512-value numeric blocks (vs 128)
+     * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
      * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
-     * @param writePartitions          whether to write prefix-partitioned sorted fields
-     * @return the configured format
+     * @param writePartitions          whether to write prefix partitioned sorted fields
+     * @param fieldContextResolver     bridge from the mapper layer that supplies a
+     *                                 {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldContext}
+     *                                 per field, or {@code null} when mapper metadata
+     *                                 is not available (the codec then uses a context
+     *                                 with no data type or metric type information)
+     * @return a freshly allocated format with the requested parameters
      */
-    public static DocValuesFormat createDocValuesFormat(
+    public static DocValuesFormat create(
         boolean useLargeNumericBlockSize,
         boolean useLargeBinaryBlockSize,
-        boolean writePartitions
+        boolean writePartitions,
+        @Nullable final FieldContextResolver fieldContextResolver
     ) {
         final int numericBlockShift = useLargeNumericBlockSize
             ? ES95TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT
@@ -55,7 +67,8 @@ public final class ES95TSDBDocValuesFormatFactory {
             blockBytesThreshold,
             blockCountThreshold,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            fieldContextResolver
         );
     }
 }

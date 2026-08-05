@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -257,30 +258,79 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Split filter condition by AND and reorder by estimated selectivity
         List<Expression> filters = splitAnd(filterExec.condition());
-        var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
-        filters = FilterEvaluationOrderEstimator.orderByEstimatedCost(filters, effectiveStats);
+
+        // Conjuncts that reference partition columns are evaluated against the constant blocks
+        // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
+        List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> pushableCandidates = new ArrayList<>();
+        if (partitionColumnNames.isEmpty()) {
+            pushableCandidates = filters;
+        } else {
+            for (Expression filter : filters) {
+                if (referencesAnyColumn(filter, partitionColumnNames)) {
+                    partitionConjuncts.add(filter);
+                } else {
+                    pushableCandidates.add(filter);
+                }
+            }
+        }
+
+        var effectiveStats = externalExec.effectiveSplitStats();
+        pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
+
+        // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = externalExec.declaredReadSpec().renames();
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
 
         // Use the SPI to push filters
-        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);
+        FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
+            ? FilterPushdownSupport.PushdownResult.none(List.of())
+            : pushdownSupport.pushFilters(mintInput);
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
                 result.pushedFilter(),
-                result.pushedExpressions()
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // If there are non-pushable filters, keep FilterExec
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
+            List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(result.remainder()));
-            } else {
-                // All filters pushed down - remove FilterExec
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
+            }
+            if (remainder.isEmpty()) {
                 return newExternalExec;
             }
+            return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(remainder));
         }
 
         // No pushable filters - return original plan
         return filterExec;
+    }
+
+    static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
     static String resolveFormatName(Map<String, Object> config, String sourcePath) {
@@ -291,7 +341,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
      */
     private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.formatReaderRegistry();
+        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return null;
         }
@@ -362,9 +412,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         AttributeMap<Attribute> aliasReplacedBy
     ) {
+        List<Expression> conjuncts = splitAnd(condition);
+
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(condition)) {
+        for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));

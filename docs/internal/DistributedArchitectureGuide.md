@@ -233,19 +233,57 @@ Check the result of an async operation:
 ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 ```
 
-### ThreadPool
-
-(We have many thread pools, what and why)
-
-### ActionListener
-
-See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
-
-(TODO: add useful starter references and explanations for a range of Listener classes. Reference the Netty section.)
-
 ### Chunk Encoding
 
 #### XContent
+
+### Wire Serialization
+
+The transport binary format is Elasticsearch's other serialization system, entirely separate from XContent. It is the
+node-to-node wire protocol (see [Transport](#transport)) and it does not use Java's built-in `Serializable`. The core
+interface is
+[`Writeable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/Writeable.java),
+whose sole method is `void writeTo(StreamOutput out)`. By convention a `Writeable` also provides a symmetric
+*deserialization constructor* taking a `StreamInput`, which keeps the type immutable and puts read and write logic side by
+side:
+
+```java
+public MyClass(StreamInput in) throws IOException {
+    this.count = in.readVInt();
+    this.items = in.readCollectionAsList(Item::new);
+}
+```
+
+[`StreamOutput`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/StreamOutput.java)
+and [`StreamInput`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/io/stream/StreamInput.java)
+are abstract `java.io.OutputStream` / `InputStream` subclasses that form the write and read sides of this layer. They are
+*typed* streams that know how to encode ES's primitive and common types (`writeVInt`, `writeString`, collection helpers,
+etc.), and, critically, each carries the negotiated `TransportVersion` for the connection, so `writeTo` implementations
+and deserialization constructors can branch for backwards compatibility. The current BWC idiom gates a field on a named
+transport-version feature:
+
+```java
+// writing
+if (out.getTransportVersion().supports(MY_FEATURE)) {
+    out.writeString(newField);
+}
+// reading
+this.newField = in.getTransportVersion().supports(MY_FEATURE) ? in.readString() : null;
+```
+
+where `MY_FEATURE` is a `public static final TransportVersion MY_FEATURE = TransportVersion.fromName("my_feature");`.
+Prefer `supports(...)` over the older `onOrAfter(TransportVersions.X)` comparison. See
+[Versioning.md](./Versioning.md) for the full transport-version workflow (how to declare a new feature, confirm backport
+branches, and regenerate the resource files with `./gradlew generateTransportVersion`).
+
+When the reader does not know the concrete type at compile time (for example a `QueryBuilder` that could be a
+`TermQueryBuilder` or a `BoolQueryBuilder`), the type implements `NamedWriteable`. The name is written to the stream, a
+`NamedWriteableRegistry` maps `(categoryClass, name)` to the concrete reader, and a `NamedWriteableAwareStreamInput` wraps
+a `StreamInput` with that registry so named reads resolve transparently.
+
+Serialization is exercised by dedicated test base classes: `AbstractWireSerializingTestCase<T>` (transport round-trip
+through `StreamInput`/`StreamOutput`), `AbstractXContentSerializingTestCase<T>` (XContent parse/serialize round-trip), and
+`AbstractBWCSerializationTestCase<T>` (round-trips across transport versions).
 
 ### Performance
 
@@ -260,6 +298,174 @@ are some uses of `RestClient`, via `RestClientBuilder`, in the production code. 
 `RestClient` internally as the REST client to the remote elasticsearch cluster, and to take advantage of the compatibility of
 `RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
 to communicate with Elasticsearch.
+
+# Concurrency
+
+Elasticsearch runs a mix of network IO, disk IO, and CPU-bound work across a small number of
+network threads and a much larger number of worker threads. The rest of this chapter answers the
+questions that come up when writing concurrent code in this codebase, in the order they naturally
+arise. It starts with what must never block, then covers how work gets represented as a unit that
+can carry its own error handling, where that unit of work actually runs, how its result or failure
+gets back to the caller, and how shared state gets protected when several of these units run at
+once.
+
+## The core rule
+
+The Netty event-loop threads described under [Event-Loop (Transport-Thread)](#event-loop-transport-thread)
+serve many connections each, so blocking one for any real length of time stalls every other
+connection on that thread. The rule that follows from this is simple to state and easy to violate.
+Never block a transport or event-loop thread. Fork any blocking operation or heavy computation onto
+a dedicated pool instead, and only fork work that is actually heavy, since forking has its own
+overhead.
+
+## Representing a unit of work
+
+Submitting a plain `Runnable` via `execute(...)` works, but the task gets none of the structured handling ES relies on.
+There is no built-in way to distinguish and handle *rejection* (when the queue is full) separately from a normal run exception.
+Any exception thrown from `run()` propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task.
+Calling `submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
+something later calls `get()` on it. ES therefore prefers two richer abstractions:
+
+- [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
+  extends `Runnable` with structured exception handling and lifecycle hooks: `doRun()` holds the work, `onFailure(Exception)`
+  receives any exception thrown by `doRun()`, `onRejection(Exception)` fires when the queue is full (defaulting to
+  `onFailure`), `onAfter()` always runs like a `finally`, and `isForceExecution()` lets a task bypass a bounded queue's
+  capacity limit.
+- [`ActionRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionRunnable.java)
+  extends `AbstractRunnable` and bridges it to an `ActionListener`, so `onFailure` is routed to `listener.onFailure`.
+
+## Choosing where it runs
+
+The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class is the central registry for the node's shared named executors and the entry point for obtaining one. Rather than holding
+references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it.
+
+Elasticsearch does not spin up ad-hoc threads or executors. Every `Runnable` runs on a pool obtained
+from `ThreadPool`. The main exception is third-party libraries such as the AWS, GCP, and Azure SDKs
+used for snapshot repositories, which manage their own internal thread pools (see
+[Other networking stacks](#other-networking-stacks)).
+
+There are many named pools rather than one shared one because each workload needs its own resource
+isolation. A saturated pool for one workload cannot starve another, and each pool gets its own
+sizing, its own back-pressure policy, and its own monitoring through `_cat/thread_pool` and node
+stats. A pool is more than just a named executor.
+
+### Two pool types
+
+Each pool has a [`ThreadPoolType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L159):
+
+- A **FIXED** pool has a static number of threads, backed by a *bounded* or *unbounded* queue. When the queue fills up, new tasks are
+  *rejected immediately* (surfacing as an `EsRejectedExecutionException`). This gives predictable resource consumption and
+  fast back-pressure under load, so it is used for the hot data paths such as `SEARCH` and `WRITE`.
+- A **SCALING** pool has a thread count that grows on demand between a min and a max, backed by an *unbounded* queue, and
+  its idle threads expire after a keep-alive period. This suits bursty, infrequent work such as `GENERIC`, `MANAGEMENT`,
+  and snapshots.
+
+### Built-in pools
+
+The built-in pools are declared as string constants in
+[`ThreadPool.Names`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L77).
+Plugins register additional pools at startup by overriding
+[`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
+
+`CLUSTER_COORDINATION` handles master elections, cluster membership updates, and sending cluster-state publication
+requests. It is sized to a single thread to avoid contention on [Coordinator]'s internal mutex (see the
+[Cluster Coordination](#cluster-coordination) section).
+`GENERIC` scales up to
+[somewhere between 128 and 512 threads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L33)
+depending on the number of processors, and is used throughout the codebase.
+`WRITE` is a **FIXED** pool with
+[`allocatedProcessors` threads and a large bounded queue](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L52),
+sized to `max(allocatedProcessors * 750, 10000)`, and it tracks execution time and utilization for
+autoscaling. It performs blocking disk IO through Lucene, which is exactly why it gets its own
+dedicated bounded pool rather than sharing `GENERIC`. This is the same blocking-versus-non-blocking
+placement rule from [The core rule](#the-core-rule) applied to a specific workload. The Netty
+transport-worker threads that receive the request must never block on that IO, so the work is
+handed off to another thread pool such as `WRITE` instead.
+
+## How results and errors flow back
+
+See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+
+`ActionListener<T>` is the primary async callback interface in Elasticsearch, a form of *continuation-passing style*.
+Rather than blocking the caller until an asynchronous operation returns a value, the operation is instead handed "what
+to do next" (the listener) as an argument. The listener is invoked once the operation result is ready. This allows for operations to be composed
+without the caller needing to block and wait for completion. The contract is a
+two-path pair of methods:
+
+```java
+void onResponse(T response); // success path
+void onFailure(Exception e);  // failure path
+```
+
+The `ActionListener` Javadoc explains why ES deliberately avoids `java.util.concurrent.CompletableFuture` and similar
+mechanisms in production code. They can achieve the same goals, but they permit *blocking* while waiting for a result,
+almost never appropriate where threads are a precious resource, and they can *catch an `Error`*, delaying (or preventing)
+the JVM exit that should follow such a fatal condition. `ActionListener` makes those misuses impossible.
+
+### ThreadContext propagation
+
+Every thread managed by ES carries a
+[`ThreadContext`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java),
+which is a map of string headers and transient objects attached to the current logical request, such as authentication
+tokens, tracing IDs, custom request headers, the security context, and other transient objects that should flow with the
+work but not be serialized over the wire. This is why an `ActionListener` invoked from a thread-pool
+executor automatically carries the `ThreadContext` across that hop without any manual plumbing. The
+[`EsThreadPoolExecutor`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/EsThreadPoolExecutor.java#L174)
+wraps every submitted task in a `ContextPreservingRunnable` at submission time, and the worker thread restores the
+captured context before `doRun()` and cleans it up afterwards. As a result a request that begins with a user's auth
+token and fans out across search, fetch, and coordination threads carries that token on every hop with no manual
+threading of context through the code.
+
+### Composition
+
+`ActionListener` can be subclassed directly, usually as an anonymous class, when listeners
+implement complex logic. It is important to note that an exception thrown from `onResponse` is not automatically routed to
+`onFailure` and must be handled manually. `ActionListener` also
+provides static factory methods for composing delegates without writing a full implementation. `wrap` builds an
+inline listener from two lambdas, `runAfter` runs a cleanup action once the delegate completes, and
+`delegateFailureAndWrap` handles only the success path while forwarding failures automatically, including failures
+thrown by that success-path logic itself. See the
+[`ActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+class itself for the full set of factory methods and their exact semantics.
+
+### Fan-out and specialized implementations
+
+When one operation must wait for multiple concurrent sub-operations, there are purpose-built implementations:
+
+- [`GroupedActionListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/GroupedActionListener.java)
+  handles a fixed, known number of parallel tasks and collects their results.
+- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java)
+  handles a dynamic or unknown number of tasks, or cases where you only need to await all of them without collecting results.
+- [`SubscribableListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
+  lets multiple independent callers `addListener` to the same result so they are all notified on completion, and its `andThen`
+  supports sequential CPS chaining of steps.
+- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java)
+  wraps a delegate and dispatches its completion onto a specified `Executor`. This is the standard way to fork a
+  listener's continuation off the Netty event-loop thread (see [The core rule](#the-core-rule) above and
+  the [Performance](#performance) note below) so that expensive follow-up work does not run on an I/O thread.
+
+### Pub/Sub Listeners
+
+The `ActionListener` contract above is **one-shot**. A caller hands over a continuation, and that
+continuation fires exactly once, for either the response or the failure. A different family of
+listeners is **pub/sub** instead. A listener is registered once with a service and stays registered
+for the lifetime of the node, or until explicitly deregistered, receiving a notification every time
+a relevant event occurs. This is the classical Observer pattern, in which a subject maintains a list
+of registered listeners and notifies all of them on each event. There is no notion of completion,
+and the listener keeps receiving events. The two most common are
+[`ClusterStateListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java)
+(fires on every cluster-state update) and
+[`IndexEventListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexEventListener.java)
+(per-index and per-shard lifecycle events).
+
+## Shared mutable state
+
+This section is currently work-in-progress.
+
+When multiple units of work run at once and need to share state, Elasticsearch leans on concurrent collections and the locks described in the
+[Locking](#locking) chapter, but the stronger bias throughout the codebase is to avoid shared
+mutable state in the first place. Cluster state is the clearest example. Rather than locking a
+mutable structure, each update produces a new immutable `ClusterState` instance.
 
 # Cluster Coordination
 
@@ -331,6 +537,19 @@ two new roles:
 
 - `index`: indexing nodes, which host primary shards and handle all write operations.
 - `search`: search nodes, which host search-only replica shards and handle read operations.
+
+It is worth distinguishing two terms that are often conflated. **Stateless** is the *architecture*. It separates storage
+from compute, keeps durability in an object store, and treats nodes as ephemeral workers. **Serverless** is the managed
+*offering* built on that architecture. It abstracts away provisioning, autoscaling, and error handling, billing users
+for shared resource usage rather than for statically provisioned servers. The public
+[Elastic serverless architecture blog](https://www.elastic.co/blog/elastic-serverless-architecture) contains an
+architecture diagram of the two-tier design, and the design is described in detail in the SoCC'25 paper
+[*Elasticsearch on the cloud: a stateless architecture*](https://dl.acm.org/doi/10.1145/3772052.3772245).
+
+Splitting the write path (`index` nodes) from the read path (`search` nodes) is what lets read and write capacity scale
+horizontally and independently. Stateless is implemented as an Elasticsearch plugin (the
+[`stateless`](https://github.com/elastic/elasticsearch/tree/f607d700ce5e6d57d32e4e5f0f207de89704aeba/x-pack/plugin/stateless) plugin) that overrides the
+relevant stateful components while reusing most of the stateful concepts described elsewhere in this guide.
 
 #### Master Node Role
 
@@ -646,6 +865,16 @@ move on to applying the new cluster state locally.
 When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
 This is the responsibility of the [ClusterApplierService] class, which runs on
 a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+To save bandwidth, the master normally sends a follower only a *diff* against the state it believes that follower last
+received (see the publication-side diff discussion above). The follower can reconstruct the complete `ClusterState`
+from that diff only if its own locally cached `lastSeenClusterState` matches the diff's base state. A mismatch can
+happen if the node just joined, restarted, or missed an intervening publication. When that happens, applying the diff
+throws an [`IncompatibleClusterStateVersionException`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+and the master transparently resends that node the full state instead (see the Publish phase of
+[Cluster State Publication](#cluster-state-publication) above). Either way, the
+follower ends up with the complete state, and that reconstructed state is what gets exposed as the current state to the
+appliers and listeners below.
 
 When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
 an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
@@ -1147,6 +1376,12 @@ the latest heartbeat from the blob store and starts the election if it's older t
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
 
+Beyond leadership, the lease/root blob also serves as a consistency gate during normal operation. Before a node acks a
+translog upload it verifies that its local cluster state is consistent with the authoritative blob, via
+[`StatelessClusterConsistencyService.ensureClusterStateConsistentWithRootBlob()`](https://github.com/elastic/elasticsearch/blob/f607d700ce5e6d57d32e4e5f0f207de89704aeba/x-pack/plugin/stateless/src/main/java/org/elasticsearch/xpack/stateless/cluster/coordination/StatelessClusterConsistencyService.java),
+blocking writes if cluster membership has changed and the node's local state has not yet caught up. This prevents a node
+that has fallen behind on cluster-state updates from durably acknowledging writes it should no longer be handling.
+
 ### New Cluster Formation
 
 [ClusterBootstrapService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java
@@ -1256,6 +1491,11 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 (rarely use locks)
 
+At the coarsest level, a node acquires a filesystem lock on the `node.lock` file in its data directory at startup (via
+[NodeEnvironment]), which prevents two Elasticsearch processes from sharing the same data path. Finer-grained shard,
+translog, and Lucene locks are described below (see also the [On-Disk Shard Layout](#on-disk-shard-layout) and
+[Shard Locking Layers](#shard-locking-layers) discussions under [Engine & Store](#engine--store)).
+
 ### ShardLock
 
 ### Translog / Engine Locking
@@ -1351,7 +1591,52 @@ Lucene version that wrote it, and a `writerUuid` that uniquely identifies the wr
 replica shard allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two
 distinct shards and calculate how much data needs to be transferred to bring them into sync.
 
-#### Concurrency
+#### On-Disk Shard Layout
+
+The `Store` and `Translog` files for every shard live under a node's data path. The
+directory tree below the configured `path.data` looks like:
+
+```
+data/
+└── nodes/
+    └── 0/
+        ├── node.lock                       # node-level lock (see below)
+        └── indices/
+            └── <index-uuid>/               # one directory per index
+                ├── _state/
+                │   └── state-<N>.st         # index metadata (settings, mappings)
+                └── <shard-id>/              # e.g. 0, 1, 2 ...
+                    ├── _state/
+                    │   └── state-<N>.st     # primary flag, index UUID, allocation ID
+                    ├── index/               # Lucene segment files + write.lock
+                    │   ├── segments_N
+                    │   └── ...              # see the Lucene File Layout table below
+                    └── translog/
+                        ├── translog-<N>.tlog # translog generation files
+                        └── translog.ckp      # translog checkpoint (min/max seqno)
+```
+
+The [`node.lock`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java#L186)
+file is a filesystem lock acquired by [NodeEnvironment] at startup, and it prevents two Elasticsearch processes from
+sharing the same data directory (see the [Locking](#locking) section). The `_state/state-<N>.st` files are written
+via `MetadataStateFormat`. At the index level they hold the index metadata (settings, mappings). At the shard level
+they hold a small [`ShardStateMetadata`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/ShardStateMetadata.java)
+record. That record contains only a primary/replica flag, the owning index's UUID, and the shard's `AllocationId`. The `-<N>` suffix is a monotonically
+increasing generation so a new state can be written and fsynced before the old one is removed. The `index/` directory holds the Lucene segments and commit points (its contents are
+detailed in the [Lucene File Layout](#lucene-file-layout) table). The `translog/` directory holds the durability log
+described under [Translog](#translog), where `translog.ckp` is the checkpoint tracking the current generation and its
+sequence-number range.
+
+The runtime object graph that owns these files is a containment hierarchy rooted at the shard:
+`IndexShard -> Engine (InternalEngine) -> { IndexWriter, DirectoryReader, Store -> Directory }`. The `IndexWriter`
+writes documents and drives flushes and merges, the `DirectoryReader` opens segments for search, and the `Store`
+wraps the Lucene `Directory` for raw file I/O.
+[`InternalEngine#getIndexWriterConfig()`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java)
+assembles the write-path customizations used to build the `IndexWriter`, including the index deletion policy, the
+soft-deletes field, the wrapped `TieredMergePolicy`, and codec selection. Read-path customizations such as the query
+cache and query caching policy are attached separately, when the `Searcher` is built from the `DirectoryReader`.
+
+#### Shard Locking Layers
 
 [NodeEnvironment]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java
 
@@ -2421,7 +2706,7 @@ Snapshot deletions and creations are mutually exclusive. See also [Deletion of a
 
 When a node is shutting down, it must vacate all shards via relocation. Since shards being snapshotted
 (shard snapshot status `INIT`) cannot relocate, we need a way to transit these shards out of the
-`INIT` state to avoid stall the shutdown process. This is where the shard snapshot pausing mechanism
+`INIT` state to avoid stalling the shutdown process. This is where the shard snapshot pausing mechanism
 comes into play.
 
 When a node shutdown is initiated, `SnapshotsService` reacts to the new shutdown metadata by updating
@@ -2530,6 +2815,8 @@ The IDs given to a task are numeric, supplied by a counter that starts at zero a
 
 To better identify a task in the cluster scope, a tuple of persistent node ID and task ID is used. This is represented in code using the [TaskId] class and serialized as the string `{node-ID}:{local-task-ID}` (e.g. `oTUltX4IQMOUUVeiohTt8A:124`). While [TaskId] is safe to use to uniquely identify tasks _currently_ running in a cluster, it should be used with caution as it can collide with tasks that have run in the cluster in the past (i.e. tasks that ran prior to a cluster node restart).
 
+Some long-running tasks are relocatable and can be handed off between nodes when the host node is shutting down, in which case the cluster-scope [TaskId] of the running task changes. To let callers correlate a task across hops, [TaskInfo] carries `originalTaskId` and `originalStartTimeMillis` fields that pin the original identity through the chain. See [Relocatable Tasks](#relocatable-tasks) for details.
+
 ### What Tasks Are Tracked
 
 The purpose of tasks is to provide management and visibility of the cluster workload. There is some overhead involved in tracking a task, so they are best suited to tracking non-trivial and/or long-running operations. For smaller, more trivial operations, visibility is probably better implemented using telemetry APIs.
@@ -2587,6 +2874,14 @@ When a [Task] extends [CancellableTask] the [TaskManager] keeps track of it and 
 
 When a cancellable task dispatches child requests through the [TransportService], it registers a proxy response handler that will instruct the remote node to cancel that child and any lingering descendants in the event that it completes exceptionally (see [UnregisterChildTransportResponseHandler]). A typical use-case for this is when no response is received within the time-out, the sending node will cancel the remote action and complete with a timeout exception.
 
+Cancellation of a [relocatable task](#relocatable-tasks) is more involved:
+the [TaskId] addressed by the cancel request can refer to a task that has since been handed off to another node,
+where the destination task carries on under a different local task id.
+To handle this, [TransportCancelTasksAction] fans out to every node and double-broadcasts when the request matches a relocatable action,
+deduplicating responses by `originalTaskId` (mirroring the list-tasks approach).
+`BulkByPaginatedSearchTask` also rejects cancellation during the handoff window via `ensureCancellable` with a `503 Service Unavailable`,
+so a cancel that races an in-flight handoff cannot be silently lost.
+
 ### Publishing Task Results
 
 [TaskResult]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskResult.java
@@ -2601,6 +2896,151 @@ A list of tasks currently running in a cluster can be requested via the [Task ma
 Some [ActionRequest]s allow the results of the actions they spawn to be stored upon completion for later retrieval. If [ActionRequest#getShouldStoreResult] returns true, a [TaskResultStoringActionListener] will be inserted into the chain of response listeners. [TaskResultStoringActionListener] serializes the [TaskResult] of the [TransportAction] and persists it in the `.tasks` index using the [TaskResultsService].
 
 The [Task management API] also exposes an endpoint where a task ID can be specified, this form of the API will return currently running tasks, or completed tasks whose results were persisted. Note that although we use [TaskResult] to return task information from all the JSON APIs, the `error` or `response` fields will only ever be populated for stored tasks that are already completed.
+
+[TaskResultsService] also exposes a `storeResultIfAbsent` variant that writes with `OpType.CREATE` and treats a version conflict as success.
+This is used during reindex task relocation (see [Relocatable Tasks](#relocatable-tasks)),
+so that the source and destination of a handoff can both safely attempt to persist the source-side result, with the destination node winning the race.
+
+### Relocatable Tasks
+
+[BulkByPaginatedSearchTask]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/BulkByPaginatedSearchTask.java
+[LeaderBulkByPaginatedSearchTaskState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/LeaderBulkByPaginatedSearchTaskState.java
+[WorkerBulkByScrollTaskState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/WorkerBulkByScrollTaskState.java
+[ResumeInfo]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/ResumeInfo.java
+[TaskInfo]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskInfo.java
+[TaskRelocatedException]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/TaskRelocatedException.java
+[Reindexer]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/Reindexer.java
+[AbstractAsyncBulkByPaginatedSearchAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/AbstractAsyncBulkByPaginatedSearchAction.java
+[ShutdownPrepareService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/node/ShutdownPrepareService.java
+[ReindexRelocationNodePicker]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/ReindexRelocationNodePicker.java
+[TransportResumeReindexAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/TransportResumeReindexAction.java
+[TransportGetTaskAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/admin/cluster/node/tasks/get/TransportGetTaskAction.java
+[TransportListTasksAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/admin/cluster/node/tasks/list/TransportListTasksAction.java
+[TransportCancelTasksAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/admin/cluster/node/tasks/cancel/TransportCancelTasksAction.java
+[TransportRethrottleAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/TransportRethrottleAction.java
+[RestReindexAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/RestReindexAction.java
+[ReindexPlugin]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/ReindexPlugin.java
+[ReindexManagementPlugin]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex-management/src/main/java/org/elasticsearch/reindex/management/ReindexManagementPlugin.java
+[TransportCancelReindexAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex-management/src/main/java/org/elasticsearch/reindex/management/TransportCancelReindexAction.java
+[PitPaginatedHitSource]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/PitPaginatedHitSource.java
+[ClientPitPaginatedHitSource]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/ClientPitPaginatedHitSource.java
+[RemotePitPaginatedHitSource]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/remote/RemotePitPaginatedHitSource.java
+[ClientScrollablePaginatedHitSource]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/ClientScrollablePaginatedHitSource.java
+[RemoteScrollablePaginatedHitSource]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/remote/RemoteScrollablePaginatedHitSource.java
+
+Some long-running tasks can be _relocated_ from a node that is preparing to shut down onto another node,
+where they resume from a saved checkpoint.
+The destination task carries on under a new local task id but is identified to users as the same logical task.
+Relocation is distinct from [Persistent Tasks](#persistent-tasks): there is no master-managed reassignment and no cluster state record of the task.
+The source node decides directly which node to hand off to, sends a transport-level resume request, and the destination resumes from a pagination cursor passed inline.
+
+Today the only action wired up for relocation is reindex. The state machine on [BulkByPaginatedSearchTask] and the `_tasks`-layer support is generic, so update-by-query and delete-by-query (which share `BulkByPaginatedSearchTask`) can be enabled with localized changes; see [Enabling relocation for another action](#enabling-relocation-for-another-action) below.
+
+#### Feature gating and module layout
+
+Relocation is gated by several flags:
+- `ReindexPlugin#RELOCATE_ON_SHUTDOWN_NODE_FEATURE` (`reindex_relocate_on_shutdown`) is a cluster-level [`NodeFeature`] used by [RestReindexAction] to check that every node supports the protocol before opting an incoming request in.
+- `ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE` (`reindex_pit_search`) gates point-in-time-based pagination over using `scroll`.
+
+The module layout reflects who owns what:
+- `server` contains [BulkByPaginatedSearchTask], [ResumeInfo], [TaskInfo], [TaskRelocatedException], and the relocation-aware bits of [TransportGetTaskAction] and [TransportListTasksAction]. These do not depend on the reindex module.
+- `modules/reindex` owns the execution and handoff: [Reindexer], [AbstractAsyncBulkByPaginatedSearchAction], [TransportResumeReindexAction], [ReindexRelocationNodePicker] (with stateful and stateless implementations), [TransportRethrottleAction], and the PIT/scroll pagination sources.
+- [ReindexManagementPlugin] in `modules/reindex-management` owns the `_reindex/{id}` get/list/cancel/rethrottle endpoints. They delegate to the generic `_tasks` transport actions and overlay relocation identity on the response.
+
+[`NodeFeature`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/features/NodeFeature.java
+
+#### Identity model across hops
+
+A task's cluster-scope id is `{nodeId}:{localTaskId}` (see [Task IDs](#a-note-about-task-ids)).
+When a task relocates, the host node id changes, so the [TaskId] of the running task changes.
+To keep the user-facing identity stable, [TaskInfo] carries two extra fields:
+
+- `originalTaskId`: the [TaskId] of the first task in the chain (i.e. the [TaskId] when the request was first received).
+- `originalStartTimeMillis`: the start time of that first task, used by callers to render running time across hops.
+
+Both fields propagate via [ResumeInfo.RelocationOrigin] across the wire.
+`TaskInfo#withOriginalRelocationIdentity` is how `_reindex/{id}` and `_reindex` (list) endpoints overlay this identity on the latest task's [TaskInfo] for the response:
+they keep the latest task's `taskId` (so the client can address the live task in subsequent calls) but reset `startTime`/`runningTime` to span the full chain.
+
+[ResumeInfo.RelocationOrigin]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/ResumeInfo.java
+
+#### Relocation flow
+
+```mermaid
+sequenceDiagram
+    participant Shutdown as ShutdownPrepareService (source)
+    participant Worker as BulkByPaginatedSearchTask (source)
+    participant Reindexer as Reindexer (source)
+    participant Picker as ReindexRelocationNodePicker
+    participant Target as TransportResumeReindexAction (target)
+    participant Tasks as ".tasks index"
+
+    Shutdown->>Worker: maybeRequestRelocationForBulkByPaginatedSearch → requestRelocation()
+    Worker->>Worker: notifyDone() builds ResumeInfo "(PIT or scroll id + status)"
+    Worker->>Reindexer: complete with ResumeInfo
+    Reindexer->>Picker: pick target node
+    Reindexer->>Worker: tryInitiateRelocationHandoff() → HANDOFF_INITIATED
+    Reindexer->>Target: ResumeReindexAction(ResumeInfo)
+    Target->>Target: AbstractAsyncBulkByPaginatedSearchAction.start() resumes from PIT/scroll
+    Target->>Tasks: storeRelocationSourceTaskResult "(upsert with TaskRelocatedException)"
+    Worker->>Tasks: storeResultIfAbsent "(CREATE, loses race vs destination)"
+```
+
+Step by step:
+
+1. [ShutdownPrepareService] reacts to the cluster shutdown metadata and, for each in-flight `BulkByPaginatedSearchTask`, calls `maybeRequestRelocationForBulkByPaginatedSearch` which invokes `BulkByPaginatedSearchTask#requestRelocation`. Tasks that are not `eligibleForRelocationOnShutdown` (e.g. synchronous requests where a client is blocking on the response) are skipped.
+2. The worker in [AbstractAsyncBulkByPaginatedSearchAction]`#notifyDone()` observes that relocation has been requested at a batch boundary, builds a `ResumeInfo` containing either a PIT cursor or a scroll id together with the current status (counters, throttle, slice information), and calls `cleanupWithoutClosingPagination()` so that the search context (PIT or scroll) is not closed when the worker completes.
+3. [Reindexer]`#listenerWithRelocations` receives the worker response, asks [ReindexRelocationNodePicker] for a target node (stateful and stateless variants live in `modules/reindex`), calls `BulkByPaginatedSearchTask#tryInitiateRelocationHandoff` to transition the `RelocationProgress` state machine to `HANDOFF_INITIATED`, and sends a `ResumeReindexAction` transport request to the target.
+4. On the target, [TransportResumeReindexAction] feeds the `ResumeInfo` into `AbstractAsyncBulkByPaginatedSearchAction#start()`, which seeds the pagination source from the inherited PIT/scroll id and continues the run.
+5. The destination calls `Reindexer#storeRelocationSourceTaskResult` to upsert a [TaskResult] for the _source_ task into `.tasks`. The stored result wraps a [TaskRelocatedException] that carries the destination [TaskId].
+6. The source's own attempt to persist its [TaskResult] uses create-if-absent semantics (`BulkByPaginatedSearchTask#useCreateSemanticsForResultStorage` returns the `HANDOFF_INITIATED` flag), routed through [TaskManager]#storeTaskResult into `TaskResultsService#storeResultIfAbsent` (`OpType.CREATE`, version conflict treated as success). If the destination's upsert won the race, the source's write is a no-op.
+
+#### Race conditions and current mitigations
+
+There are four broad races between management APIs and an in-progress handoff:
+
+- **List race.** A relocation can occur between the moment a list-tasks fan-out reaches the source and the moment it reaches the destination, so a task can appear in neither response. Mitigation: [TransportListTasksAction] performs a double-list and deduplicates results by `originalTaskId`, gated by `RELOCATABLE_ACTIONS`. For `wait_for_completion=true`, missing parents from the second pass are reconciled against `.tasks`. [AbstractAsyncBulkByPaginatedSearchAction]'s `relocationCooldownNanos` prevents back-to-back hops that would defeat dedup.
+- **Cancel race.** A cancel addressed to the source [TaskId] may arrive after the task has relocated, so a naive cancel would either 404 on the source or complete "successfully" while the destination keeps running. Mitigation has two layers. First, [BulkByPaginatedSearchTask]'s `RelocationProgress` state machine (`NOT_STARTED` / `HANDOFF_INITIATED` / `TASK_CANCELLED`) ensures that if cancel races the handoff itself, one side loses on a CAS and the loser is rejected (the source returns `503 Service Unavailable` from `ensureCancellable` if the handoff has committed). Second, [TransportCancelTasksAction] is relocation-aware: for actions in `RELOCATABLE_ACTIONS` it always fans out to every node (`resolveNodes` ignores the target node id) and runs a double-broadcast, with `mergeResponses` deduplicating captured tasks by `originalTaskId` and dropping the stale 503/`ResourceNotFoundException` from the merge once the successor's cancel committed. The reindex-management `POST _reindex/{id}/_cancel` endpoint delegates to the same transport action so it inherits the behavior.
+- **Rethrottle race.** Single-node-targeted rethrottle hits the same problem as cancel. Mitigation: [TransportRethrottleAction]`#followRelocationAndRethrottle`, gated on `RethrottleRequest#followRelocations` (set to true by `RestReindexRethrottleAction`), uses `GET _tasks/{id}` to follow the relocation chain to the current task, then re-issues the rethrottle. Total RPS is stored on the leader via `LeaderBulkByPaginatedSearchTaskState#setRequestsPerSecondWithRelocationGuard` and travels with `ResumeInfo` so the destination starts at the right rate.
+- **Chain-break race.** If the source crashes before writing `.tasks`, or the `ResumeReindexAction` RPC is lost, the chain through `.tasks` can break and `GET _tasks/{id}` cannot follow the hop. Mitigation: the destination is responsible for upserting the source's `.tasks` entry, and the source writes with create-if-absent semantics. Either side can fail without orphaning the chain.
+
+#### API relocation-awareness
+
+The current state of each relevant endpoint:
+
+- `GET _tasks/{id}` follows relocations via `TransportGetTaskAction#followReindexRelocationIfNeeded` (combined with `mergeRelocatedTask` and `extractRelocatedReindexTaskId`). Opt-out via `GetTaskRequest#setFollowRelocations`.
+- `GET _tasks` (list) follows relocations via the double-list described above for any action in `RELOCATABLE_ACTIONS`.
+- `GET _reindex/{id}` and `GET _reindex` delegate to the `_tasks` layer and overlay relocation identity on the response.
+- `POST _tasks/{id}/_cancel` follows relocations for any action in `RELOCATABLE_ACTIONS` via [TransportCancelTasksAction]'s double-broadcast merge.
+- `POST _reindex/{id}/_cancel` is relocation-aware by delegation: `TransportCancelReindexAction` issues a `TransportCancelTasksAction` request scoped to `ReindexAction.NAME`, and (for `wait_for_completion=true`) follows up with `TransportGetReindexAction` to materialise the final response with chain-aware identity.
+- `POST _reindex/{id}/_rethrottle` follows relocations through [TransportRethrottleAction]. The response's `TaskInfo` entries pass through `TaskInfo#withOriginalRelocationIdentity` so the JSON shape matches the list-reindex output.
+
+#### Sliced vs non-sliced
+
+Relocation operates differently depending on whether the request was sliced:
+- **Non-sliced**: a single worker holds the pagination cursor; on relocation it builds `ResumeInfo.WorkerResumeInfo` (with either `ScrollWorkerResumeInfo` or `PitWorkerResumeInfo`) and the leader for that single worker (which is the task itself) hands off.
+- **Sliced**: each slice is its own worker task with a separate `WorkerBulkByScrollTaskState`. The leader's [LeaderBulkByPaginatedSearchTaskState] aggregates per-slice completion before initiating the relocation; the combined `ResumeInfo` carries one `SliceStatus` per slice and a `WorkerResumeInfo` for each unfinished slice. Already-finished slices propagate forward to ensure the final task on the last node sees a complete result. `BulkByPaginatedSearchParallelizationHelper` handles completed slices when resuming on the destination.
+
+#### Pagination
+
+Reindex's pagination has two implementations, abstracted by `PaginatedHitSource`:
+- Scroll-based: [ClientScrollablePaginatedHitSource] (local) and [RemoteScrollablePaginatedHitSource] (remote).
+- Point-in-time: [PitPaginatedHitSource] / [ClientPitPaginatedHitSource] / [RemotePitPaginatedHitSource], gated by `REINDEX_PIT_SEARCH_FEATURE`. Remote PIT requires the remote cluster to be at least 7.10; older remotes still fall back to scroll.
+
+PIT is what makes relocation reliable: scroll contexts are bound to the search shard nodes that opened them, so on stateful clusters losing a search-shard node can invalidate the cursor mid-relocation. In stateless, PIT survives shard relocations and is backed by the object store. The TTL on whichever cursor is in use must outlive the handoff window: `AbstractAsyncBulkByPaginatedSearchAction#cleanupWithoutClosingPagination` keeps the context alive during the hop, and `ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING` controls the per-cluster PIT keep-alive used by reindex.
+
+#### Enabling relocation for other BulkByPaginatedSearchTask actions
+
+To opt update-by-query, delete-by-query, or any other [BulkByPaginatedSearchTask]-based action into the relocation protocol:
+
+1. In the REST handler (e.g. `RestUpdateByQueryAction`), follow the pattern in [RestReindexAction]: behind a `clusterSupportsFeature.test(RELOCATE_ON_SHUTDOWN_NODE_FEATURE)` check and `wait_for_completion=false`, call `setEligibleForRelocationOnShutdown(true)` on the request. Synchronous requests should never be opted in, since the originating client is blocking on the response and cannot follow a hop.
+2. Add the action name to `TransportListTasksAction#RELOCATABLE_ACTIONS` so the double-list / dedup path covers it. Without this, list responses can drop the task during a hop.
+3. Add a resume transport action analogous to [TransportResumeReindexAction] (extending `AbstractResumeBulkByScrollAction`), and register it in the corresponding [ReindexPlugin]-style plugin. The execution side just needs to plumb `ResumeInfo` through `AbstractAsyncBulkByPaginatedSearchAction#start()`.
+4. Ensure the request type propagates `eligibleForRelocationOnShutdown` to its slice subrequests (see `ReindexRequest#setEligibleForRelocationOnShutdown` and how it copies the flag onto the sliced request).
+5. Update wire serialization: add the flag to the request's `Writeable` round-trip, and follow the project convention for adding a `TransportVersion` so old nodes do not see the field. See `AGENTS.md` for the `generateTransportVersion` workflow.
+6. In [ShutdownPrepareService], extend the loop that calls `relocateReindexTasksAndAwaitComplete(...)` to also iterate the new action's tasks. The `maybeRequestRelocationForBulkByPaginatedSearch` helper already handles any `BulkByPaginatedSearchTask`, but the wait-for-completion driver in `awaitTasksComplete` is action-name scoped.
+7. If you want a separate management surface (e.g. `_update_by_query/{id}` with relocation identity overlaid on responses), add a sibling to the `reindex-management` module. Otherwise, the generic `_tasks` APIs already cover the basics for any action listed in `RELOCATABLE_ACTIONS`.
+8. Add integration tests modelled on `ReindexRelocationOnShutdownIT`, `ListTasksRelocationIT`, and `GetTaskRelocationIT`. Wire serialization tests should cover the new field; see `ReindexRequestWireSerializingTests`/`UpdateByQueryRequestWireSerializingTests`.
 
 ### Persistent Tasks
 
@@ -2685,11 +3125,13 @@ before an ack is sent back to the client.
 
 Note that in serverless Elasticsearch, there is no replication process needed. The same reliability and fault tolerance
 are instead achieved by uploading the translog to a blob store and relying on the store's durability and fault tolerance
-guarantees. See this [blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless)
-for more details.
+guarantees. On an `index` node the `TranslogReplicator` batches operations into a node-level `NodeTranslogBuffer` and
+uploads them to the object store, and the `StatelessCommitService` batches Lucene commits for upload (see the
+[Stateless Roles](#stateless-roles) section for the class-level detail). See this
+[blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless) for more details.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
-[translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
+[translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under
 the Search team.
 
 This section follows a bulk index request end to end in stateful Elasticsearch, using [RestBulkAction]
@@ -2788,8 +3230,8 @@ Once the request
 [reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
 the node that actually hosts the primary, it will get
 [wrapped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L988)
-in a [ConcreteShardRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1388) 
-that includes the shard’s primary term and target allocation id. That lets the primary and replicas refuse operations 
+in a [ConcreteShardRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1388)
+that includes the shard’s primary term and target allocation id. That lets the primary and replicas refuse operations
 that were built for a superseded primary generation.
 
 #### Primary Execution
@@ -2815,7 +3257,7 @@ Lucene via an `IndexWriter`, and then
 the operation to the [Translog](#translog).
 
 Note that the translog write happens after the Lucene update. The translog is primarily a durability and recovery log for
-acknowledged operations, not a write-ahead log in the classic database sense. The translog entry type also depends on 
+acknowledged operations, not a write-ahead log in the classic database sense. The translog entry type also depends on
 the Lucene outcome. A successful Lucene apply writes the full operation, while a failure with an already-assigned seq_no
 [writes a no-op](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1278)
 to preserve the sequence number history.
@@ -2880,9 +3322,9 @@ sequenceDiagram
 When replication and the ref-counted coordination above have finished, the primary completes the shard-level request and
 returns the result to the node that issued that shard-level transport request. For a normal REST bulk request, that
 issuer is the HTTP request coordinating node, which then completes the write action and sends
-the HTTP response to the client. The same shard-level transport requests can also be generated internally, for example 
+the HTTP response to the client. The same shard-level transport requests can also be generated internally, for example
 via [TriggeredWatchStore#putAll](https://github.com/elastic/elasticsearch/blob/v9.3.0/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/TriggeredWatchStore.java#L84)
-in Watcher. The issuer is then whichever node runs that internal client, and the primary returns the result to that 
+in Watcher. The issuer is then whichever node runs that internal client, and the primary returns the result to that
 transport caller.
 
 ### Primary Terms & Sequence Numbers
@@ -2931,7 +3373,7 @@ flowchart LR
 ### Checkpoints & Gaps
 
 Each shard copy tracks how far it has applied the shared history of `seq_no` values using a local checkpoint,
-which is the highest sequence number for which that copy has processed every earlier `seq_no` (inclusive). 
+which is the highest sequence number for which that copy has processed every earlier `seq_no` (inclusive).
 The [InternalEngine] holds a [LocalCheckpointTracker]
 [field](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L172)
 that maintains that marker and a separate persisted checkpoint for what is durably on disk.

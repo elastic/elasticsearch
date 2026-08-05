@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -60,7 +61,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.core.Strings.format;
@@ -267,7 +268,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Releasables.close(currentBuffer.getAndSet(null));
     }
 
-    public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
+    public void register(ShardId shardId, long primaryTerm, Consumer<LongsRef> persistedSeqNosConsumer) {
         logger.debug(() -> format("shard %s registered with translog replicator", shardId));
         var previous = shardSyncStates.put(
             shardId,
@@ -275,7 +276,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 shardId,
                 primaryTerm,
                 () -> currentPrimaryTerm.applyAsLong(shardId),
-                persistedSeqNoConsumer,
+                persistedSeqNosConsumer,
                 threadPool.getThreadContext()
             )
         );
@@ -489,7 +490,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public record CompoundTranslogMetadata(
         String name,
         long generation,
-        Map<ShardId, TranslogMetadata.Operations> operations,
+        Map<ShardId, Long> totalOps,
         Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
     ) {}
 
@@ -606,21 +607,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final long generation;
         private final String blobName;
-        private final Map<ShardId, TranslogMetadata.Operations> operations;
+        private final Map<ShardId, Long> totalOps;
         private final Set<ShardId> includedShards;
 
         private volatile boolean safeForDelete = true;
         private ArrayList<ShardId> unsafeForDeleteShards = null;
 
-        BlobTranslogFile(
-            long generation,
-            String blobName,
-            Map<ShardId, TranslogMetadata.Operations> operations,
-            Set<ShardId> includedShards
-        ) {
+        BlobTranslogFile(long generation, String blobName, Map<ShardId, Long> totalOps, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;
-            this.operations = operations;
+            this.totalOps = totalOps;
             this.includedShards = includedShards;
         }
 
@@ -632,8 +628,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return blobName;
         }
 
-        public Map<ShardId, TranslogMetadata.Operations> operations() {
-            return operations;
+        public long getTotalOps(ShardId shardId) {
+            return this.totalOps.getOrDefault(shardId, 0L);
         }
 
         @Override
@@ -673,8 +669,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 + generation
                 + ", blobName='"
                 + blobName
-                + "', operations="
-                + operations
+                + "', totalOps="
+                + totalOps
                 + ", includedShards="
                 + includedShards
                 + '}';
@@ -683,11 +679,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private class BlobTranslogFileImpl extends BlobTranslogFile {
 
-        private final TranslogReplicator.CompoundTranslogMetadata metadata;
+        private final Map<ShardId, ShardSyncState.SyncMarker> syncedLocations;
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata metadata) {
-            super(metadata.generation(), metadata.name(), metadata.operations(), metadata.syncedLocations().keySet());
-            this.metadata = metadata;
+            super(metadata.generation(), metadata.name(), metadata.totalOps(), metadata.syncedLocations().keySet());
+            this.syncedLocations = metadata.syncedLocations();
         }
 
         @Override
@@ -715,7 +711,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
-                    assert translogFile.operations().get(entry.getKey()).totalOps() > 0;
+                    assert translogFile.getTotalOps(entry.getKey()) > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                     // If the shard sync state has been deregistered we can just ignore
                     if (shardSyncState != null) {
@@ -809,7 +805,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         task.completedUploads.forEach(upload -> {
                             try {
                                 activeTranslogFiles.add(upload);
-                                for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : upload.metadata.syncedLocations().entrySet()) {
+                                for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : upload.syncedLocations.entrySet()) {
                                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                                     if (shardSyncState == null) {
                                         logger.debug(

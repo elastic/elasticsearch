@@ -112,6 +112,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
         return new SecurityRestFilter(
             true,
+            true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
@@ -185,7 +186,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
         assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
 
@@ -193,6 +194,46 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter.intercept(request, channel, restHandler, future);
         assertThat(future.get(), is(Boolean.TRUE));
         verifyNoMoreInteractions(channel, authcService);
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresSecurityEnabled() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(true));
+
+        filter = new SecurityRestFilter(false, true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), null);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresHttpSslEnabled() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        filter = new SecurityRestFilter(
+            true,
+            false,
+            threadContext,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRequiresAuthenticatedUser() {
+        RestRequest request = mock(RestRequest.class);
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
+    }
+
+    public void testAllowsBrowserSafelistedContentTypeRejectsAnonymousAuthentication() throws Exception {
+        Authentication authentication = AuthenticationTestHelper.builder().anonymous().build(false);
+        authentication.writeToContext(threadContext);
+        RestRequest request = mock(RestRequest.class);
+
+        assertThat(filter.allowsBrowserSafelistedContentType(request), is(false));
     }
 
     public void testProcessOptionsMethod() throws Exception {
@@ -232,6 +273,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             return Void.TYPE;
         }).when(auditTrail).authenticationSuccess(any(RestRequest.class));
         filter = new SecurityRestFilter(
+            true,
             true,
             threadContext,
             secondaryAuthenticator,
@@ -297,6 +339,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         filter = new SecurityRestFilter(
             true,
+            true,
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
@@ -322,6 +365,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         }
 
         filter = new SecurityRestFilter(
+            true,
             true,
             threadContext,
             secondaryAuthenticator,

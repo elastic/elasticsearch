@@ -48,6 +48,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -429,6 +430,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
         try {
             Files.createLink(targetBlobPath, sourceBlobPath);
         } catch (UnsupportedOperationException e) {
+            fallbackMoveAtomically.accept(targetBlobPath, sourceBlobPath);
+            return;
+        } catch (FileSystemException e) {
+            // In some filesystems (e.g., CIFS) the Files.createLink() does not throw UnsupportedOperationException (as Javadoc says) but
+            // FileSystemException or AccessDeniedException instead. To handle this, we fall back to the no-hard-link operation. This is an
+            // indirect check that assumes that direct FileSystemExceptions or AccessDeniedException instances are rare, and they indicate
+            // a lack of support for hard links or insufficient permissions for creating them.
+            if (e.getClass() != FileSystemException.class && e instanceof AccessDeniedException == false) {
+                throw e;
+            }
             fallbackMoveAtomically.accept(targetBlobPath, sourceBlobPath);
             return;
         }

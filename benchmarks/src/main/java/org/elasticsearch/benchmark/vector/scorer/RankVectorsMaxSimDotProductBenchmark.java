@@ -161,11 +161,10 @@ public class RankVectorsMaxSimDotProductBenchmark {
 
     private static BytesRef encodeBFloat16DocVectors(float[][] vectors) {
         int dims = vectors[0].length;
-        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        var bFloat16Buffer = buffer.asShortBuffer();
-        for (float[] vector : vectors) {
-            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
+        byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
+        for (int i = 0; i < vectors.length; i++) {
+            BFloat16.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
         }
-        return new BytesRef(buffer.array());
+        return new BytesRef(buffer);
     }
 }

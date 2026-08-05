@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
@@ -20,7 +21,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -29,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -68,6 +72,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
@@ -76,6 +81,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAcces
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -86,6 +92,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
     @Before
     public void init() {
         startMasterOnlyNode();
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // testStress generates large commits (2-3 MB). randomConcurrentMultiPartSettings can pick values as small as 1 KB threshold /
+        // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
+        // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
+        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~190 parts for a 3 MB commit).
+        return super.nodeSettings().put(
+            ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
+            ByteSizeValue.of(128, ByteSizeUnit.KB)
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(16, ByteSizeUnit.KB));
     }
 
     public void testGet() {
@@ -857,6 +875,84 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
         assertFalse(getFuture.get(10, TimeUnit.SECONDS).getResponses()[0].getResponse().isExists());
         assertEquals(failCount + 1, getFromTranslogSeen.get());
+    }
+
+    public void testRealtimeGetAndMGetAfterSearchShardRelocation() throws Exception {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        final var realtimeGetTimeout = TimeValue.timeValueMillis(500);
+        final var searchNodeA = startSearchNode(
+            Settings.builder()
+                .put(TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING.getKey(), realtimeGetTimeout)
+                .build()
+        );
+        final var searchNodeB = startSearchNode(
+            Settings.builder()
+                .put(TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING.getKey(), realtimeGetTimeout)
+                .build()
+        );
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeB)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final var bulkResponse = indexDocs(indexName, 1);
+        final var id = bulkResponse.getItems()[0].getId();
+        final boolean useMultiGet = randomBoolean();
+
+        final var getReachedTranslog = new CountDownLatch(1);
+        final var continueGetFromTranslog = new CountDownLatch(1);
+        final var getFromTranslogAttempts = new AtomicInteger();
+        final var translogActionName = useMultiGet ? TransportShardMultiGetFomTranslogAction.NAME : TransportGetFromTranslogAction.NAME;
+        MockTransportService.getInstance(indexNode).addRequestHandlingBehavior(translogActionName, (handler, request, channel, task) -> {
+            getFromTranslogAttempts.incrementAndGet();
+            getReachedTranslog.countDown();
+            safeAwait(continueGetFromTranslog);
+            handler.messageReceived(request, channel, task);
+        });
+
+        final var shardGetAction = useMultiGet ? TransportShardMultiGetAction.TYPE.name() + "[s]" : TransportGetAction.TYPE.name() + "[s]";
+        final var shardGetsOnSearchB = new AtomicInteger();
+        MockTransportService.getInstance(searchNodeB).addRequestHandlingBehavior(shardGetAction, (handler, request, channel, task) -> {
+            shardGetsOnSearchB.incrementAndGet();
+            handler.messageReceived(request, channel, task);
+        });
+
+        if (useMultiGet) {
+            final var mgetFuture = client(searchNodeA).prepareMultiGet().add(indexName, id).setRealtime(true).execute();
+            safeAwait(getReachedTranslog);
+
+            updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeA), indexName);
+            internalCluster().awaitNodeVacated(indexName, searchNodeA);
+            continueGetFromTranslog.countDown();
+
+            final var mgetResponse = mgetFuture.actionGet(TimeValue.timeValueSeconds(30));
+            assertEquals(1, mgetResponse.getResponses().length);
+            MultiGetItemResponse itemResponse = mgetResponse.getResponses()[0];
+            assertNull(itemResponse.getResponse());
+            assertThat(itemResponse.getFailure().getFailure(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(itemResponse.getFailure().getFailure().getMessage(), containsString("No shard available"));
+        } else {
+            final var getFuture = client(searchNodeA).prepareGet(indexName, id).setRealtime(true).execute();
+            safeAwait(getReachedTranslog);
+
+            updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeA), indexName);
+            internalCluster().awaitNodeVacated(indexName, searchNodeA);
+            continueGetFromTranslog.countDown();
+
+            final ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> getFuture.actionGet(TimeValue.timeValueSeconds(30))
+            );
+            assertThat(exception, instanceOf(NoShardAvailableActionException.class));
+            assertThat(exception.getMessage(), containsString("No shard available"));
+        }
+        assertThat(getFromTranslogAttempts.get(), equalTo(1));
+        assertThat(shardGetsOnSearchB.get(), equalTo(0));
     }
 
     private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {

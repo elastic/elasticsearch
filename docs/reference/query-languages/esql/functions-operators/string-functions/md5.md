@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MD5` function [esql-md5]
 
-:::{include} ../../_snippets/functions/layout/md5.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/md5.md
 :::

@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,8 +52,8 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     private TestSearchExtPlugin searchExtPlugin;
     private NamedXContentRegistry xContentRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpSearchTestCase() throws Exception {
         searchExtPlugin = new TestSearchExtPlugin();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin));
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -68,32 +69,17 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
     }
 
     protected SearchSourceBuilder createSearchSourceBuilder() {
-        Supplier<List<SearchExtBuilder>> randomExtBuilders = () -> {
-            Set<String> elementNames = new HashSet<>(searchExtPlugin.getSupportedElements().keySet());
-            int numSearchExts = randomIntBetween(1, elementNames.size());
-            while (elementNames.size() > numSearchExts) {
-                elementNames.remove(randomFrom(elementNames));
-            }
-            List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
-            for (String elementName : elementNames) {
-                searchExtBuilders.add(searchExtPlugin.getSupportedElements().get(elementName).apply(randomAlphaOfLengthBetween(3, 10)));
-            }
-            return searchExtBuilders;
-        };
-        return RandomSearchRequestGenerator.randomSearchSourceBuilder(
-            HighlightBuilderTests::randomHighlighterBuilder,
-            SuggestBuilderTests::randomSuggestBuilder,
-            QueryRescorerBuilderTests::randomRescoreBuilder,
-            randomExtBuilders,
-            CollapseBuilderTests::randomCollapseBuilder,
-            AbstractSearchTestCase::randomRuntimeMappings
-        );
+        return randomSearchSourceBuilder(searchExtPlugin);
     }
 
     public static Map<String, Object> randomRuntimeMappings() {
@@ -112,6 +98,39 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
 
     protected SearchRequest createSearchRequest() throws IOException {
         return RandomSearchRequestGenerator.randomSearchRequest(this::createSearchSourceBuilder);
+    }
+
+    /**
+     * Builds a randomized {@link SearchRequest} without requiring a test instance. Useful for callers
+     * that just want a sample request and don't share state (e.g. a {@link NamedWriteableRegistry})
+     * with the produced extensions.
+     */
+    public static SearchRequest randomSearchRequest() throws IOException {
+        TestSearchExtPlugin plugin = new TestSearchExtPlugin();
+        return RandomSearchRequestGenerator.randomSearchRequest(() -> randomSearchSourceBuilder(plugin));
+    }
+
+    private static SearchSourceBuilder randomSearchSourceBuilder(TestSearchExtPlugin plugin) {
+        Supplier<List<SearchExtBuilder>> randomExtBuilders = () -> {
+            Set<String> elementNames = new HashSet<>(plugin.getSupportedElements().keySet());
+            int numSearchExts = randomIntBetween(1, elementNames.size());
+            while (elementNames.size() > numSearchExts) {
+                elementNames.remove(randomFrom(elementNames));
+            }
+            List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
+            for (String elementName : elementNames) {
+                searchExtBuilders.add(plugin.getSupportedElements().get(elementName).apply(randomAlphaOfLengthBetween(3, 10)));
+            }
+            return searchExtBuilders;
+        };
+        return RandomSearchRequestGenerator.randomSearchSourceBuilder(
+            HighlightBuilderTests::randomHighlighterBuilder,
+            SuggestBuilderTests::randomSuggestBuilder,
+            QueryRescorerBuilderTests::randomRescoreBuilder,
+            randomExtBuilders,
+            CollapseBuilderTests::randomCollapseBuilder,
+            AbstractSearchTestCase::randomRuntimeMappings
+        );
     }
 
     private static class TestSearchExtPlugin extends Plugin implements SearchPlugin {

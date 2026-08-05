@@ -17,12 +17,15 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -54,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -152,6 +157,18 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof JinaAIRerankModel jinaAIRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
+
+        var action = jinaAIRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -199,18 +216,47 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
             if (model.getServiceSettings().isMultimodal() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(new ElasticsearchStatusException("Non-text input provided for text-only model", RestStatus.BAD_REQUEST));
             } else {
-                var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
+                if (arePdfInputsInvalid(request.inputs())) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "[%s] service does not support specifying more than one input if any inputs are of type [%s]",
+                                name(),
+                                DataType.PDF
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                } else {
+                    var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
-                ExecutableAction action = jinaAIModel.accept(actionCreator, request.taskSettings());
-                action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+                    ExecutableAction action = jinaAIModel.accept(actionCreator, request.taskSettings());
+                    action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+                }
             }
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
     }
 
+    /**
+     * Jina only supports specifying a single PDF as an input. A request cannot contain more than one PDF, or a PDF plus any other input.
+     * See <a href="https://api.jina.ai/scalar#tag/search-foundation-models/POST/v1/embeddings">Jina docs</a>
+     * @param inputs the list of {@link InferenceStringGroup} inputs
+     * @return {@code true} if the provided inputs are invalid in terms of how PDFs are specified
+     */
+    private static boolean arePdfInputsInvalid(List<InferenceStringGroup> inputs) {
+        boolean containsMultipleInputs = inputs.size() > 1 || inputs.getFirst().containsMultipleInferenceStrings();
+        return containsMultipleInputs && inputs.stream().anyMatch(InferenceStringGroup::containsPdfEntry);
+    }
+
     @Override
-    protected boolean supportsNonTextEmbeddingContent() {
+    public boolean supportsNonTextEmbeddingContent() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsMultipleItemsPerContent() {
         return true;
     }
 

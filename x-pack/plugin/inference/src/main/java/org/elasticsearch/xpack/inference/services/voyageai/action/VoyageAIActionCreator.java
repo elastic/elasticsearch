@@ -80,7 +80,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
                 rerankInput.getDocsAsStrings(),
                 rerankInput.getReturnDocuments(),
                 rerankInput.getTopN(),
-                model
+                overriddenModel
             ),
             QueryAndDocsInputs.class
         );

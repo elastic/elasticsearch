@@ -19,9 +19,9 @@
 template<
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t (*dotd1q4_op)(const int8_t* a, const int8_t* q, const int32_t length)
+    int64_t (*dotd1q_op)(const int8_t* a, const int8_t* q, const int32_t length)
 >
-static inline void dotd1q4_inner_bulk(
+static inline void dotd1q_inner_bulk(
     const TData* a,
     const int8_t* query,
     const int32_t length,
@@ -53,7 +53,7 @@ static inline void dotd1q4_inner_bulk(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)dotd1q4_op(current_vecs[I], query, length);
+            results[c + I] = (f32_t)dotd1q_op(current_vecs[I], query, length);
         });
 
         if (has_next) {
@@ -64,16 +64,16 @@ static inline void dotd1q4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)dotd1q4_op(a0, query, length);
+        results[c] = (f32_t)dotd1q_op(a0, query, length);
     }
 }
 
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t (*dotd1q4_op)(const int8_t* a, const int8_t* q, const int32_t length)
+    int64_t (*dotd1q_op)(const int8_t* a, const int8_t* q, const int32_t length)
 >
-static inline void dotd2q4_inner_bulk(
+static inline void dotd2q_inner_bulk(
     const TData* a,
     const int8_t* query,
     const int32_t length,
@@ -106,8 +106,8 @@ static inline void dotd2q4_inner_bulk(
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)(
-                dotd1q4_op(current_vecs[I], query, bit_length)
-                + (dotd1q4_op(current_vecs[I] + bit_length, query, bit_length) << 1));
+                dotd1q_op(current_vecs[I], query, bit_length)
+                + (dotd1q_op(current_vecs[I] + bit_length, query, bit_length) << 1));
         });
 
         if (has_next) {
@@ -118,8 +118,8 @@ static inline void dotd2q4_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        int64_t lower = dotd1q4_op(a0, query, bit_length);
-        int64_t upper = dotd1q4_op(a0 + bit_length, query, bit_length);
+        int64_t lower = dotd1q_op(a0, query, bit_length);
+        int64_t upper = dotd1q_op(a0 + bit_length, query, bit_length);
         results[c] = (f32_t)(lower + (upper << 1));
     }
 }
@@ -127,7 +127,7 @@ static inline void dotd2q4_inner_bulk(
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t (*dotd1q4_op)(const int8_t* a, const int8_t* q, const int32_t length)
+    int64_t (*dotd1q_op)(const int8_t* a, const int8_t* q, const int32_t length)
 >
 static inline void dotd4q4_inner_bulk(
     const TData* a,
@@ -152,15 +152,15 @@ static inline void dotd4q4_inner_bulk(
         prefetch(a0 + 2 * bit_length, lines_to_fetch);
         prefetch(a0 + 3 * bit_length, lines_to_fetch);
 
-        int64_t p0 = dotd1q4_op(a0, query, bit_length);
-        int64_t p1 = dotd1q4_op(a0 + bit_length, query, bit_length);
+        int64_t p0 = dotd1q_op(a0, query, bit_length);
+        int64_t p1 = dotd1q_op(a0 + bit_length, query, bit_length);
 
         // and 0 and 1 of the next vector
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a0 + bit_length, lines_to_fetch);
 
-        int64_t p2 = dotd1q4_op(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1q4_op(a0 + 3 * bit_length, query, bit_length);
+        int64_t p2 = dotd1q_op(a0 + 2 * bit_length, query, bit_length);
+        int64_t p3 = dotd1q_op(a0 + 3 * bit_length, query, bit_length);
 
         results[c] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
 
@@ -171,10 +171,10 @@ static inline void dotd4q4_inner_bulk(
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
 
-        int64_t p0 = dotd1q4_op(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1q4_op(a0 + 1 * bit_length, query, bit_length);
-        int64_t p2 = dotd1q4_op(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1q4_op(a0 + 3 * bit_length, query, bit_length);
+        int64_t p0 = dotd1q_op(a0 + 0 * bit_length, query, bit_length);
+        int64_t p1 = dotd1q_op(a0 + 1 * bit_length, query, bit_length);
+        int64_t p2 = dotd1q_op(a0 + 2 * bit_length, query, bit_length);
+        int64_t p3 = dotd1q_op(a0 + 3 * bit_length, query, bit_length);
 
         results[c] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
     }

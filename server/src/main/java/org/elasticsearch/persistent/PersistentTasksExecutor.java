@@ -19,7 +19,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
@@ -98,7 +99,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
-     * Finds the least loaded node from amongs the candidate node collection
+     * Finds the least loaded node from amongst the candidate node collection
      * that satisfies the selector criteria
      */
     protected DiscoveryNode selectLeastLoadedNode(
@@ -108,14 +109,20 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        final List<PersistentTasks> allPersistentTasks = PersistentTasks.getAllTasks(clusterState).map(Tuple::v2).toList();
+        Map<String, Integer> numberOfTasksPerNode = getNumberOfTasksPerNode(clusterState, candidateNodes);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
-                if (allPersistentTasks.isEmpty()) {
+                if (numberOfTasksPerNode.isEmpty()) {
                     // We don't have any task running yet, pick the first available node
                     return node;
                 }
-                long numberOfTasks = allPersistentTasks.stream().mapToLong(p -> p.getNumberOfTasksOnNode(node.getId(), taskName)).sum();
+                assert numberOfTasksPerNode.containsKey(node.getId())
+                    : "numberOfTasksPerNode should be initialised with all candidate nodes";
+                int numberOfTasks = numberOfTasksPerNode.get(node.getId());
+                // If we find a node with no running tasks, we choose this one directly.
+                if (numberOfTasks == 0) {
+                    return node;
+                }
                 if (minLoad > numberOfTasks) {
                     minLoad = numberOfTasks;
                     minLoadedNode = node;
@@ -123,6 +130,19 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
             }
         }
         return minLoadedNode;
+    }
+
+    private Map<String, Integer> getNumberOfTasksPerNode(ClusterState clusterState, Collection<DiscoveryNode> candidateNodes) {
+        Map<String, Integer> numberOfTasksPerNode = new HashMap<>(candidateNodes.size());
+        candidateNodes.forEach(node -> numberOfTasksPerNode.put(node.getId(), 0));
+        Iterator<Tuple<ProjectId, PersistentTasks>> iterator = PersistentTasks.getAllTasks(clusterState).iterator();
+        while (iterator.hasNext()) {
+            Collection<PersistentTask<?>> tasks = iterator.next().v2().findTasks(taskName, PersistentTask::isAssigned);
+            for (var task : tasks) {
+                numberOfTasksPerNode.computeIfPresent(task.getExecutorNode(), (ignored, count) -> count + 1);
+            }
+        }
+        return numberOfTasksPerNode;
     }
 
     /**

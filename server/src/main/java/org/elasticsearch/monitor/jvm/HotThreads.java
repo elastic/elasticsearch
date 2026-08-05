@@ -28,7 +28,6 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -108,23 +107,24 @@ public class HotThreads {
 
     /**
      * Capture and log the current threads on the local node. Unlike hot threads this does not sample and captures current state only.
-     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting message might be large, so it is
-     * split per thread and logged as multiple entries.
+     * Useful for capturing stack traces for unexpectedly-slow operations in production. The resulting log message may be large, and
+     * contains significant whitespace, so it is compressed and base64-encoded using {@link ChunkedLoggingStream}.
      *
      * @param logger        The logger to use for the logging
      * @param level         The log level to use for the logging.
      * @param prefix        The prefix to emit on each chunk of the logging.
+     * @param referenceDocs A link to the docs describing how to decode the logging.
      */
-    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix) {
+    public static void logLocalCurrentThreads(Logger logger, Level level, String prefix, ReferenceDocs referenceDocs) {
         if (logger.isEnabled(level) == false) {
             return;
         }
 
-        try (var writer = new StringWriter()) {
-            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).detect(writer, () -> {
-                logger.log(level, "{}: {}", prefix, writer.toString());
-                writer.getBuffer().setLength(0);
-            });
+        try (
+            var stream = ChunkedLoggingStream.create(logger, level, prefix, referenceDocs);
+            var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
+        ) {
+            new HotThreads().busiestThreads(500).threadElementsSnapshotCount(1).detect(writer);
         } catch (Exception e) {
             logger.error(
                 () -> org.elasticsearch.common.Strings.format("failed to write local current threads with prefix [%s]", prefix),

@@ -33,6 +33,7 @@
             "Client",
             "Cluster Coordination",
             "Codec",
+            "Columnar",
             "Data streams",
             "DLM",
             "Discovery-Plugins",
@@ -308,7 +309,8 @@
         "Rollup",
         "Search",
         "System requirement",
-        "Transform"
+        "Transform",
+        "TSDB"
       ]
     },
     "additionalProperties": false

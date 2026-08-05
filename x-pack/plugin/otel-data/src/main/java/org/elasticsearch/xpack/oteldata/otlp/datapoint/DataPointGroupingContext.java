@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -40,14 +42,16 @@ import java.util.function.BiFunction;
 public class DataPointGroupingContext implements AbstractOTLPTransportAction.ProcessingContext {
 
     private final BufferedByteStringAccessor byteStringAccessor;
+    private final MappingHints defaultMappingHints;
     private final Map<Hash128, ResourceGroup> resourceGroups = new HashMap<>();
     private final Set<String> ignoredDataPointMessages = new HashSet<>();
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
 
-    public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor) {
+    public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
+        this.defaultMappingHints = defaultMappingHints;
     }
 
     public void groupDataPoints(ExportMetricsServiceRequest exportMetricsServiceRequest) {
@@ -212,7 +216,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
         public void addDataPoint(DataPoint dataPoint) {
             totalDataPoints++;
-            if (dataPoint.isValid(ignoredDataPointMessages) == false) {
+            MappingHints effectiveHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
+            if (dataPoint.isValid(ignoredDataPointMessages, effectiveHints) == false) {
                 ignoredDataPoints++;
                 return;
             }
@@ -251,6 +256,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
                     dataPointGroupTsidBuilder,
                     dataPoint.getAttributes(),
                     dataPoint.getUnit(),
+                    dataPoint.getTemporality(),
                     targetIndex
                 );
                 dataPointGroups.put(dataPointGroupHash, dataPointGroup);
@@ -277,6 +283,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final TsidBuilder tsidBuilder;
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
+        private final @Nullable AggregationTemporality temporality;
         private final Set<String> metricNames = new HashSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
@@ -290,6 +297,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             TsidBuilder tsidBuilder,
             List<KeyValue> dataPointAttributes,
             String unit,
+            @Nullable AggregationTemporality temporality,
             TargetIndex targetIndex
         ) {
             this.resource = resource;
@@ -299,6 +307,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             this.tsidBuilder = tsidBuilder;
             this.dataPointAttributes = dataPointAttributes;
             this.unit = unit;
+            this.temporality = temporality;
             this.targetIndex = targetIndex;
         }
 
@@ -360,6 +369,10 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
         public String unit() {
             return unit;
+        }
+
+        public @Nullable AggregationTemporality temporality() {
+            return temporality;
         }
 
         public List<DataPoint> dataPoints() {

@@ -111,9 +111,40 @@ public class AzureConfigurationTests extends ESTestCase {
         assertTrue(config.hasCredentials());
     }
 
-    public void testHasCredentialsWithoutCredentials() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint");
-        assertFalse(config.hasCredentials());
+    public void testSasTokenWithoutAccountRejectedAtCreate() {
+        // sas_token alone is not a complete static credential — the provider needs account+sas. Requiring account
+        // means auto has nothing to resolve, so it is rejected at create rather than resolving to static and failing
+        // at query time. (Explicit auth=static_credentials with sas-alone is rejected the same way.)
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "?sv=2020-01-01", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
+
+        ValidationException explicit = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, "?sv=2020-01-01", null, "static_credentials")
+        );
+        assertTrue(explicit.getMessage().contains("requires complete explicit credentials"));
+    }
+
+    public void testWithoutCredentialsRejectedAtCreate() {
+        // Only an endpoint, no credential — auto has nothing to resolve, so construction is rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, null, "https://endpoint")
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
+    }
+
+    public void testWhitespaceSasTokenIsAbsentRejectedAtCreate() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens), so it does
+        // not count as credentials — leaving auto unresolvable, which is rejected at create.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromFields(null, "account", null, "   ", null)
+        );
+        assertTrue(e.getMessage().contains("requires credentials"));
     }
 
     public void testEqualsAndHashCodeSameValues() {
@@ -131,33 +162,45 @@ public class AzureConfigurationTests extends ESTestCase {
         assertNotEquals(config1, config2);
     }
 
-    public void testAuthNone() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "none");
+    public void testNotEqualsWithDifferentSasToken() {
+        AzureConfiguration config1 = AzureConfiguration.fromFields(null, "acc", null, "sas1", "ep");
+        AzureConfiguration config2 = AzureConfiguration.fromFields(null, "acc", null, "sas2", "ep");
+        assertNotEquals(config1, config2);
+    }
+
+    public void testSasTokenAbsentByDefault() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", "key", null, null);
+        assertNotNull(config);
+        assertNull(config.sasToken());
+    }
+
+    public void testAuthAnonymous() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "anonymous");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertFalse(config.hasCredentials());
     }
 
-    public void testAuthNoneCaseInsensitive() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "NONE");
+    public void testAuthAnonymousCaseInsensitive() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "ANONYMOUS");
         assertTrue(config.isAnonymous());
-        assertEquals("none", config.auth());
+        assertEquals("anonymous", config.auth());
     }
 
-    public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+    public void testAuthAnonymousConflictsWithConnectionString() {
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "anonymous"));
     }
 
-    public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+    public void testAuthAnonymousConflictsWithAccountKey() {
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "anonymous"));
     }
 
-    public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+    public void testAuthAnonymousConflictsWithSasToken() {
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "anonymous"));
     }
 
-    public void testAuthNoneAllowsEndpoint() {
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "none");
+    public void testAuthAnonymousAllowsEndpoint() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "anonymous");
         assertTrue(config.isAnonymous());
         assertEquals("https://ep", config.endpoint());
     }
@@ -191,13 +234,27 @@ public class AzureConfigurationTests extends ESTestCase {
         assertThat(result.consumedKeys(), containsInAnyOrder("account", "key", "endpoint"));
     }
 
+    public void testFromQueryConfigWithSasToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("sas_token", "?sv=2020-01-01");
+        raw.put("header_row", false);
+
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("?sv=2020-01-01", config.sasToken());
+        assertTrue(config.hasCredentials());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "sas_token"));
+    }
+
     public void testFromQueryConfigStillEnforcesAuthConflict() {
         Map<String, Object> raw = new HashMap<>();
-        raw.put("auth", "none");
+        raw.put("auth", "anonymous");
         raw.put("connection_string", "connstr");
         raw.put("header_row", false);
         ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromQueryConfig(raw));
-        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
     }
 
     public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
@@ -213,5 +270,92 @@ public class AzureConfigurationTests extends ESTestCase {
         Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(null);
         assertNull(result.value());
         assertEquals(Set.of(), result.consumedKeys());
+    }
+
+    public void testFederatedAuthWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertEquals("api://AzureADTokenExchange", config.jwtAudience());
+        assertTrue(config.hasFederatedAuth());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testFederatedAuthRequiresClientId() {
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
+        assertThat(e.getMessage(), containsString("client_id is required when federated authentication settings are configured"));
+    }
+
+    public void testFederatedAuthAllowsOmittingJwtAudience() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant", "client_id", "my-client"));
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertNull(config.jwtAudience());
+        assertTrue(config.hasFederatedAuth());
+    }
+
+    public void testFederatedAuthConflictsWithExplicitCredentials() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with federated authentication settings"));
+    }
+
+    public void testFederatedAuthConflictsWithAuthAnonymous() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("auth", "anonymous", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with federated authentication settings"));
+    }
+
+    public void testAuthFederatedIdentityExplicit() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("auth", "federated_identity", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+        );
+        assertTrue(config.isFederatedIdentity());
+        assertTrue(config.hasFederatedAuth());
+        assertEquals("federated_identity", config.auth());
+    }
+
+    public void testAuthStaticCredentialsRejectsIncompleteCredentials() {
+        // A key with no account is an incomplete Azure static credential — explicit static_credentials rejects it.
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(Map.of("auth", "static_credentials", "key", "k"))
+        );
+        assertThat(e.getMessage(), containsString("auth=static_credentials requires complete explicit credentials"));
+    }
+
+    public void testAuthStaticCredentialsAcceptsAccountAndKey() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "static_credentials", "account", "acc", "key", "k"));
+        assertTrue(config.isStaticCredentials());
+        assertTrue(config.hasCredentials());
+    }
+
+    // --- Backwards compatibility: deprecated value names are canonicalized on parse and warn ---
+
+    public void testDeprecatedAuthNoneCanonicalizedToAnonymous() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "none"));
+        assertEquals("anonymous", config.auth());
+        assertTrue(config.isAnonymous());
+        assertWarnings("auth value [none] is deprecated; the canonical value is [anonymous]");
+    }
+
+    public void testDeprecatedAuthWorkloadIdentityCanonicalizedToManagedIdentity() {
+        AzureConfiguration config = AzureConfiguration.fromMap(Map.of("auth", "workload_identity"));
+        assertEquals("managed_identity", config.auth());
+        assertTrue(config.isManagedIdentity());
+        assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 }

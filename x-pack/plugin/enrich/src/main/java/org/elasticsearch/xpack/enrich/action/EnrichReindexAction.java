@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 
 /**
  * This class exists only to support {@link TransportEnrichReindexAction}.
  */
-public class EnrichReindexAction extends ActionType<BulkByScrollResponse> {
+public class EnrichReindexAction extends ActionType<BulkByPaginatedSearchResponse> {
 
     public static final String NAME = "cluster:admin/xpack/enrich/reindex";
     public static final EnrichReindexAction INSTANCE = new EnrichReindexAction();

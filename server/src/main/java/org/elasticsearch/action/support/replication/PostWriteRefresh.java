@@ -149,8 +149,7 @@ public class PostWriteRefresh {
                     postWriteRefreshTimeout,
                     transportService.getThreadPool(),
                     refreshExecutor,
-                    listener.safeMap(r -> wasForced),
-                    () -> { /* TODO cancel the remote task? */}
+                    listener.safeMap(r -> wasForced)
                 ),
                 in -> ActionResponse.Empty.INSTANCE,
                 refreshExecutor

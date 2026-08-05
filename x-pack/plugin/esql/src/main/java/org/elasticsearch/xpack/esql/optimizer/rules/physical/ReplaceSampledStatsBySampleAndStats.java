@@ -16,17 +16,23 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
@@ -74,22 +80,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
         assert (double) Foldables.literalValueOf(plan.sampleProbability()) < 1.0;
 
-        // The only non-unary plans that are currently supported are lookup joins.
-        // At the moment, the left side of the join is the "expensive" side and
-        // will be sampled, while the right side is just a lookup table.
-        // This will probably change in the future, in which case this logic
-        // must be reconsidered.
-        assert plan.allMatch(p -> p instanceof LeafExec || p instanceof UnaryExec || p instanceof LookupJoinExec);
-
-        Holder<Boolean> sampledAdded = new Holder<>(false);
-        PhysicalPlan child = plan.child().transformDown(p -> {
-            if (p instanceof LeafExec && sampledAdded.get() == false) {
-                sampledAdded.set(true);
-                return new SampleExec(Source.EMPTY, p, plan.sampleProbability());
-            } else {
-                return p;
-            }
-        });
+        PhysicalPlan child = addSample(plan.child(), plan.sampleProbability());
 
         List<Alias> sampleCorrections = new ArrayList<>();
         List<Attribute> intermediateAttributes;
@@ -124,6 +115,37 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
             result = new ProjectExec(Source.EMPTY, new EvalExec(Source.EMPTY, result, sampleCorrections), plan.output());
         }
         return result;
+    }
+
+    /**
+     * Adds random sampling in the appropriate place(s).
+     */
+    private PhysicalPlan addSample(PhysicalPlan plan, Expression sampleProbability) {
+        return switch (plan) {
+            case FragmentExec fragment -> fragment.withFragment(addSample(fragment.fragment(), sampleProbability));
+            // For join: add sampling to the left branch, which is the larger index.
+            case LookupJoinExec lookupJoin -> lookupJoin.replaceChildren(
+                addSample(lookupJoin.left(), sampleProbability),
+                lookupJoin.right()
+            );
+            // For fork: add sampling in every branch.
+            case MergeExec merge -> merge.replaceChildren(
+                merge.children().stream().map(child -> addSample(child, sampleProbability)).toList()
+            );
+            case UnaryExec unary -> unary.replaceChild(addSample(unary.child(), sampleProbability));
+            case LeafExec leaf -> new SampleExec(Source.EMPTY, leaf, sampleProbability);
+            default -> throw new IllegalStateException("Unexpected plan: " + plan.getClass());
+        };
+    }
+
+    private LogicalPlan addSample(LogicalPlan plan, Expression sampleProbability) {
+        return switch (plan) {
+            // For join: add sampling to the left branch, which is the larger index.
+            case Join join -> join.replaceLeft(addSample(join.left(), sampleProbability));
+            case UnaryPlan unary -> unary.replaceChild(addSample(unary.child(), sampleProbability));
+            case LeafPlan leaf -> new Sample(Source.EMPTY, sampleProbability, leaf);
+            default -> throw new IllegalStateException("Unexpected plan: " + plan.getClass());
+        };
     }
 
     private List<Attribute> correctIntermediateAttributes(SampledAggregateExec plan, List<Alias> sampleCorrections) {
@@ -163,14 +185,20 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
                 if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
                     // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                    Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), attr);
+                    Alias uncorrectedAlias = new Alias(
+                        Source.EMPTY,
+                        Attribute.rawTemporaryName(attr.name(), "uncorrected"),
+                        attr,
+                        null,
+                        true
+                    );
                     intermediateAttributes.add(uncorrectedAlias.toAttribute());
                     Expression corrected = new Div(
                         Source.EMPTY,
                         uncorrectedAlias.toAttribute(),
                         originalIntermediateNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
                     );
-                    Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                    Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id(), attr.synthetic());
                     sampleCorrections.add(correctedAlias);
                 } else {
                     intermediateAttributes.add(attr);
@@ -207,14 +235,14 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
             if (aggFnNeedsCorrection) {
                 // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn);
+                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn, null, true);
                 aggregates.add(uncorrectedAlias);
                 Expression corrected = new Div(
                     Source.EMPTY,
                     uncorrectedAlias.toAttribute(),
                     originalAggregatesNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
                 );
-                Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                Alias correctedAlias = ((Alias) aggOrKey).replaceChild(corrected);
                 sampleCorrections.add(correctedAlias);
             } else {
                 aggregates.add(aggOrKey);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator.command.source;
 
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
 import java.util.HashMap;
@@ -32,16 +33,17 @@ public class FromLoadGenerator extends FromGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         StringBuilder result = new StringBuilder();
         result.append(SET_LOAD_PREFIX);
         if (randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY) {
             result.append(randomQueryApproximationSettings());
         }
-        appendFromClause(result, schema);
-        Map<String, Object> context = new HashMap<>();
-        context.put(UNMAPPED_FIELDS_ENABLED, Boolean.TRUE);
-        return new CommandDescription("from", this, result.toString(), context);
+        Map<String, Object> commandContext = new HashMap<>();
+        commandContext.put(UNMAPPED_FIELDS_ENABLED, Boolean.TRUE);
+        appendFromCommand(result, schema, executor, context, commandContext);
+        return new CommandDescription("from", this, result.toString(), commandContext);
     }
 }

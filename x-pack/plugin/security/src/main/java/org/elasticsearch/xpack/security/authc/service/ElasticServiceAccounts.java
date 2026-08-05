@@ -46,7 +46,12 @@ final class ElasticServiceAccounts {
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets", "cluster:admin/xpack/connector/*" },
+            new String[] {
+                "monitor",
+                "manage_own_api_key",
+                "read_fleet_secrets",
+                "write_fleet_secrets",
+                "cluster:admin/xpack/connector/*" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -161,7 +166,15 @@ final class ElasticServiceAccounts {
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "metrics-*", "traces-*")
+                    .indices(
+                        "logs-*",
+                        "metrics-*",
+                        "traces-*",
+                        // Elastic Defend (endpoint) response and diagnostic indices, so an agent shipping to this
+                        // remote Elasticsearch output can write action responses the managing cluster reads back.
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.action.responses-*"
+                    )
                     .privileges("write", "create_index", "auto_configure")
                     .build(), },
             null,

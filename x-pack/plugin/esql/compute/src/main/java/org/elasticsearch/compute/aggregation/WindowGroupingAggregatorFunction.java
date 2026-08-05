@@ -38,6 +38,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return next.prepareProcessIntermediateInputPage(seenGroupIds, page);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }

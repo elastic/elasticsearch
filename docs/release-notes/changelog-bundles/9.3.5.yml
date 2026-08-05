@@ -1,0 +1,307 @@
+version: 9.3.5
+released: true
+generated: 2026-05-28T15:33:26.101132199Z
+changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 132166
+    summary: Upgrade to log4j 2.26.0
+    area: Infra/Logging
+    type: upgrade
+    issues:
+      - 132035
+  - pr: 143146
+    summary: Exclude clusters in license check
+    area: Transform
+    type: bug
+    issues:
+      - 114514
+      - 114509
+  - pr: 143544
+    summary: Do not enable doc-partitioning for count
+    area: ES|QL
+    type: bug
+    issues:
+      - 134512
+  - pr: 145304
+    summary: Fix CCR follow to handle `indexing_complete` race
+    area: CCR
+    type: bug
+    issues: []
+  - pr: 145325
+    summary: Clear watch schedules when starting trigger engine
+    area: Watcher
+    type: bug
+    issues:
+      - 137562
+      - 131964
+  - pr: 145743
+    summary: Fix nullify under join and enrich
+    area: ES|QL
+    type: bug
+    issues:
+      - 141827
+  - pr: 145960
+    summary: Node-reduce driver should not release search contexts on failure
+    area: ES|QL
+    type: bug
+    issues:
+      - 145509
+  - pr: 146160
+    summary: Fix deriv aggregation function intermediate state
+    area: ES|QL
+    type: bug
+    issues:
+      - 141305
+  - pr: 146356
+    summary: "Async Search: Ensure cleanup is also done against aliases"
+    area: Search
+    type: bug
+    issues:
+      - 146184
+  - pr: 146634
+    summary: Fix management of PIT close failures after successful query
+    area: EQL
+    type: bug
+    issues:
+      - 146263
+      - 146187
+  - pr: 146885
+    summary: Make similarity required for `SageMaker` `ElasticTextEmbeddingPayload`
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 146910
+    summary: Preserve zero-allocation trained-model deployments in cluster state during ML-node shutdown rebalances
+    area: Machine Learning
+    type: bug
+    issues:
+      - 146806
+  - pr: 147063
+    summary: "[Inference API] Fix inference initialization thread exhaustion"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 147267
+    summary: Fix potential OOME on `SearchResponse#toString()` for extemely large responses
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 147357
+    summary: Restore TEXT field size estimate for Enrich and `LookupJoin`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 147405
+    summary: Fix race in FsBlobContainer.moveBlobAtomic by replacing move op with hard link
+    area: Distributed
+    type: bug
+    issues:
+      - 147171
+  - pr: 147424
+    summary: Bump bundled JDK to Java 26.0.1
+    area: Packaging
+    type: upgrade
+    issues: []
+  - pr: 147427
+    summary: "Aggs: Fix auto_date_histogram/date_histogram inside a global agg"
+    area: Aggregations
+    type: bug
+    issues:
+      - 92570
+  - pr: 147462
+    summary: Fix `_index` LIKE with ? wildcard
+    area: ES|QL
+    type: bug
+    issues:
+      - 146364
+  - pr: 147559
+    summary: Fix integer overflow in CuVSResourceManager.estimateNNDescentMemory
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 147582
+    summary: Report correct location for SET errors
+    area: ES|QL
+    type: bug
+    issues:
+      - 145873
+  - pr: 147678
+    summary: Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation
+    area: Watcher
+    type: bug
+    issues:
+      - 146874
+  - pr: 147748
+    summary: "Disallow empty lists in named params, only"
+    area: ES|QL
+    type: bug
+    issues:
+      - 147448
+  - pr: 147823
+    summary: "Fix: correctly serialise sparse field pruning options in mixed cluster scenarios"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 147860
+    summary: Use `toTruncatedString` in chunked objects `toString`
+    area: Infra/Core
+    type: bug
+    issues:
+      - 143694
+  - pr: 147934
+    summary: Propagate deprecation warnings
+    area: Transform
+    type: bug
+    issues:
+      - 82935
+      - 82936
+  - pr: 148087
+    summary: Add logging tracking to _xpack/usage
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 148154
+    summary: Update failure store redirect logic to exclude backpressure exceptions
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 148268
+    summary: Only run next search once
+    area: Transform
+    type: bug
+    issues:
+      - 147716
+  - pr: 148271
+    summary: Update elastic-apm-agent-java8 to 1.55.6
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 148365
+    summary: Implement `RerankingInferenceService` for Elastic service
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 148527
+    summary: Default `exclude_inference_fields` to `exclude_vectors` at REST
+    area: Search
+    type: bug
+    issues:
+      - 146425
+  - pr: 148607
+    summary: Pass `CircuitBreakingException` through `SearchExecutionContext#toQuery`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 148616
+    summary: Fix REPLACE with empty pattern
+    area: SQL
+    type: bug
+    issues: []
+  - pr: 148716
+    summary: Normalize `_timeseries` to JSON for stored source
+    area: ES|QL
+    type: bug
+    issues:
+      - 148414
+  - pr: 148765
+    summary: Fix `ArrayIndexOutOfBoundsException` in `date_histogram` with `hard_bounds` outside data
+    area: Aggregations
+    type: bug
+    issues:
+      - 148763
+  - pr: 148777
+    summary: Fix `FsBlobContainer.moveBlobAtomic` fallback on CIFS filesystems
+    area: Distributed
+    type: bug
+    issues:
+      - 148811
+  - pr: 148793
+    summary: "[Inference API] Use image/jpeg instead of image/jpg for inference validation MIME type"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 148815
+    summary: Fix ArrayIndexOutOfBoundsException in centroid grouping evaluateFinal
+    area: ES|QL
+    type: bug
+    issues:
+      - 141318
+  - pr: 148885
+    summary: "Aggs: Account aggs uncompressed size on coordinator reduction"
+    area: Aggregations
+    type: bug
+    issues:
+      - 147190
+  - pr: 148921
+    summary: "[Inference API] Fixing potential NPE if `InferenceContext` is null"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 148983
+    summary: Fix errors in blockloaders when filtering nulls on histograms
+    area: ES|QL
+    type: bug
+    issues:
+      - 147854
+  - pr: 149034
+    summary: Use search threadpool for coordination in ES|QL
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 149054
+    summary: Fix gpu close resource ordering
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 149268
+    summary: Honor task settings for Amazon Bedrock and Google Vertex chat completion
+    area: Inference
+    type: bug
+    issues:
+      - 148792
+  - pr: 149323
+    summary: Update `RuleQueryBuilder` to eagerly rewrite organic query
+    area: Search
+    type: bug
+    issues:
+      - 146106
+  - pr: 149373
+    summary: "GPU codec: fall back to CPU graph build on flush when GPU is busy"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 149395
+    summary: Fix FROM *_logs index name validation
+    area: ES|QL
+    type: bug
+    issues:
+      - 146073

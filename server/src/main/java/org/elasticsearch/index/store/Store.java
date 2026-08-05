@@ -212,6 +212,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
             byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
         }
+        // Insert FieldInfoCachingDirectory (when enabled) between byteSizeDirectory and StoreDirectory so that
+        // store.directory() continues to return the same StoreDirectory external callers expect (its getDelegate()
+        // simply has one more layer underneath).
+        byteSizeDirectory = (ByteSizeDirectory) FieldInfoCachingDirectory.wrapIfEnabled(byteSizeDirectory);
         this.directory = new StoreDirectory(byteSizeDirectory, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -115,7 +115,7 @@ public class QueryRulesIndexService {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field("version", Version.CURRENT.toString());
+                builder.field("version", Build.current().version());
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, version.id);
                 builder.endObject();
 

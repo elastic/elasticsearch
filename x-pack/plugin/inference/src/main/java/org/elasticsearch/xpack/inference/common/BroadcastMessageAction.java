@@ -94,6 +94,7 @@ public abstract class BroadcastMessageAction<Message extends Writeable> extends 
     public static class Request<Message extends Writeable> extends BaseNodesRequest {
         private final Message message;
 
+        @SuppressWarnings("this-escape")
         protected Request(Message message, TimeValue timeout) {
             super(Strings.EMPTY_ARRAY);
             this.message = message;

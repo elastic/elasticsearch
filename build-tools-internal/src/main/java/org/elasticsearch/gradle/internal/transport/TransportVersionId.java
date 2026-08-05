@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-record TransportVersionId(int complete, int base, int patch) implements Comparable<TransportVersionId> {
+public record TransportVersionId(int complete, int base, int patch) implements Comparable<TransportVersionId> {
 
     public static TransportVersionId fromInt(int complete) {
         int patch = complete % 1000;

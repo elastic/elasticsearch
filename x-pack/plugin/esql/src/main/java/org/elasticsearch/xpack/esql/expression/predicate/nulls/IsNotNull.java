@@ -47,6 +47,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
         operator = "IS NOT NULL",
         returnType = {
             "double",
+            "flattened",
             "integer",
             "long",
             "date_nanos",
@@ -67,6 +68,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
             description = "Value to check. It can be a single- or multi-valued column or an expression.",
             type = {
                 "double",
+                "flattened",
                 "integer",
                 "long",
                 "date_nanos",

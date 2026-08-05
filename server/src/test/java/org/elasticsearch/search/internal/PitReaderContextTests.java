@@ -45,7 +45,8 @@ public class PitReaderContextTests extends ESTestCase {
                 null,
                 100,
                 null,
-                SplitShardCountSummary.IRRELEVANT
+                SplitShardCountSummary.IRRELEVANT,
+                0L
             );
 
             // Calling isExpired() ticks a timer and time is now 1000

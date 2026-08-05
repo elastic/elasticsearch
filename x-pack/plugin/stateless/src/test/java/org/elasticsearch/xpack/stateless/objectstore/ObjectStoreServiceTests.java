@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
@@ -68,7 +71,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -191,6 +196,46 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get(bucketName), equalTo(bucket));
         assertThat(settings.get("client"), equalTo(client));
         assertThat(settings.get("base_path"), equalTo(basePath));
+    }
+
+    /**
+     * When the object store service is closed while an upload is still in flight, enqueueing the upload must notify its listener
+     * rather than throwing, so the caller can release the references it holds (e.g. commit refs) instead of leaking them.
+     */
+    public void testEnqueueAfterCloseNotifiesListener() throws IOException {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            objectStoreService.close();
+            assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
+
+            final var future = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+
+            // The listener must be failed (not stranded by a thrown error) so the caller can release its references.
+            final var e = expectThrows(IllegalStateException.class, future::actionGet);
+            assertThat(e.getMessage(), startsWith("Object store service is not running"));
+        }
+    }
+
+    /**
+     * The service passes briefly through {@link Lifecycle.State#STOPPED} on its way to {@code CLOSED}. Enqueueing an upload during that
+     * window must be treated the same as enqueueing after close: the liveness check considers the service not running and notifies the
+     * listener rather than letting the upload proceed against a service that is shutting down.
+     */
+    public void testEnqueueWhileStoppedNotifiesListener() throws IOException {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            objectStoreService.stop();
+            assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
+
+            final var future = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+
+            final var e = expectThrows(IllegalStateException.class, future::actionGet);
+            assertThat(e.getMessage(), startsWith("Object store service is not running"));
+        }
     }
 
     public void testStartingShardRetrievesSegmentsFromOneCommit() throws IOException {
@@ -1122,6 +1167,98 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 assertThat(deletedShardFiles.iterator().next(), startsWith("indices/" + testHarness.shardId.getIndex().getUUID()));
             });
 
+        }
+    }
+
+    @TestLogging(
+        reason = "test that non-slow and slow translog uploads log at DEBUG and WARN level respectively",
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
+    )
+    public void testTranslogUploadTimesLogLevels() throws Exception {
+        AtomicBoolean exceedThreshold = new AtomicBoolean(false);
+        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(200);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(
+                        ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(),
+                        slowTranslogUploadLogThreshold
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG && exceedThreshold.get()) {
+                            safeSleep(
+                                randomLongBetween(
+                                    slowTranslogUploadLogThreshold.millis() + 100,
+                                    slowTranslogUploadLogThreshold.millis() + 300
+                                )
+                            );
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            var objectStoreService = testHarness.objectStoreService;
+
+            // In case of no-delay, translog upload is fast and hence we log at DEBUG level
+            var future1 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), future1);
+                safeGet(future1);
+            },
+                ObjectStoreService.class,
+                new MockLog.SeenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
+
+            exceedThreshold.set(true);
+
+            // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
+            var future2 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), future2);
+                safeGet(future2);
+            },
+                ObjectStoreService.class,
+                new MockLog.UnseenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
         }
     }
 

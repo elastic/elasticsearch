@@ -79,7 +79,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
                         assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
                     }
                     {
-                        Query q = new DenseVectorQuery.Floats(queryVector, fieldName, null);
+                        Query q = DenseVectorQuery.Floats.codecScored(queryVector, fieldName);
                         TopDocs collectedDocs = searcher.search(q, k);
                         assertEquals(numVectors, collectedDocs.totalHits.value());
                         assertEquals(k, collectedDocs.scoreDocs.length);
@@ -96,7 +96,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
         int numFiltered = random().nextInt(1, numVectors);
         int dims = random().nextInt(4, 65);
         VectorSimilarityFunction similarityFunction = randomSimilarity();
-        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, new float[dims], similarityFunction);
+        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, randomVector(dims), similarityFunction);
         IndexWriterConfig iwc = newIndexWriterConfig();
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, iwc)) {
@@ -115,7 +115,7 @@ public abstract class BaseFlatQuantizedKnnVectorsFormatTestCase extends BaseQuan
                     IndexSearcher searcher = new IndexSearcher(reader);
                     float[] queryVector = randomVector(dims);
                     Query filter = new TermQuery(new Term("category", "filtered"));
-                    Query q = new DenseVectorQuery.Floats(queryVector, fieldName, filter);
+                    Query q = DenseVectorQuery.Floats.codecScored(queryVector, fieldName).filteredBy(filter);
                     TopDocs collectedDocs = searcher.search(q, numFiltered);
                     assertEquals(numFiltered, collectedDocs.totalHits.value());
                     assertEquals(numFiltered, collectedDocs.scoreDocs.length);

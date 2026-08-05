@@ -138,6 +138,9 @@ public class RequestExecutorService implements RequestExecutor {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue<RejectableTask> requestQueue;
     private volatile Future<?> requestQueueTask;
+    private final Object immediateRequestQueueLock = new Object();
+    // guarded by immediateRequestQueueLock
+    private boolean immediateRequestQueueTerminated = false;
 
     public RequestExecutorService(ThreadPool threadPool, RequestExecutorServiceSettings settings, RequestSender requestSender) {
         this(threadPool, null, settings, requestSender);
@@ -174,9 +177,13 @@ public class RequestExecutorService implements RequestExecutor {
     @Override
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
-            if (requestQueueTask != null) {
-                // Wakes up the queue in processRequestQueue
-                requestQueue.offer(NOOP_TASK);
+            synchronized (immediateRequestQueueLock) {
+                // Wakes up the queue in processRequestQueue. Guarded so we never offer the sentinel
+                // after the request queue processor has already drained and terminated, otherwise the
+                // marker would be orphaned in the queue and inflate queueSize().
+                if (requestQueueTask != null && immediateRequestQueueTerminated == false) {
+                    requestQueue.offer(NOOP_TASK);
+                }
             }
 
             if (cancellableCleanupTask.get() != null) {
@@ -426,7 +433,10 @@ public class RequestExecutorService implements RequestExecutor {
         assert isShutdown() : "Requests in request queue should only be notified if the executor is shutting down";
 
         List<RejectableTask> requests = new ArrayList<>();
-        requestQueue.drainTo(requests);
+        synchronized (immediateRequestQueueLock) {
+            requestQueue.drainTo(requests);
+            immediateRequestQueueTerminated = true;
+        }
 
         for (var request : requests) {
             // NoopTask does not implement being rejected, therefore we need to skip it

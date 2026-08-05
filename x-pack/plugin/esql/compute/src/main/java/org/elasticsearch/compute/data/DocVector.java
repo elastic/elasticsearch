@@ -351,16 +351,16 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
-    public DocVector filter(boolean mayContainDuplicates, int... positions) {
+    public DocVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         mayContainDuplicates |= this.mayContainDuplicates;
         IntVector filteredShards = null;
         IntVector filteredSegments = null;
         IntVector filteredDocs = null;
         DocVector result = null;
         try {
-            filteredShards = shards.filter(mayContainDuplicates, positions);
-            filteredSegments = segments.filter(mayContainDuplicates, positions);
-            filteredDocs = docs.filter(mayContainDuplicates, positions);
+            filteredShards = shards.filter(mayContainDuplicates, positions, offset, length);
+            filteredSegments = segments.filter(mayContainDuplicates, positions, offset, length);
+            filteredDocs = docs.filter(mayContainDuplicates, positions, offset, length);
             Config config = config();
             if (mayContainDuplicates) {
                 config.mayContainDuplicates();
@@ -372,6 +372,11 @@ public final class DocVector extends AbstractVector implements Vector {
                 Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
             }
         }
+    }
+
+    @Override
+    public DocVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override

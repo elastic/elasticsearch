@@ -65,7 +65,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
     }
 
     private LongDocValuesField wrap(long[][] values) {
-        return new LongDocValuesField(new SortedNumericLongValues() {
+        return new LongDocValuesField(new SortedNumericLongValues(null) {
             long[] current;
             int i;
 

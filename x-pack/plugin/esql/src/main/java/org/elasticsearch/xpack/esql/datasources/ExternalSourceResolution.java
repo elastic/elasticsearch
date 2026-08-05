@@ -7,19 +7,42 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Map;
 
 /**
  * Holds the result of external source resolution (Iceberg/Parquet metadata).
  * This is carried in AnalyzerContext alongside IndexResolution, following the same pattern.
- * Each resolved source pairs its metadata with a {@link FileList} describing the files to read.
+ * Each resolved source pairs its metadata with a {@link FileList} of files to read and a
+ * {@code schemaMap} of per-file planner-resolved schemas (one entry per discovered file —
+ * single-file gets an identity-mapped one-entry map; multi-file modes get FFW/STRICT/UBN
+ * shaped maps from {@link SchemaReconciliation}).
  */
 public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
-    public record ResolvedSource(ExternalSourceMetadata metadata, FileList fileList) {}
+    public record ResolvedSource(
+        ExternalSourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        DeclaredReadSpec declaredReadSpec
+    ) {
+        /** Compact overload defaulting {@link #declaredReadSpec} to {@link DeclaredReadSpec#NONE}. */
+        public ResolvedSource(
+            ExternalSourceMetadata metadata,
+            FileList fileList,
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+        ) {
+            this(metadata, fileList, schemaMap, DeclaredReadSpec.NONE);
+        }
+
+        /** Returns a copy carrying the given declared read-instructions. */
+        public ResolvedSource withDeclaredReadSpec(DeclaredReadSpec spec) {
+            return new ResolvedSource(metadata, fileList, schemaMap, spec);
+        }
+    }
 
     public ExternalSourceResolution {
         if (resolved == null) {

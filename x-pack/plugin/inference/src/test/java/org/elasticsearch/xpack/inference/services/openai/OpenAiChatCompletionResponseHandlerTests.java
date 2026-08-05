@@ -53,7 +53,7 @@ public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());
         var handler = new OpenAiChatCompletionResponseHandler("", (request, result) -> null);
 
-        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        var retryException = expectThrows(RetryException.class, () -> handler.handleFailureStatusCode(mockRequest, httpResult));
 
         assertFalse(retryException.shouldRetry());
         assertThat(

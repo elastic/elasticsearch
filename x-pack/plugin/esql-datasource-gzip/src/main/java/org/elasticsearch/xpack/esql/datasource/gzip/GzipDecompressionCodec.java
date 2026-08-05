@@ -23,6 +23,17 @@ public class GzipDecompressionCodec implements DecompressionCodec {
 
     private static final List<String> EXTENSIONS = List.of(".gz", ".gzip");
 
+    /**
+     * Raw-side read buffer handed to the {@link GZIPInputStream}{@code (InputStream, int size)}
+     * constructor. The JDK default is 512 bytes, which forces a JNI trip into zlib for every
+     * kilobyte of compressed data and dominates wall time for large files. 64 KiB sits at
+     * the knee of the throughput-vs-buffer-size curve: it captures roughly +20% inflate
+     * throughput over the default on JDK 26 / aarch64, and going beyond 64 KiB buys less
+     * than 2% (well within run-to-run noise) while linearly increasing the per-open-stream
+     * heap footprint. See {@code GzipInflateBenchmark} for the sweep data.
+     */
+    private static final int RAW_BUFFER_SIZE = 64 * 1024;
+
     @Override
     public String name() {
         return "gzip";
@@ -35,6 +46,6 @@ public class GzipDecompressionCodec implements DecompressionCodec {
 
     @Override
     public InputStream decompress(InputStream raw) throws IOException {
-        return new GZIPInputStream(raw);
+        return new GZIPInputStream(raw, RAW_BUFFER_SIZE);
     }
 }

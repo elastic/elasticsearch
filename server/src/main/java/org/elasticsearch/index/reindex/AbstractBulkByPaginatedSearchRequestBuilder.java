@@ -19,14 +19,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE;
 import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 
 public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<
         Request,
-        BulkByScrollResponse> {
+        BulkByPaginatedSearchResponse> {
     private final SearchRequestBuilder source;
     private Integer maxDocs;
     private Boolean abortOnVersionConflict;
@@ -41,7 +41,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
 
     protected AbstractBulkByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         SearchRequestBuilder source
     ) {
         super(client, action);
@@ -56,7 +56,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
     private void initSourceSearchRequest() {
         source.request().scroll(DEFAULT_SCROLL_TIMEOUT);
         source.request().source(new SearchSourceBuilder());
-        source.request().source().size(DEFAULT_SCROLL_SIZE);
+        source.request().source().size(DEFAULT_PAGINATED_SEARCH_BATCH_SIZE);
     }
 
     protected abstract Self self();
@@ -156,8 +156,8 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
 
     /**
      * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search
+     * context keep-alive to make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
         this.requestsPerSecond = requestsPerSecond;

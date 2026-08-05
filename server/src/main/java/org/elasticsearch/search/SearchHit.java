@@ -28,7 +28,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -294,7 +293,9 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
+    public long ramBytesUsed() {
+        return SearchHitRamUsageEstimator.estimate(this);
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -429,6 +430,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to decompress source", e);
         }
+    }
+
+    /**
+     * Returns the stored byte length of the document source without decompressing
+     * or mutating the internal reference. Returns 0 if there is no source.
+     * Prefer this over {@link #getSourceRef()} when only the size is needed, for example
+     * for circuit-breaker accounting.
+     */
+    public int rawSourceLength() {
+        assert hasReferences() : "SearchHit must have a live reference";
+        return source == null ? 0 : source.length();
     }
 
     /**
@@ -687,8 +699,28 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         assert innerHits == null || innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
-        assert this.innerHits == null;
-        this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
+        if (this.innerHits == null) {
+            this.innerHits = innerHits != null ? unmodifiableMap(innerHits) : null;
+        } else {
+            // Merge: InnerHitsPhase and ExpandSearchPhase both contribute inner hits to the same hit.
+            // Keys are always disjoint (nested-query names vs collapse inner_hits names).
+            Map<String, SearchHits> merged = newDisjointMergeMap(this.innerHits, innerHits);
+            merged.putAll(this.innerHits);
+            merged.putAll(innerHits);
+            this.innerHits = unmodifiableMap(merged);
+        }
+    }
+
+    /**
+     * Asserts that {@code incoming} is non-null and has no keys in common with {@code existing},
+     * then returns a pre-sized mutable map ready for the caller to populate.
+     * Used by both {@link #setInnerHits} and {@link #withInnerHits} to merge disjoint inner-hit sets.
+     */
+    private static Map<String, SearchHits> newDisjointMergeMap(Map<String, SearchHits> existing, Map<String, SearchHits> incoming) {
+        assert incoming != null;
+        assert incoming.keySet().stream().noneMatch(existing::containsKey)
+            : "duplicate inner hits key: existing=" + existing.keySet() + " new=" + incoming.keySet();
+        return Maps.newMapWithExpectedSize(existing.size() + incoming.size());
     }
 
     @Override
@@ -747,7 +779,19 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit withInnerHits(Map<String, SearchHits> innerHits) {
         assert isPooled() == false;
-        assert this.innerHits == null;
+        final Map<String, SearchHits> combined;
+        if (this.innerHits == null) {
+            combined = innerHits;
+        } else {
+            // Merge: InnerHitsPhase already set inner hits on this non-pooled hit; ExpandSearchPhase
+            // adds collapse inner hits. The new pooled hit takes ownership of both sets via mustIncRef.
+            combined = newDisjointMergeMap(this.innerHits, innerHits);
+            for (Map.Entry<String, SearchHits> entry : this.innerHits.entrySet()) {
+                entry.getValue().mustIncRef();
+                combined.put(entry.getKey(), entry.getValue());
+            }
+            combined.putAll(innerHits);
+        }
         return new SearchHit(
             docId,
             score,
@@ -765,7 +809,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            innerHits,
+            combined,
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
             null

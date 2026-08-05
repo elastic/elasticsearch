@@ -31,7 +31,8 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                 NumericCodecFactory.DEFAULT,
-                ES95NumericFieldReader::defaultFallbackDecoder
+                ES95NumericFieldReader::defaultFallbackDecoder,
+                null
             )
         );
     }

@@ -229,6 +229,11 @@ public class LlamaService extends SenderService<LlamaModel> {
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return ML_INFERENCE_LLAMA_ADDED;
     }

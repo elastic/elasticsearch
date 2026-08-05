@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.EnumSet;
@@ -15,6 +18,15 @@ import java.util.EnumSet;
  * Golden tests for the {@link LogicalPlanOptimizer}.
  */
 public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public LogicalPlanOptimizerGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
     public void testLookupJoinNullMatchField() throws Exception {
@@ -37,6 +49,25 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             FROM employees
             | INLINE STATS s = MAX(salary) BY does_not_exist
+            """, STAGES);
+    }
+
+    public void testDedupRewritesToLimitByOverAllColumns() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DEDUP
+            """, STAGES);
+    }
+
+    public void testDedupCombinedWithLimit() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DEDUP
+            | LIMIT 10
             """, STAGES);
     }
 }

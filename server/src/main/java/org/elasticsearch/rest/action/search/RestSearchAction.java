@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -144,7 +145,15 @@ public class RestSearchAction extends BaseRestHandler {
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             var params = serializationParams(searchRequest, channel.request());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel, params));
+            cancelClient.execute(
+                TransportSearchAction.TYPE,
+                searchRequest,
+                RestActions.wrapWithSearchMetricsHeader(
+                    client.threadPool().getThreadContext(),
+                    SearchResponse::getDirectoryMetrics,
+                    new RestRefCountedChunkedToXContentListener<>(channel, params)
+                )
+            );
         };
     }
 

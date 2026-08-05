@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -106,10 +105,13 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomOriginalTypes;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDoubleRange;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -236,7 +238,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Nullable
     public static List<String> randomOriginalTypes() {
-        return randomBoolean() ? null : UnsupportedEsFieldTests.randomOriginalTypes();
+        return randomBoolean() ? null : randomOriginalTypes();
     }
 
     private EsqlQueryResponse.Profile randomProfile() {
@@ -347,6 +349,16 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         randomDoubles(valueCount).toArray()
                     );
                     expBuilder.append(histo);
+                }
+                case DOUBLE_RANGE -> {
+                    double first = randomDouble();
+                    double second;
+                    do {
+                        second = randomDouble();
+                    } while (first == second);
+                    BlockLoader.DoubleRangeBuilder rangeBuilder = (BlockLoader.DoubleRangeBuilder) builder;
+                    rangeBuilder.from().appendDouble(Math.min(first, second));
+                    rangeBuilder.to().appendDouble(Math.max(first, second));
                 }
                 case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
@@ -766,12 +778,67 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    /**
+     * Positive coverage of the four query-wide rollup fields at the response root. The existing
+     * XContent tests all assert zero — this one asserts the values appear in the JSON exactly
+     * as supplied to the constructor, guarding against a regression that silently zeros them out.
+     */
+    public void testRollupFieldsPropagatedToXContent() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                3,    // documents_found
+                100,  // values_loaded
+                2222, // rows_emitted
+                4444, // bytes_read
+                6666, // read_nanos
+                8888, // cpu_nanos
+                null,
+                true,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0,
+                0,
+                null
+            )
+        ) {
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                {
+                  "documents_found" : 3,
+                  "values_loaded" : 100,
+                  "rows_emitted" : 2222,
+                  "bytes_read" : 4444,
+                  "read_nanos" : 6666,
+                  "cpu_nanos" : 8888,
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "integer"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      40,
+                      80
+                    ]
+                  ]
+                }"""));
+        }
+    }
+
     public void testSimpleXContentColumnar() {
         try (EsqlQueryResponse response = simple(true)) {
             assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -801,6 +868,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 3,
                       "values_loaded" : 100,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -831,6 +902,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -876,6 +951,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -906,6 +985,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -931,6 +1014,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -978,6 +1065,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1026,6 +1117,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : true,
                   "documents_found" : 10,
                   "values_loaded" : 99,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1066,6 +1161,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 1,
                   "values_loaded" : 1,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1117,6 +1216,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 1,
                       "values_loaded" : 3,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1182,6 +1285,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         {
                           "documents_found" : 1,
                           "values_loaded" : 3,
+                          "rows_emitted" : 0,
+                          "bytes_read" : 0,
+                          "read_nanos" : 0,
+                          "cpu_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1271,6 +1378,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1297,6 +1408,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "cpu_nanos" : 20000,
                         "documents_found" : 0,
                         "values_loaded" : 0,
+                        "rows_emitted" : 222,
+                        "bytes_read" : 0,
+                        "read_nanos" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {
@@ -1571,8 +1685,11 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             throw new UncheckedIOException(e);
                         }
                     }
-                    case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> {
-                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                    case GEO_POINT, GEO_SHAPE -> {
+                        BytesRef wkb = stringToGeo(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
+                    }
+                    case CARTESIAN_POINT, CARTESIAN_SHAPE -> {
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
@@ -1620,6 +1737,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
                         b.from().appendLong(ll.from());
                         b.to().appendLong(ll.to());
+                    }
+                    case DOUBLE_RANGE -> {
+                        BlockLoader.DoubleRangeBuilder b = (BlockLoader.DoubleRangeBuilder) builder;
+                        var range = parseDoubleRange(value.toString());
+                        b.from().appendDouble(range.from());
+                        b.to().appendDouble(range.to());
                     }
                     case TDIGEST -> {
                         TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;

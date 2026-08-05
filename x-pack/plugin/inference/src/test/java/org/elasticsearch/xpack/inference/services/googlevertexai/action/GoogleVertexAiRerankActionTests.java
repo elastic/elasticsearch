@@ -112,7 +112,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String projectId, Sender sender) {
-        var model = GoogleVertexAiRerankModelTests.createModel(url, projectId, null);
+        var model = GoogleVertexAiRerankModelTests.createModel(url, projectId, null, randomAlphaOfLength(8));
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI rerank");
         var requestManager = GoogleVertexAiRerankRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);

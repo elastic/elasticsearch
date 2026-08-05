@@ -53,8 +53,8 @@ class InternalTestEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
-        for (Index index : operations) {
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        for (Index index : batch.operations()) {
             if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 idToMaxSeqNo.compute(index.id(), (id, existing) -> {
                     if (existing == null) {
@@ -67,7 +67,7 @@ class InternalTestEngine extends InternalEngine {
                 });
             }
         }
-        return super.indexBatch(operations);
+        return super.indexBatch(batch);
     }
 
     @Override

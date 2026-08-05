@@ -22,13 +22,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -42,10 +40,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreatorTests.getContentOfMessageInRequestMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests.createCompletionModel;
 import static org.hamcrest.Matchers.hasSize;
@@ -191,9 +189,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         try {
             var model = createCompletionModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId, threadPool);
             model.setUri(new URI(getUrl(webServer)));
-            var requestCreator = new AzureOpenAiCompletionRequestManager(model, threadPool);
-            var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI completion");
-            return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "Azure OpenAI completion");
+            return new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model, Map.of());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

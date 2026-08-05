@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -20,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -154,13 +154,19 @@ public class NodeTranslogBuffer implements Releasable {
                 CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
                 () -> Releasables.close(headerStream, compoundTranslogStream)
             );
-            Map<ShardId, TranslogMetadata.Operations> operations = metadata.entrySet()
+
+            // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry
+            // for a specified ShardId. Storing them has a memory cost that is non-negligible in some scenarios.
+            // We also use toUnmodifiableMap as it has a lower memory usage than HashMap.
+            Map<ShardId, Long> totalOps = metadata.entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().operations()));
+                .filter(e -> e.getValue().operations().totalOps() > 0)
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().operations().totalOps()));
+
             TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
                 Strings.format("%019d", generation),
                 generation,
-                operations,
+                totalOps,
                 syncedLocations
             );
 
@@ -198,7 +204,7 @@ public class NodeTranslogBuffer implements Releasable {
 
         private final long primaryTerm;
         private final RecyclerBytesStreamOutput buffer;
-        private final ArrayList<Long> seqNos;
+        private final LongArrayList seqNos;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long totalOps = 0;
@@ -208,7 +214,7 @@ public class NodeTranslogBuffer implements Releasable {
         private ShardBuffer(long primaryTerm, RecyclerBytesStreamOutput buffer) {
             this.primaryTerm = primaryTerm;
             this.buffer = buffer;
-            this.seqNos = new ArrayList<>();
+            this.seqNos = new LongArrayList();
         }
 
         private void append(Translog.Serialized operation, long seqNo, Translog.Location location) throws IOException {

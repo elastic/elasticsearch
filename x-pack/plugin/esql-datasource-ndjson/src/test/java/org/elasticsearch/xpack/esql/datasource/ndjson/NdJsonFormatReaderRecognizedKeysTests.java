@@ -15,6 +15,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -37,6 +38,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         Set<String> expected = new TreeSet<>();
         expected.add("schema_sample_size");
         expected.add("segment_size");
+        expected.add("datetime_format");
         assertEquals(expected, new TreeSet<>(NdJsonFormatReader.RECOGNIZED_KEYS));
     }
 
@@ -98,6 +100,39 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         assertTrue("NdJsonFormatReader RECOGNIZED_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
 
+    /**
+     * Verifies that the config keys declared in {@link NdJsonDataSourcePlugin#FORMAT_CONFIG_KEYS}
+     * (used for CRUD-time validation via {@link FormatSpec#configKeys()}) match the reader's
+     * runtime {@link NdJsonFormatReader#RECOGNIZED_KEYS} exactly.
+     */
+    public void testFormatSpecConfigKeysMatchRecognizedKeys() {
+        Set<String> specKeys = new TreeSet<>(NdJsonDataSourcePlugin.FORMAT_CONFIG_KEYS);
+        Set<String> readerKeys = new TreeSet<>(NdJsonFormatReader.RECOGNIZED_KEYS);
+        Set<String> missingFromSpec = new TreeSet<>(readerKeys);
+        missingFromSpec.removeAll(specKeys);
+        Set<String> extraInSpec = new TreeSet<>(specKeys);
+        extraInSpec.removeAll(readerKeys);
+        assertTrue(
+            "NdJsonFormatReader.RECOGNIZED_KEYS has keys missing from FormatSpec.configKeys: " + missingFromSpec,
+            missingFromSpec.isEmpty()
+        );
+        assertTrue("FormatSpec.configKeys has keys not in NdJsonFormatReader.RECOGNIZED_KEYS: " + extraInSpec, extraInSpec.isEmpty());
+    }
+
+    /**
+     * Verifies that every FormatSpec declared by the plugin carries the config keys.
+     */
+    public void testAllFormatSpecsDeclareConfigKeys() {
+        NdJsonDataSourcePlugin plugin = new NdJsonDataSourcePlugin();
+        for (FormatSpec spec : plugin.formatSpecs()) {
+            assertEquals(
+                "FormatSpec for [" + spec.format() + "] must declare FORMAT_CONFIG_KEYS",
+                NdJsonDataSourcePlugin.FORMAT_CONFIG_KEYS,
+                spec.configKeys()
+            );
+        }
+    }
+
     private NdJsonFormatReader newReader() {
         return new NdJsonFormatReader(Settings.EMPTY, NOOP_BLOCK_FACTORY, null);
     }
@@ -106,6 +141,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         return switch (key) {
             case "schema_sample_size" -> 10;
             case "segment_size" -> "2mb";
+            case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
     }

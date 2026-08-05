@@ -16,27 +16,23 @@ if [[ -f /etc/profile.d/elastic-nvidia.sh ]]; then
   fi
 fi
 
-LIBCUVS_GCS_BUCKET="elasticsearch-cuvs-snapshots"
-
 LIBCUVS_DIR="/opt/libcuvs"
 sudo mkdir -p "$LIBCUVS_DIR"
 sudo chmod 777 "$LIBCUVS_DIR"
 
-CUVS_VERSION=$(grep 'cuvs_java' build-tools-internal/version.properties | awk '{print $3}')
+CUVS_VERSION=$(grep 'cuvs_native' build-tools-internal/version.properties | awk '{print $3}')
 
 LIBCUVS_VERSION_DIR="$LIBCUVS_DIR/$CUVS_VERSION"
 
 if [[ ! -d "$LIBCUVS_VERSION_DIR" ]]; then
-  mkdir -p $LIBCUVS_VERSION_DIR
+  mkdir -p "$LIBCUVS_VERSION_DIR"
   cd "$LIBCUVS_VERSION_DIR"
-  CUVS_ARCHIVE="libcuvs-$CUVS_VERSION.tar.gz"
-  curl -fO "https://storage.googleapis.com/$LIBCUVS_GCS_BUCKET/libcuvs/$CUVS_ARCHIVE"
-  tar -xzf "$CUVS_ARCHIVE"
+  CUVS_ARCHIVE="libcuvs-linux-x86_64-${CUVS_VERSION}_cuda12-archive.tar.xz"
+  curl -fO "https://developer.download.nvidia.com/compute/cuvs/redist/libcuvs/linux-x86_64/$CUVS_ARCHIVE"
+  tar -xJf "$CUVS_ARCHIVE"
   rm -f "$CUVS_ARCHIVE"
-  if [[ -d "$CUVS_VERSION" ]]; then
-    mv "$CUVS_VERSION/*" ./
-  fi
   cd -
 fi
 
-export LD_LIBRARY_PATH="$LIBCUVS_VERSION_DIR:${LD_LIBRARY_PATH:-}"
+CUVS_ARCHIVE_DIR="libcuvs-linux-x86_64-${CUVS_VERSION}_cuda12-archive"
+export LD_LIBRARY_PATH="$LIBCUVS_VERSION_DIR/$CUVS_ARCHIVE_DIR/lib:${LD_LIBRARY_PATH:-}"

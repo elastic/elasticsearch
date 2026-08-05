@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COUNT_DISTINCT_OVER_TIME` function [esql-count_distinct_over_time]
 
-:::{include} ../../_snippets/functions/layout/count_distinct_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/count_distinct_over_time.md
 :::

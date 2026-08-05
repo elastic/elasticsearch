@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
@@ -36,13 +39,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -132,6 +139,17 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         assertThat(getJobState(idleJobId), equalTo(JobState.OPENED));
         assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
 
+        TimeValue idleJobAutoCloseTimeout = TimeValue.timeValueHours(24);
+        long idleDataCutoffMillis = System.currentTimeMillis() - idleJobAutoCloseTimeout.millis();
+        assertBusy(() -> {
+            indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(idleJobId))
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+                .get();
+            DataCounts dataCounts = getDataCounts(idleJobId);
+            assertThat(dataCounts.getLatestRecordTimeStamp(), is(notNullValue()));
+            assertThat(dataCounts.getLatestRecordTimeStamp().getTime(), lessThan(idleDataCutoffMillis));
+        }, 30, TimeUnit.SECONDS);
+
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -139,7 +157,9 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         ThreadPool realThreadPool = new TestThreadPool("idle-job-test");
         try {
             MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
-                Settings.builder().put(MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT.getKey(), "24h").build(),
+                Settings.builder()
+                    .put(MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT.getKey(), idleJobAutoCloseTimeout.getStringRep())
+                    .build(),
                 ClusterName.DEFAULT,
                 realThreadPool,
                 client(),
@@ -158,7 +178,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             terminate(realThreadPool);
         }
 
-        assertThat(getJobState(idleJobId), equalTo(JobState.CLOSED));
+        waitUntilJobIsClosed(idleJobId);
         assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
 
         closeJob(activeJobId);

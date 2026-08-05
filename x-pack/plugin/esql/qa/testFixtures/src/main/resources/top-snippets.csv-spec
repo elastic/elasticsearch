@@ -384,3 +384,81 @@ snippets:keyword
 \## Policy Changes\nGovernment regulations can accelerate the transition to <em>clean</em> <em>energy</em> through carbon pricing and renewable <em>energy</em> mandates.
 // end::top-snippets-num-words-zero-highlight-preceding-chunk-result[]
 ;
+
+topSnippetsAnalyzerWhitespaceCase
+required_capability: top_snippets_analyzer
+
+ROW content = "Walk your DOGs daily."
+| EVAL std = TOP_SNIPPETS(content, "dogs", { "analyzer": "standard" })
+| EVAL ws = TOP_SNIPPETS(content, "dogs", { "analyzer": "whitespace" })
+| KEEP std, ws
+;
+
+std:keyword | ws:keyword
+Walk your DOGs daily. | null
+;
+
+topSnippetsAnalyzerEnglishStemming
+required_capability: top_snippets_analyzer
+
+ROW content = "The running club meets daily for long runs."
+| EVAL eng = TOP_SNIPPETS(content, "run", { "analyzer": "english", "highlight": true, "num_words": 0 })
+| EVAL std = TOP_SNIPPETS(content, "runs", { "analyzer": "standard", "highlight": true, "num_words": 0 })
+| KEEP eng, std
+;
+
+eng:keyword | std:keyword
+The <em>running</em> club meets daily for long <em>runs</em>. | The running club meets daily for long <em>runs</em>.
+;
+
+topSnippetsAnalyzerInWhereKept
+required_capability: top_snippets_analyzer
+
+ROW content = "The running club meets daily for long runs."
+| WHERE mv_count(TOP_SNIPPETS(content, "run", { "analyzer": "english" })) > 0
+| KEEP content
+;
+
+content:keyword
+The running club meets daily for long runs.
+;
+
+topSnippetsAnalyzerInWhereFilteredOut
+required_capability: top_snippets_analyzer
+
+ROW content = "The dogs bark loudly."
+| WHERE mv_count(TOP_SNIPPETS(content, "run", { "analyzer": "english" })) > 0
+| KEEP content
+;
+
+content:keyword
+;
+
+topSnippetsAnalyzerFromBooks
+required_capability: top_snippets_analyzer
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(title, "Returns", { "analyzer": "english", "highlight": true, "num_words": 0 })
+| KEEP title, author, snippets
+;
+ignoreOrder: true
+
+title:text                                                       | author:text                                      | snippets:keyword
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien                                 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien] | <em>Return</em> of the Shadow
+;
+
+topSnippetsAnalyzerFromBooksInFilter
+required_capability: top_snippets_analyzer
+
+FROM books
+| WHERE mv_count(TOP_SNIPPETS(title, "Returns", { "analyzer": "english", "highlight": true, "num_words": 0 })) > 0
+| KEEP title, author
+;
+ignoreOrder: true
+
+title:text                                                       | author:text
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien]
+;

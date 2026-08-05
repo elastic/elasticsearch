@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -449,21 +449,21 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask.Status randomStatusWithoutException() {
+    private static BulkByPaginatedSearchTask.Status randomStatusWithoutException() {
         if (randomBoolean()) {
             return randomWorkingStatus(null);
         }
         boolean canHaveNullStatues = randomBoolean();
-        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
             if (canHaveNullStatues && rarely()) {
                 return null;
             }
-            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            return new BulkByPaginatedSearchTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
+        return new BulkByPaginatedSearchTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
-    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    private static BulkByPaginatedSearchTask.Status randomWorkingStatus(Integer sliceId) {
         int total = between(0, 10000000);
         int updated = between(0, total);
         int created = between(0, total - updated);
@@ -476,7 +476,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
         TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
-        return new BulkByScrollTask.Status(
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             updated,

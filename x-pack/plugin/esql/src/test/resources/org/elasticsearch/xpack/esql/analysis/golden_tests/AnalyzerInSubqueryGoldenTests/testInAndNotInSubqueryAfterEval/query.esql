@@ -1,0 +1,4 @@
+FROM employees
+| EVAL x = emp_no + 1, y = salary * 2
+| WHERE x IN (FROM employees | KEEP emp_no)
+  AND y NOT IN (FROM employees | KEEP salary)

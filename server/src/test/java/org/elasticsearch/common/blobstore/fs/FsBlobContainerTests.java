@@ -31,9 +31,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.CopyOption;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -335,6 +337,36 @@ public class FsBlobContainerTests extends ESTestCase {
             }
         }.getFileSystem(null);
         PathUtilsForTesting.installMock(noOverwriteFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
+    }
+
+    public void testAtomicWriteHardLinkThrowsFileSystemException() throws IOException {
+        final var noHardLinkFs = new FilterFileSystemProvider("nohardlinkfs://", fileSystem) {
+            @Override
+            public void createLink(Path link, Path existing) throws IOException {
+                throw new FileSystemException(link.toString(), existing.toString(), "hard links not supported");
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(noHardLinkFs);
+        try {
+            checkAtomicWrite();
+        } finally {
+            PathUtilsForTesting.installMock(fileSystem);
+        }
+    }
+
+    public void testAtomicWriteHardLinkThrowsAccessDeniedException() throws IOException {
+        final var noPermissionsForHardLinksFs = new FilterFileSystemProvider("nohardlinkfs://", fileSystem) {
+            @Override
+            public void createLink(Path link, Path existing) throws IOException {
+                throw new AccessDeniedException(link.toString(), existing.toString(), "no permissions for hard links");
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(noPermissionsForHardLinksFs);
         try {
             checkAtomicWrite();
         } finally {

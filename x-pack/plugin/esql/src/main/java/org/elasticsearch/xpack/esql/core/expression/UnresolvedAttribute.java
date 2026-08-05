@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -107,6 +108,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage());
     }
 
+    // Cannot just use the super method because that requires a data type. This is reachable when an
+    // intermediate analysis state produces an unresolved alias output (e.g. {@link Alias#toAttribute()}
+    // returning an UnresolvedAttribute) that is then matched in {@code AnalyzerRules.maybeResolveAgainstList}.
+    @Override
+    public UnresolvedAttribute withLocation(Source source) {
+        return Objects.equals(source(), source) ? this : new UnresolvedAttribute(source, qualifier(), name(), id(), unresolvedMessage());
+    }
+
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
         return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage);
     }
@@ -139,8 +148,12 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(UNRESOLVED_PREFIX).append(qualifiedName());
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(UNRESOLVED_PREFIX);
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
+        }
+        sb.append(mapper.column(name()));
     }
 
     @Override

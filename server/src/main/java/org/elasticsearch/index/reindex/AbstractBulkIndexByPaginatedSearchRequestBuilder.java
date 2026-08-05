@@ -23,7 +23,7 @@ public abstract class AbstractBulkIndexByPaginatedSearchRequestBuilder<
 
     protected AbstractBulkIndexByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         SearchRequestBuilder search
     ) {
         super(client, action, search);

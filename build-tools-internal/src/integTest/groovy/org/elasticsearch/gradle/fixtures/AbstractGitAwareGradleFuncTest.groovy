@@ -15,7 +15,7 @@ import spock.lang.TempDir
 import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
 
-abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
+abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     /**
      * Shared temporary directory for the prepared git remote. Using {@code @Shared @TempDir}

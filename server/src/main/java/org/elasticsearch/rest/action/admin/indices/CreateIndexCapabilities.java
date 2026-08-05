@@ -9,7 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.SliceIndexing;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -30,9 +30,14 @@ public class CreateIndexCapabilities {
     private static final String LOOKUP_INDEX_MODE_CAPABILITY = "lookup_index_mode";
 
     /**
-     * Support for columnar and columnar_logsdb index modes.
+     * Support for columnar and logsdb_columnar index modes.
      */
     private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
+
+    /**
+     * Support vectordb_document index mode
+     */
+    private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
@@ -40,7 +45,15 @@ public class CreateIndexCapabilities {
 
     private static final String HUNSPELL_DICT_400 = "hunspell_dict_400";
 
-    static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
+    private static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
+
+    private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
+
+    /**
+     * Support for slice-enabled indices ({@code index.slice.enabled}). Advertised only when the feature flag is on, so
+     * yaml tests can gate on it and skip on builds where slice indexing is unavailable.
+     */
+    private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     public static final Set<String> CAPABILITIES;
 
@@ -52,11 +65,14 @@ public class CreateIndexCapabilities {
                 NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
                 POORLY_FORMATTED_BAD_REQUEST,
                 HUNSPELL_DICT_400,
-                DISABLE_SEQUENCE_NUMBERS_CAPABILITY
+                DISABLE_SEQUENCE_NUMBERS_CAPABILITY,
+                REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD
             )
         );
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            caps.add(SLICE_INDEXING_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

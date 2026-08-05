@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 148365
-summary: Implement `RerankingInferenceService` for Elastic service
-type: bug

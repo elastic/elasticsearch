@@ -740,7 +740,15 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     private Mapping getTestMapping() {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
-            new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, false, List.of(), false)
+            new DenseVectorFieldMapper.Builder(
+                "dense_vector_field",
+                IndexVersion.current(),
+                IndexMode.STANDARD,
+                false,
+                false,
+                List.of(),
+                false
+            )
         ).build(MapperBuilderContext.root(true, false));
 
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());

@@ -135,6 +135,7 @@ import static org.hamcrest.Matchers.hasValue;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -374,12 +375,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
             assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has ["));
 
+            String synonymsIndexName = ".synonyms-001";
+            SystemIndexDescriptor systemIndexDescriptor = systemIndices.findMatchingDescriptor(synonymsIndexName);
             CreateIndexClusterStateUpdateRequest systemIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
                 "test",
                 projectId,
-                ".synonyms-001",
-                ".synonyms-001"
-            );
+                synonymsIndexName,
+                synonymsIndexName
+            ).systemIndexDescriptor(systemIndexDescriptor);
             try {
                 checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
             } catch (Exception ex) {
@@ -1169,6 +1172,277 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         Map<String, Object> mappingsProperties = (Map<String, Object>) doc.get("properties");
         assertThat(mappingsProperties, hasKey("test"));
         assertThat((Map<String, Object>) mappingsProperties.get("test"), hasValue("keyword"));
+    }
+
+    public void testStandaloneColumnarIndexKeepsSequenceNumbers() {
+        assertFalse(
+            "a standalone columnar index should keep sequence numbers so that it supports updates",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexDisablesSequenceNumbers() {
+        assertTrue(
+            "a columnar data-stream backing index disables sequence numbers by default",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream"))
+        );
+    }
+
+    public void testColumnarDataStreamBackingIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only applies when the setting is absent, so an explicit request value must win.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a columnar data-stream backing index must be preserved, not overridden",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings("my-data-stream", IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexKeepsExplicitDisableSequenceNumbers() {
+        // The injection only fires for data streams, so an explicit value on a standalone columnar index is preserved untouched.
+        boolean explicit = randomBoolean();
+        assertThat(
+            "an explicit [index.disable_sequence_numbers] on a standalone columnar index must be preserved",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, IndexVersion.current(), explicit)),
+            equalTo(explicit)
+        );
+    }
+
+    public void testStandaloneColumnarIndexBeforeGateDisablesSequenceNumbers() {
+        // Below the gating version the override does not apply and a standalone columnar index disables sequence numbers. The lower bound
+        // is where the columnar disable-by-default begins.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+        );
+        assertTrue(
+            "a standalone columnar index below the gating version disables sequence numbers",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, beforeGate, null))
+        );
+    }
+
+    private Settings aggregateColumnarSettings(@Nullable String dataStreamName) {
+        return aggregateColumnarSettings(dataStreamName, IndexVersion.current(), null);
+    }
+
+    private Settings aggregateColumnarSettings(
+        @Nullable String dataStreamName,
+        IndexVersion createdVersion,
+        @Nullable Boolean explicitDisableSequenceNumbers
+    ) {
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        Settings.Builder indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
+        if (explicitDisableSequenceNumbers != null) {
+            indexSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicitDisableSequenceNumbers);
+        }
+        var request = new CreateIndexClusterStateUpdateRequest("create index", projectId, "idx", "idx").settings(indexSettings.build());
+        if (dataStreamName != null) {
+            request.dataStreamName(dataStreamName);
+        }
+        return aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexMode.IndexModeSettingsProvider())
+        );
+    }
+
+    private static ClusterState clusterStateWithSettings(ProjectId projectId, Settings persistentSettings) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(persistentSettings).put(ProjectMetadata.builder(projectId)).build())
+            .build();
+    }
+
+    private static CreateIndexClusterStateUpdateRequest createSystemIndexRequest(ProjectId projectId) {
+        return new CreateIndexClusterStateUpdateRequest("create index", projectId, ".test", ".test").systemIndexDescriptor(
+            SystemIndexDescriptorUtils.createUnmanaged(".test*", "test")
+        );
+    }
+
+    public void testSystemIndexNumberOfReplicasFromNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
+    }
+
+    public void testSystemIndexClusterStateNumberOfReplicasOverridesNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build();
+        ClusterState clusterState = clusterStateWithSettings(
+            projectId,
+            Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 1).build()
+        );
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("1"));
+    }
+
+    public void testNonSystemIndexDoesNotUseSystemNumberOfReplicasSetting() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 5).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            request, // non-system request
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        // Non-system indices should not pick up the system-index replica setting
+        assertThat(result.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), not(equalTo("5")));
+    }
+
+    public void testSystemIndexAutoExpandReplicasFromNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-2"));
+    }
+
+    public void testSystemIndexClusterStateAutoExpandReplicasOverridesNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-5").build();
+        ClusterState clusterState = clusterStateWithSettings(
+            projectId,
+            Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1").build()
+        );
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+    }
+
+    public void testNonSystemIndexDoesNotUseSystemAutoExpandReplicasSetting() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            request, // non-system request
+            Settings.EMPTY,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        // Non-system indices should not pick up the system-index auto_expand_replicas setting
+        assertThat(result.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), nullValue());
+    }
+
+    public void testSystemClusterSettingOverridesExplicitNumberOfReplicasInTemplate() {
+        Settings nodeSettings = Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        // Template already specifies number_of_replicas explicitly, but the cluster/node system setting wins
+        Settings templateSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 3).build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            templateSettings,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
+    }
+
+    public void testSystemClusterSettingOverridesDescriptorAutoExpandOnNewIndex() {
+        Settings nodeSettings = Settings.EMPTY;
+        ClusterState clusterState = clusterStateWithSettings(
+            projectId,
+            Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "false").build()
+        );
+        // Simulates a managed descriptor that pre-fills auto_expand_replicas=0-1; cluster setting must win
+        Settings templateSettings = Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build();
+
+        Settings result = aggregateIndexSettings(
+            clusterState,
+            createSystemIndexRequest(projectId),
+            templateSettings,
+            null,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+
+        assertThat(result.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("false"));
     }
 
     public void testDefaultSettings() {

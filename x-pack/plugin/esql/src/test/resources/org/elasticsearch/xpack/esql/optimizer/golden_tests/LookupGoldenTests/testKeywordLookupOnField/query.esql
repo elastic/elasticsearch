@@ -1,0 +1,2 @@
+ROW language_name = "French"
+| LOOKUP JOIN languages_lookup ON language_name

@@ -10,10 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -32,12 +36,13 @@ import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
     public static final String TEST_DATA_URI = "data:mime/type;base64,abcd";
 
     public void testConstructorWithNoFormat_usesDefault() {
-        assertThat(new InferenceString(DataType.TEXT, "value").dataFormat(), is(DataFormat.TEXT));
+        assertThat(InferenceString.ofText("value").dataFormat(), is(DataFormat.TEXT));
         assertThat(new InferenceString(DataType.IMAGE, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.AUDIO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.VIDEO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
@@ -84,6 +89,63 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             randomAlphanumericOfLength(10)
         );
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, value);
+    }
+
+    /** RFC 2397 parameters and MIME types containing {@code +} must still be accepted. */
+    public void testConstructorWithValidDataURIFormat_withMediaTypeParameters() {
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;charset=utf-8;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;p1=v1;p2=v2;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/svg+xml;base64,abcd");
+    }
+
+    public void testTryParseDataUri_extractsMediaTypeAndPayload() {
+        assertThat(InferenceString.tryParseDataUri("data:image/png;base64,abcd"), is(new InferenceString.DataUri("image/png", "abcd")));
+        // RFC 2397 parameters are preserved as declared; interpreting them is up to the caller.
+        assertThat(
+            InferenceString.tryParseDataUri("data:text/plain;charset=utf-8;base64,abcd"),
+            is(new InferenceString.DataUri("text/plain;charset=utf-8", "abcd"))
+        );
+    }
+
+    public void testTryParseDataUri_returnsNullForInvalidValues() {
+        var invalidValues = List.of(
+            "",
+            "notADataURI",
+            "abcd", // bare base64 without a data URI prefix
+            "https://example.com/image.png", // plain URL
+            "data:image/jpeg;base64abcd", // missing final ","
+            "data:;base64,abcd", // missing MIME type
+            "data:image/" + "a".repeat(InferenceString.MAX_DATA_URI_PREFIX_LENGTH) + ";base64,abcd" // oversized prefix
+        );
+        invalidValues.forEach(value -> assertThat(value, InferenceString.tryParseDataUri(value), nullValue()));
+    }
+
+    /** URI prefixes exceeding {@link InferenceString#MAX_DATA_URI_PREFIX_LENGTH} are rejected before the regex runs. */
+    public void testConstructorWithOversizedDataURIPrefix_throws() {
+        String oversizedPrefixValue = "data:image/" + "a".repeat(InferenceString.MAX_DATA_URI_PREFIX_LENGTH) + ";base64,abcd";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, oversizedPrefixValue)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
+    }
+
+    /** Adversarial input that would backtrack under the old {@code .*&#47;.*} regex must fail fast. */
+    public void testConstructorWithPathologicalDataURI_throwsAndCompletesQuickly() {
+        String pathological = "data:a" + "/a;".repeat(100) + ",";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, pathological)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
     }
 
     public void testParserWithText() throws IOException {
@@ -330,13 +392,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testToStringList_withAllTextInferenceStrings() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).toList();
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).toList();
         assertThat(InferenceString.toStringList(inferenceStrings), is(rawStrings));
     }
 
     public void testToStringList_throwsAssertionError_whenAnyInferenceStringIsNotText() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).collect(Collectors.toList());
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
         inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));
@@ -432,5 +494,26 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static boolean isAudioVideoOrPdf(InferenceString testInstance) {
         return testInstance.isAudio() || testInstance.isVideo() || testInstance.isPdf();
+    }
+
+    public static DataType randomDataTypeSupportingBase64() {
+        var dataTypesSupportingBase64 = Arrays.stream(DataType.values())
+            .filter(type -> type.getSupportedFormats().contains(DataFormat.BASE64))
+            .collect(Collectors.toSet());
+        return randomFrom(dataTypesSupportingBase64);
+    }
+
+    public static String randomDataURI() {
+        return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
+
+    public static Map<String, Object> inferenceStringToMap(InferenceString inferenceString) {
+        try {
+            var builder = XContentFactory.contentBuilder(XContentType.JSON);
+            inferenceString.toXContent(builder, null);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        } catch (IOException ioException) {
+            throw new AssertionError("Exception when converting InferenceString to map", ioException);
+        }
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -51,12 +53,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
-public class CohereService extends SenderService<CohereModel> implements RerankingInferenceService {
+public class CohereService extends SenderService<CohereModel<?>> implements RerankingInferenceService {
     public static final String NAME = "cohere";
 
     private static final String SERVICE_NAME = "Cohere";
@@ -70,7 +73,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-    private static final Map<TaskType, ModelCreator<? extends CohereModel>> MODEL_CREATORS = Map.of(
+    private static final Map<TaskType, ModelCreator<? extends CohereModel<?>>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
         new CohereEmbeddingsModelCreator(),
         TaskType.COMPLETION,
@@ -99,6 +102,16 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
     }
 
     @Override
@@ -134,7 +147,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
             return;
         }
 
-        CohereModel cohereModel = (CohereModel) model;
+        CohereModel<?> cohereModel = (CohereModel<?>) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings);
@@ -144,6 +157,18 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof CohereRerankModel cohereRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
+
+        var action = cohereRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override
@@ -160,7 +185,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
             return;
         }
 
-        CohereModel cohereModel = (CohereModel) model;
+        CohereModel<?> cohereModel = (CohereModel<?>) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
@@ -180,19 +205,14 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
         if (model instanceof CohereEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.embeddingType()) : similarityFromModel;
 
             var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(
-                    serviceSettings.getCommonSettings().uri(),
-                    similarityToUse,
-                    embeddingSize,
-                    serviceSettings.getCommonSettings().maxInputTokens(),
-                    serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings(),
-                    serviceSettings.getCommonSettings().apiVersion()
-                ),
-                serviceSettings.getEmbeddingType()
+                serviceSettings.commonSettings(),
+                similarityToUse,
+                embeddingSize,
+                serviceSettings.maxInputTokens(),
+                serviceSettings.embeddingType()
             );
 
             return new CohereEmbeddingsModel(embeddingsModel, updatedServiceSettings);

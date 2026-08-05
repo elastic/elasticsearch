@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -91,7 +92,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
-            new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY)
+            new StackTemplateRegistry(
+                Settings.EMPTY,
+                clusterService,
+                threadPool,
+                client,
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
+            )
         );
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
@@ -99,7 +107,8 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         apmIndexTemplateRegistry.setEnabled(true);
     }

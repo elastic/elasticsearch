@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.DATASET_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ENRICH_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.INDICES_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.INFERENCE_RESOLUTION;
@@ -198,6 +199,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                             PLANNING,
                             PARSING,
                             VIEW_RESOLUTION,
+                            DATASET_RESOLUTION,
                             PRE_ANALYSIS,
                             INDICES_RESOLUTION,
                             ENRICH_RESOLUTION,

@@ -133,8 +133,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        ObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).enabled(false);
-        ObjectMapper.Builder mergeWithBuilder = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).addRuntimeFields(
+        ObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type).enabled(false);
+        ObjectMapper.Builder mergeWithBuilder = new RootObjectMapper.Builder(type).addRuntimeFields(
             Collections.singletonMap("test", new TestRuntimeField("test", "long"))
         );
 

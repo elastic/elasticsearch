@@ -157,6 +157,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
     public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    private static final int DEFAULT_LOOK_AHEAD_TIME = 9;
 
     private String sourceIndex, downsampleIndex;
     private long startTime;
@@ -637,7 +638,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+            );
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)

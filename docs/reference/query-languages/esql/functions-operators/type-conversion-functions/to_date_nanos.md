@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DATE_NANOS` function [esql-to_date_nanos]
 
-:::{include} ../../_snippets/functions/layout/to_date_nanos.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_date_nanos.md
 :::

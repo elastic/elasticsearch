@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -59,7 +60,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
     /**
      * Dynamic setting controlling whether the index balance metrics task is enabled.
-     * Intended for serverless deployments; defaults to false.
+     * Defaults to {@code false}.
      */
     public static final Setting<Boolean> INDEX_BALANCE_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.index_balance_metrics.enabled",
@@ -208,8 +209,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         PersistentTasksCustomMetadata.PersistentTask<TaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        assert INDEX_BALANCE_METRICS_ENABLED_SETTING.get(clusterService.getSettings())
-            : "index balance metrics task requires [" + INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey() + "] to be enabled";
         return new Task(
             id,
             type,
@@ -288,8 +287,10 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 logger.info("Starting index balance metrics task");
                 needsComputation.set(true);
-                clusterService.addListener(routingTableChangedListener);
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation != null) {
+                    clusterService.addListener(routingTableChangedListener);
+                }
             }
         }
 
@@ -301,6 +302,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 cancelScheduledComputation();
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation == null) {
+                    stopListeningAndCancelComputation();
+                }
             }
         }
 
@@ -317,11 +321,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
         private void scheduleComputation(TimeValue interval) {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
-            if (threadPool.scheduler().isShutdown()) {
-                return;
-            }
             assert scheduledComputation == null : "Must not already have a scheduled computation";
-            scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            try {
+                scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            } catch (RejectedExecutionException e) {
+                logger.debug("thread pool is shutting down, index balance metrics task will not run on this node");
+            }
         }
 
         private void runComputation() {

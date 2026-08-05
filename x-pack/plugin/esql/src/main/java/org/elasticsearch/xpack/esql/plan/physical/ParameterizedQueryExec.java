@@ -36,6 +36,20 @@ public class ParameterizedQueryExec extends LeafExec {
     private final QueryBuilder query;
     private final boolean emptyResult;
 
+    /**
+     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
+     * holding the left attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
+     */
+    @Nullable
+    private final Attribute bulkLookupLeft;
+
+    /**
+     * Runtime-only value set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer}
+     * holding the right attribute of the lookup join when the join may make use of the bulk keyword lookup optimization.
+     */
+    @Nullable
+    private final Attribute bulkLookupRight;
+
     public ParameterizedQueryExec(
         Source source,
         List<Attribute> output,
@@ -43,7 +57,7 @@ public class ParameterizedQueryExec extends LeafExec {
         @Nullable Expression joinOnConditions,
         @Nullable QueryBuilder query
     ) {
-        this(source, output, matchFields, joinOnConditions, query, false);
+        this(source, output, matchFields, joinOnConditions, query, false, null, null);
     }
 
     public ParameterizedQueryExec(
@@ -52,7 +66,9 @@ public class ParameterizedQueryExec extends LeafExec {
         List<MatchConfig> matchFields,
         @Nullable Expression joinOnConditions,
         @Nullable QueryBuilder query,
-        boolean emptyResult
+        boolean emptyResult,
+        @Nullable Attribute bulkLookupLeft,
+        @Nullable Attribute bulkLookupRight
     ) {
         super(source);
         this.output = output;
@@ -60,6 +76,8 @@ public class ParameterizedQueryExec extends LeafExec {
         this.joinOnConditions = joinOnConditions;
         this.query = query;
         this.emptyResult = emptyResult;
+        this.bulkLookupLeft = bulkLookupLeft;
+        this.bulkLookupRight = bulkLookupRight;
     }
 
     @Override
@@ -85,10 +103,29 @@ public class ParameterizedQueryExec extends LeafExec {
         return emptyResult;
     }
 
+    @Nullable
+    public Attribute bulkLookupLeft() {
+        return bulkLookupLeft;
+    }
+
+    @Nullable
+    public Attribute bulkLookupRight() {
+        return bulkLookupRight;
+    }
+
     public ParameterizedQueryExec withQuery(QueryBuilder query) {
         return Objects.equals(this.query, query)
             ? this
-            : new ParameterizedQueryExec(source(), output, matchFields, joinOnConditions, query, emptyResult);
+            : new ParameterizedQueryExec(
+                source(),
+                output,
+                matchFields,
+                joinOnConditions,
+                query,
+                emptyResult,
+                bulkLookupLeft,
+                bulkLookupRight
+            );
     }
 
     @Override
@@ -103,7 +140,17 @@ public class ParameterizedQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<ParameterizedQueryExec> info() {
-        return NodeInfo.create(this, ParameterizedQueryExec::new, output, matchFields, joinOnConditions, query, emptyResult);
+        return NodeInfo.create(
+            this,
+            ParameterizedQueryExec::new,
+            output,
+            matchFields,
+            joinOnConditions,
+            query,
+            emptyResult,
+            bulkLookupLeft,
+            bulkLookupRight
+        );
     }
 
     @Override
@@ -115,11 +162,13 @@ public class ParameterizedQueryExec extends LeafExec {
             && Objects.equals(matchFields, that.matchFields)
             && Objects.equals(joinOnConditions, that.joinOnConditions)
             && Objects.equals(query, that.query)
-            && emptyResult == that.emptyResult;
+            && emptyResult == that.emptyResult
+            && Objects.equals(bulkLookupLeft, that.bulkLookupLeft)
+            && Objects.equals(bulkLookupRight, that.bulkLookupRight);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output, matchFields, joinOnConditions, query, emptyResult);
+        return Objects.hash(output, matchFields, joinOnConditions, query, emptyResult, bulkLookupLeft, bulkLookupRight);
     }
 }

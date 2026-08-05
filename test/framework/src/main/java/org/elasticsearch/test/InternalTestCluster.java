@@ -1987,6 +1987,7 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
         nodeAndClient.startNode();
         publishNode(nodeAndClient);
+        callback.onNodeStarted(nodeAndClient.name);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
@@ -2168,22 +2169,46 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a set of nodes that have at least one shard of the given index.
+     * Returns the names of the nodes that have at least one shard of the given index.
      */
-    public synchronized Set<String> nodesInclude(String index) {
-        if (clusterService().state().routingTable().hasIndex(index)) {
-            List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
-            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodeNames = new HashSet<>();
-            for (ShardRouting shardRouting : allShards) {
+    private static Set<String> nodesInclude(ClusterState clusterState, String index) {
+        if (clusterState.routingTable().hasIndex(index)) {
+            final var discoveryNodes = clusterState.getNodes();
+            final var nodeNames = new HashSet<String>();
+            for (final var shardRouting : clusterState.routingTable().allShards(index)) {
                 if (shardRouting.assignedToNode()) {
-                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodeNames.add(discoveryNode.getName());
+                    nodeNames.add(discoveryNodes.get(shardRouting.currentNodeId()).getName());
                 }
             }
             return nodeNames;
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Returns the names of the nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<String> nodesInclude(String index) {
+        return nodesInclude(clusterService().state(), index);
+    }
+
+    /**
+     * Blocks until the set of nodes that have at least one shard of the given index matches the given predicate.
+     */
+    public void awaitNodesInclude(String index, Predicate<Set<String>> nodeNamesPredicate) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(),
+                clusterState -> nodeNamesPredicate.test(nodesInclude(clusterState, index))
+            )
+        );
+    }
+
+    /**
+     * Blocks until {@code vacatingNode} holds no shards of {@code index} (the node has been vacated for that index).
+     */
+    public void awaitNodeVacated(String index, String vacatingNode) {
+        awaitNodesInclude(index, nodes -> nodes.contains(vacatingNode) == false);
     }
 
     /**
@@ -2527,13 +2552,19 @@ public final class InternalTestCluster extends TestCluster {
     public static class RestartCallback {
 
         /**
-         * Executed once the give node name has been stopped.
+         * Executed once the given node name has been stopped.
          */
         public Settings onNodeStopped(String nodeName) throws Exception {
             return Settings.EMPTY;
         }
 
         public void onAllNodesStopped() throws Exception {}
+
+        /**
+         * Executed once the given node has started and been published to the cluster, before cluster
+         * formation is validated.
+         */
+        public void onNodeStarted(String nodeName) throws Exception {}
 
         /**
          * Executed for each node before the {@code n + 1} node is restarted. The given client is

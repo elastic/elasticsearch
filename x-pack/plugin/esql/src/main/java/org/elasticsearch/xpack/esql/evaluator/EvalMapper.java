@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.evaluator;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,12 +21,26 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 public final class EvalMapper {
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
         return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance());
+    }
+
+    /**
+     * Provides an ExpressionEvaluator factory to evaluate an expression that does not require shard contexts
+     * but may reference functions (e.g. {@code TOP_SNIPPETS}) that need the node-level {@link AnalysisRegistry}.
+     */
+    public static ExpressionEvaluator.Factory toEvaluator(
+        FoldContext foldCtx,
+        Expression exp,
+        Layout layout,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance(), analysisRegistry);
     }
 
     /**
@@ -40,11 +57,30 @@ public final class EvalMapper {
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
+        return toEvaluator(foldCtx, exp, layout, shardContexts, null);
+    }
+
+    /**
+     * Provides an ExpressionEvaluator factory to evaluate an expression.
+     *
+     * @param foldCtx the fold context for folding expressions
+     * @param exp the expression to generate an evaluator for
+     * @param layout the mapping from attributes to channels
+     * @param shardContexts the shard contexts, needed to generate queries for expressions that couldn't be pushed down to Lucene
+     * @param analysisRegistry the node-level analysis registry for resolving analyzers by name, may be {@code null}
+     */
+    public static ExpressionEvaluator.Factory toEvaluator(
+        FoldContext foldCtx,
+        Expression exp,
+        Layout layout,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
                 public ExpressionEvaluator.Factory apply(Expression expression) {
-                    return toEvaluator(foldCtx, expression, layout, shardContexts);
+                    return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
                 }
 
                 @Override
@@ -55,6 +91,11 @@ public final class EvalMapper {
                 @Override
                 public IndexedByShardId<? extends ShardContext> shardContexts() {
                     return shardContexts;
+                }
+
+                @Override
+                public Analyzer getAnalyzer(String name) {
+                    return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
                 }
             });
         }

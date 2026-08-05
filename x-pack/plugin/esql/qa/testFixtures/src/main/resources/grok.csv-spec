@@ -200,7 +200,7 @@ null               | null      | null
 
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-overwriteName#[skip:-8.12.99]
+overwriteName
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -211,7 +211,7 @@ Parto Bamford     | Parto          | Bamford
 
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-overwriteNameWhere#[skip:-8.12.99]
+overwriteNameWhere
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -219,7 +219,7 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
-overwriteNameAfterSort#[skip:-8.13.0]
+overwriteNameAfterSort
 from employees | sort emp_no ASC | grok first_name "Ge(?<emp_no>[a-z]{2})gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
 ;
 
@@ -322,7 +322,7 @@ required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: keep_regex_extract_attributes
 
-from multivalue_points,heights,histogram*,host*,messa*
+from multivalue_points,heights,histogram*,host*,-hosts_ip_is_kwd,messa*
 | eval  `card` = true, PbehoQUqKSF = "VLGjhcgNkQiEVyCLo", DsxMWtGL = true, qSxTIvUorMim = true, `location` = 8593178066470220111, type = -446161601, FSkGQkgmS = false 
 | eval  PbehoQUqKSF = 753987034, HLNMQfQj = true, `within` = true, `id` = "JDKKkYwhhh", lk = null, aecuvjTkgZza = 510616700, aDAMpuVtNX = null, qCopgNZPt = "AjhJUtZefqKdJYH", BxHHlFoA = "isBrmhKLc"
 | rename message as message 

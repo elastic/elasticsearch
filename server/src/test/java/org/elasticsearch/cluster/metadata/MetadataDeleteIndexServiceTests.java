@@ -60,10 +60,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     private AllocationService allocationService;
     private MetadataDeleteIndexService service;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initService() throws Exception {
         allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]

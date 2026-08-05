@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.5.0 [elasticsearch-9.5.0-release-notes]
-```{applies_to}
-stack: ga 9.5.0
-```
 
 ### Highlights [elasticsearch-9.5.0-highlights]
 
@@ -622,7 +619,6 @@ ES|QL:
 * Helpful logging for NPE investigation [#147701](https://github.com/elastic/elasticsearch/pull/147701) (issue: [#146545](https://github.com/elastic/elasticsearch/issues/146545))
 * Implicit cast based on widened type [#153268](https://github.com/elastic/elasticsearch/pull/153268) (issue: [#152997](https://github.com/elastic/elasticsearch/issues/152997))
 * Keep LIMIT BY above MV_EXPAND when needed [#149911](https://github.com/elastic/elasticsearch/pull/149911) (issue: [#148513](https://github.com/elastic/elasticsearch/issues/148513))
-* Make `CompoundOutputEval` implement `SortAgnostic` [#148521](https://github.com/elastic/elasticsearch/pull/148521) (issue: [#148500](https://github.com/elastic/elasticsearch/issues/148500))
 * Mark histogram and tsid as unsortable [#149085](https://github.com/elastic/elasticsearch/pull/149085)
 * Materialize dropped field from one FORK branch in other branches under unmapped_fields="load" [#153288](https://github.com/elastic/elasticsearch/pull/153288) (issue: [#152843](https://github.com/elastic/elasticsearch/issues/152843))
 * More tests and bug fix for In Subquery with TS [#150324](https://github.com/elastic/elasticsearch/pull/150324)
@@ -755,7 +751,7 @@ Vector Search:
 
 ## 9.4.4 [elasticsearch-9.4.4-release-notes]
 
-::::{important} 
+::::{important}
 The 9.4.4 release contains fixes for potential security vulnerabilities. For details, go to [security announcements](https://discuss.elastic.co/c/announcements/security-announcements/31).
 ::::
 
@@ -853,7 +849,7 @@ Transform:
 
 ## 9.3.8 [elasticsearch-9.3.8-release-notes]
 
-::::{important} 
+::::{important}
 The 9.3.8 release contains fixes for potential security vulnerabilities. For details, go to [security announcements](https://discuss.elastic.co/c/announcements/security-announcements/31).
 ::::
 
@@ -6241,3 +6237,5 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
+
+

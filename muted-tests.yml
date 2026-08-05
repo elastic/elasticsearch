@@ -595,9 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
-  method: testSoarAssignmentsValidAfterEmptyClusterRemoval
-  issue: https://github.com/elastic/elasticsearch/issues/155931
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments at the maximum should SUCCEED}
   issue: https://github.com/elastic/elasticsearch/issues/155969

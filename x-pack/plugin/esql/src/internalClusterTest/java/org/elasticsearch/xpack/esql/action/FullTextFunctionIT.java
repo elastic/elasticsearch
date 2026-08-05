@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.kql.KqlPlugin;
+import org.junit.Before;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -19,9 +27,34 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FullTextFunctionIT extends AbstractEsqlIntegTestCase {
 
-    public void testMatchPhraseOrUnmappedFieldIsNullWithLoadAcrossRemoteDataNodes() {
+    private final String matchingClause;
+    private final EsqlCapabilities.Cap requiredCapability;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), KqlPlugin.class);
+    }
+
+    @ParametersFactory
+    public static List<Object[]> params() {
+        return List.of(
+            new Object[] { "match_phrase(keyword_field, \"fox search\")", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION },
+            new Object[] { "match(keyword_field, \"fox search\")", EsqlCapabilities.Cap.MATCH_FUNCTION },
+            new Object[] { "keyword_field:\"fox search\"", EsqlCapabilities.Cap.MATCH_FUNCTION },
+            new Object[] { "qstr(\"keyword_field:\\\"fox search\\\"\")", EsqlCapabilities.Cap.QSTR_FUNCTION },
+            new Object[] { "kql(\"keyword_field: \\\"fox search\\\"\")", EsqlCapabilities.Cap.KQL_FUNCTION }
+        );
+    }
+
+    public FullTextFunctionIT(String matchingClause, EsqlCapabilities.Cap requiredCapability) {
+        this.matchingClause = matchingClause;
+        this.requiredCapability = requiredCapability;
+    }
+
+    @Before
+    public void setupIndicesAcrossDataNodes() {
         assumeTrue("Requires unmapped_fields=\"load\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-        assumeTrue("Requires match_phrase function", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        assumeTrue("Requires " + requiredCapability.name(), requiredCapability.isEnabled());
 
         internalCluster().ensureAtLeastNumDataNodes(2);
         String keywordNode = randomDataNode().getName();
@@ -57,14 +90,18 @@ public class FullTextFunctionIT extends AbstractEsqlIntegTestCase {
         indexDoc("idx_kw", "1", "keyword_field", "fox search");
         indexDoc("idx_other", "1", "other", "x");
         refresh("idx_kw", "idx_other");
+    }
 
-        try (var resp = run("""
+    public void testFullTextFunctionOrUnmappedFieldIsNullWithLoadAcrossRemoteDataNodes() {
+        var query = String.format(Locale.ROOT, """
             SET unmapped_fields="load";
             FROM idx_kw, idx_other METADATA _index
-            | WHERE match_phrase(keyword_field, "fox search") OR unmapped_field_bar IS NULL
+            | WHERE %s OR unmapped_field_bar IS NULL
             | KEEP _index, keyword_field, other
             | SORT _index
-            """)) {
+            """, matchingClause);
+
+        try (var resp = run(query)) {
             assertThat(resp.isPartial(), equalTo(false));
             assertColumnNames(resp.columns(), List.of("_index", "keyword_field", "other"));
             assertColumnTypes(resp.columns(), List.of("keyword", "keyword", "keyword"));

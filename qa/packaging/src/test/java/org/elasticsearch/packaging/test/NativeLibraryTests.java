@@ -101,7 +101,9 @@ public class NativeLibraryTests extends PackagingTestCase {
         configureAndStart(SECURITY_DISABLED_SETTINGS);
 
         try {
-            // Create an index with a dense_vector field using HNSW indexing
+            // Create an index with a dense_vector field using plain HNSW (no quantization).
+            // Explicitly setting "type": "hnsw" avoids the default int8_hnsw quantization,
+            // ensuring the native float32 vector scorer in libvec is used for distance computation.
             ServerUtils.makeRequest(Request.Put("http://localhost:9200/simdvec_test").bodyString("""
                 {
                   "settings": {"number_of_replicas": 0, "number_of_shards": 1},
@@ -111,7 +113,8 @@ public class NativeLibraryTests extends PackagingTestCase {
                         "type": "dense_vector",
                         "dims": 3,
                         "index": true,
-                        "similarity": "l2_norm"
+                        "similarity": "l2_norm",
+                        "index_options": {"type": "hnsw"}
                       },
                       "name": {"type": "keyword"}
                     }

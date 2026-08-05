@@ -492,7 +492,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         final var shardId = clusterState.routingTable().index("idx").shard(0).shardId();
         final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
 
-        // Mix primary moves with genuine replica failures, ensure at least one primary move.
+        // Mix primary moves with genuine replica failures.
         int genuineFailures = 0;
         while (genuineFailures < maxRetries) {
             final var replica = soleReplicaShard(clusterState, 0);

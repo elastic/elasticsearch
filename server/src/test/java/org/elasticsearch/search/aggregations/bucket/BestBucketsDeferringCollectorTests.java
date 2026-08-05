@@ -145,10 +145,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCircuitBreakerChargesOneEventPerSegmentAndReleasesSymmetrically() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> new LeafBucketCollector() {
                 @Override
@@ -168,15 +165,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.get(2), equalTo(-events.get(0)));
             assertThat(events.get(3), equalTo(-events.get(1)));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        });
     }
 
     public void testCircuitBreakerRewriteBucketsProducesSymmetricEvents() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            AtomicInteger segmentsSeen = new AtomicInteger();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        AtomicInteger segmentsSeen = new AtomicInteger();
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> {
                 if (segmentsSeen.incrementAndGet() == 2) {
@@ -207,7 +201,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.get(4), equalTo(-chargeAPrime));
             assertThat(events.get(5), equalTo(-chargeB));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        });
     }
 
     public void testCircuitBreakerTripDuringFinishLeaf() throws IOException {
@@ -269,10 +263,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCircuitBreakerBytesReturnedEvenWhenNoBucketsMatch() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> new LeafBucketCollector() {
                 @Override
@@ -293,14 +284,11 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.get(2), equalTo(-events.get(0)));
             assertThat(events.get(3), equalTo(-events.get(1)));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        });
     }
 
     public void testCircuitBreakerNoEventsWhenRewritingEmptyEntries() throws IOException {
-        try (Directory dir = buildIndex(5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
 
             // rewrite before any collect(): entries is empty, bucketsBuilder is null — no CB events
@@ -322,15 +310,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
             assertThat(events.size(), equalTo(2));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        }, 5);
     }
 
     public void testCircuitBreakerReturnsBytesWhenRewriteRemovesAllEntries() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            AtomicInteger segmentsSeen = new AtomicInteger();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        AtomicInteger segmentsSeen = new AtomicInteger();
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> {
                 if (segmentsSeen.incrementAndGet() == 2) {
@@ -357,15 +342,12 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.size(), equalTo(4));
             assertThat(events.get(3), equalTo(-events.get(2)));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        });
     }
 
     public void testCircuitBreakerMultipleRewritesAreSymmetric() throws IOException {
-        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            AtomicInteger segmentsSeen = new AtomicInteger();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        AtomicInteger segmentsSeen = new AtomicInteger();
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> {
                 if (segmentsSeen.incrementAndGet() == 2) {
@@ -397,14 +379,11 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.size(), equalTo(6));
             assertThat(events.get(5), equalTo(-chargeB));
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        });
     }
 
     public void testCircuitBreakerHeartbeatEventsDoNotAffectBalance() throws IOException {
-        try (Directory dir = buildIndex(2048); IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = newSearcher(reader);
-            List<Long> events = new ArrayList<>();
-            BestBucketsDeferringCollector dc = setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events);
+        runBreakerTest((searcher, dc, events) -> {
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> new LeafBucketCollector() {
                 @Override
@@ -421,7 +400,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             dc.prepareSelectedBuckets(toLongArray(0));
 
             assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
-        }
+        }, 2048);
     }
 
     private BucketCollector bla(Set<Integer> docIds) {
@@ -503,6 +482,21 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
             assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(0, 1, 2, 3), 1L, List.of(8), 2L, List.of(9))));
         });
+    }
+
+    @FunctionalInterface
+    private interface BreakerTest {
+        void run(IndexSearcher searcher, BestBucketsDeferringCollector dc, List<Long> events) throws IOException;
+    }
+
+    /** Runs {@code body} with a two-segment index (5 docs each) and a fresh event-recording collector. */
+    private void runBreakerTest(BreakerTest body, int... docsPerSegment) throws IOException {
+        int[] segments = docsPerSegment.length == 0 ? new int[] { 5, 5 } : docsPerSegment;
+        try (Directory dir = buildIndex(segments); IndexReader reader = DirectoryReader.open(dir)) {
+            IndexSearcher searcher = newSearcher(reader);
+            List<Long> events = new ArrayList<>();
+            body.run(searcher, setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events), events);
+        }
     }
 
     /** Builds a Lucene directory with documents distributed across segments as specified. */

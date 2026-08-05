@@ -1,5 +1,5 @@
 area: Distributed
 issues: []
 pr: 155962
-summary: Fix `ClusterDisruptionIT` `testAckedIndexing`
+summary: GatewayAllocator.fetchData retries when the fetch has been closed by concurrent operations on the master thread rather than failing 
 type: bug

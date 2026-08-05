@@ -32,6 +32,7 @@ import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -99,6 +100,23 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
         blobStore.writeBlob(purpose, buildKey(blobName), failIfAlreadyExists, writer);
+    }
+
+    @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return blobStore.supportsParallelCompositeUpload();
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        blobStore.writeParallelCompositeBlob(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists);
     }
 
     @Override

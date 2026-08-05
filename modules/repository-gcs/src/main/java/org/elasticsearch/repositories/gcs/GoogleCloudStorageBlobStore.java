@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobContainer.BlobMultiPartInputStreamProvider;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
@@ -424,9 +425,53 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Uploads a blob using GCS parallel composite upload
+     *
+     * @param purpose             the operation purpose
+     * @param blobName            the full key of the target blob (including path prefix)
+     * @param blobSize            the exact number of bytes in the blob
+     * @param provider            supplies an {@link java.io.InputStream} for the full blob content
+     * @param failIfAlreadyExists whether to throw a {@link java.nio.file.FileAlreadyExistsException}
+     *                            if the target blob already exists
+     */
+    void writeParallelCompositeBlob(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        // TODO: this currently uses the write thread pool
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && purpose != OperationPurpose.SNAPSHOT_METADATA;
+        if (blobSize <= getLargeBlobThresholdInBytes()) {
+            try (var inputStream = provider.apply(0L, blobSize)) {
+                writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+            return;
+        }
+        final BlobInfo blobInfo = applyStorageClass(BlobInfo.newBuilder(bucketName, blobName), purpose).build();
+        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
+        try (var inputStream = provider.apply(0L, blobSize)) {
+            client().meteredParallelCompositeUpload(purpose, blobInfo, inputStream, bufferSize, writeOptions);
+        } catch (IOException e) {
+            if (failIfAlreadyExists) {
+                final StorageException se = (StorageException) ExceptionsHelper.unwrap(e, StorageException.class);
+                if (se != null && se.getCode() == HTTP_PRECON_FAILED) {
+                    throw new FileAlreadyExistsException(blobName, null, se.getMessage());
+                }
+            }
+            throw e;
+        }
+    }
+
     // non-static, package private for testing
     long getLargeBlobThresholdInBytes() {
         return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+    }
+
+    boolean supportsParallelCompositeUpload() {
+        return storageService.supportsParallelCompositeUpload();
     }
 
     // possible options for #writeBlobResumable uploads

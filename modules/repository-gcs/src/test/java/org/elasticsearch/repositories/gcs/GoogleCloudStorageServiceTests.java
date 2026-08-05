@@ -24,10 +24,12 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
@@ -128,6 +130,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
         );
         when(pluginServices.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(pluginServices.threadPool()).thenReturn(threadPool);
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
@@ -172,6 +177,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
         );
         when(pluginServices.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(ThreadPool.Names.WRITE)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(pluginServices.threadPool()).thenReturn(threadPool);
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();

@@ -35,13 +35,17 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32C;
 import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
@@ -225,7 +229,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         multipartUpload.name(),
                         ifGenerationMatch,
                         multipartUpload.content(),
-                        emptyToNull(multipartUpload.storageClass())
+                        emptyToNull(multipartUpload.storageClass()),
+                        multipartUpload.userMetadata()
                     );
                     writeBlobVersionAsJson(exchange, newBlobVersion);
                 } catch (IllegalArgumentException e) {
@@ -284,6 +289,23 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // don't fail deletes here, fixture will inject failures before reaching this point
                 final var deleteStatus = deleteObject(object);
                 exchange.sendResponseHeaders(deleteStatus.getStatus(), -1);
+            } else if (Regex.simpleMatch("POST /storage/v1/b/" + bucket + "/o/*compose*", request)) {
+                // Compose Object https://cloud.google.com/storage/docs/json_api/v1/objects/compose
+                final String rawPath = exchange.getRequestURI().getPath();
+                final String prefix = "/storage/v1/b/" + bucket + "/o/";
+                final String destObject = URLDecoder.decode(
+                    rawPath.substring(prefix.length(), rawPath.length() - "/compose".length()),
+                    UTF_8
+                );
+                final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
+                final List<String> sourceNames = parseComposeSourceNames(requestBody);
+                final MockGcsBlobStore.BlobVersion composed = mockGcsBlobStore.compose(
+                    sourceNames,
+                    destObject,
+                    ifGenerationMatch,
+                    parseStorageClass(requestBody)
+                );
+                writeBlobVersionAsJson(exchange, composed);
             } else if (Regex.simpleMatch("POST /storage/v1/b/" + bucket + "/o*/rewriteTo/b/" + bucket + "/o/*", request)) {
                 final var matcher = REWRITE_PATTERN.matcher(request);
                 if (matcher.find() == false) {
@@ -556,6 +578,19 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
+    private static String computeCrc32c(BytesReference content) {
+        final CRC32C crc32c = new CRC32C();
+        final byte[] bytes = BytesReference.toBytes(content);
+        crc32c.update(bytes);
+        final long value = crc32c.getValue();
+        final byte[] encoded = new byte[4];
+        encoded[0] = (byte) ((value >> 24) & 0xff);
+        encoded[1] = (byte) ((value >> 16) & 0xff);
+        encoded[2] = (byte) ((value >> 8) & 0xff);
+        encoded[3] = (byte) (value & 0xff);
+        return Base64.getEncoder().encodeToString(encoded);
+    }
+
     private static void writeBlobAsXContent(
         MockGcsBlobStore.BlobVersion blobVersion,
         XContentBuilder builder,
@@ -574,8 +609,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
         builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
+        builder.field("crc32c", computeCrc32c(blobVersion.contents()));
         if (blobVersion.storageClass() != null) {
             builder.field("storageClass", blobVersion.storageClass());
+        }
+        if (blobVersion.userMetadata() != null) {
+            builder.field("metadata", blobVersion.userMetadata());
         }
         builder.endObject();
     }
@@ -605,7 +644,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
      * without going through the HTTP API.
      */
     public void putBlob(String path, BytesReference contents) {
-        mockGcsBlobStore.updateBlob(path, null, contents, null);
+        mockGcsBlobStore.updateBlob(path, null, contents, null, null);
     }
 
     /**
@@ -617,6 +656,30 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private static final Pattern STORAGE_CLASS_PATTERN = Pattern.compile("\"storageClass\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern COMPOSE_SOURCE_NAME_PATTERN = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern COMPOSE_SOURCE_OBJECTS_PATTERN = Pattern.compile("\"sourceObjects\"\\s*:\\s*\\[(.*?)]", Pattern.DOTALL);
+
+    private static List<String> parseComposeSourceNames(BytesReference body) throws IOException {
+        final String content;
+        if (isGzip(body)) {
+            try (var in = new GZIPInputStream(body.streamInput())) {
+                content = new String(in.readAllBytes(), UTF_8);
+            }
+        } else {
+            content = body.utf8ToString();
+        }
+        final var sourceObjectsMatcher = COMPOSE_SOURCE_OBJECTS_PATTERN.matcher(content);
+        if (sourceObjectsMatcher.find() == false) {
+            return List.of();
+        }
+        final String sourceObjectsContent = sourceObjectsMatcher.group(1);
+        final List<String> names = new ArrayList<>();
+        final var nameMatcher = COMPOSE_SOURCE_NAME_PATTERN.matcher(sourceObjectsContent);
+        while (nameMatcher.find()) {
+            names.add(nameMatcher.group(1));
+        }
+        return names;
+    }
 
     /**
      * Extracts the {@code storageClass} field from a request body containing GCS object metadata JSON. The body may be gzip-compressed

@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +43,14 @@ public class MockGcsBlobStore {
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Rewrite> ongoingRewrites = new ConcurrentHashMap<>();
 
-    record BlobVersion(String path, long generation, BytesReference contents, Instant lastModified, @Nullable String storageClass) {}
+    record BlobVersion(
+        String path,
+        long generation,
+        BytesReference contents,
+        Instant lastModified,
+        @Nullable String storageClass,
+        @Nullable Map<String, String> userMetadata
+    ) {}
 
     record ResumableUpload(
         String uploadId,
@@ -122,7 +130,13 @@ public class MockGcsBlobStore {
         return blob;
     }
 
-    BlobVersion updateBlob(String path, Long ifGenerationMatch, BytesReference contents, @Nullable String storageClass) {
+    BlobVersion updateBlob(
+        String path,
+        Long ifGenerationMatch,
+        BytesReference contents,
+        @Nullable String storageClass,
+        @Nullable Map<String, String> userMetadata
+    ) {
         return blobs.compute(path, (name, existing) -> {
             if (existing != null) {
                 if (ifGenerationMatch != null) {
@@ -138,7 +152,7 @@ public class MockGcsBlobStore {
                         );
                     }
                 }
-                return new BlobVersion(path, existing.generation + 1, contents, Instant.now(), storageClass);
+                return new BlobVersion(path, existing.generation + 1, contents, Instant.now(), storageClass, userMetadata);
             } else {
                 if (ifGenerationMatch != null && ifGenerationMatch != 0) {
                     throw new GcsRestException(
@@ -146,7 +160,7 @@ public class MockGcsBlobStore {
                         "Blob does not exist, expected generation " + ifGenerationMatch
                     );
                 }
-                return new BlobVersion(path, 1, contents, Instant.now(), storageClass);
+                return new BlobVersion(path, 1, contents, Instant.now(), storageClass, userMetadata);
             }
         });
     }
@@ -208,7 +222,13 @@ public class MockGcsBlobStore {
             if (valueToReturn.completed) {
                 updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
             } else if (contentRange.hasSize() && contentRange.size() == valueToReturn.contents.length()) {
-                updateBlob(valueToReturn.path(), valueToReturn.ifGenerationMatch(), valueToReturn.contents, valueToReturn.storageClass());
+                updateBlob(
+                    valueToReturn.path(),
+                    valueToReturn.ifGenerationMatch(),
+                    valueToReturn.contents,
+                    valueToReturn.storageClass(),
+                    null
+                );
                 valueToReturn = valueToReturn.complete();
                 updateResponse.set(new UpdateResponse(RestStatus.OK.getStatus(), valueToReturn.getRange(), valueToReturn.length()));
             } else {
@@ -224,6 +244,20 @@ public class MockGcsBlobStore {
 
     boolean deleteBlob(String path) {
         return blobs.remove(path) != null;
+    }
+
+    BlobVersion compose(List<String> sourceNames, String destinationPath, Long ifGenerationMatch, @Nullable String storageClass) {
+        final List<BytesReference> parts = new ArrayList<>(sourceNames.size());
+        for (String name : sourceNames) {
+            parts.add(getBlob(name, null, null).contents());
+        }
+        return updateBlob(
+            destinationPath,
+            ifGenerationMatch,
+            CompositeBytesReference.of(parts.toArray(BytesReference[]::new)),
+            storageClass,
+            null
+        );
     }
 
     record Rewrite(
@@ -277,7 +311,7 @@ public class MockGcsBlobStore {
                     totalBytesRewritten,
                     objectSize,
                     done ? null : newRewriteToken,
-                    done ? updateBlob(dstPath, null, rewrite.srcContents, rewrite.dstStorageClass()) : null
+                    done ? updateBlob(dstPath, null, rewrite.srcContents, rewrite.dstStorageClass(), null) : null
                 )
             );
             // Save entry if not done or previously was saved with rewrite token

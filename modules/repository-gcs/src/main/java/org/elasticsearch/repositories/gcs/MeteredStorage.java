@@ -18,20 +18,29 @@ import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.BlobWriteSession;
+import com.google.cloud.storage.BlobWriteSessionConfigs;
 import com.google.cloud.storage.CopyWriter;
+import com.google.cloud.storage.ParallelCompositeUploadBlobWriteSessionConfig;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.OptionalInt;
+import java.util.concurrent.Executor;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.gcs.StorageOperation.COPY;
@@ -49,17 +58,49 @@ public class MeteredStorage {
     private final Storage storage;
     private final com.google.api.services.storage.Storage storageRpc;
     private final GcsRepositoryStatsCollector statsCollector;
+    @Nullable
+    private final Storage parallelCompositeUploadStorage;
+    private final ThreadLocal<OperationPurpose> callPurpose = new ThreadLocal<>();
 
-    public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
+    public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector, @Nullable Executor parallelCompositeUploadExecutor) {
         this.storage = storage;
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
+        if (parallelCompositeUploadExecutor != null) {
+            final Executor meteringExecutor = task -> {
+                // callPurpose set on the calling thread before tasks are submitted
+                final OperationPurpose purpose = callPurpose.get();
+                assert purpose != null;
+                parallelCompositeUploadExecutor.execute(() -> {
+                    callPurpose.set(purpose);
+                    try {
+                        statsCollector.collectRunnable(purpose, INSERT, task);
+                    } finally {
+                        callPurpose.remove();
+                    }
+                });
+            };
+            this.parallelCompositeUploadStorage = storage.getOptions()
+                .toBuilder()
+                .setBlobWriteSessionConfig(
+                    BlobWriteSessionConfigs.parallelCompositeUpload()
+                        .withExecutorSupplier(ParallelCompositeUploadBlobWriteSessionConfig.ExecutorSupplier.useExecutor(meteringExecutor))
+                        .withPartNamingStrategy(ParallelCompositeUploadBlobWriteSessionConfig.PartNamingStrategy.useObjectNameAsPrefix())
+                        .withPartCleanupStrategy(ParallelCompositeUploadBlobWriteSessionConfig.PartCleanupStrategy.always())
+                )
+                .build()
+                .getService();
+        } else {
+            this.parallelCompositeUploadStorage = null;
+        }
     }
 
+    // for testing
     MeteredStorage(Storage storage, com.google.api.services.storage.Storage storageRpc, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
         this.storageRpc = storageRpc;
         this.statsCollector = statsCollector;
+        this.parallelCompositeUploadStorage = null;
     }
 
     @SuppressForbidden(reason = "need access to storage client")
@@ -339,6 +380,34 @@ public class MeteredStorage {
             public Iterator<Blob> iterator() {
                 return new MeteredIterator(iterable.iterator());
             }
+        }
+    }
+
+    /**
+     * Uploads a blob using GCS parallel composite upload
+     *
+     * @param purpose      the operation purpose
+     * @param blobInfo     metadata for the target blob
+     * @param inputStream  full content of the blob to upload
+     * @param bufferSize   copy-buffer size in bytes used when streaming data into the channel
+     * @param writeOptions write options such as {@code doesNotExist()} for conditional writes
+     */
+    public void meteredParallelCompositeUpload(
+        OperationPurpose purpose,
+        BlobInfo blobInfo,
+        InputStream inputStream,
+        int bufferSize,
+        Storage.BlobWriteOption... writeOptions
+    ) throws IOException {
+        assert parallelCompositeUploadStorage != null;
+        callPurpose.set(purpose);
+        try {
+            final BlobWriteSession session = parallelCompositeUploadStorage.blobWriteSession(blobInfo, writeOptions);
+            try (WritableByteChannel channel = session.open()) {
+                Streams.copy(inputStream, Channels.newOutputStream(channel), new byte[bufferSize]);
+            }
+        } finally {
+            callPurpose.remove();
         }
     }
 

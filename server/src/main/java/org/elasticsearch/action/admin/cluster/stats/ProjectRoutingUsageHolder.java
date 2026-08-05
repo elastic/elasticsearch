@@ -24,14 +24,14 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class ProjectRoutingUsageHolder {
 
-    // _search endpoint
+    // _search, _async_search, _msearch (per sub-request), _search/template, _msearch/template
     private final LongAdder searchQueriesTotal = new LongAdder();
     private final LongAdder searchWithProjectRouting = new LongAdder();
     private final LongAdder searchWithAliasOrigin = new LongAdder();
     private final LongAdder searchWithAliasWildcard = new LongAdder();
     private final LongAdder searchWithCustomTags = new LongAdder();
     private final LongAdder searchWithNamedExpression = new LongAdder();
-    private final LongAdder searchFailures = new LongAdder();
+    private final LongAdder searchProjectRoutingFailures = new LongAdder();
 
     // ES|QL endpoint
     private final LongAdder esqlQueriesTotal = new LongAdder();
@@ -41,7 +41,7 @@ public class ProjectRoutingUsageHolder {
     private final LongAdder esqlWithCustomTags = new LongAdder();
     private final LongAdder esqlWithNamedExpression = new LongAdder();
     private final LongAdder esqlWithSet = new LongAdder();
-    private final LongAdder esqlFailures = new LongAdder();
+    private final LongAdder esqlProjectRoutingFailures = new LongAdder();
 
     /**
      * Records a {@code _search} request. {@code queries} is always incremented (subject to the
@@ -94,11 +94,11 @@ public class ProjectRoutingUsageHolder {
      *
      * @param hasLinkedProjects true when the project had at least one linked project; when false this is a no-op
      */
-    public void recordSearchFailure(boolean hasLinkedProjects) {
+    public void recordSearchProjectRoutingFailure(boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
         searchQueriesTotal.increment();
         searchWithProjectRouting.increment();
-        searchFailures.increment();
+        searchProjectRoutingFailures.increment();
     }
 
     /**
@@ -108,11 +108,11 @@ public class ProjectRoutingUsageHolder {
      *
      * @param hasLinkedProjects true when the project had at least one linked project; when false this is a no-op
      */
-    public void recordEsqlFailure(boolean hasLinkedProjects) {
+    public void recordEsqlProjectRoutingFailure(boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
         esqlQueriesTotal.increment();
         esqlWithProjectRouting.increment();
-        esqlFailures.increment();
+        esqlProjectRoutingFailures.increment();
     }
 
     /**
@@ -126,7 +126,7 @@ public class ProjectRoutingUsageHolder {
             searchWithAliasWildcard.sum(),
             searchWithCustomTags.sum(),
             searchWithNamedExpression.sum(),
-            searchFailures.sum(),
+            searchProjectRoutingFailures.sum(),
             esqlQueriesTotal.sum(),
             esqlWithProjectRouting.sum(),
             esqlWithAliasOrigin.sum(),
@@ -134,7 +134,7 @@ public class ProjectRoutingUsageHolder {
             esqlWithCustomTags.sum(),
             esqlWithNamedExpression.sum(),
             esqlWithSet.sum(),
-            esqlFailures.sum()
+            esqlProjectRoutingFailures.sum()
         );
     }
 }

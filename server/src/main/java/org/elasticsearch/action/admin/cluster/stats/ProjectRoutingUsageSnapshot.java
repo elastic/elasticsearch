@@ -34,7 +34,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
     private long searchWithAliasWildcard;
     private long searchWithCustomTags;
     private long searchWithNamedExpression;
-    private long searchFailures;
+    private long searchProjectRoutingFailures;
 
     private long esqlQueriesTotal;
     private long esqlWithProjectRouting;
@@ -43,7 +43,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
     private long esqlWithCustomTags;
     private long esqlWithNamedExpression;
     private long esqlWithSet;
-    private long esqlFailures;
+    private long esqlProjectRoutingFailures;
 
     /** Creates an empty snapshot suitable for accumulating node snapshots into. */
     public ProjectRoutingUsageSnapshot() {}
@@ -56,7 +56,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         long searchWithAliasWildcard,
         long searchWithCustomTags,
         long searchWithNamedExpression,
-        long searchFailures,
+        long searchProjectRoutingFailures,
         long esqlQueriesTotal,
         long esqlWithProjectRouting,
         long esqlWithAliasOrigin,
@@ -64,7 +64,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         long esqlWithCustomTags,
         long esqlWithNamedExpression,
         long esqlWithSet,
-        long esqlFailures
+        long esqlProjectRoutingFailures
     ) {
         this.searchQueriesTotal = searchQueriesTotal;
         this.searchWithProjectRouting = searchWithProjectRouting;
@@ -72,7 +72,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         this.searchWithAliasWildcard = searchWithAliasWildcard;
         this.searchWithCustomTags = searchWithCustomTags;
         this.searchWithNamedExpression = searchWithNamedExpression;
-        this.searchFailures = searchFailures;
+        this.searchProjectRoutingFailures = searchProjectRoutingFailures;
         this.esqlQueriesTotal = esqlQueriesTotal;
         this.esqlWithProjectRouting = esqlWithProjectRouting;
         this.esqlWithAliasOrigin = esqlWithAliasOrigin;
@@ -80,7 +80,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         this.esqlWithCustomTags = esqlWithCustomTags;
         this.esqlWithNamedExpression = esqlWithNamedExpression;
         this.esqlWithSet = esqlWithSet;
-        this.esqlFailures = esqlFailures;
+        this.esqlProjectRoutingFailures = esqlProjectRoutingFailures;
     }
 
     public ProjectRoutingUsageSnapshot(StreamInput in) throws IOException {
@@ -90,7 +90,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         searchWithAliasWildcard = in.readVLong();
         searchWithCustomTags = in.readVLong();
         searchWithNamedExpression = in.readVLong();
-        searchFailures = in.readVLong();
+        searchProjectRoutingFailures = in.readVLong();
         esqlQueriesTotal = in.readVLong();
         esqlWithProjectRouting = in.readVLong();
         esqlWithAliasOrigin = in.readVLong();
@@ -98,7 +98,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         esqlWithCustomTags = in.readVLong();
         esqlWithNamedExpression = in.readVLong();
         esqlWithSet = in.readVLong();
-        esqlFailures = in.readVLong();
+        esqlProjectRoutingFailures = in.readVLong();
     }
 
     @Override
@@ -109,7 +109,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         out.writeVLong(searchWithAliasWildcard);
         out.writeVLong(searchWithCustomTags);
         out.writeVLong(searchWithNamedExpression);
-        out.writeVLong(searchFailures);
+        out.writeVLong(searchProjectRoutingFailures);
         out.writeVLong(esqlQueriesTotal);
         out.writeVLong(esqlWithProjectRouting);
         out.writeVLong(esqlWithAliasOrigin);
@@ -117,7 +117,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         out.writeVLong(esqlWithCustomTags);
         out.writeVLong(esqlWithNamedExpression);
         out.writeVLong(esqlWithSet);
-        out.writeVLong(esqlFailures);
+        out.writeVLong(esqlProjectRoutingFailures);
     }
 
     /**
@@ -131,7 +131,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         searchWithAliasWildcard += other.searchWithAliasWildcard;
         searchWithCustomTags += other.searchWithCustomTags;
         searchWithNamedExpression += other.searchWithNamedExpression;
-        searchFailures += other.searchFailures;
+        searchProjectRoutingFailures += other.searchProjectRoutingFailures;
         esqlQueriesTotal += other.esqlQueriesTotal;
         esqlWithProjectRouting += other.esqlWithProjectRouting;
         esqlWithAliasOrigin += other.esqlWithAliasOrigin;
@@ -139,7 +139,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         esqlWithCustomTags += other.esqlWithCustomTags;
         esqlWithNamedExpression += other.esqlWithNamedExpression;
         esqlWithSet += other.esqlWithSet;
-        esqlFailures += other.esqlFailures;
+        esqlProjectRoutingFailures += other.esqlProjectRoutingFailures;
     }
 
     public long getSearchQueriesTotal() {
@@ -167,7 +167,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
     }
 
     public long getSearchFailures() {
-        return searchFailures;
+        return searchProjectRoutingFailures;
     }
 
     public long getEsqlQueriesTotal() {
@@ -199,7 +199,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
     }
 
     public long getEsqlFailures() {
-        return esqlFailures;
+        return esqlProjectRoutingFailures;
     }
 
     @Override
@@ -213,7 +213,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             && searchWithAliasWildcard == other.searchWithAliasWildcard
             && searchWithCustomTags == other.searchWithCustomTags
             && searchWithNamedExpression == other.searchWithNamedExpression
-            && searchFailures == other.searchFailures
+            && searchProjectRoutingFailures == other.searchProjectRoutingFailures
             && esqlQueriesTotal == other.esqlQueriesTotal
             && esqlWithProjectRouting == other.esqlWithProjectRouting
             && esqlWithAliasOrigin == other.esqlWithAliasOrigin
@@ -221,7 +221,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             && esqlWithCustomTags == other.esqlWithCustomTags
             && esqlWithNamedExpression == other.esqlWithNamedExpression
             && esqlWithSet == other.esqlWithSet
-            && esqlFailures == other.esqlFailures;
+            && esqlProjectRoutingFailures == other.esqlProjectRoutingFailures;
     }
 
     @Override
@@ -233,7 +233,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             searchWithAliasWildcard,
             searchWithCustomTags,
             searchWithNamedExpression,
-            searchFailures,
+            searchProjectRoutingFailures,
             esqlQueriesTotal,
             esqlWithProjectRouting,
             esqlWithAliasOrigin,
@@ -241,7 +241,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             esqlWithCustomTags,
             esqlWithNamedExpression,
             esqlWithSet,
-            esqlFailures
+            esqlProjectRoutingFailures
         );
     }
 
@@ -260,7 +260,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             builder.field("alias_wildcard", searchWithAliasWildcard);
             builder.field("custom_tags", searchWithCustomTags);
             builder.field("named_expression", searchWithNamedExpression);
-            builder.field("failures", searchFailures);
+            builder.field("failures", searchProjectRoutingFailures);
             builder.endObject();
         }
         if (esqlQueriesTotal > 0) {
@@ -272,7 +272,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
             builder.field("custom_tags", esqlWithCustomTags);
             builder.field("named_expression", esqlWithNamedExpression);
             builder.field("in_SET", esqlWithSet);
-            builder.field("failures", esqlFailures);
+            builder.field("failures", esqlProjectRoutingFailures);
             builder.endObject();
         }
         return builder;

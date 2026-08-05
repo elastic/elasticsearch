@@ -68,7 +68,7 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
             field == 3 ? instance.getSearchWithAliasWildcard() + 1 : instance.getSearchWithAliasWildcard(),
             field == 4 ? instance.getSearchWithCustomTags() + 1 : instance.getSearchWithCustomTags(),
             field == 5 ? instance.getSearchWithNamedExpression() + 1 : instance.getSearchWithNamedExpression(),
-            field == 6 ? instance.getSearchFailures() + 1 : instance.getSearchFailures(),
+            field == 6 ? instance.getSearchProjectRoutingFailures() + 1 : instance.getSearchProjectRoutingFailures(),
             field == 7 ? instance.getEsqlQueriesTotal() + 1 : instance.getEsqlQueriesTotal(),
             field == 8 ? instance.getEsqlWithProjectRouting() + 1 : instance.getEsqlWithProjectRouting(),
             field == 9 ? instance.getEsqlWithAliasOrigin() + 1 : instance.getEsqlWithAliasOrigin(),
@@ -76,7 +76,7 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
             field == 11 ? instance.getEsqlWithCustomTags() + 1 : instance.getEsqlWithCustomTags(),
             field == 12 ? instance.getEsqlWithNamedExpression() + 1 : instance.getEsqlWithNamedExpression(),
             field == 13 ? instance.getEsqlWithSet() + 1 : instance.getEsqlWithSet(),
-            field == 14 ? instance.getEsqlFailures() + 1 : instance.getEsqlFailures()
+            field == 14 ? instance.getEsqlProjectRoutingFailures() + 1 : instance.getEsqlProjectRoutingFailures()
         );
     }
 
@@ -103,7 +103,7 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
         assertThat(acc.getSearchWithAliasWildcard(), equalTo(snap.getSearchWithAliasWildcard() * 2));
         assertThat(acc.getSearchWithCustomTags(), equalTo(snap.getSearchWithCustomTags() * 2));
         assertThat(acc.getSearchWithNamedExpression(), equalTo(snap.getSearchWithNamedExpression() * 2));
-        assertThat(acc.getSearchFailures(), equalTo(snap.getSearchFailures() * 2));
+        assertThat(acc.getSearchProjectRoutingFailures(), equalTo(snap.getSearchProjectRoutingFailures() * 2));
         assertThat(acc.getEsqlQueriesTotal(), equalTo(snap.getEsqlQueriesTotal() * 2));
         assertThat(acc.getEsqlWithProjectRouting(), equalTo(snap.getEsqlWithProjectRouting() * 2));
         assertThat(acc.getEsqlWithAliasOrigin(), equalTo(snap.getEsqlWithAliasOrigin() * 2));
@@ -111,7 +111,7 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
         assertThat(acc.getEsqlWithCustomTags(), equalTo(snap.getEsqlWithCustomTags() * 2));
         assertThat(acc.getEsqlWithNamedExpression(), equalTo(snap.getEsqlWithNamedExpression() * 2));
         assertThat(acc.getEsqlWithSet(), equalTo(snap.getEsqlWithSet() * 2));
-        assertThat(acc.getEsqlFailures(), equalTo(snap.getEsqlFailures() * 2));
+        assertThat(acc.getEsqlProjectRoutingFailures(), equalTo(snap.getEsqlProjectRoutingFailures() * 2));
     }
 
     public void testAdd_null_isNoop() {
@@ -130,9 +130,12 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
         acc.add(b);
 
         assertThat(acc.getSearchQueriesTotal(), equalTo(a.getSearchQueriesTotal() + b.getSearchQueriesTotal()));
-        assertThat(acc.getSearchFailures(), equalTo(a.getSearchFailures() + b.getSearchFailures()));
+        assertThat(
+            acc.getSearchProjectRoutingFailures(),
+            equalTo(a.getSearchProjectRoutingFailures() + b.getSearchProjectRoutingFailures())
+        );
         assertThat(acc.getEsqlWithSet(), equalTo(a.getEsqlWithSet() + b.getEsqlWithSet()));
-        assertThat(acc.getEsqlFailures(), equalTo(a.getEsqlFailures() + b.getEsqlFailures()));
+        assertThat(acc.getEsqlProjectRoutingFailures(), equalTo(a.getEsqlProjectRoutingFailures() + b.getEsqlProjectRoutingFailures()));
     }
 
     // -----------------------------------------------------------------------
@@ -141,17 +144,17 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
 
     public void testRecordSearchFailure_noOp_when_hasLinkedProjects_false() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearchFailure(false);
+        holder.recordSearchProjectRoutingFailure(false);
         assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
     }
 
     public void testRecordSearchFailure_increments_queries_and_queries_project_routing_and_failures() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearchFailure(true);
+        holder.recordSearchProjectRoutingFailure(true);
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getSearchQueriesTotal(), equalTo(1L));
         assertThat(snap.getSearchWithProjectRouting(), equalTo(1L));
-        assertThat(snap.getSearchFailures(), equalTo(1L));
+        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(1L));
         // mode sub-counters must remain at zero
         assertThat(snap.getSearchWithAliasOrigin(), equalTo(0L));
         assertThat(snap.getSearchWithAliasWildcard(), equalTo(0L));
@@ -159,22 +162,22 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
         assertThat(snap.getSearchWithNamedExpression(), equalTo(0L));
         // esql counters untouched
         assertThat(snap.getEsqlQueriesTotal(), equalTo(0L));
-        assertThat(snap.getEsqlFailures(), equalTo(0L));
+        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(0L));
     }
 
     public void testRecordEsqlFailure_noOp_when_hasLinkedProjects_false() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsqlFailure(false);
+        holder.recordEsqlProjectRoutingFailure(false);
         assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
     }
 
     public void testRecordEsqlFailure_increments_queries_and_queries_project_routing_and_failures() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsqlFailure(true);
+        holder.recordEsqlProjectRoutingFailure(true);
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getEsqlQueriesTotal(), equalTo(1L));
         assertThat(snap.getEsqlWithProjectRouting(), equalTo(1L));
-        assertThat(snap.getEsqlFailures(), equalTo(1L));
+        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(1L));
         // mode sub-counters must remain at zero
         assertThat(snap.getEsqlWithAliasOrigin(), equalTo(0L));
         assertThat(snap.getEsqlWithAliasWildcard(), equalTo(0L));
@@ -183,7 +186,7 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
         assertThat(snap.getEsqlWithSet(), equalTo(0L));
         // search counters untouched
         assertThat(snap.getSearchQueriesTotal(), equalTo(0L));
-        assertThat(snap.getSearchFailures(), equalTo(0L));
+        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(0L));
     }
 
     // -----------------------------------------------------------------------

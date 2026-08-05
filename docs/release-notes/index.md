@@ -52,23 +52,6 @@ tasks APIs. Read more about these changes in the blog at
 https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.
 ::::
 
-::::{dropdown} Default ES|QL external source schema resolution to `UNION_BY_NAME`
-Multi-file ES|QL external source globs (the Tech Preview `EXTERNAL` command) now default
-to `schema_resolution = union_by_name` instead of `first_file_wins`. Files in the same
-glob no longer have to share the exact schema of the lex-smallest file: columns are merged
-by name across all matched files, missing columns are null-filled per file, and types are
-reconciled via conservative widening (`INTEGER` -> `LONG`, `INTEGER` -> `DOUBLE`,
-`DATETIME` -> `DATE_NANOS`). Schemas that genuinely disagree on a column's type now fail
-at planning time with a clear error instead of silently coercing data at read time.
-
-To restore the previous behavior on a per-query basis, pass
-`WITH { "schema_resolution": "first_file_wins" }` on the `EXTERNAL` command. Performance
-note: the `UNION_BY_NAME` path reads every matched file's metadata in parallel (the FFW
-path already did this for stats aggregation when more than one file matched) and
-currently bypasses the listing/schema cache, so first-time and repeat-query latency is
-higher for very large globs; this is being tracked as a follow-up.
-::::
-
 ::::{dropdown} Data stream lifecycle can move data to the frozen tier
 Data stream lifecycle (DLM) now supports the frozen tier. Set a `frozen_after`
 value in a data stream's lifecycle, and DLM moves aging backing indices to the

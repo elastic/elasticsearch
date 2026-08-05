@@ -24,6 +24,18 @@
 | flattened {applies_to}`stack: preview 9.5.0` | long | long |
 | flattened {applies_to}`stack: preview 9.5.0` | unsigned_long | long |
 | flattened {applies_to}`stack: preview 9.5.0` | | long |
+| geohash | integer | long |
+| geohash | long | long |
+| geohash | unsigned_long | long |
+| geohash | | long |
+| geohex | integer | long |
+| geohex | long | long |
+| geohex | unsigned_long | long |
+| geohex | | long |
+| geotile | integer | long |
+| geotile | long | long |
+| geotile | unsigned_long | long |
+| geotile | | long |
 | integer | integer | long |
 | integer | long | long |
 | integer | unsigned_long | long |

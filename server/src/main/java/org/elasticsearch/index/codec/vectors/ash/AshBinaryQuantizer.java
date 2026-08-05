@@ -13,7 +13,7 @@ package org.elasticsearch.index.codec.vectors.ash;
  * Binary quantizer for ASH: encodes each dimension as its sign bit.
  * Produces codes in {-1, +1} and computes the L2 norm of the code vector.
  */
-public final class AshBinaryQuantizer implements AshDimQuantizer {
+final class AshBinaryQuantizer implements AshDimQuantizer {
 
     @Override
     public int bitsPerDimension() {

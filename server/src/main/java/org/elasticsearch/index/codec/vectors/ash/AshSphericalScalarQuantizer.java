@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.util.IntroSorter;
+
 import java.util.Arrays;
 
 /**
@@ -18,7 +20,7 @@ import java.util.Arrays;
  * <p>
  * This is a port of the Python reference implementation's {@code SphericalScalarQuantizer}.
  */
-public final class AshSphericalScalarQuantizer implements AshDimQuantizer {
+final class AshSphericalScalarQuantizer implements AshDimQuantizer {
 
     private final int bitsPerDim;
 
@@ -90,25 +92,33 @@ public final class AshSphericalScalarQuantizer implements AshDimQuantizer {
      * producing identical results to the general path but roughly 3x faster.
      */
     private static float quantizeExact2Bit(float[] z, float[] out, int d) {
-        // Sort dimension indices by |z| descending. We sort absZ in-place using an index array
-        // so we can sweep in order of decreasing magnitude.
+        // Sort dimension indices by |z| descending using IntroSorter for O(n log n) performance
         int[] order = new int[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
             order[j] = j;
             absZ[j] = Math.abs(z[j]);
         }
-        // Insertion sort descending by absZ -- d is typically 384, well within insertion sort's sweet spot
-        for (int i = 1; i < d; i++) {
-            int key = order[i];
-            float keyVal = absZ[key];
-            int j = i - 1;
-            while (j >= 0 && absZ[order[j]] < keyVal) {
-                order[j + 1] = order[j];
-                j--;
+        new IntroSorter() {
+            int pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = order[i];
+                order[i] = order[j];
+                order[j] = tmp;
             }
-            order[j + 1] = key;
-        }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Float.compare(absZ[order[j]], absZ[pivot]);
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = order[i];
+            }
+        }.sort(0, d);
 
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
         double cumDot = 0;
@@ -261,27 +271,33 @@ public final class AshSphericalScalarQuantizer implements AshDimQuantizer {
 
     /**
      * Returns indices that sort the first {@code count} elements of {@code values} in ascending order.
-     * Uses a primitive int[] indirect sort to avoid Integer boxing and comparator dispatch overhead.
+     * Uses Lucene's IntroSorter for O(n log n) worst-case performance.
      */
     private static int[] argsort(double[] values, int count) {
         int[] indices = new int[count];
         for (int i = 0; i < count; i++) {
             indices[i] = i;
         }
-        // Indirect insertion sort -- count is typically small (e.g. 384 for 2-bit, 768d).
-        // Insertion sort avoids object allocation and is cache-friendly for small n.
-        // For larger counts (>1000), a primitive indirect mergesort would be better,
-        // but in practice bitsPerDim <= 4 and nDims <= 768 gives count <= 2304.
-        for (int i = 1; i < count; i++) {
-            int key = indices[i];
-            double keyVal = values[key];
-            int j = i - 1;
-            while (j >= 0 && values[indices[j]] > keyVal) {
-                indices[j + 1] = indices[j];
-                j--;
+        new IntroSorter() {
+            int pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = indices[i];
+                indices[i] = indices[j];
+                indices[j] = tmp;
             }
-            indices[j + 1] = key;
-        }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Double.compare(values[indices[j]], values[pivot]);
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = indices[i];
+            }
+        }.sort(0, count);
         return indices;
     }
 }

@@ -308,7 +308,7 @@ public final class AsymmetricHashingQuantizer {
      * @param w the projection matrix, shape (originalDim, nDims)
      * @return the transposed matrix, shape (nDims, originalDim)
      */
-    public static float[][] transposeW(float[][] w) {
+    static float[][] transposeW(float[][] w) {
         int originalDim = w.length;
         int nDims = w[0].length;
         float[][] wT = new float[nDims][originalDim];
@@ -330,6 +330,7 @@ public final class AsymmetricHashingQuantizer {
      * @return encoding result with codes, scales, and offsets
      */
     public AsymmetricHashingResult encode(float[][] vectors, IntFunction<float[]> centroids, int[] assignments, float[][] w) {
+        assert vectors.length > 0 : "encode() requires at least one vector";
         int nClusters = Integer.MIN_VALUE;
         int originalDim = vectors[0].length;
         int nDims = w[0].length;

@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 /**
  * Interface for quantizers used in the ASH projected (latent) space.
  */
-public sealed interface AshDimQuantizer permits AshBinaryQuantizer, AshSphericalScalarQuantizer {
+sealed interface AshDimQuantizer permits AshBinaryQuantizer, AshSphericalScalarQuantizer {
 
     /**
      * Number of bits used per projected dimension.

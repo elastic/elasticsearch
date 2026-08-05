@@ -75,9 +75,24 @@ public final class AshProjectionMatrix {
      */
     public float[][] wT() {
         if (wT == null) {
-            wT = AsymmetricHashingQuantizer.transposeW(w);
+            wT = transposeMatrix(w);
         }
         return wT;
+    }
+
+    /**
+     * Transposes a matrix from (rows x cols) to (cols x rows).
+     */
+    private static float[][] transposeMatrix(float[][] m) {
+        int rows = m.length;
+        int cols = m[0].length;
+        float[][] t = new float[cols][rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j][i] = m[i][j];
+            }
+        }
+        return t;
     }
 
     /**

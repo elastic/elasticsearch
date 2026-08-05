@@ -16,7 +16,7 @@ package org.elasticsearch.index.codec.vectors.ash;
  * during ASH training. It computes the thin SVD: A = U * S * Vt, where U has
  * orthonormal columns, S is diagonal, and Vt has orthonormal rows.
  */
-public final class SvdUtil {
+final class SvdUtil {
 
     private SvdUtil() {}
 

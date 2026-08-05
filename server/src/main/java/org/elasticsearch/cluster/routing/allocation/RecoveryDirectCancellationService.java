@@ -365,8 +365,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
-    /// Reused across schedule attempts. Cleared [pendingSnapshotCancellationRun] at the start of each run so a
+    /// Reused across schedule attempts. Clears [pendingSnapshotCancellationRun] at the start of each run so a
     /// concurrent trigger can queue a follow-up against a (possibly) fresher cluster state.
+    /// Each run ([#doRun]) is synchronized, in order to serialize close-in-time executions.
     private class CancelRecoveriesBlockingSnapshotRunnable extends AbstractRunnable {
         @Override
         protected synchronized void doRun() {

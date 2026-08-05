@@ -7,15 +7,54 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseLexer;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public final class CsvSpecReader {
+
+    private static final Logger logger = LogManager.getLogger(CsvSpecReader.class);
+
+    /**
+     * Parser used solely for the ordering pre-check. Initialised once; set to {@code null} if
+     * construction fails so that the check degrades gracefully rather than blocking test loading.
+     */
+    private static final EsqlParser SPEC_PARSER;
+    static {
+        EsqlParser p;
+        try {
+            p = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        } catch (Exception e) {
+            p = null;
+        }
+        SPEC_PARSER = p;
+    }
 
     private CsvSpecReader() {}
 
@@ -119,6 +158,8 @@ public final class CsvSpecReader {
                 CsvTestCase result = testCase;
                 testCase = null;
                 data.setLength(0);
+                validateOrdering(result);
+                validateSortDeterminesOrder(result);
                 return result;
             }
             data.append(line).append("\r\n");
@@ -458,6 +499,359 @@ public final class CsvSpecReader {
                 return Boolean.TRUE;
             }
             return null;
+        }
+    }
+
+    /**
+     * Checks whether a csv-spec test case with multiple expected rows declares a top-level {@code SORT}.
+     * <p>
+     * Without an explicit {@code SORT} the row ordering of a multi-row result is undefined and the test
+     * is inherently flaky: it may pass consistently on one segment layout and fail on another. The check
+     * fires at spec-load time so violations are reported before any test method executes.
+     * <p>
+     * The check is skipped when ordering is provably irrelevant:
+     * <ul>
+     *   <li>The test declares {@code ignoreOrder: true}.</li>
+     *   <li>The query has no {@code FROM} source (pure {@code ROW}/{@code EVAL} — always deterministic).</li>
+     *   <li>All expected data rows are identical strings (any permutation produces the same result).</li>
+     * </ul>
+     * By default the violation is logged at {@code WARN} level. Set the system property
+     * {@code tests.csv.strict.ordering=true} to turn violations into hard failures, which is useful for
+     * enforcing the policy on individual modules once their existing violations are cleaned up.
+     */
+    private static void validateOrdering(CsvTestCase testCase) {
+        if (testCase.ignoreOrder) {
+            return;
+        }
+        // Collect data rows: first non-blank non-directive non-comment line is the header; the rest are data.
+        List<String> dataRowLines = new ArrayList<>();
+        boolean headerSeen = false;
+        for (String line : testCase.expectedResults.split("\\r?\\n")) {
+            // Mirror SpecReader.shouldSkipLine: blank, // comments, and # comments are not data.
+            if (line.isBlank() || line.startsWith("//") || line.startsWith("#")) {
+                continue;
+            }
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("warning")
+                || lower.startsWith("ignoreorder")
+                || lower.startsWith("documents_found")
+                || lower.startsWith("warningregex")) {
+                continue;
+            }
+            if (headerSeen == false) {
+                headerSeen = true;
+            } else {
+                dataRowLines.add(line);
+            }
+        }
+        if (dataRowLines.size() < 2) {
+            return;
+        }
+        // If all data rows are identical the result set is order-independent: any permutation matches.
+        Set<String> distinct = new HashSet<>(dataRowLines);
+        if (distinct.size() == 1) {
+            return;
+        }
+        // Pure ROW/EVAL queries (no FROM source) produce deterministic ordering; no SORT needed.
+        if (hasFromSource(testCase.query) == false) {
+            return;
+        }
+        if (hasTopLevelSort(testCase.query) == false) {
+            String message = "Query has "
+                + dataRowLines.size()
+                + " expected rows but no top-level SORT. "
+                + "Add `| SORT <stable_field>` to the query or set `ignoreOrder: true` in the spec.\n"
+                + "Query: "
+                + testCase.query;
+            if (Boolean.getBoolean("tests.csv.strict.ordering")) {
+                throw new IllegalArgumentException(message);
+            }
+            logger.warn(message);
+        }
+    }
+
+    /**
+     * Parses {@code query} into an ANTLR {@link EsqlBaseParser.QueryContext} without going through
+     * {@link EsqlParser} or the AST builder. Bypassing the AST builder avoids side effects such as
+     * {@link org.elasticsearch.common.logging.HeaderWarning#addWarning} calls that the builder
+     * emits for deprecated syntax (e.g. the old one-word {@code INLINESTATS} keyword).
+     *
+     * @return the top-level query context, or {@code null} if lexing or parsing fails
+     */
+    private static EsqlBaseParser.QueryContext antlrParse(String query) {
+        try {
+            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+            lexer.removeErrorListeners();
+            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+            EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
+            parser.removeErrorListeners();
+            return parser.singleStatement().query();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns {@code true} when the query's source command reads from an external index
+     * ({@code FROM}, {@code METRICS}/{@code TS}, {@code PROMQL}, or {@code EXTERNAL}).
+     * Pure {@code ROW}/{@code SHOW} pipelines produce deterministic output and never need a
+     * {@code SORT} for stable test results.
+     * <p>
+     * Uses the raw ANTLR parse tree rather than {@link EsqlParser} to avoid triggering
+     * {@link org.elasticsearch.common.logging.HeaderWarning} side effects that the AST builder
+     * may emit for deprecated syntax (e.g. the old one-word {@code INLINESTATS} keyword).
+     * Returns {@code true} on parse failure so that a bad query is not double-reported here.
+     */
+    private static boolean hasFromSource(String query) {
+        try {
+            EsqlBaseParser.QueryContext qCtx = antlrParse(query);
+            if (qCtx == null) {
+                return true;
+            }
+            while (qCtx instanceof EsqlBaseParser.CompositeQueryContext composite) {
+                qCtx = composite.query();
+            }
+            if (qCtx instanceof EsqlBaseParser.SingleCommandQueryContext single) {
+                EsqlBaseParser.SourceCommandContext src = single.sourceCommand();
+                return src.fromCommand() != null
+                    || src.timeSeriesCommand() != null
+                    || src.promqlCommand() != null
+                    || src.externalCommand() != null;
+            }
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    /**
+     * Returns {@code true} when the query has a deterministic top-level sort. Returns {@code true}
+     * on parse failure so that a bad query is not double-reported here and by the test runner.
+     * <p>
+     * The check peels through {@code LIMIT} (truncating but order-preserving for the top-N rows) and
+     * any sort-preserving processing command ({@code KEEP}, {@code DROP}, {@code RENAME},
+     * {@code EVAL}, {@code WHERE}, {@code ENRICH}, regex-extract commands, etc.) before looking for
+     * a {@code SORT}. Commands that disrupt the established sort order ({@code STATS},
+     * {@code MV_EXPAND}, etc.) stop the search and return {@code false}.
+     * <p>
+     * Uses the raw ANTLR parse tree rather than {@link EsqlParser} to avoid triggering
+     * {@link org.elasticsearch.common.logging.HeaderWarning} side effects.
+     */
+    private static boolean hasTopLevelSort(String query) {
+        try {
+            EsqlBaseParser.QueryContext qCtx = antlrParse(query);
+            if (qCtx == null) {
+                return true;
+            }
+            while (qCtx instanceof EsqlBaseParser.CompositeQueryContext composite) {
+                EsqlBaseParser.ProcessingCommandContext cmd = composite.processingCommand();
+                if (cmd.sortCommand() != null) {
+                    return true;
+                }
+                if (isSortDisruptingCommand(cmd)) {
+                    return false;
+                }
+                // Sort-preserving command: peel through to the inner query.
+                qCtx = composite.query();
+            }
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    /**
+     * Returns {@code true} when the processing command disrupts any sort order established by inner
+     * commands, meaning the search for a top-level {@code SORT} should stop here.
+     * Commands not listed here are treated as sort-preserving (the conservative assumption).
+     * <p>
+     * LOOKUP JOIN does not reorder rows, but its plan representation is a {@code BinaryPlan} that the
+     * sort-walk in {@link #validateSortDeterminesOrder} cannot traverse.  Treating it as disrupting is
+     * therefore the conservative choice: skip validation rather than silently produce a false negative.
+     */
+    private static boolean isSortDisruptingCommand(EsqlBaseParser.ProcessingCommandContext cmd) {
+        return cmd.statsCommand() != null
+            || cmd.mvExpandCommand() != null
+            || cmd.forkCommand() != null
+            || cmd.sampleCommand() != null
+            || cmd.fuseCommand() != null
+            || cmd.dedupCommand() != null
+            || cmd.mmrCommand() != null
+            || cmd.tsCollapseCommand() != null
+            || cmd.highlightCommand() != null
+            || cmd.metricsInfoCommand() != null
+            || cmd.tsInfoCommand() != null
+            || cmd.joinCommand() != null;
+    }
+
+    /**
+     * Checks that the top-level {@code SORT} keys are sufficient to uniquely determine the order of
+     * every row in the expected output.
+     * <p>
+     * When two adjacent expected rows have identical values for <em>all</em> sort key columns that
+     * appear in the expected output header, their relative order is non-deterministic across runs —
+     * the sort does not fully break the tie. This produces the same kind of flakiness as a missing
+     * {@code SORT}, but is not caught by {@link #validateOrdering} because a {@code SORT} is present.
+     * <p>
+     * The check is skipped conservatively when:
+     * <ul>
+     *   <li>Any sort key is a complex expression (not a plain column reference) — ties cannot be
+     *       determined without evaluating the expression against actual data.</li>
+     *   <li>Any sort key column is absent from the expected output — the values are unknown.</li>
+     *   <li>Any cell value is a wildcard or range pattern (e.g. {@code {any}}, {@code 1..5}) —
+     *       the cell may match multiple values.</li>
+     * </ul>
+     */
+    private static void validateSortDeterminesOrder(CsvTestCase testCase) {
+        if (testCase.ignoreOrder || SPEC_PARSER == null) {
+            return;
+        }
+        if (hasFromSource(testCase.query) == false) {
+            return;
+        }
+        // Skip the full parse when there is no top-level sort: validateOrdering() already warned,
+        // and parsing here would trigger HeaderWarning side effects for deprecated syntax.
+        if (hasTopLevelSort(testCase.query) == false) {
+            return;
+        }
+        try {
+            LogicalPlan plan = SPEC_PARSER.parseQuery(testCase.query);
+
+            // Walk to the top-level OrderBy, skipping Limit, SortPreserving, Rename, and Drop wrappers.
+            // Drop only removes fields; it does not reorder rows, so it is transparent to the sort walk.
+            while (plan instanceof Limit || plan instanceof SortPreserving || plan instanceof Rename || plan instanceof Drop) {
+                plan = ((UnaryPlan) plan).child();
+            }
+            if (plan instanceof OrderBy == false) {
+                return;
+            }
+            OrderBy orderBy = (OrderBy) plan;
+
+            // Collect sort key names; bail if any key is a complex expression.
+            List<String> sortKeyNames = new ArrayList<>();
+            for (Order order : orderBy.order()) {
+                if (order.child() instanceof UnresolvedAttribute attr) {
+                    sortKeyNames.add(attr.name().toLowerCase(Locale.ROOT));
+                } else {
+                    return;
+                }
+            }
+            if (sortKeyNames.isEmpty()) {
+                return;
+            }
+
+            // Parse expected output into rows (header first, then data rows).
+            List<String[]> rows = new ArrayList<>();
+            boolean headerSeen = false;
+            for (String line : testCase.expectedResults.split("\\r?\\n")) {
+                if (line.isBlank() || line.startsWith("//") || line.startsWith("#")) {
+                    continue;
+                }
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("warning")
+                    || lower.startsWith("ignoreorder")
+                    || lower.startsWith("documents_found")
+                    || lower.startsWith("warningregex")) {
+                    continue;
+                }
+                String[] cells = line.split("\\|");
+                for (int i = 0; i < cells.length; i++) {
+                    cells[i] = cells[i].trim();
+                }
+                if (headerSeen == false) {
+                    headerSeen = true;
+                    rows.add(cells);
+                } else {
+                    rows.add(cells);
+                }
+            }
+            if (rows.size() < 3) {
+                // Need at least header + 2 data rows for a meaningful tie check.
+                return;
+            }
+
+            // Map each sort key name to its column index in the header.
+            String[] header = rows.get(0);
+            int[] sortKeyIndices = new int[sortKeyNames.size()];
+            Arrays.fill(sortKeyIndices, -1);
+            for (int col = 0; col < header.length; col++) {
+                // Header cells are of the form "name:type"; strip the type.
+                String colName = header[col].contains(":") ? header[col].substring(0, header[col].indexOf(':')).trim() : header[col].trim();
+                for (int k = 0; k < sortKeyNames.size(); k++) {
+                    if (colName.toLowerCase(Locale.ROOT).equals(sortKeyNames.get(k))) {
+                        sortKeyIndices[k] = col;
+                    }
+                }
+            }
+            // If any sort key is missing from the expected output we cannot check ties.
+            for (int idx : sortKeyIndices) {
+                if (idx < 0) {
+                    return;
+                }
+            }
+
+            // Check each pair of adjacent data rows for ties on all sort key columns.
+            List<String[]> dataRows = rows.subList(1, rows.size());
+            // If every data row is identical across all columns, any permutation of
+            // sort-key-tied rows produces the same output — not a flakiness risk.
+            String[] firstDataRow = dataRows.get(0);
+            boolean allRowsIdentical = true;
+            for (int i = 1; i < dataRows.size(); i++) {
+                if (Arrays.equals(firstDataRow, dataRows.get(i)) == false) {
+                    allRowsIdentical = false;
+                    break;
+                }
+            }
+            if (allRowsIdentical) {
+                return;
+            }
+            for (int i = 0; i < dataRows.size() - 1; i++) {
+                String[] rowA = dataRows.get(i);
+                String[] rowB = dataRows.get(i + 1);
+                boolean tied = true;
+                for (int keyIdx : sortKeyIndices) {
+                    if (keyIdx >= rowA.length || keyIdx >= rowB.length) {
+                        tied = false;
+                        break;
+                    }
+                    String a = rowA[keyIdx];
+                    String b = rowB[keyIdx];
+                    // Skip wildcard / range cells — we cannot determine the concrete value.
+                    if (a.startsWith("{") || b.startsWith("{") || a.contains("..") || b.contains("..")) {
+                        tied = false;
+                        break;
+                    }
+                    if (a.equals(b) == false) {
+                        tied = false;
+                        break;
+                    }
+                }
+                if (tied) {
+                    // If the rows are completely identical across all columns, swapping them
+                    // produces the same test output — not a real flakiness risk.
+                    if (Arrays.equals(rowA, rowB)) {
+                        continue;
+                    }
+                    String message = "Rows "
+                        + (i + 1)
+                        + " and "
+                        + (i + 2)
+                        + " have the same value(s) for sort key(s) "
+                        + sortKeyNames
+                        + " — their relative order is non-deterministic. "
+                        + "Add a tiebreaker to the SORT clause.\n"
+                        + "Query: "
+                        + testCase.query;
+                    if (Boolean.getBoolean("tests.csv.strict.ordering")) {
+                        throw new IllegalArgumentException(message);
+                    }
+                    logger.warn(message);
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            // parse failure — skip the check
         }
     }
 

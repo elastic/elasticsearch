@@ -227,6 +227,7 @@ public final class RuntimeSearch {
             // position increment gap as an indexed text field, keeping phrases from matching across value boundaries.
             new NamedAnalyzer(namedAnalyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP),
             luceneQuery,
+            context -> new MemoryIndex(),
             context -> new BytesRef()
         );
     }
@@ -255,6 +256,7 @@ public final class RuntimeSearch {
         BytesRefBlock fieldBlock,
         @Fixed Analyzer analyzer,
         @Fixed Query query,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) MemoryIndex memoryIndex,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) throws IOException {
         if (fieldBlock == null) {
@@ -268,7 +270,7 @@ public final class RuntimeSearch {
 
         // All values of the position form one document, like an indexed multivalued text field: query terms may
         // match across values, while the analyzer's position increment gap keeps phrases within a single value.
-        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.reset();
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             scratch = fieldBlock.getBytesRef(valueIndex, scratch);
             memoryIndex.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -446,6 +449,43 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             })
         );
         assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    /**
+     * The options-path {@link org.apache.lucene.index.memory.MemoryIndex} is allocated per evaluator (via a
+     * {@code THREAD_LOCAL}-scoped {@code @Fixed}) and reset per row: terms from an earlier row — or an earlier page
+     * of the same evaluator — must not leak into later ones.
+     */
+    public void testMemoryIndexIsResetBetweenRowsAndPages() {
+        Match match = runtimeMatchWithOptions(TEXT, new BytesRef("quick dog"), KEYWORD, mapOptions("operator", "AND"));
+        DriverContext context = driverContext();
+        try (ExpressionEvaluator evaluator = match.toEvaluator(toEvaluator()).get(context)) {
+            // If the first row's terms leaked, they would satisfy the AND for every row after it.
+            assertPage(evaluator, context, builder -> {
+                builder.appendBytesRef(new BytesRef("quick dog"));
+                builder.appendBytesRef(new BytesRef("quick fox"));
+            }, new Boolean[] { true, false });
+            // A later page through the same evaluator reuses the same MemoryIndex.
+            assertPage(evaluator, context, builder -> builder.appendBytesRef(new BytesRef("lazy dog")), new Boolean[] { false });
+        }
+    }
+
+    private static void assertPage(
+        ExpressionEvaluator evaluator,
+        DriverContext context,
+        Consumer<BytesRefBlock.Builder> build,
+        Boolean[] expected
+    ) {
+        Page page = new Page(bytesRefBlock(context.blockFactory(), build));
+        try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {
+            Boolean[] out = new Boolean[result.getPositionCount()];
+            for (int p = 0; p < out.length; p++) {
+                out[p] = result.isNull(p) ? null : result.getBoolean(result.getFirstValueIndex(p));
+            }
+            assertArrayEquals(expected, out);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     /**

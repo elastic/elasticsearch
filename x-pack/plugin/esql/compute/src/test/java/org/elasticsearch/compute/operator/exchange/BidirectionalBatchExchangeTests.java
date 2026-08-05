@@ -478,10 +478,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * rolling restart, or before the index has recovered/propagated) fails with {@link IndexNotFoundException},
      * including when wrapped by transport ({@link RemoteTransportException}), which is the shape that reaches
      * the setup/status callbacks. The failure is still propagated to the coordinator, so these are downgraded to
-     * WARN (not ERROR) regardless of the non-cancellation level the caller asked for, to avoid spurious ERROR
+     * DEBUG (not ERROR or WARN) regardless of the non-cancellation level the caller asked for, to avoid spurious
      * noise and Serverless promotion quality-gate log-error-rate trips.
      */
-    public void testIndexNotFoundIsLoggedAtWarnNotError() {
+    public void testIndexNotFoundIsLoggedAtDebugNotError() {
         for (Exception failure : List.of(
             new IndexNotFoundException(".entities.v2.latest.security_default-00001"),
             new RemoteTransportException("node", new IndexNotFoundException(".entities.v2.latest.security_default-00001"))
@@ -491,9 +491,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             MockLog.assertThatLogger(
                 () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
                 BidirectionalBatchExchangeClient.class,
-                new MockLog.SeenEventExpectation("logged at WARN", loggerName, Level.WARN, "failure: msg"),
+                new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
                 new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*"),
-                new MockLog.UnseenEventExpectation("not logged at DEBUG", loggerName, Level.DEBUG, "*")
+                new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*")
             );
         }
     }

@@ -18,9 +18,6 @@ import java.io.IOException;
  * Write-side buffer for per-block {@link BlockTransform} stage metadata. Implements
  * {@link MetadataWriter} by accumulating bytes in a {@link ByteBuffersDataOutput}; call
  * {@link #reset()} between blocks and {@link #copyTo(DataOutput)} to flush to the main output.
- *
- * <p>One instance is allocated per transform slot in {@link NumericBlockEncoder} and reused across
- * all blocks; no per-block allocation occurs.
  */
 final class MetadataBuffer implements MetadataWriter {
 

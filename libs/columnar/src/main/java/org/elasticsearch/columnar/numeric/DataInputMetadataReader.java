@@ -17,9 +17,6 @@ import java.io.IOException;
  * Read-side adapter that implements {@link MetadataReader} by delegating to a {@link DataInput}.
  * The wrapped input is mutable via {@link #reset(DataInput)} so a single instance can be reused
  * across blocks without per-block allocation.
- *
- * <p>One instance is allocated per {@link NumericBlockEncoder} and shared across all transform
- * slots within a decode call: each slot reads its own bytes sequentially from the same stream.
  */
 final class DataInputMetadataReader implements MetadataReader {
 

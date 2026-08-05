@@ -14,8 +14,7 @@ import reactor.netty.resources.ConnectionProvider;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
-import java.time.Duration;
-
+/// Handles the disposal of the wrapped [ConnectionProvider] using reference counting.
 class AzureConnectionProviderReference extends AbstractRefCounted implements Releasable {
 
     private final ConnectionProvider connectionProvider;
@@ -24,7 +23,7 @@ class AzureConnectionProviderReference extends AbstractRefCounted implements Rel
         this.connectionProvider = connectionProvider;
     }
 
-    public ConnectionProvider getConnectionProvider() {
+    public ConnectionProvider connectionProvider() {
         return connectionProvider;
     }
 
@@ -35,7 +34,8 @@ class AzureConnectionProviderReference extends AbstractRefCounted implements Rel
 
     @Override
     protected void closeInternal() {
-        // same as what we have today in `AzureClientProvider`
-        connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+        // we do not `block()` here because we do not want to block the thread that is calling this
+        // TODO (think): might be problematic with an upcoming shutdown
+        connectionProvider.dispose();
     }
 }

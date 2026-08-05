@@ -152,13 +152,20 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
     }
 
-    // a `projectId` of `null` corresponds to keys from the `clusterStorageSettings`, if `projectId` is not null then it corresponds
-    // to `perProjectStorageSettings`
-    record ConnectionProviderKey(@Nullable ProjectId projectId, String clientName, AzureStorageSettings settings) {}
+    record ConnectionProviderKey(ProjectId projectId, String clientName, AzureStorageSettings settings) {
+        ConnectionProviderKey {
+            // see `getAllClientSettings` where `clusterStorageSettings` are returned when `projectId` is `null` or `ProjectId.DEFAULT`
+            projectId = projectId == null ? ProjectId.DEFAULT : projectId;
+        }
+    }
 
     private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
 
     synchronized void refreshCache(Set<ConnectionProviderKey> keysToRemove) {
+        if (keysToRemove.isEmpty()) {
+            return;
+        }
+
         var refs = connectionProvidersCache.entrySet()
             .stream()
             .filter(entry -> keysToRemove.contains(entry.getKey()))
@@ -245,7 +252,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(
-            connectionProviderReference.getConnectionProvider()
+            connectionProviderReference.connectionProvider()
         );
         nettyHttpClient = nettyHttpClient.port(80)
             .wiretap(false)

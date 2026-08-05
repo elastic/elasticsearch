@@ -100,9 +100,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             assert docDeltasBuilder.size() > 0;
             Entry entry = new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build());
-            // Charge the circuit breaker for the packed values we just committed. If this
-            // trips, the exception propagates out of getLeafCollector and the aggregator
-            // framework handles cleanup via AggregatorBase.close().
+            // On trip, the exception propagates to the aggregator framework for cleanup via AggregatorBase.close().
             bytesAccounter.accept(entry.ramBytesUsed);
             entries.add(entry);
             clearLeaf();

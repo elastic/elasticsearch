@@ -21,7 +21,7 @@ FROM <source_index>
 `<lookup_index>`
 :   The name of the lookup index. This must be a specific index name or alias. Wildcards and remote cluster prefixes are not supported. If the query source includes remote indices, the lookup index must exist on all involved clusters. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
-    In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the coordinating node of the local cluster or origin project instead of on each remote cluster or linked project. This allows `LOOKUP JOIN` to be used after pipeline-breaking commands such as `STATS`, `LIMIT`, `SORT`. {applies_to}`stack: ga 9.6+` {applies_to}`serverless: preview`
+    In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the coordinating node of the local cluster or origin project instead of on each remote cluster or linked project. This allows `LOOKUP JOIN` to be used after pipeline-breaking commands such as `STATS`, `LIMIT`, `SORT`. {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
    
      
 `<join_condition>`

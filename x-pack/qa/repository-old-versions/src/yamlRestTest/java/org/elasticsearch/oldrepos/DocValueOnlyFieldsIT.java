@@ -7,7 +7,6 @@
 
 package org.elasticsearch.oldrepos;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -48,8 +46,8 @@ import java.io.IOException;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
-    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer();
-    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster();
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer(DocValueOnlyFieldsIT.class);
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster(DocValueOnlyFieldsIT.class);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
@@ -98,9 +96,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
         setupDone = true;
 
-        String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
-            .resolve(RandomizedTest.getContext().getTargetClass().getName())
-            .toString();
+        String repoLocation = OldEsTestCluster.repoLocation(DocValueOnlyFieldsIT.class);
 
         String indexName = "test";
         String repoName = "doc_values_repo";

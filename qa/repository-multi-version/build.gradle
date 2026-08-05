@@ -13,6 +13,10 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
+// MultiVersionRepositoryAccessIT is parameterized over sequential steps that build on each other's repository state,
+// so a step that passed must still run when a later step is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   // The single task per BWC version drives the whole old/new/old/new repository access scenario from one JVM. The two clusters
   // (old and current version) and the four sequential steps are wired up inside MultiVersionRepositoryAccessIT itself.

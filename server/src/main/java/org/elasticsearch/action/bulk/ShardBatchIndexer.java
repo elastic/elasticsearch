@@ -48,7 +48,7 @@ public final class ShardBatchIndexer {
     }, Setting.Property.NodeScope);
 
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
-    static final int BATCH_CHUNK_SIZE = 32;
+    static final int BATCH_CHUNK_SIZE = 5000;
 
     private ShardBatchIndexer() {}
 

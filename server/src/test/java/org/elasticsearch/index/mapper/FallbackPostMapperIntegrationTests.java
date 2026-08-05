@@ -9,357 +9,564 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.ShardBatchIndexer;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end integration tests for {@link FallbackPostMapper} covering indexing and synthetic-source reconstruction.
+ * Integration tests for {@link FallbackPostMapper} covering the full parse → fallback-routing →
+ * synthetic-source-reconstruction pipeline across mapper types and all pre-capture
+ * {@link FallbackPostMapper.Reason}s.
+ *
+ * <p>"Integration" here means the complete parsing pipeline — XContent ingestion, Lucene document
+ * construction, and synthetic-source reconstruction — not a cluster-level test. Certain observable
+ * columns, particularly {@code ._on_failure}, cannot be inspected via the cluster API because
+ * {@link OnFailureStoredValues} is currently write-only. Tests in this class assert directly on
+ * the {@link ParsedDocument}'s {@link org.apache.lucene.document.Document} fields where cluster-
+ * level assertions cannot reach.
+ *
+ * <p>Two production bugs are currently exposed as FAILS:
+ * <ul>
+ *   <li><b>Bug A</b>: {@link FallbackPostMapper#postParse} discards the pre-capture on
+ *       {@link FieldMapper.ParseResult.Ignored} for non-{@link FieldMapper.SyntheticSourceMode#FALLBACK}
+ *       mappers, including {@link FallbackPostMapper.Reason#COPY_TO_DESTINATION}. This silently
+ *       drops a directly-supplied value at a {@code copy_to} destination when the copy-from source
+ *       field is also present (the {@code voidValue()} entry written by {@code createCopyToContext}
+ *       suppresses the {@code ._ignore_malformed} synthetic-source layer, leaving no other recovery
+ *       path).</li>
+ *   <li><b>Bug B</b>: {@link FieldMapper.MultiFields#parse} ignores the {@link FieldMapper.ParseResult}
+ *       returned by each sub-field mapper, so {@link FieldMapper.ParseResult.MultiValueViolation}
+ *       bytes from {@code geo_point} and {@code completion} multi-fields are never routed to
+ *       {@code ._on_failure}. The fix is to apply the same handling already present in
+ *       {@link FieldMapper#doParseMultiFields}.</li>
+ * </ul>
+ *
+ * <p>Bug C ({@link ShardBatchMapper#parseMappings} bypasses {@link FallbackPostMapper#parseField},
+ * losing pre-capture for {@link FieldMapper.SyntheticSourceMode#FALLBACK} fields) is tested in
+ * {@code BatchBulkIT} because it requires a real {@code IndexShard}.
  */
-public class FallbackPostMapperIntegrationTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true).build();
-    }
+public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
 
     /**
-     * Bug: {@code GeoPointFieldMapper.multiFields().parse()} discards the
-     * {@link FieldMapper.ParseResult.MultiValueViolation} from sub-fields, so values that should be
-     * routed to {@code ._on_failure} are silently lost and the MVV is never recorded in {@code _ignored}.
-     * This test FAILS currently.
+     * Provide the standard analyzer required by {@link CompletionFieldMapper}, which looks up
+     * the "default" analyzer by name during builder construction.
      */
-    public void testGeoPointMultiFieldMvvViolationRecorded() throws Exception {
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
+    }
+
+    // -------------------------------------------------------------------------
+    // Group 1 — MVV in a multi-field must reach ._on_failure
+    //
+    // Two production mappers call MultiFields.parse() directly instead of routing through
+    // FieldMapper.doParseMultiFields:
+    // GeoPointFieldMapper.java:321 (once per geometry element)
+    // CompletionFieldMapper.java:449,457 (once per distinct input string)
+    //
+    // MultiFields.parse() discards the ParseResult, so MultiValueViolation bytes are lost.
+    // doParseMultiFields (FieldMapper.java:347) correctly routes them; KeywordFieldMapper
+    // exercises that path and serves as the control.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Bug B: {@link GeoPointFieldMapper} calls {@code multiFields().parse()} (the inner
+     * {@link FieldMapper.MultiFields#parse} method) once per geometry element, discarding the
+     * returned {@link FieldMapper.ParseResult}. With a two-element array the keyword sub-field is
+     * parsed twice; the second parse returns {@link FieldMapper.ParseResult.MultiValueViolation},
+     * but it is never written to {@code ._on_failure}.
+     *
+     * <p>Note: {@code _ignored} is still populated on the first parse because
+     * {@code DocumentParserContext.enforceSingleValue} calls {@code addIgnoredField} independently
+     * of the {@code ._on_failure} write. The old test that asserted only on {@code _ignored} was
+     * therefore always green and non-discriminating.
+     *
+     * <p>This test FAILS currently (bug B).
+     */
+    public void testGeoPointMultiFieldMvvViolationReachesOnFailureColumn() throws IOException {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
 
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point")
-            .startObject("fields")
-            .startObject("kw")
-            .field("type", "keyword")
-            .startObject("doc_values")
-            .field("multi_value", false)
-            .field("on_failure", "ignore")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+        // The doc_values map form (multi_value / on_failure) is only accepted in columnar index
+        // modes (FieldMapper.java:1761).
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+            b.startObject("location");
+            {
+                b.field("type", "geo_point");
+                b.startObject("fields");
+                {
+                    b.startObject("kw");
+                    {
+                        b.field("type", "keyword");
+                        b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
-        createIndex(
-            "test-geopoint-mvv",
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
-            mapping
+        // GeoPointFieldMapper.index() is called once per geometry.
+        // Each call invokes multiFields().parse() with a GeoHashMultiFieldParser, so "location.kw"
+        // is parsed twice — MVV fires on the second parse.
+        ParsedDocument doc = mapper.parse(
+            source(
+                b -> b.startArray("location")
+                    .startObject()
+                    .field("lat", 1.0)
+                    .field("lon", 2.0)
+                    .endObject()
+                    .startObject()
+                    .field("lat", 3.0)
+                    .field("lon", 4.0)
+                    .endObject()
+                    .endArray()
+            )
         );
 
-        client().index(
-            new IndexRequest("test-geopoint-mvv").id("doc-1")
-                .source(
-                    jsonBuilder().startObject()
-                        .startArray("location")
-                        .startObject()
-                        .field("lat", 1.0)
-                        .field("lon", 2.0)
-                        .endObject()
-                        .startObject()
-                        .field("lat", 3.0)
-                        .field("lon", 4.0)
-                        .endObject()
-                        .endArray()
-                        .endObject()
-                )
-        ).actionGet();
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-geopoint-mvv")).actionGet();
-
-        var docRequest = new SearchRequest("test-geopoint-mvv");
-        docRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse docResponse = client().search(docRequest).actionGet();
-        try {
-            assertThat(
-                "document with multi-value geo_point sub-field must be indexed",
-                docResponse.getHits().getTotalHits().value(),
-                equalTo(1L)
-            );
-        } finally {
-            docResponse.decRef();
-        }
-
-        var ignoredRequest = new SearchRequest("test-geopoint-mvv");
-        ignoredRequest.source().query(new TermQueryBuilder("_ignored", "location.kw"));
-        SearchResponse ignoredResponse = client().search(ignoredRequest).actionGet();
-        try {
-            assertThat("MVV violation must be recorded in _ignored", ignoredResponse.getHits().getTotalHits().value(), equalTo(1L));
-        } finally {
-            ignoredResponse.decRef();
-        }
-    }
-
-    /**
-     * A keyword with {@code doc_values:false, store:false} has {@link FieldMapper.SyntheticSourceMode#FALLBACK}:
-     * its value reaches synthetic source only via {@code _ignored_source} through the pre-capture mechanism.
-     * Verifies that the pre-capture is committed on {@link FieldMapper.ParseResult.Indexed}.
-     */
-    public void testSyntheticFallbackIndexedPreCaptureCommittedValueInSource() throws Exception {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "keyword")
-            .field("doc_values", false)
-            .field("store", false)
-            .endObject()
-            .endObject()
-            .endObject();
-
-        createIndex("test-fallback-indexed", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
-
-        client().index(
-            new IndexRequest("test-fallback-indexed").id("doc-1").source(jsonBuilder().startObject().field("field", "hello").endObject())
-        ).actionGet();
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-fallback-indexed")).actionGet();
-
-        var searchRequest = new SearchRequest("test-fallback-indexed");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(response.getHits().getHits()[0].getSourceAsString(), equalTo("{\"field\":\"hello\"}"));
-        } finally {
-            response.decRef();
-        }
-    }
-
-    /**
-     * Same mapping as {@link #testSyntheticFallbackIndexedPreCaptureCommittedValueInSource} but with
-     * {@code ignore_above} set so the value returns {@link FieldMapper.ParseResult.Ignored}.
-     * Verifies that the pre-capture is still committed for FALLBACK fields on {@code Ignored}, not just {@code Indexed}.
-     */
-    public void testSyntheticFallbackIgnoredPreCaptureCommittedValueInSource() throws Exception {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "keyword")
-            .field("doc_values", false)
-            .field("store", false)
-            .field("ignore_above", 5)
-            .endObject()
-            .endObject()
-            .endObject();
-
-        createIndex("test-fallback-ignored", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
-
-        client().index(
-            new IndexRequest("test-fallback-ignored").id("doc-1")
-                .source(jsonBuilder().startObject().field("field", "hello world").endObject())
-        ).actionGet();
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-fallback-ignored")).actionGet();
-
-        var searchRequest = new SearchRequest("test-fallback-ignored");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "value exceeding ignore_above must be reconstructed from _ignored_source for FALLBACK fields",
-                response.getHits().getHits()[0].getSourceAsString(),
-                equalTo("{\"field\":\"hello world\"}")
-            );
-        } finally {
-            response.decRef();
-        }
-    }
-
-    /**
-     * An integer field with {@code synthetic_source_keep:all} uses {@link FallbackPostMapper.Reason#SOURCE_KEEP_ALL}
-     * for pre-capture. Verifies that a malformed value ({@code ignore_malformed}) is committed to
-     * {@code _ignored_source} on {@link FieldMapper.ParseResult.Ignored}.
-     */
-    public void testSourceKeepAllIgnoredPreCaptureCommittedValueInSource() throws Exception {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "integer")
-            .field("ignore_malformed", true)
-            .field("synthetic_source_keep", "all")
-            .endObject()
-            .endObject()
-            .endObject();
-
-        createIndex("test-source-keep-all", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
-
-        client().index(
-            new IndexRequest("test-source-keep-all").id("doc-1")
-                .source(jsonBuilder().startObject().field("field", "not-a-number").endObject())
-        ).actionGet();
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-source-keep-all")).actionGet();
-
-        var searchRequest = new SearchRequest("test-source-keep-all");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "malformed value must appear in synthetic source via _ignored_source when pre-capture is committed",
-                response.getHits().getHits()[0].getSourceAsString(),
-                equalTo("{\"field\":\"not-a-number\"}")
-            );
-        } finally {
-            response.decRef();
-        }
-    }
-
-    /**
-     * A {@code copy_to} destination field uses {@link FallbackPostMapper.Reason#COPY_TO_DESTINATION} for pre-capture.
-     * Verifies that a direct malformed value (no copy-from source in the document) is committed to
-     * {@code _ignored_source} on {@link FieldMapper.ParseResult.Ignored}.
-     */
-    public void testCopyToDestinationIgnoredPreCaptureCommittedValueInSource() throws Exception {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("src")
-            .field("type", "keyword")
-            .array("copy_to", "dest")
-            .endObject()
-            .startObject("dest")
-            .field("type", "integer")
-            .field("ignore_malformed", true)
-            .endObject()
-            .endObject()
-            .endObject();
-
-        createIndex("test-copy-to-dest", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
-
-        client().index(
-            new IndexRequest("test-copy-to-dest").id("doc-1").source(jsonBuilder().startObject().field("dest", "not-a-number").endObject())
-        ).actionGet();
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-copy-to-dest")).actionGet();
-
-        var searchRequest = new SearchRequest("test-copy-to-dest");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "malformed value at a copy_to destination must appear in synthetic source via _ignored_source",
-                response.getHits().getHits()[0].getSourceAsString(),
-                equalTo("{\"dest\":\"not-a-number\"}")
-            );
-        } finally {
-            response.decRef();
-        }
-    }
-
-    /**
-     * Bug: {@link org.elasticsearch.index.mapper.ShardBatchMapper#parseMappings} calls
-     * {@code mapper.parse(ctx)} directly, bypassing {@link FallbackPostMapper#parseField}, so no pre-capture
-     * is set up for FALLBACK fields and their values are silently absent from synthetic source.
-     * This test FAILS currently.
-     */
-    public void testFallbackFieldValueLostInBatchPath() throws Exception {
-        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
-        assumeTrue("batch indexing feature flag must be enabled", ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled());
-
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "keyword")
-            .field("doc_values", false)
-            .field("store", false)
-            .endObject()
-            .endObject()
-            .endObject();
-
-        createIndex("test-batch-fallback", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
-
-        // BulkRequest triggers the EIRF batch path (ShardBatchMapper) when BATCH_INDEXING is enabled.
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(
-            new IndexRequest("test-batch-fallback").id("doc-1").source(jsonBuilder().startObject().field("field", "hello").endObject())
+        assertOnFailureColumnNotEmpty(
+            "location.kw",
+            doc,
+            "MVV from the second geo_point element must reach location.kw._on_failure (bug B: "
+                + "GeoPointFieldMapper.index() calls MultiFields.parse() which discards ParseResult)"
         );
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertFalse("bulk indexing must not have failures", bulkResponse.hasFailures());
-
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-batch-fallback")).actionGet();
-
-        var searchRequest = new SearchRequest("test-batch-fallback");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "FALLBACK field value must appear in synthetic source via _ignored_source; "
-                    + "lost because batch path bypasses FallbackPostMapper.parseField (ShardBatchMapper:259)",
-                response.getHits().getHits()[0].getSourceAsString(),
-                equalTo("{\"field\":\"hello\"}")
-            );
-        } finally {
-            response.decRef();
-        }
+        assertIgnoredField("location.kw", doc, "location.kw must be added to _ignored when the multi_value=false constraint is violated");
     }
 
     /**
-     * Bug: when {@code postParse} sees {@link FieldMapper.ParseResult.Ignored} for a NATIVE-mode
-     * {@code copy_to} destination, it discards the pre-capture (only FALLBACK mode commits on {@code Ignored}).
-     * When a copy-from source also indexes into the destination, the malformed direct value is silently dropped
-     * from synthetic source. This test FAILS currently.
+     * Bug B: {@link CompletionFieldMapper} calls {@code multiFields().parse()} (the inner
+     * {@link FieldMapper.MultiFields#parse} method) once per distinct input string, discarding the
+     * returned {@link FieldMapper.ParseResult}. With two suggestions the keyword sub-field is parsed
+     * twice; the second {@link FieldMapper.ParseResult.MultiValueViolation} is never written to
+     * {@code ._on_failure}.
+     *
+     * <p>This test FAILS currently (bug B).
      */
-    public void testCopyToDestinationMalformedValueNotDroppedWhenCopyToSourcePresent() throws Exception {
-        var mapping = jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("src")
-            .field("type", "keyword")
-            .array("copy_to", "dest")
-            .endObject()
-            .startObject("dest")
-            .field("type", "integer")
-            .field("ignore_malformed", true)
-            .endObject()
-            .endObject()
-            .endObject();
+    public void testCompletionMultiFieldMvvViolationReachesOnFailureColumn() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
 
-        createIndex("test-copy-to-dest-with-src", Settings.builder().put("index.mapping.source.mode", "synthetic").build(), mapping);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+            b.startObject("suggest");
+            {
+                b.field("type", "completion");
+                b.startObject("fields");
+                {
+                    b.startObject("kw");
+                    {
+                        b.field("type", "keyword");
+                        b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
 
-        client().index(
-            new IndexRequest("test-copy-to-dest-with-src").id("doc-1")
-                .source(jsonBuilder().startObject().field("src", "123").field("dest", "not-a-number").endObject())
-        ).actionGet();
+        // CompletionFieldMapper.parse() stores inputs in a map keyed by string. Two distinct strings
+        // produce two entries, so multiFields().parse() is called twice → MVV on the second parse.
+        ParsedDocument doc = mapper.parse(source(b -> b.array("suggest", "hello", "world")));
 
-        client().execute(RefreshAction.INSTANCE, new RefreshRequest("test-copy-to-dest-with-src")).actionGet();
+        assertOnFailureColumnNotEmpty(
+            "suggest.kw",
+            doc,
+            "MVV from the second completion suggestion must reach suggest.kw._on_failure (bug B: "
+                + "CompletionFieldMapper.parse() calls MultiFields.parse() which discards ParseResult)"
+        );
+        assertIgnoredField("suggest.kw", doc, "suggest.kw must be added to _ignored when the multi_value=false constraint is violated");
+    }
 
-        var searchRequest = new SearchRequest("test-copy-to-dest-with-src");
-        searchRequest.source().query(new IdsQueryBuilder().addIds("doc-1"));
-        SearchResponse response = client().search(searchRequest).actionGet();
-        try {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            assertThat(
-                "malformed dest value must not be dropped from synthetic source when src also has a copy_to value",
-                response.getHits().getHits()[0].getSourceAsString(),
-                equalTo("{\"dest\":\"not-a-number\",\"src\":\"123\"}")
-            );
-        } finally {
-            response.decRef();
+    /**
+     * Control for bug B: {@link KeywordFieldMapper} goes through the standard {@link FieldMapper#parse}
+     * path which calls {@link FieldMapper#doParseMultiFields}. That method correctly handles
+     * {@link FieldMapper.ParseResult.MultiValueViolation} by invoking
+     * {@link OnFailureStoredValues#storeEncoded}, so the MVV must reach {@code ._on_failure}.
+     *
+     * <p>This test PASSES today (control — shows {@link FieldMapper#doParseMultiFields} is correct).
+     */
+    public void testKeywordMultiFieldMvvViolationReachesOnFailureColumnViaDoParseMultiFields() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+
+        // Parent keyword has no MVV constraint; sub-field kw has multi_value=false.
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+            b.startObject("parent");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("kw");
+                    {
+                        b.field("type", "keyword");
+                        b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Two distinct values → the parent keyword is parsed twice → doParseMultiFields calls
+        // kw.parse() twice → MVV on the second → doParseMultiFields routes the result correctly.
+        ParsedDocument doc = mapper.parse(source(b -> b.array("parent", "a", "b")));
+
+        assertOnFailureColumnNotEmpty(
+            "parent.kw",
+            doc,
+            "MVV from the second keyword value must reach parent.kw._on_failure via doParseMultiFields"
+        );
+        assertIgnoredField("parent.kw", doc, "parent.kw must be added to _ignored when the multi_value=false constraint is violated");
+    }
+
+    // -------------------------------------------------------------------------
+    // Group 2 — copy_to destination + ignore_malformed
+    //
+    // When a copy_to source is present, DocumentParserContext.createCopyToContext()
+    // (DocumentParserContext.java:1174-1193) writes a voidValue() _ignored_source entry for
+    // the destination, which suppresses the copy-from invocation's _ignored_source entry.
+    // A directly-supplied malformed value at the destination can then be recovered ONLY by
+    // a committed COPY_TO_DESTINATION pre-capture.
+    //
+    // Bug A: postParse discards the COPY_TO_DESTINATION pre-capture on ParseResult.Ignored
+    // for non-FALLBACK mappers (FallbackPostMapper.java:207), so the direct malformed value
+    // at the destination is silently lost when the copy-from source is also present.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Bug A: with both a copy-from source ({@code src}) and a directly malformed value at the
+     * destination ({@code dest}) in the same document, the destination's pre-capture is discarded
+     * on {@link FieldMapper.ParseResult.Ignored} because the mapper is
+     * {@link FieldMapper.SyntheticSourceMode#NATIVE}. The {@code voidValue()} entry written by
+     * {@code createCopyToContext} then suppresses the {@code ._ignore_malformed} synthetic-source
+     * layer, leaving the direct malformed value irrecoverable.
+     *
+     * <p>This test FAILS currently (bug A).
+     */
+    public void testCopyToDestinationMalformedValueNotDroppedWhenCopyToSourcePresent() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.array("copy_to", "dest");
+            }
+            b.endObject();
+            b.startObject("dest");
+            {
+                b.field("type", "integer");
+                b.field("ignore_malformed", true);
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // dest="not-a-number" is supplied directly in the document.
+        // When src is also present, createCopyToContext() writes a voidValue() _ignored_source
+        // entry for dest — the only path to preserve the direct malformed value is a committed
+        // COPY_TO_DESTINATION pre-capture.
+        String source = syntheticSource(mapper, b -> b.field("src", "123").field("dest", "not-a-number"));
+
+        // Compare as maps to avoid brittle key-order assertions.
+        Map<String, Object> parsed = parseJson(source);
+        assertThat("src must be in synthetic source", parsed.get("src"), equalTo("123"));
+        assertThat(
+            "malformed dest value must not be dropped from synthetic source when src also provides copy_to (bug A: "
+                + "postParse discards the COPY_TO_DESTINATION pre-capture on Ignored for non-FALLBACK mappers)",
+            parsed.get("dest"),
+            equalTo("not-a-number")
+        );
+    }
+
+    /**
+     * Control for bug A: without a copy-from source, the {@code voidValue()} {@code _ignored_source}
+     * entry is never written for {@code dest}, so the {@code ._ignore_malformed} synthetic-source
+     * layer restores the malformed value normally.
+     *
+     * <p>This test PASSES today (validates the mapping setup used by the failing test above).
+     */
+    public void testCopyToDestinationMalformedValueRestoredWithoutCopyToSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.array("copy_to", "dest");
+            }
+            b.endObject();
+            b.startObject("dest");
+            {
+                b.field("type", "integer");
+                b.field("ignore_malformed", true);
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // Without src, createCopyToContext() is never called for dest → no voidValue() entry →
+        // ._ignore_malformed layer recovers the value normally.
+        String source = syntheticSource(mapper, b -> b.field("dest", "not-a-number"));
+
+        Map<String, Object> parsed = parseJson(source);
+        assertThat(
+            "malformed dest value must appear in synthetic source via ._ignore_malformed when src is absent",
+            parsed.get("dest"),
+            equalTo("not-a-number")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Group 3 — Indexed / Ignored branches of postParse across pre-capture reasons
+    //
+    // resolvePrecaptureReason returns one of: SYNTHETIC_FALLBACK, SOURCE_KEEP_ALL,
+    // SOURCE_KEEP_ARRAYS_IN_ARRAY, or COPY_TO_DESTINATION.
+    //
+    // postParse handles ParseResult.Ignored as follows:
+    // - commit the pre-capture if syntheticSourceMode == FALLBACK
+    // - discard the pre-capture otherwise (non-FALLBACK mappers rely on ._ignore_malformed)
+    //
+    // Bug A lives in the COPY_TO_DESTINATION × Ignored cell when the copy-from source is present.
+    // -------------------------------------------------------------------------
+
+    // -- SYNTHETIC_FALLBACK --
+
+    /**
+     * {@link FieldMapper.SyntheticSourceMode#FALLBACK} + {@link FieldMapper.ParseResult.Indexed}:
+     * pre-capture must be committed → value appears in {@code _ignored_source} and in synthetic source.
+     *
+     * <p>This test PASSES today.
+     */
+    public void testSyntheticFallbackIndexedCommitsPrecaptureToIgnoredSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "keyword");
+                b.field("doc_values", false);
+                b.field("store", false);
+            }
+            b.endObject();
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
+
+        assertIgnoredSourceNotEmpty(doc, "FALLBACK field with a successful parse must be pre-captured in _ignored_source on Indexed");
+        assertThat(
+            "FALLBACK field must appear in synthetic source via _ignored_source",
+            syntheticSource(mapper, b -> b.field("field", "hello")),
+            equalTo("{\"field\":\"hello\"}")
+        );
+    }
+
+    /**
+     * {@link FieldMapper.SyntheticSourceMode#FALLBACK} + {@link FieldMapper.ParseResult.Ignored}:
+     * pre-capture must still be committed (FALLBACK mode commits on Ignored, not just on Indexed) →
+     * value appears in {@code _ignored_source} and in synthetic source.
+     *
+     * <p>Triggered via {@code ignore_above} so the mapper returns {@code Ignored}.
+     *
+     * <p>This test PASSES today (was broken before because the class-wide
+     * {@code indices.batch_indexing=true} routed all parses through {@link ShardBatchMapper},
+     * which bypasses pre-capture entirely — bug C).
+     */
+    public void testSyntheticFallbackIgnoredCommitsPrecaptureToIgnoredSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "keyword");
+                b.field("doc_values", false);
+                b.field("store", false);
+                b.field("ignore_above", 5);
+            }
+            b.endObject();
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello world")));
+
+        assertIgnoredSourceNotEmpty(
+            doc,
+            "FALLBACK field must still commit pre-capture to _ignored_source when Ignored (ignore_above exceeded)"
+        );
+        assertThat(
+            "FALLBACK field value exceeding ignore_above must appear in synthetic source",
+            syntheticSource(mapper, b -> b.field("field", "hello world")),
+            equalTo("{\"field\":\"hello world\"}")
+        );
+    }
+
+    // -- SOURCE_KEEP_ALL --
+
+    /**
+     * {@link FallbackPostMapper.Reason#SOURCE_KEEP_ALL} + {@link FieldMapper.ParseResult.Indexed}:
+     * pre-capture must be committed → value appears in {@code _ignored_source}.
+     *
+     * <p>This test PASSES today.
+     */
+    public void testSourceKeepAllIndexedCommitsPrecaptureToIgnoredSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "integer");
+                b.field("synthetic_source_keep", "all");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 42)));
+
+        assertIgnoredSourceNotEmpty(doc, "SOURCE_KEEP_ALL field with a valid value must be pre-captured in _ignored_source on Indexed");
+    }
+
+    /**
+     * {@link FallbackPostMapper.Reason#SOURCE_KEEP_ALL} + {@link FieldMapper.ParseResult.Ignored}:
+     * pre-capture is discarded for non-FALLBACK mappers. This is the intended behaviour — the mapper
+     * writes the value to {@code ._ignore_malformed} directly, and the
+     * {@link CompositeSyntheticFieldLoader} malformed-values layer recovers it. No entry in
+     * {@code _ignored_source} is expected.
+     *
+     * <p>This test PASSES today. (Existing focused coverage:
+     * {@code DocValuesParameterTests#testNonFallbackMalformedDiscardsPreCaptureFromIgnoredSource}.)
+     */
+    public void testSourceKeepAllIgnoredDiscardsNonFallbackPrecapture() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "integer");
+                b.field("ignore_malformed", true);
+                b.field("synthetic_source_keep", "all");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        assertIgnoredSourceEmpty(
+            doc,
+            "pre-capture must be discarded for non-FALLBACK mapper on Ignored: value must not appear in _ignored_source"
+        );
+        assertThat(
+            "malformed integer must appear in synthetic source via ._ignore_malformed (not via _ignored_source)",
+            syntheticSource(mapper, b -> b.field("field", "not-a-number")),
+            equalTo("{\"field\":\"not-a-number\"}")
+        );
+    }
+
+    // -- COPY_TO_DESTINATION --
+
+    /**
+     * {@link FallbackPostMapper.Reason#COPY_TO_DESTINATION} + {@link FieldMapper.ParseResult.Indexed}:
+     * pre-capture must be committed → value appears in {@code _ignored_source}.
+     *
+     * <p>This test PASSES today.
+     */
+    public void testCopyToDestinationIndexedCommitsPrecaptureToIgnoredSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.array("copy_to", "dest");
+            }
+            b.endObject();
+            b.startObject("dest");
+            {
+                b.field("type", "integer");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // dest is supplied directly (no src → no copy_to traversal).
+        // isCopyToDestinationField(dest) == true → COPY_TO_DESTINATION pre-capture → committed on Indexed.
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dest", 42)));
+
+        assertIgnoredSourceNotEmpty(
+            doc,
+            "COPY_TO_DESTINATION field with a valid direct value must have its pre-capture committed to _ignored_source"
+        );
+    }
+
+    /**
+     * {@link FallbackPostMapper.Reason#COPY_TO_DESTINATION} + {@link FieldMapper.ParseResult.Ignored}
+     * without a copy-from source: pre-capture is discarded (mapper is NATIVE), but the
+     * {@code ._ignore_malformed} synthetic-source layer still restores the value because no
+     * {@code voidValue()} entry was written for the destination.
+     *
+     * <p>This test PASSES today. Contrast with
+     * {@link #testCopyToDestinationMalformedValueNotDroppedWhenCopyToSourcePresent} where the
+     * copy-from source suppresses that recovery path.
+     */
+    public void testCopyToDestinationIgnoredWithoutSrcRestoredViaIgnoreMalformed() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.array("copy_to", "dest");
+            }
+            b.endObject();
+            b.startObject("dest");
+            {
+                b.field("type", "integer");
+                b.field("ignore_malformed", true);
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // Without src, no voidValue() entry → ._ignore_malformed layer works normally.
+        String source = syntheticSource(mapper, b -> b.field("dest", "not-a-number"));
+
+        Map<String, Object> parsed = parseJson(source);
+        assertThat(
+            "malformed dest value must appear in synthetic source via ._ignore_malformed when src is absent",
+            parsed.get("dest"),
+            equalTo("not-a-number")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Asserts that the {@code <field>._on_failure} binary column in the root Lucene document is
+     * non-empty, verifying that a {@link FieldMapper.ParseResult.MultiValueViolation} was written
+     * via {@link OnFailureStoredValues#storeEncoded}.
+     */
+    private void assertOnFailureColumnNotEmpty(String field, ParsedDocument doc, String message) {
+        List<IndexableField> column = doc.rootDoc().getFields(field + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
+        assertThat(message, column.isEmpty(), equalTo(false));
+    }
+
+    /**
+     * Asserts that {@code field} appears in the {@code _ignored} stored field of the root document.
+     */
+    private void assertIgnoredField(String field, ParsedDocument doc, String message) {
+        assertTrue(message, doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> field.equals(f.stringValue())));
+    }
+
+    /**
+     * Asserts that at least one {@code _ignored_source} blob was written to the root document,
+     * indicating that at least one pre-capture was committed.
+     */
+    private void assertIgnoredSourceNotEmpty(ParsedDocument doc, String message) {
+        assertNotNull(message, doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+    }
+
+    /**
+     * Asserts that no {@code _ignored_source} blob was written to the root document.
+     */
+    private void assertIgnoredSourceEmpty(ParsedDocument doc, String message) {
+        assertTrue(message, doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty());
+    }
+
+    /**
+     * Parses a JSON string and returns the root object as a map.
+     */
+    private Map<String, Object> parseJson(String json) throws IOException {
+        try (var parser = createParser(XContentType.JSON.xContent(), json)) {
+            return parser.map();
         }
     }
 }

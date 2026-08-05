@@ -234,67 +234,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Bug: {@link GeoPointFieldMapper} calls {@code multiFields().parse()} directly (the inner
-     * {@code MultiFields.parse()} method) instead of via {@link FieldMapper#doParseMultiFields},
-     * so when a multi-value violation occurs the {@link FieldMapper.ParseResult.MultiValueViolation}
-     * returned by the sub-field mapper is never inspected — {@link OnFailureStoredValues#storeEncoded}
-     * is never called and the violating value is silently lost from the {@code ._on_failure} binary column.
-     *
-     * <p>This test FAILS currently because:
-     * <ol>
-     *   <li>The geo_point mapper bug: the second keyword value is never written to
-     *       {@code location.kw._on_failure} (the root cause being tested here).
-     *   <li>The reconstruction gap: reading from {@code ._on_failure} is not yet wired for synthetic
-     *       source (see the muted {@code testMultiValueViolationRestoredIdenticallyAcrossSourceModes}).
-     * </ol>
-     */
-    public void testGeoPointKeywordSubFieldMvvViolatingValueLostFromOnFailure() throws Exception {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
-
-        var mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("location")
-            .field("type", "geo_point")
-            .startObject("fields")
-            .startObject("kw")
-            .field("type", "keyword")
-            .startObject("doc_values")
-            .field("multi_value", false)
-            .field("on_failure", "ignore")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-
-        var syntheticSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
-        assertAcked(prepareCreate("test_geo_mvv").setMapping(mapping).setSettings(syntheticSettings));
-
-        prepareIndex("test_geo_mvv").setId("1")
-            .setSource(Map.of("location", List.of(Map.of("lat", 1.0, "lon", 2.0), Map.of("lat", 3.0, "lon", 4.0))))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-
-        // The violation is detected and _ignored is populated even with the bug present.
-        assertIgnoredContains("test_geo_mvv", "location.kw");
-
-        // In columnar (subobjects:false) mode, multi-fields surface as dot-separated top-level keys.
-        // Both geo_point keyword sub-field values must appear as a 2-element list in synthetic source.
-        // Currently fails: GeoPointFieldMapper.multiFields().parse() ignores ParseResult.MultiValueViolation
-        // so only the first kw value (from doc values) is present; the second is never written to ._on_failure.
-        var source = client().prepareGet("test_geo_mvv", "1").get().getSourceAsMap();
-        var locationKwRaw = source.get("location.kw");
-        assertNotNull("location.kw must appear in synthetic source; full source was: " + source, locationKwRaw);
-        assertTrue("location.kw must be a list with both values; got: " + locationKwRaw, locationKwRaw instanceof List);
-        assertEquals("location.kw must contain both geo_point keyword values", 2, ((List<?>) locationKwRaw).size());
-    }
-
     private void assertIgnoredContains(String index, String fieldName) {
         var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
         try {

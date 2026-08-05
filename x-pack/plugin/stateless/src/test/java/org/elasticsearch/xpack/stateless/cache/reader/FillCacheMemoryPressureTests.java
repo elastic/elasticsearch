@@ -23,8 +23,11 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
@@ -311,5 +314,55 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         }
         assertThat(pressure.getWaiterCount(), equalTo(0));
         assertThat(pressure.getCurrentBytes(), equalTo(0L));
+    }
+
+    /**
+     * Contended acquire/release across threads, with inline grant delivery so a release can synchronously grant queued waiters on
+     * the releasing thread — the most adversarial reentrancy shape for {@link FillCacheMemoryPressure#release}. Verifies the limit
+     * is never exceeded, no bytes are lost to racing grants, and no waiter is stranded.
+     */
+    public void testConcurrentAcquireReleaseNeverExceedsLimitAndFullyDrains() {
+        final long limit = randomLongBetween(100, 1000);
+        var pressure = pressureWithLimit(limit);
+        final int threads = between(4, 8);
+        final int opsPerThread = between(200, 500);
+        final int totalAcquires = threads * opsPerThread;
+
+        // sizes precomputed here: ESTestCase randomness must not be used from the spawned threads.
+        // capped at limit / 2 so the oversized-when-idle rule never fires and the <= limit invariant is unconditional
+        final long[][] acquireSizes = new long[threads][opsPerThread];
+        for (int t = 0; t < threads; t++) {
+            for (int i = 0; i < opsPerThread; i++) {
+                acquireSizes[t][i] = randomLongBetween(1, limit / 2);
+            }
+        }
+
+        final Queue<Releasable> outstanding = new ConcurrentLinkedQueue<>();
+        final AtomicInteger grantCount = new AtomicInteger();
+        startInParallel(threads, t -> {
+            for (int i = 0; i < opsPerThread; i++) {
+                pressure.acquire(acquireSizes[t][i], INLINE_GRANTS, ActionListener.wrap(r -> {
+                    grantCount.incrementAndGet();
+                    outstanding.add(r);
+                }, e -> fail(e, "unexpected failure")));
+                assertThat("in-flight bytes exceed limit", pressure.getCurrentBytes(), lessThanOrEqualTo(limit));
+                // best-effort release of any grant (own or another thread's) to keep the budget churning under contention
+                Releasable release = outstanding.poll();
+                if (release != null) {
+                    release.close();
+                }
+            }
+        });
+
+        // grants deliver inline within close(), so once the threads have joined, every still-queued waiter is only ever granted
+        // from this loop's closes; when the queue stays empty the ledger must balance exactly
+        Releasable release;
+        while ((release = outstanding.poll()) != null) {
+            release.close();
+            assertThat("in-flight bytes exceed limit", pressure.getCurrentBytes(), lessThanOrEqualTo(limit));
+        }
+        assertThat(grantCount.get(), equalTo(totalAcquires));
+        assertThat(pressure.getCurrentBytes(), equalTo(0L));
+        assertThat(pressure.getWaiterCount(), equalTo(0));
     }
 }

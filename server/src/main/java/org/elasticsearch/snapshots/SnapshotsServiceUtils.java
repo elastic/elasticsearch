@@ -57,6 +57,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1076,10 +1077,19 @@ public class SnapshotsServiceUtils {
     }
 
     /**
-     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
+     * Returns the non-partial, non-clone snapshots that are currently snapshotting one or more of the indices in
+     * {@code indicesToCheck}, each mapped to the subset of those indices it covers. The relation is many-to-many: a single index may be
+     * held by several concurrent snapshots, and a single snapshot may hold several of the indices. Callers that report a conflict to the
+     * user should render the whole map so the user knows which snapshots to take action on.
+     *
+     * @see #describeSnapshottingIndices(Map)
+     * @see #snapshottingIndices(ProjectState, Set)
      */
-    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
-        final Set<Index> indices = new HashSet<>();
+    public static Map<Snapshot, Set<Index>> snapshottingIndicesBySnapshot(
+        final ProjectState projectState,
+        final Set<Index> indicesToCheck
+    ) {
+        Map<Snapshot, Set<Index>> result = new HashMap<>();
         for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster())
             .entriesByRepo(projectState.projectId())) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
@@ -1087,13 +1097,44 @@ public class SnapshotsServiceUtils {
                     for (String indexName : entry.indices().keySet()) {
                         IndexMetadata indexMetadata = projectState.metadata().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
-                            indices.add(indexMetadata.getIndex());
+                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
                         }
                     }
                 }
             }
         }
-        return indices;
+        return result;
+    }
+
+    /**
+     * Renders the result of {@link #snapshottingIndicesBySnapshot} for use in a user-facing error message. Each snapshot is identified
+     * as {@code repository/snapshotName} (the form a user needs for the snapshots API). Output is sorted deterministically by repository
+     * then snapshot name, with indices within each snapshot sorted by name.
+     */
+    public static String describeSnapshottingIndices(Map<Snapshot, Set<Index>> indicesBySnapshot) {
+        return indicesBySnapshot.entrySet()
+            .stream()
+            .sorted(
+                Comparator.<Map.Entry<Snapshot, Set<Index>>, String>comparing(e -> e.getKey().getRepository())
+                    .thenComparing(e -> e.getKey().getSnapshotId().getName())
+            )
+            .map(e -> {
+                List<Index> sortedIndices = e.getValue().stream().sorted(Comparator.comparing(Index::getName)).toList();
+                return "[" + e.getKey().getRepository() + "/" + e.getKey().getSnapshotId().getName() + "] is snapshotting " + sortedIndices;
+            })
+            .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Returns the indices that are currently being snapshotted by a non-partial, non-clone snapshot and that are contained in the
+     * indices-to-check set. This is a convenience wrapper around {@link #snapshottingIndicesBySnapshot} for callers that only need the
+     * blocked index set and do not need to name the blocking snapshots.
+     */
+    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
+        return snapshottingIndicesBySnapshot(projectState, indicesToCheck).values()
+            .stream()
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
     }
 
     /**

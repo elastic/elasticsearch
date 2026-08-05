@@ -108,10 +108,94 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(index), Settings.EMPTY)
         );
         assertEquals(
-            "Cannot delete indices that are being snapshotted: ["
-                + index
-                + "]. Try again after snapshot finishes "
-                + "or cancel the currently running snapshot.",
+            "Cannot delete indices that are being snapshotted: "
+                + "[doesn't matter/snapshot name] is snapshotting "
+                + List.of(index)
+                + ". Try again after these snapshots finish, or cancel them.",
+            e.getMessage()
+        );
+    }
+
+    public void testDeleteSnapshottingNamesBlockingSnapshots() {
+        // Two indices blocked by two snapshots in a many-to-many relationship:
+        // snap-a (repo-a) covers both alpha and beta; snap-b (repo-b) covers only beta.
+        // The message must group indices per snapshot (sorted by repository then snapshot name),
+        // and sort indices within each group by name — verifying the fix for the case where
+        // multiple concurrent snapshots (e.g. from ILM/SLM) are in flight simultaneously.
+        final ProjectId projectId = randomProjectIdOrDefault();
+        String alphaName = "alpha";
+        String betaName = "beta";
+        String alphaUuid = randomUUID();
+        String betaUuid = randomUUID();
+        final Index alphaIndex = new Index(alphaName, alphaUuid);
+        final Index betaIndex = new Index(betaName, betaUuid);
+
+        Snapshot snapA = new Snapshot(projectId, "repo-a", new SnapshotId("snap-a", randomUUID()));
+        Snapshot snapB = new Snapshot(projectId, "repo-b", new SnapshotId("snap-b", randomUUID()));
+
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapA,
+                false,
+                false,
+                SnapshotsInProgress.State.INIT,
+                Map.of(alphaName, new IndexId(alphaName, alphaUuid), betaName, new IndexId(betaName, betaUuid)),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                Map.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                IndexVersionUtils.randomVersion()
+            )
+        )
+            .withAddedEntry(
+                SnapshotsInProgress.Entry.snapshot(
+                    snapB,
+                    false,
+                    false,
+                    SnapshotsInProgress.State.INIT,
+                    Map.of(betaName, new IndexId(betaName, betaUuid)),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    System.currentTimeMillis(),
+                    (long) randomIntBetween(0, 1000),
+                    Map.of(),
+                    null,
+                    SnapshotInfoTestUtils.randomUserMetadata(),
+                    IndexVersionUtils.randomVersion()
+                )
+            );
+
+        IndexMetadata alphaMetadata = IndexMetadata.builder(alphaName)
+            .settings(indexSettings(IndexVersionUtils.randomVersion(), alphaUuid, 1, 1))
+            .build();
+        IndexMetadata betaMetadata = IndexMetadata.builder(betaName)
+            .settings(indexSettings(IndexVersionUtils.randomVersion(), betaUuid, 1, 1))
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(projectId).put(alphaMetadata, false).put(betaMetadata, false))
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, alphaMetadata).addBlocks(projectId, betaMetadata))
+            .putCustom(SnapshotsInProgress.TYPE, snaps)
+            .build();
+
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(alphaIndex, betaIndex), Settings.EMPTY)
+        );
+        // repo-a/snap-a covers both indices (alpha < beta, sorted by name); repo-b/snap-b covers only beta
+        assertEquals(
+            "Cannot delete indices that are being snapshotted: "
+                + "[repo-a/snap-a] is snapshotting "
+                + List.of(alphaIndex, betaIndex)
+                + ", [repo-b/snap-b] is snapshotting "
+                + List.of(betaIndex)
+                + ". Try again after these snapshots finish, or cancel them.",
             e.getMessage()
         );
     }

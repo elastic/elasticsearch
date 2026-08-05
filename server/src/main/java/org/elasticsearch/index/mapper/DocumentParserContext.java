@@ -1200,7 +1200,9 @@ public abstract class DocumentParserContext {
                 boolean hasRealValue = ignoredFieldValues.stream()
                     .anyMatch(e -> e.name().equals(copyToField) && XContentDataHelper.isDataPresent(e.value()));
                 if (hasRealValue == false) {
-                    ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+                    ignoredFieldValues.add(
+                        new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc)
+                    );
                 }
             }
         }

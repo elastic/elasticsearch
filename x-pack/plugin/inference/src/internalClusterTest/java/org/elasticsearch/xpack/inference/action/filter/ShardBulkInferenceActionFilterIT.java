@@ -380,7 +380,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     public void testRestart() throws Exception {
         registerModel(modelRegistry, "sparse_inference_endpoint_1", TaskType.SPARSE_EMBEDDING);
-        registerModel(modelRegistry, "semanatic_inference_endpoint_1", TaskType.EMBEDDING);
+        registerModel(modelRegistry, "semantic_inference_endpoint_1", TaskType.EMBEDDING);
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
         addSemanticTextFieldsToMapping(
@@ -390,7 +390,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         if (useLegacyFormat == false) {
             addSemanticFieldsToMapping(
                 mapping,
-                Map.of("semantic_field_1", "semanatic_inference_endpoint_1", "semantic_field_2", "semanatic_inference_endpoint_2")
+                Map.of("semantic_field_1", "semantic_inference_endpoint_1", "semantic_field_2", "semantic_inference_endpoint_2")
             );
         }
         mapping.endObject().endObject();
@@ -411,13 +411,13 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                 () -> Map.of("semantic_field_1", randomSemanticInput(true), "semantic_field_2", randomSemanticInput(true)),
                 r -> assertThat(
                     rootCause(r.getFailure().getCause()).getMessage(),
-                    containsString("Inference id [semanatic_inference_endpoint_2] not found for field [semantic_field_2]")
+                    containsString("Inference id [semantic_inference_endpoint_2] not found for field [semantic_field_2]")
                 )
             );
         }
 
         registerModel(modelRegistry, "sparse_inference_endpoint_2", TaskType.SPARSE_EMBEDDING);
-        registerModel(modelRegistry, "semanatic_inference_endpoint_2", TaskType.EMBEDDING);
+        registerModel(modelRegistry, "semantic_inference_endpoint_2", TaskType.EMBEDDING);
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
         ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
@@ -595,7 +595,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                 );
                 int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
 
-                if (taskType.equals(TaskType.TEXT_EMBEDDING)) {
+                if (taskType == TaskType.TEXT_EMBEDDING) {
                     Utils.storeDenseModel(inferenceId, modelRegistry, dimensions, similarity, elementType);
                 } else {
                     Utils.storeEmbeddingModel(inferenceId, modelRegistry, dimensions, similarity, elementType);

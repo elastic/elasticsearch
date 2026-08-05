@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +42,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 public class AzureStorageService {
@@ -96,7 +98,11 @@ public class AzureStorageService {
         ClusterService clusterService,
         ProjectResolver projectResolver
     ) {
-        this.clientsManager = new AzureStorageClientsManager(settings, projectResolver.supportsMultipleProjects());
+        this.clientsManager = new AzureStorageClientsManager(
+            settings,
+            clusterService.threadPool().generic(),
+            projectResolver.supportsMultipleProjects()
+        );
         this.azureClientProvider = azureClientProvider;
         this.stateless = DiscoveryNode.isStateless(settings);
         this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
@@ -246,11 +252,13 @@ public class AzureStorageService {
     class AzureStorageClientsManager implements ClusterStateApplier {
         private static final String AZURE_SETTING_PREFIX = "azure.";
 
+        private final Executor executor;
+
         private final Settings nodeAzureSettings;
         private volatile Map<String, AzureStorageSettings> clusterStorageSettings;
         private final Map<ProjectId, Map<String, AzureStorageSettings>> perProjectStorageSettings;
 
-        AzureStorageClientsManager(Settings nodeSettings, boolean supportsMultipleProjects) {
+        AzureStorageClientsManager(Settings nodeSettings, Executor executor, boolean supportsMultipleProjects) {
             // eagerly load client settings so that secure settings are read
             final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(nodeSettings);
             refreshClusterClientSettings(clientsSettings);
@@ -259,6 +267,7 @@ public class AzureStorageService {
                 .put(nodeSettings.getByPrefix(AZURE_SETTING_PREFIX), false) // not rely on any cluster scoped secrets
                 .normalizePrefix(AZURE_SETTING_PREFIX)
                 .build();
+            this.executor = executor;
             if (supportsMultipleProjects) {
                 this.perProjectStorageSettings = ConcurrentCollections.newConcurrentMap();
             } else {
@@ -270,6 +279,8 @@ public class AzureStorageService {
         public void applyClusterState(ClusterChangedEvent event) {
             assert perProjectStorageSettings != null;
             final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
+
+            final var previousPerProjectStorageSettings = Map.copyOf(perProjectStorageSettings);
 
             for (var project : currentProjects.values()) {
                 // Skip the default project, it is tracked separately with clusterStorageSettings and
@@ -318,20 +329,48 @@ public class AzureStorageService {
             }
 
             // Removed projects
-            Set<AzureClientProvider.ConnectionProviderKey> keysToRemove = new HashSet<>();
             for (var projectId : perProjectStorageSettings.keySet()) {
                 if (currentProjects.containsKey(projectId) == false) {
                     assert ProjectId.DEFAULT.equals(projectId) == false;
 
-                    var settings = perProjectStorageSettings.remove(projectId);
-                    for (var clientName : settings.keySet()) {
-                        var key = new AzureClientProvider.ConnectionProviderKey(projectId, clientName, settings.get(clientName));
-                        keysToRemove.add(key);
+                    perProjectStorageSettings.remove(projectId);
+                }
+            }
+
+            // get all the connection-provider references we need to remove from the `connectionProvidersCache`
+            Set<AzureClientProvider.ConnectionProviderKey> keysToRemove = new HashSet<>();
+
+            for (var previousEntry : previousPerProjectStorageSettings.entrySet()) {
+                final var projectId = previousEntry.getKey();
+
+                // `currentSettings` can be `null` in case the project was removed
+                final var currentSettings = perProjectStorageSettings.get(projectId);
+                for (var clientEntry : previousEntry.getValue().entrySet()) {
+                    final var clientName = clientEntry.getKey();
+                    final var previousClientSettings = clientEntry.getValue();
+                    final var currentClientSettings = currentSettings == null ? null : currentSettings.get(clientName);
+                    if (!previousClientSettings.equals(currentClientSettings)) {
+                        // if either the project was removed, or its setting were changed, we schedule the previous connection-provider
+                        // for removal from the cache
+                        keysToRemove.add(new AzureClientProvider.ConnectionProviderKey(projectId, clientName, previousClientSettings));
                     }
                 }
             }
 
-            refreshCache(keysToRemove);
+            if (!keysToRemove.isEmpty()) {
+                // run the actual removal in a different thread so not to block the cluster-state-updater thread
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        refreshCache(keysToRemove);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to close refresh cache", e);
+                    }
+                });
+            }
         }
 
         public AzureBlobServiceClient client(
@@ -374,26 +413,29 @@ public class AzureStorageService {
             return perProjectStorageSettings == null ? null : Map.copyOf(perProjectStorageSettings);
         }
 
-        private void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
-            boolean noPreviouslySetClusterSTorageSettings = clusterStorageSettings == null;
+        // We use `synchronized` here because although `clusterStorageSettings` is a volatile & immutable map, we might have 2 parallel
+        // reloads and hence 2 refreshes.
+        private synchronized void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
+            final var previousSettings = clusterStorageSettings;
 
             this.clusterStorageSettings = Map.copyOf(clientsSettings);
             // clients are built lazily by {@link client(String, LocationMode)}
 
-            if (noPreviouslySetClusterSTorageSettings) {
+            if (previousSettings == null) {
                 return;
             }
 
             // go through the previously-set settings to finds the settings that no longer appear
-            Set<AzureClientProvider.ConnectionProviderKey> toRemove = new HashSet<>();
-            for (String clientName : clusterStorageSettings.keySet()) {
-                if (!clientsSettings.containsKey(clientName)) {
-                    // this key was removed from the old ones
-                    // null because there's no projectId here ...
-                    toRemove.add(new AzureClientProvider.ConnectionProviderKey(null, clientName, clusterStorageSettings.get(clientName)));
+            Set<AzureClientProvider.ConnectionProviderKey> keysToRemove = new HashSet<>();
+            for (var previousEntry : previousSettings.entrySet()) {
+                final var clientName = previousEntry.getKey();
+                final var previousClientSettings = previousEntry.getValue();
+                final var currentClientSettings = clientsSettings.get(clientName);
+                if (!previousClientSettings.equals(currentClientSettings)) {
+                    keysToRemove.add(new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, clientName, previousClientSettings));
                 }
             }
-            refreshCache(toRemove);
+            refreshCache(keysToRemove);
         }
 
         private boolean newOrUpdated(ProjectId projectId, Map<String, AzureStorageSettings> currentClientSettings) {

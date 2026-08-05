@@ -21,7 +21,7 @@ class AzureBlobServiceClient implements Releasable {
     private final BlobServiceAsyncClient blobAsyncClient;
     private final int maxRetries;
     private final ByteBufAllocator allocator;
-    private AzureConnectionProviderReference connectionProviderReference;
+    private final AzureConnectionProviderReference connectionProviderReference;
 
     AzureBlobServiceClient(
         BlobServiceClient blobServiceClient,

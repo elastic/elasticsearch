@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import com.carrotsearch.hppc.LongLongHashMap;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;

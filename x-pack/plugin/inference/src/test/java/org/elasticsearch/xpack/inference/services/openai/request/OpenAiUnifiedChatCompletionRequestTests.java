@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithUrlOrganizationUserDefined() throws IOException {
         var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user", true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -63,7 +64,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
         var request = createRequest(null, "org", "secret", "abc", "model", "user", true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -80,7 +81,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithDefaultUrlAndWithoutUserOrganization() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abc", "model", null, true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -96,7 +97,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithStreaming() throws IOException {
         var request = createRequest(null, null, "secret", "abc", "model", null, true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -110,7 +111,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

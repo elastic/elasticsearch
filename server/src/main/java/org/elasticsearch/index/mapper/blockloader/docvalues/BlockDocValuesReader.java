@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
-public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
+public abstract class BlockDocValuesReader implements BlockLoader.ColumnAtATimeReader {
     protected final CircuitBreaker breaker;
     private final Thread creationThread;
 
@@ -45,7 +45,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     public abstract String toString();
 
     public abstract static class DocValuesBlockLoader implements BlockLoader {
-        public abstract AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
+        public abstract ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
         @Override
         public final IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
@@ -53,8 +53,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public final RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            return reader(breaker, context);
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return null;
         }
 
         @Override

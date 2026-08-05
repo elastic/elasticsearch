@@ -78,7 +78,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 try (
-                    BlockLoader.AllReader allReader = loader.reader(breaker, leaf.getContext());
+                    BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf.getContext());
                     var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false)
                 ) {
                     assertThat(block.size(), equalTo(1));
@@ -152,7 +152,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                         expected.add(visitor.apply(geometries.get(j + currentIndex)).get());
                     }
                     try (
-                        BlockLoader.AllReader allReader = loader.reader(breaker, leaf);
+                        BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf);
                         var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(array), 0, false)
                     ) {
                         for (int i = 0; i < block.size(); i++) {

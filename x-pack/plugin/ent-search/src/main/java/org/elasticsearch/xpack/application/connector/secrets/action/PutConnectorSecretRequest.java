@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutConnectorSecretRequest extends LegacyActionRequest implements ToXContentObject {
+public class PutConnectorSecretRequest extends UntypedActionRequest implements ToXContentObject {
 
     private final String id;
     private final String value;

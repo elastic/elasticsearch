@@ -31,13 +31,13 @@ public final class AllFirstFloatByIntAggregatorFunctionSupplier implements Aggre
   @Override
   public AllFirstFloatByIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllFirstFloatByIntAggregatorFunction.create(driverContext, channels);
+    return new AllFirstFloatByIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllFirstFloatByIntGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllFirstFloatByIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllFirstFloatByIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

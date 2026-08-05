@@ -23,7 +23,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>());
         assertNull(settings.user());
     }
 

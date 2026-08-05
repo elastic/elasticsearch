@@ -39,10 +39,6 @@ gradlePlugin {
       id = 'elasticsearch.internal-licenseheaders'
       implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin'
     }
-    eclipse {
-      id = 'elasticsearch.eclipse'
-      implementationClass = 'org.elasticsearch.gradle.internal.conventions.EclipseConventionPlugin'
-    }
     publish {
       id = 'elasticsearch.publish'
       implementationClass = 'org.elasticsearch.gradle.internal.conventions.PublishPlugin'

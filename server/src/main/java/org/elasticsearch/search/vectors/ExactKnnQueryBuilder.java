@@ -13,9 +13,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,7 +29,7 @@ import java.util.Objects;
  * Exact knn query builder. Will iterate and score all documents that have the provided knn field in the index.
  * Useful in inner hits scoring scenarios.
  */
-public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuilder> {
+public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder> {
     public static final String NAME = "exact_knn";
     private final String field;
     private final VectorData query;
@@ -93,7 +94,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
-            throw new IllegalArgumentException("field [" + field + "] does not exist in the mapping");
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
@@ -101,7 +102,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(query, vectorSimilarity);
+        return vectorFieldType.createIndexedExactKnnQuery(query, vectorSimilarity);
     }
 
     @Override

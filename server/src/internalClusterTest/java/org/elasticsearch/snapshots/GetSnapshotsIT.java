@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepos
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.After;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -826,7 +827,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoNames,
                     sort,
-                    sort.encodeAfterQueryParam(after),
+                    After.fromSnapshotInfo(after, sort).toQueryParam(),
                     i,
                     order
                 );
@@ -1144,7 +1145,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .sort(sortKey)
                 .order(order)
                 .size(nextSize)
-                .after(SnapshotSortKey.decodeAfterQueryParam(nextRequestAfter))
+                .after(After.decodeAfterQueryParam(nextRequestAfter))
                 .states(requestedStates);
             final GetSnapshotsResponse nextResponse = safeAwait(l -> client().execute(TransportGetSnapshotsAction.TYPE, nextRequest, l));
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.gpu;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -25,13 +26,26 @@ import static org.elasticsearch.xpack.gpu.TestVectorsFormatUtils.randomGPUSuppor
 
 public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
 
-    static {
-        TestCuVSServiceProvider.mockedGPUInfoProvider = p -> new TestCuVSServiceProvider.TestGPUInfoProvider(List.of());
+    private static class TestGPUSupport implements GPUSupport {
+        @Override
+        public boolean isSupported() {
+            return false;
+        }
+
+        @Override
+        public long getTotalGpuMemory() {
+            return 0;
+        }
+
+        @Override
+        public String getGpuName() {
+            return null;
+        }
     }
 
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, new TestGPUSupport());
         }
 
         @Override

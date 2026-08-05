@@ -49,14 +49,14 @@ import java.util.List;
  *     thousands of {@code message} values in that block. Then it builds and returns the block
  *     {@code "foo <message>"}.
  * </p>
- * <pre>{@code
- *   foo | message | result
- *   --- | ------- | ----------
- *   foo | bar     | foo bar
- *   foo | longer  | foo longer
- *   ... a thousand rows ...
- *   foo | baz     | foo baz
- * }</pre>
+ * {@snippet lang="markdown" :
+ * | foo   | message   | result       |
+ * | ----- | --------- | ------------ |
+ * | `foo` | `bar`     | `foo bar`    |
+ * | `foo` | `longer`  | `foo longer` |
+ * | `...` | `1k rows` | `...`        |
+ * | `foo` | `baz`     | `foo baz`    |
+ * }
  * <p>
  *     It does this once per input Page.
  * </p>
@@ -69,35 +69,35 @@ import java.util.List;
  *     Scalars are a <strong>huge</strong> part of the language, and we have a ton of
  *     different classes of optimizations for them that exist on a performance spectrum:
  * </p>
- * <pre>{@code
+ * {@snippet lang="text" :
  *  Better         Load Less and
  * than O(rows)     Run Faster               Run Faster                 Page-at-a-time     Tuple-at-a-time
  *     |----------------|-------------------------|------------------------------|-------------------|
  *     ^  ^  ^     ^    ^      ^                  ^           ^    ^   ^     ^   ^      ^            ^
  *    CF LT ET    FP   BL     MBL                SE          NO  SIMD RR    VD EVAL    EVE         CASE
- * }</pre>
+ * }
  * <h3>{@code CF}: Constant Folding</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *   | EVAL a = CONCAT("some ", "words")
- * }</pre>
+ * }
  * <p>
  *     The fastest way to run a scalar, now and forever, is to run it at compile time. Turn it
  *     into a constant and propagate it throughout the query. This is called "constant folding"
  *     and all scalars, when their arguments are constants, are "folded" to a constant.
  * </p>
  * <h3>{@code LT}: Lucene's TopN</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index METADATA _score
  *   | WHERE title:"cat"
  *   | SORT _score DESC
  *   | LIMIT 10
- * }</pre>
- * <pre>{@code
+ * }
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL distance = ST_DISTANCE(point, "POINT(12.5683 55.6761)")
  *   | SORT distance ASC
  *   | LIMIT 10
- * }</pre>
+ * }
  * <p>
  *     Fundamentally, Lucene is a tuple-at-a-time engine that flows the
  *     <a href="https://www.elastic.co/blog/faster-retrieval-of-top-hits-in-elasticsearch-with-block-max-wand">min-competitive</a>
@@ -109,13 +109,13 @@ import java.util.List;
  *     natively. See {@link PushTopNToSource}.
  * </p>
  * <h3>{@code ET}: Engine TopN (<strong>HYPOTHETICAL</strong>)</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index METADATA _score
  *   | WHERE title:"cat"
  *   | WHERE a < j + LENGTH(candy) // <--- anything un-pushable
  *   | SORT _score DESC
  *   | LIMIT 10
- * }</pre>
+ * }
  * <p>
  *     If ESQL's {@link TopNOperator} exposed the min-competitive information (see above), and
  *     we fed it back into the lucene query operators then we too could do better than
@@ -125,16 +125,16 @@ import java.util.List;
  *     See <a href="https://github.com/elastic/elasticsearch/issues/136267">issue</a>.
  * </p>
  * <h3>{@code BL}: Push to {@link BlockLoader}</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL s = V_COSINE(dense_vector, [0, 1, 2])
  *   | SORT s desc
  *   | LIMIT 10
- * }</pre>
- * <pre>{@code
+ * }
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS SUM(LENGTH(message)) // Length is pushed to the BlockLoader
- * }</pre>
+ * }
  * <p>
  *     Some functions can take advantage of the on-disk structures to run very fast and should be
  *     "fused" into field loading using {@link BlockLoaderExpression}. Functions like {@code V_COSINE}
@@ -146,12 +146,12 @@ import java.util.List;
  *     so we can get as much speed as possible.
  * </p>
  * <h3>{@code MBL}: Push to a "mother ship" {@link BlockLoader} (<strong>HYPOTHETICAL</strong>)</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS SUM(LENGTH(message)), // All of these are pushed to a single BlockLoader
  *           SUM(SUBSTRING(message, 0, 4)),
  *        BY trail = SUBSTRING(message, 10, 3)
- * }</pre>
+ * }
  * <p>
  *     Pushing functions to a {@link BlockLoader} can involve building a <strong>ton</strong>
  *     of distinct {@link BlockLoader}s. Which involves a ton of code and testing and, well, work.
@@ -192,10 +192,10 @@ import java.util.List;
  *     <li>The faster "{@link Vector}" path that supports only single-valued, non-{@code null} fields</li>
  * </ul>
  * <h3>{@code NO}: Native Ordinal Evaluation</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS MAX(foo) BY TO_UPPER(verb)
- * }</pre>
+ * }
  * <p>
  *     {@code keyword} and {@code ip} fields load their {@code byte[]} shaped values as a
  *     lookup table, called "ordinals" because Lucene uses that word for it. Some of our functions,
@@ -204,10 +204,10 @@ import java.util.List;
  *     aggregation code also operates on the lookup table.
  * </p>
  * <h3>{@code SE}: Sorted Execution</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS SUM(MV_DEDUPE(file_size))
- * }</pre>
+ * }
  * <p>
  *     Some functions can operate on multivalued fields much faster if their inputs are sorted. And
  *     inputs loaded from {@code doc_values} are sorted by default. Sometimes even sorted AND
@@ -218,10 +218,10 @@ import java.util.List;
  *     single-valued inputs. So they benefit hugely from "Vector Dispatch".
  * </p>
  * <h3>{@code SIMD}: Single Instruction Multiple Data instructions</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS MAX(lhs + rhs)
- * }</pre>
+ * }
  * <p>
  *     Through a combination of "Page-at-a-time evaluation", and "Vector Dispatch" we often
  *     end up with at least one path that can be turned into a sequence of
@@ -231,10 +231,10 @@ import java.util.List;
  *     that do can take that route.
  * </p>
  * <h3>{@code RR}: Range Rewrite</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS COUNT(*) BY DATE_TRUNC(1 DAY, @timestamp)
- * }</pre>
+ * }
  * <p>
  *     Functions like {@code DATE_TRUNC} can be quite slow, especially when they are using a
  *     time zone. It can be much faster if it knows the range of dates that it's operating on.
@@ -247,10 +247,10 @@ import java.util.List;
  *     but is technically possible for anything that could benefit from knowing the range up front.
  * </p>
  * <h3>{@code FP}: Filter Pushdown</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | STATS COUNT(*) BY DATE_TRUNC(1 DAY, @timestamp)
- * }</pre>
+ * }
  * <p>
  *     If the "Range Rewrite" optimization works, we can sometimes further push the resulting
  *     {@code ROUND_TO} into a sequence of filters. If you are <strong>just</strong> counting
@@ -260,33 +260,33 @@ import java.util.List;
  *     still very very fast. See <a href="https://github.com/elastic/elasticsearch/pull/138023">PR</a>.
  * </p>
  * <h3>{@code EVE}: Expensive Variable Evaluator</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL ts = DATE_PARSE(SUBSTRING(message, 1, 10), date_format_from_the_index)
- * }</pre>
+ * }
  * <p>
  *     Functions like {@code DATE_PARSE} need to build something "expensive" per input row, like
  *     a {@link DateFormatter}. But, often, the expensive thing is constant. In the example above
  *     the date format comes from the index, but that's quite contrived. These functions generally
  *     run in the form:
  * </p>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL ts = DATE_PARSE(SUBSTRING(message, 1, 10), "ISO8601")
- * }</pre>
+ * }
  * <p>
  *     These generally have special case evaluators that don't construct the format for each row.
  *     The others are "expensive variable evaluators" and we avoid them when we can.
  * </p>
  * <h3>{@code CASE}: {@code CASE} is evaluated row-by-row</h3>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL f = CASE(d > 0, n / d, 0)
- * }</pre>
- * <pre>{@code
+ * }
+ * {@snippet lang="esql" :
  *     FROM index
  *   | EVAL f = COALESCE(d, 1 / j)
- * }</pre>
+ * }
  * <p>
  *     {@code CASE} and {@code COALESCE} short circuit. In the top example above, that
  *     means we don't run {@code n / d} unless {@code d > 0}. That prevents us from
@@ -309,6 +309,7 @@ import java.util.List;
  * </p>
  */
 public abstract class EsqlScalarFunction extends ScalarFunction implements EvaluatorMapper {
+
     protected EsqlScalarFunction(Source source) {
         super(source);
     }

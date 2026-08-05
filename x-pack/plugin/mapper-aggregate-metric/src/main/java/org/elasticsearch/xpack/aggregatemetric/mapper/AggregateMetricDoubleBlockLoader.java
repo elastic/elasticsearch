@@ -12,9 +12,13 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
 import java.util.EnumMap;
@@ -55,11 +59,11 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        AllReader minReader = null;
-        AllReader maxReader = null;
-        AllReader sumReader = null;
-        AllReader countReader = null;
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        ColumnAtATimeReader minReader = null;
+        ColumnAtATimeReader maxReader = null;
+        ColumnAtATimeReader sumReader = null;
+        ColumnAtATimeReader countReader = null;
         boolean success = false;
         try {
             minReader = minLoader != null ? minLoader.reader(breaker, context) : null;
@@ -81,13 +85,18 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         return factory.aggregateMetricDoubleBuilder(expectedCount);
     }
 
-    private static class Reader implements AllReader {
-        private final AllReader minReader;
-        private final AllReader maxReader;
-        private final AllReader sumReader;
-        private final AllReader countReader;
+    private static class Reader implements ColumnAtATimeReader {
+        private final ColumnAtATimeReader minReader;
+        private final ColumnAtATimeReader maxReader;
+        private final ColumnAtATimeReader sumReader;
+        private final ColumnAtATimeReader countReader;
 
-        private Reader(AllReader minReader, AllReader maxReader, AllReader sumReader, AllReader countReader) {
+        private Reader(
+            ColumnAtATimeReader minReader,
+            ColumnAtATimeReader maxReader,
+            ColumnAtATimeReader sumReader,
+            ColumnAtATimeReader countReader
+        ) {
             this.minReader = minReader;
             this.maxReader = maxReader;
             this.sumReader = sumReader;
@@ -123,23 +132,6 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            var blockBuilder = (AggregateMetricDoubleBuilder) builder;
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.min(), minReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.max(), maxReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.sum(), sumReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.count(), countReader);
-        }
-
-        private void readSingleRowFromSubblock(int docID, StoredFields storedFields, Builder builder, AllReader reader) throws IOException {
-            if (reader == null) {
-                builder.appendNull();
-            } else {
-                reader.read(docID, storedFields, builder);
-            }
-        }
-
-        @Override
         public boolean canReuse(int startingDocID) {
             return (minReader == null || minReader.canReuse(startingDocID))
                 && (maxReader == null || maxReader.canReuse(startingDocID))
@@ -150,6 +142,126 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         @Override
         public void close() {
             Releasables.close(minReader, maxReader, sumReader, countReader);
+        }
+    }
+
+    public static class AvgBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+        NumberFieldMapper.NumberFieldType sumFieldType;
+        NumberFieldMapper.NumberFieldType countFieldType;
+        private final Warnings warnings;
+
+        AvgBlockLoader(
+            EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> availableMetrics,
+            Warnings warnings
+        ) {
+            this.warnings = warnings;
+            if (availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.sum) == false
+                || availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.value_count) == false) {
+                sumFieldType = null;
+                countFieldType = null;
+            } else {
+                sumFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.sum);
+                countFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.value_count);
+            }
+        }
+
+        @Override
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            if (sumFieldType == null || countFieldType == null) {
+                return ConstantNull.COLUMN_READER;
+            }
+            NumericDvSingletonOrSorted dvSumValues = NumericDvSingletonOrSorted.get(breaker, context, sumFieldType.name());
+            NumericDvSingletonOrSorted dvValueCountValues = null;
+            try {
+                dvValueCountValues = NumericDvSingletonOrSorted.get(breaker, context, countFieldType.name());
+            } catch (Exception e) {
+                // The sum doc values reserved breaker space above; release it if acquiring the count doc values fails (ex. circuit
+                // breaker), otherwise it leaks.
+                releaseDocValues(dvSumValues);
+                throw e;
+            }
+            if (dvSumValues == null || dvValueCountValues == null) {
+                // One sub-field is missing; release whichever doc values we did acquire so their reservation isn't leaked.
+                releaseDocValues(dvSumValues);
+                releaseDocValues(dvValueCountValues);
+                return ConstantNull.COLUMN_READER;
+            }
+            assert dvSumValues.sorted() == null && dvValueCountValues.sorted() == null
+                : "aggregate metric doubles shouldn't have multi-values";
+
+            TrackingNumericDocValues trackingSumValues = dvSumValues.singleton();
+            TrackingNumericDocValues trackingValueCountValues = dvValueCountValues.singleton();
+            var sumValues = trackingSumValues.docValues();
+            var valueCountValues = trackingValueCountValues.docValues();
+
+            return new BlockDocValuesReader(breaker) {
+                @Override
+                public void close() {
+                    Releasables.close(trackingSumValues, trackingValueCountValues);
+                }
+
+                private int docID = -1;
+
+                @Override
+                protected int docId() {
+                    return docID;
+                }
+
+                @Override
+                public String toString() {
+                    return "BlockDocValuesReader.AggregateMetricDoubleAvg";
+                }
+
+                @Override
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    int expectedCount = docs.count() - offset;
+                    if (sumValues == null || valueCountValues == null) {
+                        return factory.constantNulls(expectedCount);
+                    }
+                    try (DoubleBuilder builder = factory.doublesFromDocValues(expectedCount)) {
+                        int lastDoc = -1;
+
+                        for (int i = offset; i < docs.count(); i++) {
+                            int doc = docs.get(i);
+                            if (doc < lastDoc) {
+                                throw new IllegalStateException("docs within same block must be in order");
+                            }
+                            if (sumValues.advanceExact(doc) && valueCountValues.advanceExact(doc)) {
+                                this.docID = doc;
+                                lastDoc = doc;
+                                double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                                long count = valueCountValues.longValue();
+                                if (count <= 0) {
+                                    warnings.registerException(
+                                        IllegalArgumentException.class,
+                                        "[aggregate_metric_double] fields has a non-positive count [value_count="
+                                            + count
+                                            + "], so it cannot fallback to a single average value, treating result as null"
+                                    );
+                                    builder.appendNull();
+                                } else {
+                                    builder.appendDouble(sum / count);
+                                }
+                            } else {
+                                builder.appendNull();
+                            }
+                        }
+                        return builder.build();
+                    }
+                }
+            };
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            throw new UnsupportedOperationException("AvgBlockLoader does not have a corresponding builder");
+        }
+
+        /** Releases the breaker reservation held by the given doc values, tolerating a {@code null} holder. */
+        private static void releaseDocValues(NumericDvSingletonOrSorted docValues) {
+            if (docValues != null) {
+                Releasables.close(docValues.singleton(), docValues.sorted());
+            }
         }
     }
 }

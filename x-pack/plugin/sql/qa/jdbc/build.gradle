@@ -35,6 +35,7 @@ dependencies {
   api project(':test:framework')
   api project(':test:test-clusters')
   implementation project(':x-pack:plugin:sql:sql-proto')
+  implementation project(xpackModule('ql:test-fixtures'))
 
   // Actual tests will use the shadow jar
   compileOnly(project(xpackModule('sql:jdbc'))) {

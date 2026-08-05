@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `VARIANCE_OVER_TIME` function [esql-variance_over_time]
 
-:::{include} ../../_snippets/functions/layout/variance_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/variance_over_time.md
 :::

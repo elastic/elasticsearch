@@ -30,6 +30,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -113,12 +114,15 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            LuceneSourceOperator.Factory::autoStrategy,
             taskConcurrency,
             maxPageSize,
             limit,
             sorts,
             estimatedPerRowSortSize,
-            scoring
+            scoring,
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 
@@ -227,7 +231,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
         IndexReader rLarge = null;
         try {
             r0 = simpleReader(dir0, 0, 1);
-            rLarge = simpleReader(dirLarge, 200, 10);
+            rLarge = simpleReader(dirLarge, 2000, 100);
 
             List<ShardContext> shardContexts = List.of(new LuceneSourceOperatorTests.MockShardContext(r0, 0) {
                 @Override
@@ -254,12 +258,15 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 new IndexedByShardIdFromList<>(shardContexts),
                 queryFunction,
                 DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
                 taskConcurrency,
                 maxPageSize,
                 10,
                 sorts,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                () -> 0L,
+                QueryWarnings.EMIT
             );
             DriverContext ctx = driverContext();
             LuceneTopNSourceOperator sourceOperator = (LuceneTopNSourceOperator) factory.get(ctx);

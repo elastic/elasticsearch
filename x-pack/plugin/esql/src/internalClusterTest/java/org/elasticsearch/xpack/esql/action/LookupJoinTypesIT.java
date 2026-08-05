@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.queryparser.ext.Extensions.Pair;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -23,11 +25,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -61,7 +63,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -105,6 +109,7 @@ import static org.hamcrest.Matchers.is;
 // TODO: This suite creates a lot of indices. It should be sufficient to just create 1 main index with 1 field per relevant type and 1
 // lookup index with 1 field per relevant type; only union types require additional main indices so we can have the same field mapped to
 // different types.
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class LookupJoinTypesIT extends ESIntegTestCase {
@@ -114,7 +119,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            EsqlPlugin.class,
+            TestEncryptionServicePlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
@@ -253,6 +259,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
+                        || type == DOUBLE_RANGE // block loading is not supported yet
+                        || type == FLATTENED // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM
                         || type == GEOHASH

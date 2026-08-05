@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
@@ -40,7 +41,7 @@ public class GroqUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequestWithUrlOrganizationAndHeaders() throws IOException {
         var request = createRequest("https://example.org/custom", "org-1", "api-key", "hello", "model", "user", true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -57,7 +58,7 @@ public class GroqUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequestUsesDefaultUrl() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "api-key", "hello", "model", null, false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));

@@ -51,9 +51,17 @@ Best practices:
 ::::
 :::::
 
-**Syntax**
+## Syntax
 
 ::::{applies-switch}
+
+:::{applies-item} stack: ga 9.5+
+
+```esql
+COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }
+```
+
+:::
 
 :::{applies-item} stack: ga 9.2+
 
@@ -73,7 +81,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 
 ::::
 
-**Parameters**
+## Parameters
 
 `column`
 :   (Optional) The name of the output column containing the LLM's response.
@@ -88,7 +96,12 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-**Description**
+`timeout_duration` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+:   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
+    If not specified, the default inference timeout applies. Use this to set a
+    per-call timeout independent of the inference task timeout.
+
+## Description
 
 The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
@@ -103,47 +116,50 @@ including:
 - Content rewriting
 - Creative generation
 
-**Requirements**
+## Requirements
 
 To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
 
-#### Handling timeouts
+### Handling timeouts
 
-`COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
-
-How you increase the timeout depends on your deployment type:
+`COMPLETION` commands may time out when processing large datasets or complex prompts.
 
 ::::{applies-switch}
 
-:::{applies-item} ess:
-* You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
-* You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+:::{applies-item} {"stack": "ga 9.5", "serverless": "ga"}
+
+The default timeout is 120 seconds.
+
+You can set per-call timeout using the `"timeout"` option in the `WITH` clause:
+```esql
+COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
+```
 :::
 
-:::{applies-item} self:
-* You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
-* You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-* Alternatively, you can add timeout parameters to individual queries
-:::
+:::{applies-item} {"stack": "preview 9.1.0, ga 9.4.0"}
 
-:::{applies-item} serverless:
-* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
+The timeout is 30 seconds by default.
+
 :::
 
 ::::
 
-If you don't want to increase the timeout limit, try the following:
+If you can't modify your timeout limits, try the following:
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries
 * Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
 
-**Examples**
+## Examples
 
-Use the default column name (results stored in `completion` column):
+The following examples show common `COMPLETION` patterns.
+
+### Use the default output column name
+
+If no column name is specified, the response is stored in `completion`:
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -155,7 +171,9 @@ ROW question = "What is Elasticsearch?"
 |------------------------|-------------------------------------------|
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Specify the output column (results stored in `answer` column):
+### Specify the output column name
+
+Use `column =` to assign the response to a named column:
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -167,7 +185,9 @@ ROW question = "What is Elasticsearch?"
 | --- | --- |
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Summarize the top 10 highest-rated movies using a prompt:
+### Summarize documents with a prompt
+
+Use `CONCAT` to build a prompt from field values before calling `COMPLETION`:
 
 ```esql
 FROM movies

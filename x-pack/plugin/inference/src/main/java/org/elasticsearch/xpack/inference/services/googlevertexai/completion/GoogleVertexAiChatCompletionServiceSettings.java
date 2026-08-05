@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -51,7 +50,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
 
-    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED = TransportVersion.fromName(
+    private static final TransportVersion ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_vertexai_chatcompletion_added"
     );
 
@@ -127,17 +126,17 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     public static GoogleVertexAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         // Extract Google Vertex AI fields
-        String projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var projectId = ServiceUtils.extractOptionalString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var location = ServiceUtils.extractOptionalString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = ServiceUtils.extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // Extract Google Model Garden fields
-        URI uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
-        URI streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
-        GoogleModelGardenProvider provider = ServiceUtils.extractOptionalEnum(
+        var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
+        var streamingUri = ServiceUtils.extractOptionalUri(map, STREAMING_URL_SETTING_NAME, validationException);
+        var provider = ServiceUtils.extractOptionalEnum(
             map,
             PROVIDER_SETTING_NAME,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -147,19 +146,11 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         );
 
         // Extract rate limit settings
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleVertexAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
-        validateServiceSettings(provider, uri, streamingUri, projectId, location, modelId, validationException);
+        validateServiceSettings(provider, uri, streamingUri, projectId, modelId, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiChatCompletionServiceSettings(
             projectId,
@@ -172,21 +163,41 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         );
     }
 
+    @Override
+    public GoogleVertexAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            this.projectId,
+            this.location,
+            this.modelId,
+            this.uri,
+            this.streamingUri,
+            this.provider,
+            extractedRateLimitSettings
+        );
+    }
+
     private static void validateServiceSettings(
-        GoogleModelGardenProvider provider,
-        URI uri,
-        URI streamingUri,
-        String projectId,
-        String location,
-        String modelId,
+        @Nullable GoogleModelGardenProvider provider,
+        @Nullable URI uri,
+        @Nullable URI streamingUri,
+        @Nullable String projectId,
+        @Nullable String modelId,
         ValidationException validationException
     ) {
         // GOOGLE is the default provider, so if provider is null, we treat it as GOOGLE
         boolean isNonGoogleProvider = provider != null && provider != GoogleModelGardenProvider.GOOGLE;
         // If using a non-Google provider, at least one URL must be provided
         boolean hasAnyUrl = uri != null || streamingUri != null;
-        // If using Google Vertex AI, all three fields must be provided
-        boolean hasAllVertexFields = projectId != null && location != null && modelId != null;
+        // For Google Vertex AI, project_id and model_id are required.
+        boolean hasRequiredVertexFields = projectId != null && modelId != null;
 
         if (isNonGoogleProvider) {
             if (hasAnyUrl == false) {
@@ -194,7 +205,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
                 validationException.addValidationError(
                     String.format(
                         Locale.ROOT,
-                        "Google Model Garden provider=%s selected. Either 'uri' or 'streaming_uri' must be provided",
+                        "Google Model Garden [provider] is [%s]. Either [uri] or [streaming_uri] must be provided",
                         provider
                     )
                 );
@@ -202,13 +213,13 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         } else if (hasAnyUrl) {
             // If using Google Vertex AI, URLs must not be provided
             validationException.addValidationError(String.format(Locale.ROOT, """
-                'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must not be provided. \
-                Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s""", uri, streamingUri));
-        } else if (hasAllVertexFields == false) {
-            // If using Google Vertex AI, all fields must be provided
+                [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] must not be provided. \
+                Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s]""", uri, streamingUri));
+        } else if (hasRequiredVertexFields == false) {
+            // If using Google Vertex AI, project_id and model_id must be provided
             validationException.addValidationError(String.format(Locale.ROOT, """
-                For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-                Provided values: location=%s, project_id=%s, model_id=%s""", location, projectId, modelId));
+                For Google Vertex AI models, you must provide [project_id] and [model_id]. \
+                Provided values: [project_id] is [%s], [model_id] is [%s]""", projectId, modelId));
         }
     }
 
@@ -269,12 +280,12 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
+        return ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.supports(ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED);
+        return version.supports(ML_INFERENCE_VERTEXAI_CHAT_COMPLETION_ADDED);
     }
 
     @Override

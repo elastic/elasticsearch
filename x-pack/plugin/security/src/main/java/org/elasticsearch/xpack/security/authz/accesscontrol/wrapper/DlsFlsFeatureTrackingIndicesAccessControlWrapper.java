@@ -61,6 +61,9 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapper {
         }
 
         private void trackUsage(IndexAccessControl iac) {
+            if (iac.isDlsFlsImplicit()) {
+                return;
+            }
             if (iac.getDocumentPermissions().hasDocumentLevelPermissions()) {
                 boolean dlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.check(licenseState);
                 assert dlsLicensed : "DLS feature should be licensed before usage";

@@ -43,7 +43,7 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
     public static final ResponseHandler EMBEDDINGS_HANDLER = new OpenAiResponseHandler(
-        "openai text embedding",
+        "openai embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse,
         false
     );

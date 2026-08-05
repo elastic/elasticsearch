@@ -170,6 +170,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerExponentialHistogramHistogramAggregator,
             AnalyticsAggregatorFactory::registerExponentialHistogramMinAggregator,
             AnalyticsAggregatorFactory::registerExponentialHistogramMaxAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramRangeAggregator,
             AnalyticsAggregatorFactory::registerExponentialHistogramPercentilesAggregator,
             AnalyticsAggregatorFactory::registerExponentialHistogramPercentileRanksAggregator
         );

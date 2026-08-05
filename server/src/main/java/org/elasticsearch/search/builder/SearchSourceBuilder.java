@@ -2222,13 +2222,28 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
+    /**
+     * TEMPORARY shallow snapshot for coordinator {@code profile.request} metadata.
+     * Avoids copying via XContent (see {@link #toString(Params)}) which cannot round-trip internal-only query clauses
+     * (for example {@code rank_docs_query}). Prefer restoring a safe deep copy once XContent parsing
+     * covers all query types that can appear after rewrite.
+     */
+    public static SearchSourceBuilder shallowCopyForSearchCoordinatorContext(SearchSourceBuilder source) {
+        Objects.requireNonNull(source, "source");
+        SearchSourceBuilder copy = source.shallowCopy();
+        if (source.retriever() != null) {
+            copy.retriever(source.retriever());
+        }
+        return copy;
+    }
+
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
         if (profile) return false;
 
         if (sorts != null) {
-            // the implicit sorting is by _score, which supports parallel collection
-            for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) return false;
+            var primarySort = sorts.stream().findFirst();
+            if (primarySort.map(SortBuilder::supportsParallelCollection).orElse(true) == false) {
+                return false;
             }
         }
 

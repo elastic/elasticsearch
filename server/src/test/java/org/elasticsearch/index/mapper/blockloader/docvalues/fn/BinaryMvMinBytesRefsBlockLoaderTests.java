@@ -43,7 +43,10 @@ public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 int baseLength = (i % cardinality) + 1;
                 char c = 'z';
                 field.add(new BytesRef(("" + c).repeat(baseLength)));
@@ -106,10 +109,6 @@ public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
             return hasToString("MvMinBytesRefsFromBinary.SeparateCount");
         }
         return hasToString("BlockDocValuesReader.Bytes");
-    }
-
-    private TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private void checkBlocks(TestBlock strings, TestBlock mvMin) {

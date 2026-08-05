@@ -11,8 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.SplitAwareRequest;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -39,12 +38,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.action.get.GetResponse
  * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, SplitAwareRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RetryableSplitAwareRequest {
 
     private String id;
     private String routing;
+    private boolean routingFromSlice;
     private String preference;
 
     private String[] storedFields;
@@ -158,6 +156,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    public GetRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
@@ -174,6 +177,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public String routing() {
         return this.routing;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public String preference() {
@@ -227,7 +234,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this.realtime;
     }
 
-    @Override
     public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;

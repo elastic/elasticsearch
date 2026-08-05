@@ -19,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -200,6 +201,21 @@ public class AsyncTaskManagementService<
         }
     }
 
+    /**
+     * Same behavior as {@link ActionListener#respondAndRelease(ActionListener, RefCounted)} but without relying on that method's generic
+     * signature (javac cannot infer {@code R extends RefCounted} from {@code Response extends ActionResponse} here). All
+     * {@link ActionResponse} types implement {@link RefCounted} via {@link org.elasticsearch.transport.TransportMessage}; default
+     * {@code decRef} is a no-op unless overridden.
+     */
+    private static <Response extends ActionResponse> void respondWithRelease(ActionListener<Response> listener, Response response) {
+        RefCounted r = (RefCounted) response;
+        try {
+            listener.onResponse(response);
+        } finally {
+            r.decRef();
+        }
+    }
+
     private ActionListener<Response> wrapStoringListener(
         T searchTask,
         TimeValue waitForCompletionTimeout,
@@ -212,7 +228,7 @@ public class AsyncTaskManagementService<
         Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
             if (acquiredListener != null) {
-                acquiredListener.onResponse(operation.initialResponse(searchTask));
+                respondWithRelease(acquiredListener, operation.initialResponse(searchTask));
             }
         }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
 
@@ -226,12 +242,12 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.running(() -> acquiredListener.onResponse(response))
+                        ActionListener.running(() -> respondWithRelease(acquiredListener, response))
                     );
                 } else {
                     taskManager.unregister(searchTask);
                     searchTask.onResponse(response);
-                    acquiredListener.onResponse(response);
+                    respondWithRelease(acquiredListener, response);
                 }
             } else {
                 // We finished after timeout - saving results
@@ -354,10 +370,15 @@ public class AsyncTaskManagementService<
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener
     ) {
+        Response r = task.getCurrentResult();
         try {
-            listener.onResponse(new StoredAsyncResponse<>(task.getCurrentResult(), task.getExpirationTimeMillis()));
+            listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis()));
         } catch (Exception ex) {
             listener.onFailure(ex);
+        } finally {
+            if (r instanceof RefCounted rc) {
+                rc.decRef();
+            }
         }
     }
 }

@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -46,9 +50,22 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
+        .unary(Count::new)
+        .capabilities("flattened")
+        .name("count");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeries(Count::new)
+        .description("Counts the number of elements in the input vector.")
+        .example("count(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .name("count");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
+        briefSummary = "Returns the total number of input values.",
         description = "Returns the total number (count) of input values.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -73,7 +90,19 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
                 `COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
                 three-valued logic ({wikipedia}/Three-valued_logic[3VL]): `TRUE OR NULL` is `TRUE`, but
-                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null") }
+                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null"),
+            @Example(
+                description = "`COUNT` can also operate on `exponential_histogram` fields, "
+                    + "returning the total number of values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "countExpHistoForDocs"
+            ),
+            @Example(
+                description = "`COUNT` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the total number of values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "countTDigestForDocs"
+            ) }
     )
     public Count(
         Source source,
@@ -88,6 +117,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "exponential_histogram",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "geo_point",
@@ -98,6 +128,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "integer",
                 "ip",
                 "keyword",
+                "flattened",
                 "long",
                 "tdigest",
                 "text",
@@ -159,10 +190,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, histogram, or date_range"
+            "any type except counter types or histogram"
         );
     }
 
@@ -171,13 +202,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(
-                s,
-                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
-                filter(),
-                window(),
-                SummationMode.COMPENSATED_LITERAL
-            );
+            return new Coalesce(s, AggregateMetricDoubleSurrogate(this), List.of(new Literal(s, 0L, DataType.LONG)));
         }
 
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
@@ -217,5 +242,16 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         }
 
         return null;
+    }
+
+    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+        var s = af.source();
+        return new Sum(
+            s,
+            FromAggregateMetricDouble.withMetric(s, af.field(), AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+            af.filter(),
+            af.window(),
+            SummationMode.COMPENSATED_LITERAL
+        );
     }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -39,6 +40,8 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
+        private static final TransportVersion CLOSE_JOB_NULLABLE = TransportVersion.fromName("ml_stop_datafeed_close_job_nullable");
+
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
@@ -69,7 +72,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
         private boolean allowNoMatch = true;
-        private boolean closeJob = false;
+        private Boolean closeJob;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -84,7 +87,11 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
             allowNoMatch = in.readBoolean();
-            closeJob = in.readBoolean();
+            if (in.getTransportVersion().supports(CLOSE_JOB_NULLABLE)) {
+                closeJob = in.readOptionalBoolean();
+            } else {
+                closeJob = in.readBoolean() ? Boolean.TRUE : null;
+            }
         }
 
         public String getDatafeedId() {
@@ -128,7 +135,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return this;
         }
 
-        public boolean closeJob() {
+        public Boolean closeJob() {
             return closeJob;
         }
 
@@ -161,7 +168,11 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
             out.writeBoolean(allowNoMatch);
-            out.writeBoolean(closeJob);
+            if (out.getTransportVersion().supports(CLOSE_JOB_NULLABLE)) {
+                out.writeOptionalBoolean(closeJob);
+            } else {
+                out.writeBoolean(closeJob != null && closeJob);
+            }
         }
 
         @Override
@@ -176,7 +187,9 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
             builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            builder.field(CLOSE_JOB.getPreferredName(), closeJob);
+            if (closeJob != null) {
+                builder.field(CLOSE_JOB.getPreferredName(), closeJob);
+            }
             builder.endObject();
             return builder;
         }

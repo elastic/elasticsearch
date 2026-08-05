@@ -333,6 +333,46 @@ POST test-index/_search
 
 :::::
 
+## Diversify results with `semantic_text` fields [result-diversification]
+
+```{applies_to}
+stack: preview 9.4
+serverless: preview
+```
+
+The [diversify retriever](/reference/elasticsearch/rest-apis/retrievers/diversify-retriever.md) supports the use of `semantic_text` field types for result diversification.
+
+:::{note}
+The `semantic_text` field must use `dense_vector` embeddings such as those from `text_embedding` inference tasks.
+You must also provide either a `query_vector` or a `query_vector_builder`.
+:::
+
+```console
+POST test-index/_search
+{
+    "retriever": {
+        "diversify": {
+            "type": "mmr",
+            "field": "my_semantic_field",
+            "lambda": 0.9,
+            "size": 3,
+            "query_vector": [0.1, 3.2, 2.1],
+            "retriever": {
+                "standard": {
+                    "query": {
+                        "match": {
+                            "my_semantic_field": {
+                                "query": "What causes muscle soreness after running?"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
 ## Performing {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 
 ```{applies_to}

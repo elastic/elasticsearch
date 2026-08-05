@@ -47,10 +47,10 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, docValuesSupplier);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new BytesRefsFromBinary(dv);
     }
@@ -59,13 +59,14 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+    public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinaryReader {
         public BytesRefsFromBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            // Attempt a fast path through OptionalColumnAtATimeReader
             if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {

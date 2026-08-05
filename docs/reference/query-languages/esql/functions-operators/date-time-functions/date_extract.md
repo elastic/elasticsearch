@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DATE_EXTRACT` function [esql-date_extract]
 
-:::{include} ../../_snippets/functions/layout/date_extract.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/date_extract.md
 :::

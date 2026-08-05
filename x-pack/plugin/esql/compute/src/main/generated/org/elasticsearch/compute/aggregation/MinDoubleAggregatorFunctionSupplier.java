@@ -31,13 +31,13 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public MinDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinDoubleAggregatorFunction.create(driverContext, channels);
+    return new MinDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new MinDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

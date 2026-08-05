@@ -39,7 +39,7 @@ public class RestPutRoleActionTests extends ESTestCase {
             .withParams(Map.of("name", "dice"))
             .withContent(new BytesArray("{ }"), XContentType.JSON)
             .build();
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);

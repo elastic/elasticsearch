@@ -23,7 +23,7 @@ import java.io.IOException;
 /**
  * A query that matches no document.
  */
-public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
+public class MatchNoneQueryBuilder extends LeafQueryBuilder<MatchNoneQueryBuilder> {
     public static final String NAME = "match_none";
 
     private String rewriteReason;

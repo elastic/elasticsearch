@@ -337,6 +337,58 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
     }
 
+    public void testRemoveReservedProjectStateSubmitsTask() {
+        ClusterService clusterService = mock(ClusterService.class);
+
+        ArgumentCaptor<ReservedClusterStateService.RemoveReservedProjectStateTask> task = ArgumentCaptor.captor();
+        when(clusterService.createTaskQueue(ArgumentMatchers.contains("reserved state remove project"), any(), any())).thenAnswer(i -> {
+            MasterServiceTaskQueue<ReservedClusterStateService.RemoveReservedProjectStateTask> queue = mockTaskQueue();
+            doNothing().when(queue).submitTask(any(), task.capture(), any());
+            return queue;
+        });
+
+        ReservedClusterStateService service = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(),
+            List.of()
+        );
+
+        ProjectId projectId = randomUniqueProjectId();
+        service.removeReservedProjectState(projectId, ActionListener.noop());
+
+        assertThat(task.getValue(), notNullValue());
+        assertThat(task.getValue().projectId(), equalTo(projectId));
+    }
+
+    public void testRemoveReservedProjectStateExecutorDropsTheEntry() {
+        ProjectId projectId = randomUniqueProjectId();
+        ProjectId otherProjectId = randomUniqueProjectId();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder()
+                    .putProjectSettings(projectId, Settings.EMPTY)
+                    .markProjectForDeletion(projectId)
+                    .putProjectSettings(otherProjectId, Settings.EMPTY)
+                    .build()
+            )
+            .build();
+
+        var executor = new ReservedClusterStateService.RemoveReservedProjectStateExecutor();
+        var task = new ReservedClusterStateService.RemoveReservedProjectStateTask(projectId, ActionListener.noop());
+        ClusterState updated = executor.executeTask(task, state).v1();
+
+        ProjectStateRegistry updatedRegistry = ProjectStateRegistry.get(updated);
+        assertFalse(updatedRegistry.hasProject(projectId));
+        assertFalse(updatedRegistry.getProjectsMarkedForDeletion().contains(projectId));
+        // unrelated projects are untouched
+        assertTrue(updatedRegistry.hasProject(otherProjectId));
+
+        // removing again is a no-op that returns the same state instance
+        assertThat(executor.executeTask(task, updated).v1(), sameInstance(updated));
+    }
+
     public void testTransformAndRemoveGetCalled() throws Exception {
         // TODO: Ought to do this for project state updates too.
 

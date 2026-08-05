@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,10 +27,12 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -55,6 +58,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -76,6 +80,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
     private final OriginalIndices originalIndices;
+    // Set by the coordinator to signal that it supports rebuilding the ShardSearchRequest in between phases
+    // from its own data, so data nodes should omit it in their shard results.
+    // Required to handle CCS bw compatibility with proxy connections.
+    private final boolean enableShardResultsSkipRequest;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
@@ -88,6 +96,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     private final TransportVersion channelVersion;
 
+    private DiscoveryNode coordinatingNode;
+
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
      * Use this to test if the mapping supports synthetic _source and to get a sense
@@ -95,6 +105,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      * enabling synthetic source natively in the index.
      */
     private final boolean forceSyntheticSource;
+    @Nullable
+    private final String sliceRouting;
 
     /**
      * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
@@ -103,6 +115,21 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public static final TransportVersion SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
         "shard_search_request_reshard_shard_count_summary"
+    );
+    public static final TransportVersion SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST = TransportVersion.fromName(
+        "shard_results_skip_shard_search_request"
+    );
+
+    /**
+     * Feature flag controlling whether the coordinator omits the {@link ShardSearchRequest} from
+     * shard-level results ({@link org.elasticsearch.search.query.QuerySearchResult},
+     * {@link org.elasticsearch.search.dfs.DfsSearchResult},
+     * {@link org.elasticsearch.search.rank.feature.RankFeatureResult}).
+     * Enabled by default in snapshot builds; requires
+     * {@code -Des.shard_results_skip_shard_search_request_feature_flag_enabled=true} in release builds.
+     */
+    public static final FeatureFlag SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG = new FeatureFlag(
+        "shard_results_skip_shard_search_request"
     );
 
     // Test only constructor.
@@ -129,7 +156,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             clusterAlias,
             null,
             null,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            true
         );
     }
 
@@ -145,7 +173,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
         TimeValue keepAlive,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean enableShardResultsSkipRequest
     ) {
         this(
             originalIndices,
@@ -166,7 +195,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
             searchRequest.getWaitForCheckpointsTimeout(),
             searchRequest.isForceSyntheticSource(),
-            splitShardCountSummary
+            splitShardCountSummary,
+            searchRequest.searchSlice(),
+            enableShardResultsSkipRequest
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -188,19 +219,30 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
-    // Used by ValidateQueryAction, ExplainAction, FieldCaps, TermsEnumAction, lookup join in ESQL
+    // Used by ValidateQueryAction, FieldCaps, TermsEnumAction
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
         // TODO fix SplitShardCountSummary
         this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 
-    // Used by ESQL and field_caps API
+    // Used by ESQL, field_caps API, TransportExplainAction
     public ShardSearchRequest(
         ShardId shardId,
         long nowInMillis,
         AliasFilter aliasFilter,
         String clusterAlias,
         SplitShardCountSummary splitShardCountSummary
+    ) {
+        this(shardId, nowInMillis, aliasFilter, clusterAlias, splitShardCountSummary, null);
+    }
+
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting
     ) {
         this(
             OriginalIndices.NONE,
@@ -221,7 +263,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            splitShardCountSummary
+            splitShardCountSummary,
+            sliceRouting,
+            true
         );
     }
 
@@ -245,7 +289,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting,
+        boolean enableShardResultsSkipRequest
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -268,6 +314,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
         this.splitShardCountSummary = splitShardCountSummary;
+        this.sliceRouting = sliceRouting;
+        this.enableShardResultsSkipRequest = enableShardResultsSkipRequest;
     }
 
     @SuppressWarnings("this-escape")
@@ -294,6 +342,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
         this.splitShardCountSummary = clone.splitShardCountSummary;
+        this.sliceRouting = clone.sliceRouting;
+        this.enableShardResultsSkipRequest = clone.enableShardResultsSkipRequest;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -311,6 +361,17 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
         canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        if (in.getTransportVersion().supports(SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+            // Data nodes adapt their response, hence skip including the shard search request in their results whenever possible,
+            // depending on the version of the coordinating node. This can't be a simple version check though, because it needs
+            // to account for the cross-cluster scenario where the shard request / response is proxied via a node that supports
+            // the feature back to a coordinating node that does not. The version of the channel that the data node writes the
+            // response back to supports the feature, but the coordinating node that originated the request did not set the flag
+            // if it is on an older version that does not support rebuilding the shard search request from its own data.
+            enableShardResultsSkipRequest = in.readBoolean();
+        } else {
+            enableShardResultsSkipRequest = false;
+        }
         bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
         keepAlive = in.readOptionalTimeValue();
@@ -319,6 +380,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
         forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            sliceRouting = in.readOptionalString();
+        } else {
+            sliceRouting = null;
+        }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
@@ -326,6 +392,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
 
         originalIndices = OriginalIndices.readOriginalIndices(in);
+
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+        }
     }
 
     @Override
@@ -333,6 +403,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -354,6 +428,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            if (out.getTransportVersion().supports(SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST)) {
+                out.writeBoolean(enableShardResultsSkipRequest);
+            }
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
@@ -362,6 +439,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
         out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(sliceRouting);
+        }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }
@@ -477,6 +557,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.canReturnNullResponseIfMatchNoDocs = value;
     }
 
+    public boolean enableShardResultsSkipRequest() {
+        return enableShardResultsSkipRequest;
+    }
+
     private static final ThreadLocal<BytesStreamOutput> scratch = ThreadLocal.withInitial(BytesStreamOutput::new);
 
     /**
@@ -524,6 +608,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public SplitShardCountSummary getSplitShardCountSummary() {
         return splitShardCountSummary;
+    }
+
+    @Nullable
+    public String sliceRouting() {
+        return sliceRouting;
     }
 
     @Override
@@ -664,4 +753,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;
     }
+
+    public void setCoordinatingNode(DiscoveryNode node) {
+        this.coordinatingNode = node;
+    }
+
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
+
 }

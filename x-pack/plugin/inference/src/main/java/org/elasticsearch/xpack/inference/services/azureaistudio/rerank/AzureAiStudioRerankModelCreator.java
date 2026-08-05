@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.inference.services.ModelCreator;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.checkProviderAndEndpointTypeForTask;
+
 /**
  * Creates {@link AzureAiStudioRerankModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -33,11 +35,15 @@ public class AzureAiStudioRerankModelCreator implements ModelCreator<AzureAiStud
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new AzureAiStudioRerankModel(inferenceId, serviceSettings, taskSettings, secretSettings, context);
+        var model = new AzureAiStudioRerankModel(inferenceId, serviceSettings, taskSettings, secretSettings, context);
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 
     @Override
     public AzureAiStudioRerankModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new AzureAiStudioRerankModel(config, secrets);
+        var model = new AzureAiStudioRerankModel(config, secrets);
+        checkProviderAndEndpointTypeForTask(model.getTaskType(), model.provider(), model.endpointType());
+        return model;
     }
 }

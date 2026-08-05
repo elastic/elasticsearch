@@ -10,9 +10,11 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,6 +37,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
@@ -52,6 +56,7 @@ public class TaskResultsService {
 
     public static final String TASK_INDEX = ".tasks";
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     public static final SystemIndexDescriptor TASKS_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(TASK_INDEX + "*")
@@ -60,6 +65,18 @@ public class TaskResultsService {
         .setSettings(getTaskResultIndexSettings())
         .setMappings(getTaskResultIndexMappings())
         .setOrigin(TASKS_ORIGIN)
+        .setPriorSystemIndexDescriptors(
+            List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(TASK_INDEX + "*")
+                    .setPrimaryIndex(TASK_INDEX)
+                    .setDescription("Task Result Index")
+                    .setSettings(getTaskResultIndexSettings())
+                    .setMappings(getTaskResultIndexMappingsV0())
+                    .setOrigin(TASKS_ORIGIN)
+                    .build()
+            )
+        )
         .build();
 
     /**
@@ -67,7 +84,6 @@ public class TaskResultsService {
      * time is 600000 milliseconds, ten minutes.
      */
     static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
-    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 0;
 
     private final Client client;
 
@@ -80,6 +96,28 @@ public class TaskResultsService {
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
+        doStoreResult(STORE_BACKOFF_POLICY.iterator(), buildIndexRequest(taskResult), listener);
+    }
+
+    /**
+     * Stores the task result only if a document with the same ID does not already exist. Uses {@code opType(CREATE)} so a concurrent or
+     * earlier write wins. A version conflict (document already exists) is treated as success.
+     */
+    public void storeResultIfAbsent(TaskResult taskResult, ActionListener<Void> listener) {
+        doStoreResult(
+            STORE_BACKOFF_POLICY.iterator(),
+            buildIndexRequest(taskResult).setOpType(DocWriteRequest.OpType.CREATE),
+            listener.delegateResponse((l, e) -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(e);
+                }
+            })
+        );
+    }
+
+    private IndexRequestBuilder buildIndexRequest(TaskResult taskResult) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().taskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_CANCELLED_PARAM, "false")));
@@ -87,7 +125,7 @@ public class TaskResultsService {
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
-        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
+        return index;
     }
 
     private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {
@@ -118,6 +156,11 @@ public class TaskResultsService {
             .build();
     }
 
+    /**
+     * Returns the latest task result index mappings. When new mappings are added, previous mappings
+     * should be moved to a new method (e.g. getTaskResultIndexMappingsV1()) to prevent accidentally modifying
+     * existing mappings.
+     */
     private static XContentBuilder getTaskResultIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
@@ -125,8 +168,108 @@ public class TaskResultsService {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
+                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Build.current().version());
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, TASK_RESULTS_INDEX_MAPPINGS_VERSION);
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("completed");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("task");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("action");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("cancellable");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+
+                            builder.startObject("id");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("parent_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("node");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("running_time_in_nanos");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
+
+                            builder.startObject("type");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("status");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("description");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("headers");
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("original_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("original_start_time_in_millis");
+                            builder.field("type", "long");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("response");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+
+                    builder.startObject("error");
+                    builder.field("type", "object");
+                    builder.field("enabled", false);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build " + TASK_INDEX + " index mappings", e);
+        }
+    }
+
+    private static XContentBuilder getTaskResultIndexMappingsV0() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Build.current().version());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

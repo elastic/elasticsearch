@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.lang.invoke.MethodHandles;
@@ -23,6 +24,39 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     public static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
     public static final VarHandle FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
     public static final VarHandle DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+
+    @Override
+    public int maxValueSize(Block b) {
+        return switch (b.elementType()) {
+            case BOOLEAN -> Byte.BYTES;
+            case INT -> Integer.BYTES;
+            case LONG -> Long.BYTES;
+            case FLOAT -> Float.BYTES;
+            case DOUBLE -> Double.BYTES;
+            case BYTES_REF -> {
+                int maxLen = b.valueMaxByteSize();
+                yield vIntSize(maxLen) + maxLen;
+            }
+            case NULL -> 0;
+            default -> throw new IllegalArgumentException("No encoder for [" + b.elementType() + "]");
+        };
+    }
+
+    private static int vIntSize(int value) {
+        if (value < 0x80) {
+            return 1;
+        }
+        if (value < 0x4000) {
+            return 2;
+        }
+        if (value < 0x200000) {
+            return 3;
+        }
+        if (value < 0x10000000) {
+            return 4;
+        }
+        return 5;
+    }
 
     @Override
     public void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {

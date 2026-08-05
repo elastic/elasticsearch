@@ -1,0 +1,9 @@
+ExchangeSinkExec[[$$sum$sum{r}#0, $$sum$seen{r}#1],false]
+\_AggregateExec[[],[SUM(languages.long{f}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS sum#3],INITIAL,[$$sum$sum{r}#4, $$sum$seen{r}#5],8]
+  \_FieldExtractExec[languages.long{f}#2]<[],[],[]>
+    \_EsQueryExec[employees], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "languages.long",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

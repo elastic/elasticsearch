@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.both;
@@ -82,15 +83,13 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgrad
         search(dataStreamName);
         query(dataStreamName);
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            time = time.plusNanos(60 * 30);
+        AtomicReference<Instant> timeRef = new AtomicReference<>(time);
+        clusterRollingUpgrade(index -> {
+            timeRef.set(timeRef.get().plusNanos(60 * 30));
             bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
-
-        }
+        });
 
         var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         forceMergeRequest.addParameter("max_num_segments", "1");

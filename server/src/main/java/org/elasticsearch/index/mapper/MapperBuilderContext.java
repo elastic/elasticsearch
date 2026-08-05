@@ -28,7 +28,25 @@ public class MapperBuilderContext {
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
+        return root(isSourceSynthetic, isDataStream, mergeReason, false);
+    }
+
+    public static MapperBuilderContext root(
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        MergeReason mergeReason,
+        boolean isStrictColumnar
+    ) {
+        return new MapperBuilderContext(
+            null,
+            isSourceSynthetic,
+            isDataStream,
+            false,
+            ObjectMapper.Defaults.DYNAMIC,
+            mergeReason,
+            false,
+            isStrictColumnar
+        );
     }
 
     private final String path;
@@ -38,6 +56,7 @@ public class MapperBuilderContext {
     private final ObjectMapper.Dynamic dynamic;
     private final MergeReason mergeReason;
     private final boolean inNestedContext;
+    private final boolean isStrictColumnar;
 
     MapperBuilderContext(
         String path,
@@ -48,6 +67,19 @@ public class MapperBuilderContext {
         MergeReason mergeReason,
         boolean inNestedContext
     ) {
+        this(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, inNestedContext, false);
+    }
+
+    MapperBuilderContext(
+        String path,
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        boolean parentObjectContainsDimensions,
+        ObjectMapper.Dynamic dynamic,
+        MergeReason mergeReason,
+        boolean inNestedContext,
+        boolean isStrictColumnar
+    ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
@@ -56,6 +88,7 @@ public class MapperBuilderContext {
         this.dynamic = dynamic;
         this.mergeReason = mergeReason;
         this.inNestedContext = inNestedContext;
+        this.isStrictColumnar = isStrictColumnar;
     }
 
     /**
@@ -89,7 +122,8 @@ public class MapperBuilderContext {
             parentObjectContainsDimensions,
             getDynamic(dynamic),
             this.mergeReason,
-            isInNestedContext()
+            isInNestedContext(),
+            this.isStrictColumnar
         );
     }
 
@@ -108,7 +142,8 @@ public class MapperBuilderContext {
             parentObjectContainsDimensions,
             dynamic,
             mergeReason,
-            inNestedContext
+            inNestedContext,
+            isStrictColumnar
         );
     }
 
@@ -145,6 +180,15 @@ public class MapperBuilderContext {
 
     public ObjectMapper.Dynamic getDynamic() {
         return dynamic;
+    }
+
+    /**
+     * Returns true if this context is building mappers for a strict columnar index mode.
+     * In strict columnar mode, nested object mappers with different {@code dynamic} settings are
+     * allowed during auto-flattening; their declared {@code dynamic} is captured for use at index time.
+     */
+    public boolean isStrictColumnar() {
+        return isStrictColumnar;
     }
 
     /**

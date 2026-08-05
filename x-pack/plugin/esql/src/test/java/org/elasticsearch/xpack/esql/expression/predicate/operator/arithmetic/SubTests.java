@@ -29,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
@@ -70,16 +69,26 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                     (l, r) -> l.longValue() - r.longValue(),
                     "SubLongsEvaluator"
                 ),
-                new TestCaseSupplier.NumericTypeTestConfig<>(
-                    Double.NEGATIVE_INFINITY,
-                    Double.POSITIVE_INFINITY,
-                    (l, r) -> l.doubleValue() - r.doubleValue(),
-                    "SubDoublesEvaluator"
-                )
+                new TestCaseSupplier.NumericTypeTestConfig<>(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                    double v = l.doubleValue() - r.doubleValue();
+                    return Double.isFinite(v) ? v : null;
+                }, "SubDoublesEvaluator")
             ),
             "lhs",
             "rhs",
-            (lhs, rhs) -> List.of(),
+            (lhs, rhs) -> {
+                if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
+                    return List.of();
+                }
+                double v = ((Double) lhs.getValue()) - ((Double) rhs.getValue());
+                if (Double.isFinite(v)) {
+                    return List.of();
+                }
+                return List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + v
+                );
+            },
             true
         );
 
@@ -309,7 +318,8 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             denseVectorScalarCases(
                 "Sub",
                 (v, s) -> v.stream().map(f -> f - (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
-                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) - f).toList()
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) - f).toList(),
+                List.of()
             )
         );
 
@@ -328,7 +338,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             suppliersForDate("2025-03-10T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-09T01:00:00-05:00")
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
+        suppliers = anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
             if (nullValueDataType == DataType.NULL) {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
@@ -338,28 +348,10 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                 return equalTo("LiteralsEvaluator[lit=null]");
             }
             return original;
-        }), SubTests::subErrorMessageString);
+        });
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String subErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        if (types.get(1) == DataType.DATETIME) {
-            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0)) || types.get(0) == DENSE_VECTOR) {
-                return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [datetime]";
-            }
-            if (DataType.isNull(types.get(0))) {
-                return "[-] arguments are in unsupported order: cannot subtract a [DATETIME] value [datetime] from a [NULL] amount [null]";
-            }
-        }
-
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime, numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-        }
     }
 
     private static List<TestCaseSupplier> suppliersForDate(

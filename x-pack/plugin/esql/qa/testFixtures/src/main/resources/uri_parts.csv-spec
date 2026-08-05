@@ -272,6 +272,7 @@ null                 | null               | null
 promqlSourceWithGrok
 required_capability: uri_parts_command
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"}) 
 | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}" 
@@ -290,6 +291,7 @@ null                 | null                   | null               | null       
 promqlSource
 required_capability: uri_parts_command
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
 | LIMIT 2
@@ -318,4 +320,47 @@ TS k8s
 parts.domain:keyword | parts.port:integer | parts.scheme:keyword
 www.elastic.co       | 443                | https
 www.elastic.co       | 443                | https
+;
+
+
+nullInputRow
+required_capability: str_commands_accept_null
+
+ROW n = null
+| URI_PARTS parts=n
+;
+
+n:null | parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+null   | null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null 
+;
+
+nullInput
+required_capability: str_commands_accept_null
+
+FROM employees
+| EVAL n = null
+| URI_PARTS parts=n
+| WHERE emp_no == 10001
+| KEEP n, parts.*
+;
+
+n:null | parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+  null | null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null 
+;
+
+
+sortBeforeUriPartsAndStats
+required_capability: uri_parts_command
+required_capability: fix_compound_output_eval_sort_agnostic
+
+ROW a = 1, name_str = "a b"
+| RENAME a AS id_int
+| SORT id_int
+| MV_EXPAND name_str
+| URI_PARTS p = "https://www.example.com/foo"
+| STATS c = count(*) BY p.domain
+;
+
+c:long | p.domain:keyword
+1      | www.example.com
 ;

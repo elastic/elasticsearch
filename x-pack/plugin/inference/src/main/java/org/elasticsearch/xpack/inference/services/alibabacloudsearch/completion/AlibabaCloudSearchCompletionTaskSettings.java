@@ -46,9 +46,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
         Map<String, Object> parameters = ServiceUtils.removeAsType(map, PARAMETERS, Map.class, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(parameters);
     }
@@ -141,9 +139,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AlibabaCloudSearchCompletionTaskSettings updatedSettings = AlibabaCloudSearchCompletionTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        AlibabaCloudSearchCompletionTaskSettings updatedSettings = AlibabaCloudSearchCompletionTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

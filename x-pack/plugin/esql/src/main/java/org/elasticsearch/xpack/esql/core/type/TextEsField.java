@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -54,7 +55,7 @@ public class TextEsField extends EsField {
         writeTimeSeriesFieldType(out);
     }
 
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
         return "TextEsField";
     }
 

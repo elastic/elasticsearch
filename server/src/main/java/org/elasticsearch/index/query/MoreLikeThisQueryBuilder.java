@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -56,7 +57,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -65,7 +65,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
-public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
@@ -78,10 +78,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
-
-    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
-        Arrays.asList(TextFieldType.class, KeywordFieldType.class)
-    );
 
     private static final ParseField FIELDS = new ParseField("fields");
     private static final ParseField LIKE = new ParseField("like");
@@ -918,7 +914,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.getFieldType(field);
-                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                if (fieldType != null && (fieldType instanceof TextFieldType || fieldType instanceof KeywordFieldType) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
                     } else {
@@ -1034,13 +1030,17 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             likeFields.add(getResponse.getFields());
         }
-        return likeFields.toArray(Fields.EMPTY_ARRAY);
+        return likeFields.toArray(Fields[]::new);
     }
 
     private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
-        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
-        if (cause != null) {
-            throw ((RoutingMissingException) cause);
+        Throwable routingCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (routingCause != null) {
+            throw ((RoutingMissingException) routingCause);
+        }
+        Throwable sliceCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), SliceMissingException.class);
+        if (sliceCause != null) {
+            throw ((SliceMissingException) sliceCause);
         }
     }
 

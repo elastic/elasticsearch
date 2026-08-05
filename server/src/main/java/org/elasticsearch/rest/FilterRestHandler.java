@@ -44,6 +44,11 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return delegate.supportsReadOnlyFormEncodedPostBody();
+    }
+
+    @Override
     public boolean mediaTypesValid(RestRequest request) {
         return delegate.mediaTypesValid(request);
     }

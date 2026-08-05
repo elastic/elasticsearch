@@ -58,9 +58,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
+        checker.registerUpdateCheck("ignore_malformed", b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
         checker.registerConflictCheck("digest_type", b -> b.field("digest_type", TDigestExecutionHint.HIGH_ACCURACY));
         checker.registerConflictCheck("compression", b -> b.field("compression", 117));
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "histogram"));
     }
 
     @Override

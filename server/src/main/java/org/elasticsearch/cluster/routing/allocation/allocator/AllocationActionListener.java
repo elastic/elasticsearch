@@ -28,10 +28,10 @@ public class AllocationActionListener<T> {
     private final SetOnce<Map<String, List<String>>> additionalResponseHeaders = new SetOnce<>();
 
     /**
-     * This listener could be used when reroute completion (such as even balancing shards across the cluster) is not required for the
-     * completion of the caller operation.
+     * Returns a no-op listener for callers that do not need to wait for reroute to finish (e.g. shard rebalancing across the cluster)
+     * before completing their own operation.
      *
-     * For example, it is required to compute the desired balance to properly allocate newly created index, but it is not when deleting one.
+     * For example, waiting for reroute is needed to allocate shards for a newly created index, but not when deleting one.
      */
     public static ActionListener<Void> rerouteCompletionIsNotRequired() {
         return ActionListener.noop();

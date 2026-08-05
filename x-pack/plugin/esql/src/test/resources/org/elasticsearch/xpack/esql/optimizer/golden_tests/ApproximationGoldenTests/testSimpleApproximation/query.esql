@@ -1,0 +1,3 @@
+SET approximation={"rows": 10000};
+FROM many_numbers
+  | STATS SUM(sv), MEDIAN(sv)

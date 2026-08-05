@@ -756,3 +756,431 @@ Fields with copy_to and skip_ignored_source_read workaround:
       search:
         index: test-fls-copy-to-skip-ignored
   - match: { hits.total.value: 1 }
+
+---
+METRICS_INFO with field level security granting specific fields:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, metrics_info_command ]
+      reason: "METRICS_INFO with FLS on time series index"
+
+  - do:
+      indices.create:
+        index: ts_fls_mi_grant
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_mi_grant
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-metrics-info"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_mi_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "host", "cpu" ]
+  - match: { name: "test-fls-metrics-info" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all 3 metrics
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "data_stream"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "unit"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "metric_type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "field_type"}
+  - match: {columns.4.type: "keyword"}
+  - match: {columns.5.name: "dimension_fields"}
+  - match: {columns.5.type: "keyword"}
+  - length: {values: 3}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+  - match: {values.1.0: "memory"}
+  - match: {values.1.3: "gauge"}
+  - match: {values.1.4: "long"}
+  - match: {values.2.0: "network_in"}
+  - match: {values.2.3: "counter"}
+  - match: {values.2.4: "long"}
+
+  # With FLS API Key (only @timestamp, host, cpu granted)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - length: {values: 1}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+
+---
+METRICS_INFO with field level security excluding specific metrics:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, metrics_info_command ]
+      reason: "METRICS_INFO with FLS using except pattern"
+
+  - do:
+      indices.create:
+        index: ts_fls_mi_except
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_mi_except
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-metrics-info-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_mi_except" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "memory", "network_in" ]
+  - match: { name: "test-fls-metrics-info-except" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all 3 metrics
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
+  - length: {values: 3}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "memory"}
+  - match: {values.2.0: "network_in"}
+
+  # With FLS API Key (all fields except memory and network_in)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
+  - length: {values: 1}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+
+---
+TS_INFO with field level security granting specific fields:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, ts_info_command ]
+      reason: "TS_INFO with FLS on time series index"
+
+  - do:
+      indices.create:
+        index: ts_fls_ti_grant
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_ti_grant
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-ts-info"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_ti_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "host", "cpu" ]
+  - match: { name: "test-fls-ts-info" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all time series info (3 metrics x 2 hosts = 6 rows)
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "data_stream"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "unit"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "metric_type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "field_type"}
+  - match: {columns.4.type: "keyword"}
+  - match: {columns.5.name: "dimension_fields"}
+  - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "dimensions"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 6}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+  - match: {values.2.0: "memory"}
+  - match: {values.3.0: "memory"}
+  - match: {values.4.0: "network_in"}
+  - match: {values.5.0: "network_in"}
+
+  # With FLS API Key (only @timestamp, host, cpu granted — 1 metric x 2 hosts = 2 rows)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.6.name: "dimensions"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+
+---
+TS_INFO with field level security excluding specific metrics:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, ts_info_command ]
+      reason: "TS_INFO with FLS using except pattern"
+
+  - do:
+      indices.create:
+        index: ts_fls_ti_except
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_ti_except
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-ts-info-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_ti_except" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "memory", "network_in" ]
+  - match: { name: "test-fls-ts-info-except" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all time series info (3 metrics x 2 hosts = 6 rows)
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
+  - length: {values: 6}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+  - match: {values.2.0: "memory"}
+  - match: {values.3.0: "memory"}
+  - match: {values.4.0: "network_in"}
+  - match: {values.5.0: "network_in"}
+
+  # With FLS API Key (all except memory, network_in — 1 metric x 2 hosts = 2 rows)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
+  - length: {values: 2}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}

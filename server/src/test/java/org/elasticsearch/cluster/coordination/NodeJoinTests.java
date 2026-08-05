@@ -100,7 +100,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeCoordinator() throws Exception {
         masterService.stop();
         coordinator.stop();
         if (deterministicTaskQueue != null) {
@@ -108,7 +108,6 @@ public class NodeJoinTests extends ESTestCase {
         }
         masterService.close();
         coordinator.close();
-        super.tearDown();
     }
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {

@@ -16,8 +16,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,7 +83,9 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
                 loader.rowStrideStoredFieldSpec(),
                 equalTo(
                     StoredFieldsSpec.withSourcePaths(
-                        syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        syntheticSource
+                            ? IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                            : IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
                         Set.of("field")
                     )
                 )
@@ -130,6 +132,8 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         var settings = Settings.builder()
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
+            // DOC_VALUES_IGNORED_SOURCE requires the TSDB doc values format to be enabled
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }

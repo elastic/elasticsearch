@@ -81,6 +81,22 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
     }
 
     @Override
+    public OpenShiftAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new OpenShiftAiChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

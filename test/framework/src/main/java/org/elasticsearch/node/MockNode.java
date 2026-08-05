@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -57,6 +58,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -64,6 +66,7 @@ import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -196,7 +199,9 @@ public class MockNode extends Node {
             TelemetryProvider telemetryProvider,
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
-            ProjectResolver projectResolver
+            CrossProjectModeDecider crossProjectModeDecider,
+            ProjectResolver projectResolver,
+            List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -216,7 +221,9 @@ public class MockNode extends Node {
                     telemetryProvider,
                     nodeId,
                     linkedProjectConfigService,
-                    projectResolver
+                    crossProjectModeDecider,
+                    projectResolver,
+                    transportMessageListenerProviders
                 );
             } else {
                 return new MockTransportService(
@@ -229,6 +236,7 @@ public class MockNode extends Node {
                     taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             }

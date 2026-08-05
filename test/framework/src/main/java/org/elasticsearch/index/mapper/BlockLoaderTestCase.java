@@ -23,7 +23,11 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -33,6 +37,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -50,6 +57,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
+    protected static final SourceFieldMapper.Mode[] SOURCE_MODES = {
+        SourceFieldMapper.Mode.STORED,
+        SourceFieldMapper.Mode.SYNTHETIC,
+        SourceFieldMapper.Mode.COLUMNAR_STORED };
+
     /**
      * A large enough size that loading the field won't circuit break.
      */
@@ -58,22 +70,38 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
-        for (boolean syntheticSource : new boolean[] { false, true }) {
-            for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
-                args.add(new Object[] { new Params(syntheticSource, preference) });
+
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
+
+        for (IndexMode indexMode : modes) {
+            for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
+                if (indexMode.supportedSourceModes().contains(sourceMode) == false) {
+                    continue;
+                }
+                for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
+                    args.add(new Object[] { new Params(indexMode, sourceMode, preference) });
+                }
             }
         }
         return args;
     }
 
-    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
+    public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
+        public boolean syntheticSource() {
+            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+        }
+    }
 
     public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}
 
-    private final String fieldType;
+    protected final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
-    private final BlockLoaderTestRunner runner;
+    protected final BlockLoaderTestRunner runner;
 
     protected final String fieldName;
 
@@ -84,13 +112,105 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customDataSourceHandlers, Params params) {
         this.fieldType = fieldType;
         this.params = params;
-        this.customDataSourceHandlers = customDataSourceHandlers;
+        this.customDataSourceHandlers = withSingleValueDocValues(fieldType, customDataSourceHandlers, params.indexMode());
         this.runner = new BlockLoaderTestRunner(params);
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
+    }
+
+    /**
+     * Field types whose mappers enforce single-value semantics through {@code doc_values.multi_value: false}. Only these may carry the
+     * parameter, so the coordinated single-value handler below is injected for them alone.
+     */
+    private static final Set<String> SINGLE_VALUE_ENFORCING_TYPES = Set.of(
+        "keyword",
+        "text",
+        "match_only_text",
+        "long",
+        "integer",
+        "short",
+        "byte",
+        "double",
+        "float",
+        "half_float",
+        "unsigned_long",
+        "scaled_float",
+        "boolean",
+        "date",
+        "ip"
+    );
+
+    /**
+     * On a random subset of runs (columnar mode only), prepend a handler that forces
+     * {@code doc_values.multi_value: false} on the target field while keeping generated documents single-valued, so the enforced mapping
+     * is exercised without rejecting documents.
+     */
+    private static Collection<DataSourceHandler> withSingleValueDocValues(
+        String fieldType,
+        Collection<DataSourceHandler> customHandlers,
+        IndexMode indexMode
+    ) {
+        boolean singleValueRun = indexMode.isStrictColumnar()
+            && SINGLE_VALUE_ENFORCING_TYPES.contains(fieldType)
+            && ESTestCase.randomBoolean();
+        if (singleValueRun == false) {
+            return customHandlers;
+        }
+        // Prepend so the single-value array wrapper takes precedence over any default wrapper for this run.
+        var handlers = new ArrayList<DataSourceHandler>();
+        handlers.add(new SingleValueDocValuesDataSourceHandler());
+        handlers.addAll(customHandlers);
+        return handlers;
+    }
+
+    /**
+     * Coordinated handler pairing two decisions that otherwise run independently: it forces {@code doc_values.multi_value: false} on
+     * single-value-enforcing fields and, in lock-step, never wraps values into arrays of length two or more. Without the coupling the
+     * enforced mapping would reject any document the array wrapper happened to make multi-valued.
+     */
+    private static final class SingleValueDocValuesDataSourceHandler implements DataSourceHandler {
+        @Override
+        public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+            if (SINGLE_VALUE_ENFORCING_TYPES.contains(request.fieldType()) == false) {
+                // Leave non-enforcing fields (e.g. multi-field subfields of other types) to the default handlers.
+                return null;
+            }
+            // Delegate directly to the default handler to keep all other generated parameters, then only rewrite doc_values.
+            // This handler only ever runs when indexMode.isStrictColumnar() (see withSingleValueDocValues), so the delegate
+            // must also know it's columnar-mode aware, or it could emit store/synthetic_source_keep/copy_to that are invalid there.
+            var defaults = new DefaultMappingParametersHandler(IndexMode.COLUMNAR).handle(request);
+            if (defaults == null) {
+                return null;
+            }
+            return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                var mapping = new HashMap<>(defaults.mappingGenerator().get());
+                mapping.put("doc_values", Map.of("multi_value", false));
+                return mapping;
+            });
+        }
+
+        @Override
+        public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper request) {
+            // multi_value: false rejects documents with more than one value, so only ever emit a scalar, an empty array, or one element.
+            return new DataSourceResponse.ArrayWrapper(values -> () -> {
+                if (ESTestCase.randomBoolean()) {
+                    var size = ESTestCase.randomIntBetween(0, 1);
+                    return IntStream.range(0, size).mapToObj(i -> values.get()).toList();
+                }
+                return values.get();
+            });
+        }
+
+        @Override
+        public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+            // Arrays of objects would repeat a leaf field across elements, producing multiple values for it and tripping the
+            // single-value enforcement, so never wrap objects into arrays while this handler is active.
+            return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
+        }
+
     }
 
     @Override
@@ -125,7 +245,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private void testBlockLoader(CircuitBreaker breaker) throws IOException {
         runner.breaker(breaker);
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
 
         var mapping = new MappingGenerator(specification).generate(template);
         runner.document(new DocumentGenerator(specification).generate(template, mapping));
@@ -185,13 +305,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
         runner.document(new DocumentGenerator(specification).generate(template, mapping));
 
         TestContext testContext = new TestContext(false, false);
 
-        if (params.syntheticSource && randomBoolean()) {
+        // synthetic_source_keep is rejected on strict-columnar indices, so the fallback-through-ignored-source path can only be exercised
+        // on non-strict-columnar synthetic-source indices.
+        if (params.syntheticSource() && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
@@ -251,9 +373,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
                 // This is a bit tricky meta-logic.
-                // We want to customize mapping but to do this we need the mapping for the same field type
-                // so we use name to untangle this.
-                if (request.fieldName().equals("parent") == false) {
+                // We want to customize mapping but to do this we need the mapping for the same field type so we use name to untangle this.
+                // In strict-columnar mode, the buildSpecification wrapper renames "parent" to "_columnar_inner_parent" when it recurses
+                // through the handler chain; match that too so the {fields: {mf: …}} subtree still lands on the parent mapping.
+                if (request.fieldName().equals("parent") == false && request.fieldName().equals("_columnar_inner_parent") == false) {
                     return null;
                 }
 
@@ -286,7 +409,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         });
         customHandlers.addAll(customDataSourceHandlers);
-        var specification = buildSpecification(customHandlers);
+        var specification = buildSpecification(customHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
@@ -302,31 +425,39 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     protected Settings.Builder getSettingsForParams() {
+        return getSettingsForParams(params);
+    }
+
+    public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        if (params.syntheticSource) {
-            builder.put("index.mapping.source.mode", "synthetic");
-        }
+        builder.put("index.mapping.source.mode", params.sourceMode().name());
+        builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         return builder;
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
+        return buildSpecification(customHandlers, IndexMode.STANDARD);
+    }
+
+    public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers, IndexMode indexMode) {
+        var coreHandlers = new ArrayList<DataSourceHandler>();
+        coreHandlers.add(new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+                return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
+            }
+
+            @Override
+            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+                return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
+            }
+        });
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
-                    return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
-                }
-
-                @Override
-                public DataSourceResponse.ObjectMappingParametersGenerator handle(
-                    DataSourceRequest.ObjectMappingParametersGenerator request
-                ) {
-                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
-                }
-            }))
+            .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
+            .withIndexMode(indexMode)
             .build();
     }
 

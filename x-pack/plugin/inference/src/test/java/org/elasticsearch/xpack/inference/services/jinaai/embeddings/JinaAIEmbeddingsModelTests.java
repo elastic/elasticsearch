@@ -14,7 +14,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -230,7 +230,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return new JinaAITextEmbeddingServiceSettings(
-                new JinaAIServiceSettings(modelName, rateLimitSettings),
+                new JinaAICommonServiceSettings(modelName, rateLimitSettings),
                 similarity,
                 dimensions,
                 maxInputTokens,
@@ -239,7 +239,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             );
         } else if (taskType == EMBEDDING) {
             return new JinaAIEmbeddingServiceSettings(
-                new JinaAIServiceSettings(modelName, rateLimitSettings),
+                new JinaAICommonServiceSettings(modelName, rateLimitSettings),
                 similarity,
                 dimensions,
                 maxInputTokens,

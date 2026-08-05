@@ -10,7 +10,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -39,7 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -415,12 +417,38 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
-                                final SortedNumericDocValues values = DocValues.getSortedNumeric(
+                                SortedNumericDocValues values = DocValues.getSortedNumeric(
                                     context.reader(),
                                     subfieldName(getFieldName(), metric)
                                 );
+                                NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                                if (singleton != null) {
+                                    return new SortedNumericDoubleValues(true, singleton) {
+                                        @Override
+                                        public int docValueCount() {
+                                            return 1;
+                                        }
 
-                                return new SortedNumericDoubleValues() {
+                                        @Override
+                                        public boolean advanceExact(int doc) throws IOException {
+                                            return singleton.advanceExact(doc);
+                                        }
+
+                                        @Override
+                                        public double nextValue() throws IOException {
+                                            long v = singleton.longValue();
+                                            if (metric == Metric.value_count) {
+                                                // Only value_count metrics are encoded as integers
+                                                return v;
+                                            } else {
+                                                // All other metrics are encoded as doubles
+                                                return NumericUtils.sortableLongToDouble(v);
+                                            }
+                                        }
+                                    };
+                                }
+                                return new SortedNumericDoubleValues(false, values) {
+
                                     @Override
                                     public int docValueCount() {
                                         return values.docValueCount();
@@ -462,8 +490,75 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                                     context.reader(),
                                     subfieldName(getFieldName(), Metric.value_count)
                                 );
+                                NumericDocValues singletonCount = DocValues.unwrapSingleton(countValues);
+                                NumericDocValues singletonSum = singletonCount == null ? null : DocValues.unwrapSingleton(sumValues);
+                                if (singletonCount != null) {
+                                    return new SortedNumericDoubleValues(true, new DocIdSetIterator() {
+                                        @Override
+                                        public int docID() {
+                                            return singletonCount.docID();
+                                        }
 
-                                return new SortedNumericDoubleValues() {
+                                        @Override
+                                        public int nextDoc() throws IOException {
+                                            singletonCount.nextDoc();
+                                            return singletonSum.nextDoc();
+                                        }
+
+                                        @Override
+                                        public int advance(int target) throws IOException {
+                                            singletonCount.advance(target);
+                                            return singletonSum.advance(target);
+                                        }
+
+                                        @Override
+                                        public long cost() {
+                                            return singletonCount.cost() + singletonSum.cost();
+                                        }
+                                    }) {
+
+                                        @Override
+                                        public boolean advanceExact(int doc) throws IOException {
+                                            return singletonSum.advanceExact(doc) && singletonCount.advanceExact(doc);
+                                        }
+
+                                        @Override
+                                        public int docValueCount() {
+                                            return 1;
+                                        }
+
+                                        @Override
+                                        public double nextValue() throws IOException {
+                                            double sum = NumericUtils.sortableLongToDouble(singletonSum.longValue());
+                                            long count = singletonCount.longValue();
+                                            return count == 0 ? Double.NaN : sum / count;
+                                        }
+                                    };
+                                }
+
+                                return new SortedNumericDoubleValues(new DocIdSetIterator() {
+                                    @Override
+                                    public int docID() {
+                                        return countValues.docID();
+                                    }
+
+                                    @Override
+                                    public int nextDoc() throws IOException {
+                                        countValues.nextDoc();
+                                        return sumValues.nextDoc();
+                                    }
+
+                                    @Override
+                                    public int advance(int target) throws IOException {
+                                        countValues.advance(target);
+                                        return sumValues.advance(target);
+                                    }
+
+                                    @Override
+                                    public long cost() {
+                                        return countValues.cost() + sumValues.cost();
+                                    }
+                                }) {
                                     @Override
                                     public int docValueCount() {
                                         assert countValues.docValueCount() == sumValues.docValueCount()
@@ -537,14 +632,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             ctx -> load(ctx).getAggregateMetricValues()
                         );
                     }
-                    throw new UnsupportedOperationException(
-                        "["
+                    throw new IllegalArgumentException(
+                        "Sorting by field ["
+                            + name()
+                            + "] of type ["
                             + CONTENT_TYPE
-                            + "] supports sorting if it has configured a single metric or the metrics ["
+                            + "] is not supported unless it has configured a single metric or the ["
                             + Metric.sum
                             + ", "
                             + Metric.value_count
-                            + "]"
+                            + "] metrics"
                     );
                 }
 
@@ -573,31 +670,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (cfg != null) {
-                var function = cfg.function();
-                Metric metric = switch (function) {
-                    case AMD_COUNT -> Metric.value_count;
-                    case AMD_MAX -> Metric.max;
-                    case AMD_MIN -> Metric.min;
-                    case AMD_SUM -> Metric.sum;
-                    // TODO: temporary until we combine https://github.com/elastic/elasticsearch/pull/141331
-                    case AMD_DEFAULT -> {
-                        String name = name();
-                        if (metricFields.containsKey(Metric.max)) {
-                            yield Metric.max;
-                        }
-                        for (Metric m : Metric.values()) {
-                            if (metricFields.containsKey(m)) {
-                                yield m;
-                            }
-                        }
-                        throw new IllegalStateException("No metric found for aggregate metric field [" + name + "]");
-                    }
-                    default -> null;
+                return switch (cfg.function()) {
+                    // After an AggregateMetricDoubleBlock is loaded, we do not have anymore the single metric
+                    // information, this is why in the context of ES|QL we always default to average.
+                    case AMD_DEFAULT -> new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields, blContext.warnings());
+                    case AMD_COUNT -> getIndividualBlockLoader(Metric.value_count);
+                    case AMD_MAX -> getIndividualBlockLoader(Metric.max);
+                    case AMD_MIN -> getIndividualBlockLoader(Metric.min);
+                    case AMD_SUM -> getIndividualBlockLoader(Metric.sum);
+                    default -> new AggregateMetricDoubleBlockLoader(metricFields);
                 };
-                if (metric == null) {
-                    return new AggregateMetricDoubleBlockLoader(metricFields);
-                }
-                return getIndividualBlockLoader(metric);
             }
             return new AggregateMetricDoubleBlockLoader(metricFields);
         }
@@ -849,7 +931,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             metricDocValues.clear();
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoaderLayer.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }

@@ -121,76 +121,6 @@ book_no:keyword | title:text                                                    
 6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.961376190185547 
 ;
 
-testMultiMatchWithScore
-required_capability: multi_match_function
-required_capability: metadata_score
-required_capability: routing_function_update
-
-from books metadata _score
-| where multi_match("Mark", author, title, {"fuzziness": 1})
-| keep book_no, title, author, _score;
-ignoreOrder:true
-
-book_no:keyword | title:text                                            | author:text      | _score:double
-2847            | To Love A Dark Stranger (Lovegram Historical Romance) | Colleen Faulkner | 2.0541491508483887
-;
-
-testMultiMatchWithScore1
-required_capability: multi_match_function
-required_capability: metadata_score
-required_capability: routing_function_update
-
-from books metadata _score
-| where multi_match("Hobbit", description, title, {"type": "best_fields"})
-| sort book_no
-| eval _score = round(_score)
-| keep book_no, _score;
-ignoreOrder:true
-
-book_no:keyword | _score:double
-1463            | 2.0
-2301            | 1.0
-2675            | 3.0
-2714            | 2.0
-2936            | 2.0
-4023            | 2.0
-4289            | 3.0
-5335            | 2.0
-5996            | 1.0
-6405            | 3.0
-6760            | 2.0
-7350            | 2.0
-7480            | 4.0  
-;
-
-testMultiMatchWithScore2
-required_capability: multi_match_function
-required_capability: metadata_score
-required_capability: routing_function_update
-
-from books metadata _score
-| where multi_match("Hobbit", description, title, {"type": "most_fields"})
-| sort book_no
-| eval _score = round(_score)
-| keep book_no, _score;
-ignoreOrder:true
-
-book_no:keyword | _score:double
-1463            | 2.0
-2301            | 1.0
-2675            | 3.0
-2714            | 2.0
-2936            | 2.0
-4023            | 2.0
-4289            | 6.0
-5335            | 2.0
-5996            | 1.0
-6405            | 3.0
-6760            | 2.0
-7350            | 2.0
-7480            | 4.0 
-;
-
 multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
@@ -614,4 +544,21 @@ from books metadata _score
 book_no:keyword | title:text                            | author:text                                      | _score:double
     5335        | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 41.88425064086914
     2130        | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 39.23648452758789
+;
+
+testQstrWithScoreBoost
+required_capability: qstr_function
+required_capability: qstr_function_boost_fix
+
+from books metadata _score
+| where qstr("title:rings", {"boost": 5})
+| sort _score desc, book_no desc
+| keep book_no, title, _score
+| limit 3
+;
+
+book_no:keyword | title:text                                                                                  | _score:double
+2675            | The Lord of the Rings - Boxed Set                                                           | 9.809121131896973
+2714            | Return of the King Being the Third Part of The Lord of the Rings                            | 8.523807525634766 
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 7.318082809448242
 ;

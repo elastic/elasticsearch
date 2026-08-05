@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -23,8 +24,8 @@ import java.util.List;
  */
 public final class VectorConversionFunction extends PromqlFunctionCall {
 
-    public VectorConversionFunction(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
-        super(source, child, functionName, parameters);
+    public VectorConversionFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
@@ -34,12 +35,12 @@ public final class VectorConversionFunction extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, VectorConversionFunction::new, child(), functionName(), parameters());
+        return NodeInfo.create(this, VectorConversionFunction::new, child(), definition(), parameters());
     }
 
     @Override
     public VectorConversionFunction replaceChild(LogicalPlan newChild) {
-        return new VectorConversionFunction(source(), newChild, functionName(), parameters());
+        return new VectorConversionFunction(source(), newChild, definition(), parameters());
     }
 
     @Override

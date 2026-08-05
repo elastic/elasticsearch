@@ -13,6 +13,7 @@ import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLStreamHandlerFactory;
@@ -53,6 +54,22 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
             rule.protectedCtor().enforce(Policies::createClassLoader).elseThrowNotEntitled();
             rule.protectedCtor(ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
             rule.protectedCtor(String.class, ClassLoader.class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+        });
+
+        builder.on(MethodHandles.Lookup.class, rule -> {
+            rule.calling(MethodHandles.Lookup::defineClass, byte[].class)
+                .enforce(Policies::createClassLoader)
+                .elseThrow(e -> new IllegalAccessException(e.getMessage()));
+            rule.calling(MethodHandles.Lookup::defineHiddenClass, byte[].class, Boolean.class, MethodHandles.Lookup.ClassOption[].class)
+                .enforce(Policies::createClassLoader)
+                .elseThrow(e -> new IllegalAccessException(e.getMessage()));
+            rule.calling(
+                MethodHandles.Lookup::defineHiddenClassWithClassData,
+                byte[].class,
+                Object.class,
+                Boolean.class,
+                MethodHandles.Lookup.ClassOption[].class
+            ).enforce(Policies::createClassLoader).elseThrow(e -> new IllegalAccessException(e.getMessage()));
         });
     }
 }

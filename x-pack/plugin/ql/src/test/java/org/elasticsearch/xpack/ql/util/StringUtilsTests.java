@@ -7,11 +7,19 @@
 
 package org.elasticsearch.xpack.ql.util;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import static org.elasticsearch.xpack.ql.util.StringUtils.wildcardToJavaPattern;
 
 public class StringUtilsTests extends ESTestCase {
+
+    public void testParseIntegralRejectsOversizedString() {
+        String oversized = "9".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
+        expectThrows(InvalidArgumentException.class, () -> StringUtils.parseIntegral(oversized));
+        expectThrows(InvalidArgumentException.class, () -> StringUtils.parseLong(oversized));
+    }
 
     public void testNoWildcard() {
         assertEquals("^fooBar$", wildcardToJavaPattern("fooBar", '\\'));

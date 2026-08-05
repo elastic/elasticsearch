@@ -778,7 +778,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         }).when(context1).setAllowedFields(any());
         try {
             if (randomBoolean()) {
-                apiKeyQb1.doToQuery(context1);
+                apiKeyQb1.toQuery(context1);
             } else {
                 apiKeyQb1.doRewrite(context1);
             }

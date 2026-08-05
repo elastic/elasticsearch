@@ -11,10 +11,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -38,7 +41,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoo
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation>
     implements
         TranslationAware,
-        ExpressionScoreMapper {
+        ExpressionScoreMapper,
+        EvaluatorMapper {
 
     protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
         super(source, left, right, operation);
@@ -69,6 +73,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     public Nullability nullable() {
         // Cannot fold null due to 3vl, constant folding will do any possible folding.
         return Nullability.UNKNOWN;
+    }
+
+    @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
@@ -118,6 +127,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
         return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new BooleanLogicExpressionEvaluator.Factory(this, toEvaluator.apply(left()), toEvaluator.apply(right()));
     }
 
     /**

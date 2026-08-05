@@ -100,6 +100,8 @@ public final class XPackField {
     /** Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
     public static final String LOGSDB = "logsdb";
+    public static final String LOGGING = "logging";
+    public static final String VECTORDB_DOCUMENT = "vectordb_document";
 
     private XPackField() {}
 

@@ -46,7 +46,7 @@ public class FireworksAiEmbeddingsModel extends FireworksAiModel {
             service,
             FireworksAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

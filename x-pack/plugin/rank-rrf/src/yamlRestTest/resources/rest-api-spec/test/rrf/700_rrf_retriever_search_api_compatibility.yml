@@ -1158,6 +1158,7 @@ setup:
       search:
         index: test
         body:
+          track_total_hits: true
           retriever:
             rrf:
               retrievers:
@@ -1169,9 +1170,27 @@ setup:
                               retriever: {
                                 standard: {
                                   query: {
-                                    query_string: {
-                                      query: "term1 OR term2 OR term3",
-                                      default_field: "text"
+                                    bool: {
+                                      should: [
+                                        {
+                                          constant_score: {
+                                            filter: { term: { text: "term1" } },
+                                            boost: 10.0
+                                          }
+                                        },
+                                        {
+                                          constant_score: {
+                                            filter: { term: { text: "term2" } },
+                                            boost: 5.0
+                                          }
+                                        },
+                                        {
+                                          constant_score: {
+                                            filter: { term: { text: "term3" } },
+                                            boost: 1.0
+                                          }
+                                        }
+                                      ]
                                     }
                                   }
                                 }
@@ -1179,17 +1198,16 @@ setup:
                             }
                           ]
                           rank_window_size: 100
-                          min_score: 0.5
+                          min_score: 0.1
                           normalizer: "minmax"
                     rank_window_size: 100
               rank_window_size: 100
           size: 10
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total.value: 2 }
   - match: { hits.total.relation: "eq" }
-  - length: { hits.hits: 3 }
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.2._id: "3" }
 
 

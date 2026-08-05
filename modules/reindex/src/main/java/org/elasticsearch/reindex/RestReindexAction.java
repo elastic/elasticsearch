@@ -13,7 +13,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -44,10 +43,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
+    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature, CrossProjectModeDecider crossProjectModeDecider) {
         super(ReindexAction.INSTANCE);
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

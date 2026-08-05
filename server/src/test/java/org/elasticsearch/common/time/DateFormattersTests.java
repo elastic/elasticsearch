@@ -66,6 +66,8 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(formatter.pattern()));
         assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
         assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
+
+        assertThat(formatter.tryParse(input), nullValue());
     }
 
     private void assertParses(String input, String format) {
@@ -77,8 +79,9 @@ public class DateFormattersTests extends ESTestCase {
 
         TemporalAccessor javaTimeAccessor = formatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
-
         assertThat(zonedDateTime, notNullValue());
+
+        assertThat(formatter.tryParse(input), notNullValue());
     }
 
     private void assertDateMathEquals(String text, String expected, String pattern) {
@@ -483,6 +486,11 @@ public class DateFormattersTests extends ESTestCase {
 
         // different pattern, thus not equals
         assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
+
+        // Object.equals contract: x.equals(null) is false, never a NullPointerException. Objects.equals(fmt, null)
+        // is reached from any record/POJO holding a nullable DateFormatter component.
+        assertThat(DateFormatters.forPattern("YYYY").equals(null), is(false));
+        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(new Object())));
 
         DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
         assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));

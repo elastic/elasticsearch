@@ -52,6 +52,7 @@ public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
 
     private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,

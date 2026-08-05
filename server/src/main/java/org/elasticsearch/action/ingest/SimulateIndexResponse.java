@@ -131,6 +131,11 @@ public class SimulateIndexResponse extends IndexResponse {
     }
 
     @Override
+    public SimulateIndexResponse withoutSequenceNumber() {
+        return this;
+    }
+
+    @Override
     public RestStatus status() {
         return RestStatus.CREATED;
     }

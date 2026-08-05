@@ -62,16 +62,16 @@ capability is provided by a plugin implementing the `DataSourcePlugin` interface
 public interface DataSourcePlugin {
     // Storage providers for accessing data (S3, GCS, Azure, HTTP)
     Map<String, StorageProviderFactory> storageProviders(Settings settings);
-    
+
     // Format readers for parsing data files (Parquet, CSV, ORC)
     Map<String, FormatReaderFactory> formatReaders(Settings settings);
-    
+
     // Table catalog connectors (Iceberg, Delta Lake)
     Map<String, TableCatalogFactory> tableCatalogs(Settings settings);
-    
+
     // Custom operator factories for complex datasources
     Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings);
-    
+
     // Filter pushdown support for predicate pushdown optimization
     Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings);
 }
@@ -84,6 +84,8 @@ public interface DataSourcePlugin {
 | **Built-in** (esql core) | Basic storage and format support | HTTP/HTTPS, Local filesystem, CSV format |
 | **esql-datasource-parquet** | Parquet file format support | Parquet format reader |
 | **esql-datasource-s3** | AWS S3 storage support | S3 storage provider (s3://, s3a://, s3n://) |
+| **esql-datasource-gcs** | Google Cloud Storage support | GCS storage provider (gs://) |
+| **esql-datasource-azure** | Azure Blob Storage support | Azure storage provider (wasbs://, wasb://) |
 | **esql-datasource-iceberg** | Apache Iceberg table support | Iceberg table catalog, Arrow vectorized reading |
 
 ### Plugin Discovery
@@ -123,6 +125,8 @@ public interface StorageProvider extends Closeable {
 
 **Plugin Implementations:**
 - `S3StorageProvider` - AWS S3 access (in esql-datasource-s3)
+- `GcsStorageProvider` - Google Cloud Storage access (in esql-datasource-gcs)
+- `AzureStorageProvider` - Azure Blob Storage access (in esql-datasource-azure)
 
 ### StorageObject
 
@@ -261,7 +265,7 @@ for (DataFile file : files) {
 
 To add a new storage provider (e.g., GCS, Azure Blob):
 
-1. Create a new plugin module: `x-pack/plugin/esql-datasource-gcs/`
+1. Create a new plugin module: `x-pack/plugin/esql-datasource-<name>/`
 2. Implement `StorageProvider` and `StorageObject` interfaces
 3. Create a `DataSourcePlugin` implementation
 4. Register via `META-INF/services/org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin`
@@ -295,10 +299,10 @@ public class OrcFormatReader implements FormatReader {
         // Use ORC library to parse data
         return new OrcBatchIterator(stream, projectedColumns, batchSize);
     }
-    
+
     @Override
     public String formatName() { return "orc"; }
-    
+
     @Override
     public List<String> fileExtensions() { return List.of(".orc"); }
 }
@@ -327,6 +331,16 @@ x-pack/plugin/
 │       ├── S3DataSourcePlugin.java
 │       └── S3StorageProvider.java
 │
+├── esql-datasource-gcs/               # GCS storage plugin
+│   └── src/main/java/.../gcs/
+│       ├── GcsDataSourcePlugin.java
+│       └── GcsStorageProvider.java
+│
+├── esql-datasource-azure/             # Azure Blob Storage plugin
+│   └── src/main/java/.../azure/
+│       ├── AzureDataSourcePlugin.java
+│       └── AzureStorageProvider.java
+│
 └── esql-datasource-iceberg/           # Iceberg table catalog plugin
     ├── build.gradle                   # Iceberg, Arrow, AWS SDK dependencies
     └── src/main/java/.../iceberg/
@@ -334,6 +348,63 @@ x-pack/plugin/
         ├── IcebergTableCatalog.java
         └── ...
 ```
+
+## Cancellation and Partial Results for EXTERNAL Queries
+
+A long-running EXTERNAL query can exit in four different ways. Each surfaces results differently so a
+client can tell "stop and give me what you have" apart from "abort, throw it all away":
+
+| How the query ends                                    | Response body  | `is_partial` flag |
+|-------------------------------------------------------|----------------|-------------------|
+| Task cancel / client disconnect                       | none — fails with `TaskCancelledException` | n/a (no body) |
+| `DELETE /_query/async/{id}`                           | none — cancels the task, then deletes the saved entry | n/a (no body) |
+| `POST /_query/async/{id}/stop`                        | rows already accepted into the response pipeline | `true`        |
+| Lenient truncation (e.g. `error_mode: skip_row`)      | rows the source emitted before the truncation | `true`     |
+
+This mirrors the existing `_query/async` + `allow_partial_results` semantics — EXTERNAL is not idiosyncratic.
+The defaults (1 s `wait_for_completion_timeout`, the `RestCancellableNodeClient` disconnect hookup) apply
+to EXTERNAL queries with no additional setup.
+
+### Why cancel is hard-fail, not partial
+
+Cancel is the ES-wide convention for "abort this work; I don't want its output". A
+`TaskCancelledException` surfaces as an HTTP 400 with no result body, which keeps EXTERNAL aligned with
+the rest of the ESQL action surface (`EsqlActionTaskIT.assertCancelled`). The same code path runs when
+a sync client disconnects mid-query — `RestCancellableNodeClient` cancels the task on disconnect, so the
+client cannot accidentally end up holding a half-built result it never asked for. EXTERNAL also enforces
+this explicitly at resolution time: `ExternalSourceResolver.throwIfCancelled` reads "cancellation is never
+masked as a partial-stats result". Users who want to keep their buffered rows must use STOP, not cancel.
+
+### How STOP cuts an EXTERNAL pipeline
+
+`EsqlAsyncStopAction` runs two complementary cut paths so STOP works uniformly across plan shapes:
+
+1. **Exchange-close cascade.** `ExchangeService#finishSessionEarly` closes the upstream exchange source
+   registered under the async task's session id. The closed remote sink propagates back to the data
+   node, the data driver tears down its operators, and the producer thread observes `noMoreInputs` on
+   its next iteration of the drain loop. This is the path for distributed plans and CCS — its Javadoc
+   pins the contract: "unlike cancel, this does not discard the results".
+2. **Per-task stop hooks.** `AsyncExternalSourceOperatorFactory` registers a hook on its driver's
+   `DriverContext` that calls `AsyncExternalSourceBuffer.finish(false)`. `TransportEsqlAsyncStopAction`
+   fans those hooks out via `EsqlExecutionInfo#runStopHooks`. The hook flips `noMoreInputs` on the
+   buffer — pages already accepted into the queue stay reachable to the driver loop and flow through
+   the pipeline normally, while producer threads exit instead of accepting more. This covers
+   coordinator-only plans (single-split EXTERNAL reads under the default adaptive distribution) where
+   there is no exchange source handler under the task's session id for the cascade above to find.
+
+`TransportEsqlAsyncStopAction` flips `EsqlExecutionInfo#markPartial` only when at least one of the two
+paths reports it actually transitioned a still-running unit of work — `finishSessionEarly` returning
+`true`, or `runStopHooks` returning `true`. Any other "STOP fired while task was registered" signal
+would be a lie about a possibly complete result (for example, when the task is in the async-store
+persistence window between final compute and `onResponse`). Stop hooks that fire on already-finished
+buffers report `false` and never mark a complete response partial.
+
+### A note on the opt-in "always return partial on first cancel"
+
+ClickHouse offers a `partial_result_on_first_cancel` setting (default off) that flips cancel into a
+soft early-return. ESQL has explicitly deferred that — STOP is the answer when a user wants their
+buffered rows back. Adopting a ClickHouse-style cancel-as-partial mode would be additive and is out of
+scope for the current contract.
 
 ## Testing
 
@@ -364,7 +435,7 @@ Run tests:
 
 ## Future Enhancements
 
-1. **Additional Storage Providers** - GCS, Azure Blob, HDFS
+1. **Additional Storage Providers** - HDFS
 2. **Additional Format Readers** - ORC, Avro, JSON Lines
 3. **Additional Table Catalogs** - Delta Lake, Apache Hudi
 4. **Performance Optimizations** - File splitting, parallel reads, caching

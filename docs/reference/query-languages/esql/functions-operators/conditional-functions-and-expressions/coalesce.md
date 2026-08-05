@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COALESCE` function [esql-coalesce]
 
-:::{include} ../../_snippets/functions/layout/coalesce.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/coalesce.md
 :::

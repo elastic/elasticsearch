@@ -50,7 +50,7 @@ import java.util.TreeMap;
  * A query that matches on multiple text fields, as if the field contents had been indexed
  * into a single combined field.
  */
-public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFieldsQueryBuilder> {
+public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedFieldsQueryBuilder> {
     public static final String NAME = "combined_fields";
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -299,7 +299,8 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
                 continue;
             }
 
-            if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+            if (fieldType.familyTypeName().equals(TextFieldMapper.CONTENT_TYPE) == false
+                && fieldType instanceof TextFieldMapper.TextFieldType == false) {
                 throw new IllegalArgumentException(
                     "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support [" + NAME + "] queries"
                 );

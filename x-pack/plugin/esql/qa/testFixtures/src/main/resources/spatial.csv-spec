@@ -79,7 +79,7 @@ ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555
 | STATS c = ST_CENTROID_AGG(pt);
 
 c:geo_point
-POINT(39.58327988510707 20.619513023697994)
+POINT(39.58327987231314 20.61951301060617)
 ;
 
 centroidFromString4
@@ -93,7 +93,7 @@ ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555
 | EVAL x = ST_X(c), y = ST_Y(c);
 
 c:geo_point                                 | x:double          | y:double
-POINT (39.58327988510707 20.619513023697994) | 39.58327981643379 | 20.619512982666492
+POINT (39.58327987231314 20.61951301060617)  | 39.58327981643379 | 20.619512982666492
 ;
 
 stXFromString
@@ -318,7 +318,7 @@ FROM airports
 ;
 
 centroid:geo_point                           | count:long
-POINT (7.572387259169772 26.836561792945492) | 891
+POINT (7.572387229884043 26.836561777163297) | 891
 ;
 
 centroidFromAirportsCountCityLocations
@@ -382,7 +382,7 @@ FROM airports
 ;
 
 centroid:geo_point                            | count:long
-POINT (17.55538044598613 18.185558743854063)  | 891
+POINT (17.55538043238447 18.18555873638515)   | 891
 ;
 
 centroidFromAirportsCountryCount
@@ -490,6 +490,23 @@ FROM airports
 
 centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+countFromAirportsAfterIntersectsPredicateInvalidBoundsLiteral
+required_capability: st_intersects
+required_capability: spatial_bbox_validation_fix
+
+// An inverted BBOX (maxY < minY) is an invalid envelope. The literal fails to parse into a geo_shape,
+// so it folds to null (with a warning), and ST_INTERSECTS(field, NULL) matches no rows rather than failing the query.
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
+| STATS count=COUNT()
+;
+warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+count:long
+0
 ;
 
 centroidFromAirportsAfterContainsPredicateCountryUK
@@ -1175,7 +1192,7 @@ FROM airports_mp
 ;
 
 location:geo_point                         | city_location:geo_point                      |  count:long
-POINT (67.8581917192787 24.02956652920693) | POINT (67.81638333333332 24.048999999999996) |  6
+POINT (67.8581917192787 24.02956652920693) | POINT (67.81638328917325 24.048999978695065) |  6
 ;
 
 ###############################################
@@ -1391,6 +1408,25 @@ wkt:keyword    | pt:geo_point  | distance:double
 "POINT(-1 0)"  | POINT(-1 0)   | 111195.08242688453
 "POINT(0 1)"   | POINT(0 1)    | 111195.07776676829
 "POINT(0 -1)"  | POINT(0 -1)   | 111195.08242688453
+;
+
+literalGeoPointDistanceInvalidLiteralPoint
+required_capability: st_distance
+required_capability: spatial_bbox_validation_fix
+
+// An out-of-range point literal fails to parse into a geo_point, so it folds to null (with a warning),
+// and ST_DISTANCE returns null for every row rather than failing the query.
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(200 100)"))
+;
+warningRegex:evaluation of \[TO_GEOPOINT\("POINT\(200 100\)"\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)    | null
+"POINT(-1 -1)" | POINT(-1 -1)  | null
 ;
 
 twoCitiesPointDistanceGeo
@@ -1680,7 +1716,7 @@ count:long | country:k
 1          | Poland
 ;
 
-airportsSortCityName#[skip:-8.13.3, reason:fixed in 8.13]
+airportsSortCityName
 FROM airports
 | SORT abbrev
 | LIMIT 5
@@ -1967,9 +2003,9 @@ row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22
 ;
 
 // tag::to_geopoint-str-parse-error-warning[]
-warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+warningRegex:Line 3:13: evaluation of \[to_geopoint\(wkt\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: '\)'
 // end::to_geopoint-str-parse-error-warning[]
 
 // tag::to_geopoint-str-parse-error-result[]
@@ -2242,6 +2278,18 @@ wkt:keyword               |pt:cartesian_point
 // end::to_cartesianpoint-str-result[]
 ;
 
+convertCartesianPointFromKeywordField
+required_capability: spatial_points_from_source
+
+FROM conv_from_keyword
+| EVAL pt = TO_CARTESIANPOINT(cartesian_point_wkt)
+| KEEP cartesian_point_wkt, pt
+;
+
+cartesian_point_wkt:keyword     | pt:cartesian_point
+POINT(4297.11 -1475.53)         | POINT(4297.11 -1475.53)
+;
+
 convertCartesianFromStringArray
 required_capability: spatial_points_from_source
 
@@ -2295,7 +2343,7 @@ ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125
 | STATS c = ST_CENTROID_AGG(pt);
 
 c:cartesian_point
-POINT(3949.163965353159 1078.2645465797348)
+POINT(3949.1639652252197 1078.2645670572917)
 ;
 
 stXFromCartesianString
@@ -2444,7 +2492,7 @@ FROM airports_web
 ;
 
 centroid:cartesian_point                    | count:long
-POINT (726480.0130685265 3359566.331716279) | 849
+POINT (726479.9765625 3359566.328125)       | 849
 ;
 
 ###############################################
@@ -2594,6 +2642,18 @@ prefix:keyword | count:long | extent:cartesian_shape
 A              | 17         | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
 B              | 18         | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
 C              | 19         | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+convertCartesianShapeFromKeywordField
+required_capability: st_intersects
+
+FROM conv_from_keyword
+| EVAL shape = TO_CARTESIANSHAPE(cartesian_shape_wkt)
+| KEEP cartesian_shape_wkt, shape
+;
+
+cartesian_shape_wkt:keyword                | shape:cartesian_shape
+POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))         | POLYGON((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))
 ;
 
 ###############################################

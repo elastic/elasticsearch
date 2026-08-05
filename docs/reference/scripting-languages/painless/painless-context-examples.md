@@ -16,10 +16,49 @@ Each document in this dataset represents a complete eCommerce order. Every order
 
 ## Install the eCommerce sample data [painless-sample-data-install]
 
+You can use either the {{kib}} UI or API to install the eCommerce sample data.
+
+::::{tab-set}
+
+:::{tab-item} {{kib}}
+
+To add the eCommerce sample data:
+
 1. Go to **Integrations** and search for **Sample Data**.   
 2. On the **Sample data** page, expand the **Other sample data sets**.
 3. Click **Add data** to install **Sample eCommerce orders**.   
 4. **Verify Installation:** Navigate to **Analytics \> Discover** and select the `kibana_sample_data_ecommerce` data view. You should see eCommerce order documents with complete customer, product, and transaction information.
+:::
+
+:::{tab-item} API
+
+Run one of the following {{Kib}} API requests in your terminal to install the eCommerce sample data.
+
+- Install using an API key to authenticate:
+
+    ```shell
+    curl -X POST "http://localhost:5601/api/sample_data/ecommerce" \ <1>
+      -H "kbn-xsrf: true" \ // <2>
+      -H "Authorization: ApiKey $KIBANA_API_KEY" // <3>
+    ```
+
+    1. The sample data endpoint
+    2. A required header to protect against CSRF attacks
+    3. Your {{es}} API key
+
+- Install using basic authentication:
+
+    ```shell
+    curl -X POST "http://localhost:5601/api/sample_data/ecommerce" \ <1>
+      -H "kbn-xsrf: true" \ <2>
+      -u "$ES_USERNAME:$ES_PASSWORD" <3>
+    ```
+
+    1. The sample data endpoint
+    2. A required header to protect against CSRF attacks
+    3. Your Elastic username and password to access {{kib}}
+:::
+::::
 
 
 ## Sample document structure

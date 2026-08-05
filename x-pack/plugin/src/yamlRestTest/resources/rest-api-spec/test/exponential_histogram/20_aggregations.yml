@@ -153,8 +153,8 @@ setup:
 ---
 "Percentiles aggregation":
   - requires:
-      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
-      reason: exponential_histogram percentile aggregations was introduced
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
   - do:
       search:
         index: test_exponential_histogram
@@ -168,16 +168,16 @@ setup:
 
   - match: { hits.total.value: 5 }
   # Use range comparisons to handle small numeric errors across different machines
-  - gte: { aggregations.percentiles_agg.values.5\.0: -798.2 }
-  - lte: { aggregations.percentiles_agg.values.5\.0: -798.1 }
+  - gte: { aggregations.percentiles_agg.values.5\.0: -409.7 }
+  - lte: { aggregations.percentiles_agg.values.5\.0: -409.5 }
   - gte: { aggregations.percentiles_agg.values.25\.0: -0.01 }
   - lte: { aggregations.percentiles_agg.values.25\.0: 0.01 }
   - gte: { aggregations.percentiles_agg.values.50\.0: 6.39 }
   - lte: { aggregations.percentiles_agg.values.50\.0: 6.41 }
-  - gte: { aggregations.percentiles_agg.values.75\.0: 2730.6 }
-  - lte: { aggregations.percentiles_agg.values.75\.0: 2730.7 }
-  - gte: { aggregations.percentiles_agg.values.95\.0: 10922.6 }
-  - lte: { aggregations.percentiles_agg.values.95\.0: 10922.7 }
+  - gte: { aggregations.percentiles_agg.values.75\.0: 1638.3 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 1638.5 }
+  - gte: { aggregations.percentiles_agg.values.95\.0: 6553.5 }
+  - lte: { aggregations.percentiles_agg.values.95\.0: 6553.7 }
 
 ---
 "Percentile ranks aggregation":
@@ -206,6 +206,32 @@ setup:
   - lte: { aggregations.percentile_ranks_agg.values.5000\.0: 78.1 }
 
 ---
+"Boxplot aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            boxplot_agg:
+              boxplot:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.boxplot_agg.min: -1000.0 }
+  - match: { aggregations.boxplot_agg.max: 13000.0 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.boxplot_agg.q1: -0.01 }
+  - lte: { aggregations.boxplot_agg.q1: 0.01 }
+  - gte: { aggregations.boxplot_agg.q2: 6.39 }
+  - lte: { aggregations.boxplot_agg.q2: 6.41 }
+  - gte: { aggregations.boxplot_agg.q3: 1638.3 }
+  - lte: { aggregations.boxplot_agg.q3: 1638.5 }
+
+---
 "Exists query":
   - do:
       search:
@@ -216,4 +242,38 @@ setup:
               field: histo
 
   - match: { hits.total.value: 5 }
+
+---
+"Range aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_range" ]
+      reason: exponential_histogram range aggregation was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            range_agg:
+              range:
+                field: histo
+                ranges:
+                  - {to: -500}
+                  - {from: -500, to: 0}
+                  - {from: 0, to: 100}
+                  - {from: 100, to: 10000}
+                  - {from: 10000}
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.range_agg.buckets: 5 }
+  - match: { aggregations.range_agg.buckets.0.key: "*--500.0" }
+  - match: { aggregations.range_agg.buckets.0.doc_count: 5 }
+  - match: { aggregations.range_agg.buckets.1.key: "-500.0-0.0" }
+  - match: { aggregations.range_agg.buckets.1.doc_count: 2 }
+  - match: { aggregations.range_agg.buckets.2.key: "0.0-100.0" }
+  - match: { aggregations.range_agg.buckets.2.doc_count: 20 }
+  - match: { aggregations.range_agg.buckets.3.key: "100.0-10000.0" }
+  - match: { aggregations.range_agg.buckets.3.doc_count: 9 }
+  - match: { aggregations.range_agg.buckets.4.key: "10000.0-*" }
+  - match: { aggregations.range_agg.buckets.4.doc_count: 5 }
 

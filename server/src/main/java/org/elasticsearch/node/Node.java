@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.ReferenceDocs;
@@ -59,14 +60,16 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.AnalyzerMetrics;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -153,6 +156,8 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
+    public static final String APM_PROPFILE_REGEX = "^\\.elstcapm\\..*\\.tmp";
+
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
@@ -226,7 +231,7 @@ public class Node implements Closeable {
                 if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
                         final Path apmConfig = PathUtils.get(parts[1].substring(2));
-                        if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
+                        if (apmConfig.getFileName().toString().matches(APM_PROPFILE_REGEX)) {
                             try {
                                 Files.deleteIfExists(apmConfig);
                             } catch (IOException e) {
@@ -284,14 +289,16 @@ public class Node implements Closeable {
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
+        injector.getInstance(RecoveryDirectCancellationService.class).start();
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(SearchTaskWatchdog.class).start();
         injector.getInstance(FsHealthService.class).start();
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(AnalyzerMetrics.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
-        injector.getInstance(SamplingService.class).start();
+        injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -312,6 +319,7 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
+        injector.getInstance(ThrottlingRecoveryService.class).start();
         injector.getInstance(PeerRecoverySourceService.class).start();
 
         // Load (and maybe upgrade) the metadata stored on disk
@@ -466,13 +474,14 @@ public class Node implements Closeable {
         }
         // We stop the health periodic logger first since certain checks won't be possible anyway
         stopIfStarted(HealthPeriodicLogger.class);
-        stopIfStarted(SamplingService.class);
+        stopIfStarted(PersistentTaskLifecycleManager.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
 
         stopIfStarted(SnapshotsService.class);
         stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RecoveryDirectCancellationService.class);
         stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
         stopIfStarted(IndicesClusterStateService.class);
@@ -490,6 +499,7 @@ public class Node implements Closeable {
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
+        stopIfStarted(AnalyzerMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -534,6 +544,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(injector.getInstance(RecoveryDirectCancellationService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
@@ -541,6 +552,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(injector.getInstance(ThrottlingRecoveryService.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
@@ -561,12 +573,13 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
         toClose.add(injector.getInstance(IndicesMetrics.class));
+        toClose.add(injector.getInstance(AnalyzerMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
-        toClose.add(injector.getInstance(SamplingService.class));
+        toClose.add(injector.getInstance(PersistentTaskLifecycleManager.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

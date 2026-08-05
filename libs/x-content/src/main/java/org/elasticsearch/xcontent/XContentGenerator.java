@@ -16,6 +16,7 @@ import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
@@ -80,6 +81,13 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeStringArray(String[] array) throws IOException;
 
     void writeString(char[] text, int offset, int len) throws IOException;
+
+    /**
+     * Writes up to {@code len} characters read from {@code reader} as a string value, without requiring the
+     * caller to first materialize the content as a {@link String} or {@code char[]}. Useful for writing from a
+     * {@link CharSequence} (e.g. a reused {@link StringBuilder}) via a small adapter {@link Reader}.
+     */
+    void writeString(Reader reader, int len) throws IOException;
 
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;
 

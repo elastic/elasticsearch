@@ -13,7 +13,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -90,15 +90,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         if (listenAddress == null) {
             listenAddress = InetAddress.getLoopbackAddress();
         }
-        String ldapUrl = new LDAPURL(
-            protocol,
-            NetworkAddress.format(listenAddress),
-            ldapServer.getListenPort(protocol),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+        String host = InetAddresses.toUriString(listenAddress);
+
+        String ldapUrl = new LDAPURL(protocol, host, ldapServer.getListenPort(protocol), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 
@@ -293,15 +287,9 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         if (listenAddress == null) {
             listenAddress = InetAddress.getLoopbackAddress();
         }
-        String ldapUrl = new LDAPURL(
-            "ldaps",
-            NetworkAddress.format(listenAddress),
-            ldapServer.getListenPort("ldaps"),
-            null,
-            null,
-            null,
-            null
-        ).toString();
+
+        String address = InetAddresses.toUriString(listenAddress);
+        String ldapUrl = new LDAPURL("ldaps", address, ldapServer.getListenPort("ldaps"), null, null, null, null).toString();
         String groupSearchBase = "o=sevenSeas";
         String userTemplates = "cn={0},ou=people,o=sevenSeas";
 

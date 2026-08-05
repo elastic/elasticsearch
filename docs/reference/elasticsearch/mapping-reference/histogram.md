@@ -113,8 +113,7 @@ PUT my-index-000001/_doc/2
 
 ## Coercion from exponential histogram [histogram-coercion]
 ```{applies_to}
-stack: preview 9.3
-serverless: preview
+stack: preview 9.3, ga 9.4.0
 ```
 
 To facilitate transitions and mixed inputs, `histogram` fields support coercion from the `exponential_histogram` field structure. When `coerce` is enabled (default), you can provide an exponential histogram payload and Elasticsearch will convert it to the `histogram` field's internal T-Digest representation during indexing.

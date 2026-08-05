@@ -31,13 +31,13 @@ public final class AllFirstBooleanByLongAggregatorFunctionSupplier implements Ag
   @Override
   public AllFirstBooleanByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllFirstBooleanByLongAggregatorFunction.create(driverContext, channels);
+    return new AllFirstBooleanByLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllFirstBooleanByLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return AllFirstBooleanByLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllFirstBooleanByLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -25,8 +25,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void enqueueAuthorizedResponse() throws Exception {
         // Ensure the mock EIS server has an authorized response ready before each test because each test will
         // use the services API which makes a call to EIS
         mockEISServer.enqueueAuthorizeAllModelsResponse();
@@ -82,8 +81,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker",
-                    "mixedbread"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -148,7 +146,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
-                    "mixedbread",
                     "nvidia",
                     "openshift_ai",
                     "test_reranking_service",
@@ -200,6 +197,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "anthropic",
                     "azureopenai",
                     "fireworksai",
                     "llama",
@@ -242,7 +240,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
         assertThat(
             providersFor(TaskType.EMBEDDING),
-            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic").toArray())
+            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic", "openai").toArray())
         );
     }
 

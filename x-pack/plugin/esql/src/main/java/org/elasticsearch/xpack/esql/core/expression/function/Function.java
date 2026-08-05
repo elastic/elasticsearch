@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.core.expression.function;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.StringJoiner;
 
 /**
  * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
@@ -59,11 +59,15 @@ public abstract class Function extends Expression {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
-        for (Expression ex : arguments()) {
-            sj.add(ex.nodeString(format));
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(functionName()).append("(");
+        List<Expression> args = arguments();
+        for (int i = 0; i < args.size(); i++) {
+            if (i > 0) {
+                sb.append(",");
+            }
+            args.get(i).nodeString(sb, format, mapper);
         }
-        return sj.toString();
+        sb.append(")");
     }
 }

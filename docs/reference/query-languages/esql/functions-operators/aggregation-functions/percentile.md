@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `PERCENTILE` function [esql-percentile]
 
-:::{include} ../../_snippets/functions/layout/percentile.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/percentile.md
 :::

@@ -39,9 +39,7 @@ public record AzureAiStudioRerankRequestTaskSettings(@Nullable Boolean returnDoc
         final var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
         final var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioRerankRequestTaskSettings(returnDocuments, topN);
     }

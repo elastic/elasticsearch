@@ -34,13 +34,13 @@ public final class CountDistinctDoubleAggregatorFunctionSupplier implements Aggr
   @Override
   public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return CountDistinctDoubleAggregatorFunction.create(driverContext, channels, precision);
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, precision);
   }
 
   @Override
   public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return CountDistinctDoubleGroupingAggregatorFunction.create(channels, driverContext, precision);
+    return new CountDistinctDoubleGroupingAggregatorFunction(channels, driverContext, precision);
   }
 
   @Override

@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -34,8 +33,8 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestOpenPointInTimeAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestOpenPointInTimeAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

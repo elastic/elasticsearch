@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MultiMatchQueryParser;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -725,8 +726,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MultiMatchQueryParser multiMatchQuery = new MultiMatchQueryParser(context);
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
+        MultiMatchQueryParser multiMatchQuery = new MultiMatchQueryParser(context, queryVisitor);
         if (analyzer != null) {
             if (context.getIndexAnalyzers().get(analyzer) == null) {
                 throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");

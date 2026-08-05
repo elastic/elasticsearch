@@ -8,9 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -36,40 +33,20 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
      */
     public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
         if (mode.isInputPartial()) {
-            return new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntArrayBlock groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
-                }
-
-                @Override
-                public void close() {}
-            };
+            return aggregatorFunction.prepareProcessIntermediateInputPage(seenGroupIds, page);
         } else {
             return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }
     }
 
-    /**
-     * Build the results for this aggregation.
-     * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
-     */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
+            return aggregatorFunction.prepareEvaluateIntermediate(selected, ctx);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
+            return aggregatorFunction.prepareEvaluateFinal(selected, ctx);
         }
     }
 

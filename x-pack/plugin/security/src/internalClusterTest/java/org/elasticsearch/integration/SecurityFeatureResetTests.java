@@ -7,10 +7,10 @@
 
 package org.elasticsearch.integration;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -99,25 +99,17 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     public void testFeatureResetNoManageRole() {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT);
 
-        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
-            .admin()
-            .cluster()
-            .execute(TransportResetFeatureStateAction.TYPE, req, new ActionListener<>() {
-                @Override
-                public void onResponse(ResetFeatureStateResponse response) {
-                    fail("Shouldn't reach here");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(
-                        e.getMessage(),
-                        containsString(
-                            "action [cluster:admin/features/reset] is unauthorized for user [usr]" + " with effective roles [role2]"
-                        )
-                    );
-                }
-            });
+        Exception e = expectThrows(
+            Exception.class,
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
+                .admin()
+                .cluster()
+                .execute(TransportResetFeatureStateAction.TYPE, req)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("action [cluster:admin/features/reset] is unauthorized for user [usr]" + " with effective roles [role2]")
+        );
 
         // Manually delete the security index, reset shouldn't work
         deleteSecurityIndex();
@@ -126,23 +118,17 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     private void assertResetSuccessful(String user, SecureString password) {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT);
 
+        PlainActionFuture<ResetFeatureStateResponse> future = new PlainActionFuture<>();
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(user, password)))
             .admin()
             .cluster()
-            .execute(TransportResetFeatureStateAction.TYPE, req, new ActionListener<>() {
-                @Override
-                public void onResponse(ResetFeatureStateResponse response) {
-                    long failures = response.getFeatureStateResetStatuses()
-                        .stream()
-                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                        .count();
-                    assertEquals(0, failures);
-                }
+            .execute(TransportResetFeatureStateAction.TYPE, req, future);
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail("Shouldn't reach here");
-                }
-            });
+        ResetFeatureStateResponse response = future.actionGet();
+        long failures = response.getFeatureStateResetStatuses()
+            .stream()
+            .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+            .count();
+        assertEquals(0, failures);
     }
 }

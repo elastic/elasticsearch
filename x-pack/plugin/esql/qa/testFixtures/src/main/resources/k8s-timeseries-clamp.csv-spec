@@ -1,4 +1,4 @@
-clamp_of_double_no_grouping
+clamp_of_double_no_grouping_for_min_example
 required_capability: ts_command_v0
 required_capability: clamp_functions
 // tag::clamp-min[]
@@ -23,7 +23,7 @@ full_clamped_cost:double | clamped_cost:double | clamped_min_cost:double | time_
 
 ;
 
-clamp_of_double_no_grouping
+clamp_of_double_no_grouping_for_max_example
 required_capability: ts_command_v0
 required_capability: clamp_functions
 // tag::clamp-max[]

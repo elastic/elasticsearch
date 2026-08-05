@@ -16,8 +16,9 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -26,6 +27,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -48,8 +51,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Calculates the geohex of geo_point geometries.
  */
-public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StGeohex", StGeohex::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeohex.class).ternary(StGeohex::new).name("st_geohex");
 
     /**
      * When checking grid cells with bounds, we need to check if the cell is valid (intersects with the bounds).
@@ -117,6 +121,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohex",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geohex (H3 cell-id) of the supplied geo_point at the specified precision.",
         description = """
             Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
             The result is long encoded.
@@ -139,10 +144,10 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "precision", type = { "integer" }, description = """
+        @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 15](https://h3geo.org/docs/core-library/restable/).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape" }, description = """
+        @Param(name = "bounds", type = { "geo_shape" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
             [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
             if the `geo_shape` is of any other type.""", optional = true) Expression bounds
@@ -191,7 +196,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -199,7 +204,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
+            Object boundsValue = bounds.fold(toEvaluator.foldCtx());
+            if (boundsValue == null) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
             return spatialDocValues
@@ -220,11 +229,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
+        if (point == null) {
+            return null;
+        }
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {
             return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
         } else {
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
+            Object boundsValue = bounds().fold(ctx);
+            if (boundsValue == null) {
+                return null;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
             long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
             return gridId < 0 ? null : gridId;

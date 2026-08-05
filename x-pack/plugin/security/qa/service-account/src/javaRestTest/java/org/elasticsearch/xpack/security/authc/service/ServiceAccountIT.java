@@ -62,7 +62,8 @@ public class ServiceAccountIT extends ESRestTestCase {
           "email": null,
           "token": {
             "name": "%s",
-            "type": "_service_account_%s"
+            "type": "_service_account_%s",
+            "managed_by": "elasticsearch"
           },
           "metadata": {
             "_elastic_service_account": true
@@ -113,6 +114,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 "monitor",
                 "manage_own_api_key",
                 "read_fleet_secrets",
+                "write_fleet_secrets",
                 "cluster:admin/xpack/connector/*"
               ],
               "indices": [
@@ -321,6 +323,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".endpoint-fleetfiles-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "agentless-*"
                   ],
                   "privileges": [
@@ -517,24 +528,17 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
-        final boolean securityIndexExists = randomBoolean();
-        if (securityIndexExists) {
-            final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
-            createRoleRequest.setJsonEntity("{\"cluster\":[]}");
-            assertOK(adminClient().performRequest(createRoleRequest));
-        }
+        final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
+        createRoleRequest.setJsonEntity("{\"cluster\":[]}");
+        assertOK(adminClient().performRequest(createRoleRequest));
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN));
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        if (securityIndexExists) {
-            assertThat(
-                e.getMessage(),
-                containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("no such index [.security]"));
-        }
+        assertThat(
+            e.getMessage(),
+            containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
+        );
     }
 
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {
@@ -552,6 +556,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("username"), equalTo("test_admin"));
         assertThat(responseMap.get("authentication_type"), equalTo("token"));
+        assertThat(responseMap.get("token"), equalTo(Map.of("managed_by", "elasticsearch")));
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");

@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,6 +60,22 @@ public class UpdateResponse extends DocWriteResponse {
 
     public GetResult getGetResult() {
         return this.getResult;
+    }
+
+    @Override
+    public UpdateResponse withoutSequenceNumber() {
+        UpdateResponse copy = new UpdateResponse(
+            getShardInfo(),
+            getShardId(),
+            getId(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            getVersion(),
+            result
+        );
+        copy.setGetResult(getResult);
+        copy.setForcedRefresh(forcedRefresh());
+        return copy;
     }
 
     @Override

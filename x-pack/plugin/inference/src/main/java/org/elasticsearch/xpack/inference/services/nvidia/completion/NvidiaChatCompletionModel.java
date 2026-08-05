@@ -51,7 +51,7 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
             taskType,
             service,
             NvidiaChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

@@ -1,0 +1,7 @@
+# Fixture for the def-dispatch fallback test: a class with an ordinary, non-cancellation-aware
+# method named `each`, used as a def receiver so the name-gated script-this push is discarded
+# again at runtime by Def.lookupMethod.
+class org.elasticsearch.painless.CancellationShadowTestObject {
+  ()
+  int each(int)
+}

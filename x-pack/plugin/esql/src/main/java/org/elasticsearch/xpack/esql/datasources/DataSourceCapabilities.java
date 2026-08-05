@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -61,19 +62,19 @@ public record DataSourceCapabilities(Set<String> schemes, Set<String> formats, S
             for (String scheme : plugin.supportedConnectorSchemes()) {
                 allSchemes.add(scheme.toLowerCase(Locale.ROOT));
             }
-            for (String format : plugin.supportedFormats()) {
-                String lower = format.toLowerCase(Locale.ROOT);
+            for (FormatSpec spec : plugin.formatSpecs()) {
+                String lower = spec.format().toLowerCase(Locale.ROOT);
                 if (allFormats.contains(lower)) {
-                    throw new IllegalArgumentException("Format reader for [" + format + "] is already registered");
+                    throw new IllegalArgumentException("Format reader for [" + spec.format() + "] is already registered");
                 }
                 allFormats.add(lower);
-            }
-            for (String ext : plugin.supportedExtensions()) {
-                String normalized = ext.toLowerCase(Locale.ROOT);
-                if (normalized.startsWith(".") == false) {
-                    normalized = "." + normalized;
+                for (String ext : spec.extensions()) {
+                    String normalized = ext.toLowerCase(Locale.ROOT);
+                    if (normalized.startsWith(".") == false) {
+                        normalized = "." + normalized;
+                    }
+                    allExtensions.add(normalized);
                 }
-                allExtensions.add(normalized);
             }
             for (String catalog : plugin.supportedCatalogs()) {
                 String lower = catalog.toLowerCase(Locale.ROOT);

@@ -65,6 +65,7 @@ public class CliApiKeyIT extends SqlApiKeyTestCase {
             cli.readLine(); // separator line
             String valueLine = cli.readLine();
             assertThat(valueLine, containsString("123"));
+            assertEquals("", cli.readLine());
         }
     }
 
@@ -77,17 +78,7 @@ public class CliApiKeyIT extends SqlApiKeyTestCase {
         );
 
         try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), false, apiKeyConfig)) {
-            String result = cli.command("SELECT 1");
-            StringBuilder fullError = new StringBuilder(result);
-            String line;
-            while ((line = cli.readLine()) != null && !line.isEmpty()) {
-                fullError.append(line);
-            }
-            String errorMessage = fullError.toString();
-            assertTrue(
-                "Expected authentication error but got: " + errorMessage,
-                errorMessage.contains("security_exception") || errorMessage.contains("Communication error")
-            );
+            assertThat(cli.command("SELECT 1"), containsString("Bad request"));
         }
     }
 

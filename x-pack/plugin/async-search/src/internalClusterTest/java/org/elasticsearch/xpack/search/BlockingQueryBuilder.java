@@ -15,7 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,7 +29,7 @@ import java.util.concurrent.CountDownLatch;
  * A query builder that blocks shard execution based on a {@link QueryLatch}
  * that is shared inside a single jvm (static).
  */
-class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
+class BlockingQueryBuilder extends LeafQueryBuilder<BlockingQueryBuilder> {
     public static final String NAME = "block";
     private static QueryLatch queryLatch;
 

@@ -75,7 +75,8 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.AGGREGATE_METRIC_DOUBLE,
                 ElementType.EXPONENTIAL_HISTOGRAM,
                 ElementType.TDIGEST,
-                ElementType.LONG_RANGE
+                ElementType.LONG_RANGE,
+                ElementType.DOUBLE_RANGE
             )) {
                 continue;
             }
@@ -583,9 +584,8 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private BlockFactory blockFactory() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new BlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return BlockFactory.builder(bigArrays).build();
     }
 
     @After

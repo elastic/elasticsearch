@@ -1,0 +1,21 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "mode": "columnar",
+        "sort": {
+          "field": "@timestamp",
+          "order": "desc"
+        }
+      }
+    },
+    "lifecycle": {
+      "data_retention": "90d"
+    }
+  },
+  "_meta": {
+    "description": "Template settings applied by default to data stream backed AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

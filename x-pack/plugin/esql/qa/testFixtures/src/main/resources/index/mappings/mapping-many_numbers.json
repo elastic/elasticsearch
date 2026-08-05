@@ -1,7 +1,13 @@
 {
     "properties": {
-        "value": {
-            "type": "integer"
-        }
+      "sv": {
+        "type": "integer"
+      },
+      "sv_and_one_mv": {
+        "type": "integer"
+      },
+      "mv": {
+        "type": "integer"
+      }
     }
 }

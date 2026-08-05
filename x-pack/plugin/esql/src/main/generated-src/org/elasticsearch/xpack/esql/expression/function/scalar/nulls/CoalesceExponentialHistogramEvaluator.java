@@ -12,9 +12,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,11 +24,11 @@ import java.util.stream.IntStream;
 // end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
+ * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceExponentialHistogramEvaluator.CoalesceExponentialHistogramEagerEvaluator, //
+abstract sealed class CoalesceExponentialHistogramEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceExponentialHistogramEvaluator.CoalesceExponentialHistogramEagerEvaluator, // checkstyle hack
     CoalesceExponentialHistogramEvaluator.CoalesceExponentialHistogramLazyEvaluator {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceExponentialHistogramEvaluator.class);
@@ -71,9 +70,9 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
     }
 
     protected final DriverContext driverContext;
-    protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+    protected final List<ExpressionEvaluator> evaluators;
 
-    protected CoalesceExponentialHistogramEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceExponentialHistogramEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
@@ -88,8 +87,8 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
      * {@link #perPosition} evaluation.
      * <p>
      * Entire Block evaluation is the "normal" way to run the compute engine,
-     * just calling {@link EvalOperator.ExpressionEvaluator#eval}. It's much faster so we try
-     * that first. For each evaluator, we {@linkplain EvalOperator.ExpressionEvaluator#eval} and:
+     * just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+     * that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
      * </p>
      * <ul>
      *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
@@ -165,7 +164,7 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
      * in a lazy environment.
      */
     static final class CoalesceExponentialHistogramEagerEvaluator extends CoalesceExponentialHistogramEvaluator {
-        CoalesceExponentialHistogramEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceExponentialHistogramEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -211,7 +210,7 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
      * </ul>
      */
     static final class CoalesceExponentialHistogramLazyEvaluator extends CoalesceExponentialHistogramEvaluator {
-        CoalesceExponentialHistogramLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceExponentialHistogramLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 

@@ -34,13 +34,13 @@ public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public StdDevLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevLongAggregatorFunction.create(driverContext, channels, stdDev);
+    return new StdDevLongAggregatorFunction(driverContext, channels, stdDev);
   }
 
   @Override
   public StdDevLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevLongGroupingAggregatorFunction.create(channels, driverContext, stdDev);
+    return new StdDevLongGroupingAggregatorFunction(channels, driverContext, stdDev);
   }
 
   @Override

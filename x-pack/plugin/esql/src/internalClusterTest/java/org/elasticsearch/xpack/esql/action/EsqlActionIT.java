@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +62,10 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,6 +77,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +89,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -94,6 +103,8 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -114,22 +125,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
     @Before
-    public void setupIndex() {
+    public void setupIndex() throws IOException {
         createAndPopulateIndex("test");
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // TODO: Allow relocation once we have retry in ESQL (see #103081)
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("cluster.routing.rebalance.enable", "none")
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class)).toList();
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class, UnsignedLongMapperPlugin.class, VersionFieldPlugin.class)
+        ).toList();
     }
 
     public void testProjectConstant() {
@@ -1355,7 +1360,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
-    public void testTopNPushedToLuceneOnSortedIndex() {
+    public void testTopNPushedToLuceneOnSortedIndex() throws IOException {
         var sortOrder = randomFrom("asc", "desc");
         createAndPopulateIndex(
             "sorted_test_index",
@@ -1440,6 +1445,420 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (String fn : functions) {
             String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
             run(query).close();
+        }
+    }
+
+    /**
+     * End-to-end proof that mv_like's YES pushdown is correct with no recheck. The docs cover match-on-first (b),
+     * match-on-middle (c), match-on-last (d), no-match (a), duplicates (e), an empty-string value (f), single-valued
+     * (g), a field present with zero values (i) and a field absent entirely (h). The NOT query pins
+     * must_not(wildcard) as the exact complement, valueless docs included — mv_like never nulls, so their negation
+     * is true.
+     */
+    public void testMvLikePushdownEndToEnd() {
+        String index = "mv_like_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("bob", "carl"));      // no value matches
+        docs.put("b", List.of("anna", "bob"));      // matches on the first value
+        docs.put("c", List.of("bob", "anna", "z")); // matches on a middle value
+        docs.put("d", List.of("bob", "anna"));      // matches on the last value
+        docs.put("e", List.of("anna", "anna"));     // duplicates that match
+        docs.put("f", List.of("", "bob"));          // an empty string is a value, but does not match "ann*"
+        docs.put("g", List.of("annabel"));          // single-valued, matches
+        docs.put("i", List.of());                   // field present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "e", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_like(v, \"ann*\") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "f", "h", "i"));
+        }
+    }
+
+    /**
+     * The companion to {@link #testMvLikePushedMatchesEvaluator}: that one indexes multivalued docs, so its field block
+     * goes through the evaluator's block path. This one indexes only single-valued docs — every position has exactly one
+     * value and no nulls — so the loaded block is a vector and the evaluator takes its {@code asVector()} fast path.
+     * Proves that fast path agrees with the pushed query, which the multivalued differential cannot reach.
+     */
+    public void testMvLikeSingleValuedFieldMatchesPushed() {
+        String index = "mv_like_single_valued";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        // Every doc has exactly one value — no multivalue, no missing field — so the field block is a vector.
+        List<String> values = List.of("anna", "bob", "annabel", "banana", "a*b", "a?b", "ANNA", "", "xanna");
+        for (int i = 0; i < values.size(); i++) {
+            prepareIndex(index).setSource("id", "d" + i, "v", values.get(i)).get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated (vector path) disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The differential that proves mv_like's pushdown is exact rather than merely asserting it.
+     * <p>
+     * For every pattern in the corpus, two queries run over identical data on identical shards: {@code WHERE mv_like(v, p)},
+     * which pushes to a bare Lucene wildcard query, and {@code EVAL x = mv_like(v, p) | WHERE x}, where the reference
+     * attribute is not a FieldAttribute so isPushableFieldAttribute declines and the compute-engine evaluator runs
+     * instead. The two must select identical id sets, in both polarities. Any divergence between the automaton (or an
+     * affix fast path) and the pushed query fails here, which is the only place the exactness claim is actually tested.
+     */
+    public void testMvLikePushedMatchesEvaluator() {
+        String index = "mv_like_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a*b", "plain"));   // metacharacters appearing literally in the data
+        docs.put("g", List.of("a?b"));
+        docs.put("h", List.of("ANNA"));           // case differs
+        docs.put("i", List.of("anna", "anna"));
+        docs.put("j", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "k").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        // Covers every dispatch shape: prefix, suffix, contains, exact, single-char, escaped metachars, match-all, empty.
+        List<String> patterns = List.of("ann*", "*na", "*nn*", "anna", "a?b", "a\\\\*b", "a\\\\?b", "*", "", "zzz*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_like(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_like(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * The mv_rlike half of the pushed-vs-evaluator differential. Same discipline as
+     * {@link #testMvLikePushedMatchesEvaluator}: the pushed regexp query and the compute-engine automaton must select
+     * identical id sets over identical data, in both polarities, for every pattern in the corpus.
+     */
+    public void testMvRLikePushedMatchesEvaluator() {
+        String index = "mv_rlike_differential";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=keyword").get());
+        Map<String, List<String>> docs = new HashMap<>();
+        docs.put("a", List.of("anna", "bob"));
+        docs.put("b", List.of("bob", "carl", "anna"));
+        docs.put("c", List.of("annabel"));
+        docs.put("d", List.of("banana"));
+        docs.put("e", List.of("", "x"));
+        docs.put("f", List.of("a.b", "plain"));   // a literal dot in the data
+        docs.put("g", List.of("ANNA"));
+        docs.put("h", List.of("aaa"));
+        docs.put("i", List.of());                 // present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "j").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        List<String> patterns = List.of("ann.*", ".*na", "anna", "a.b", "a\\\\.b", "[abc]anana", "a+", ".*", "", "zzz.*");
+        for (String pattern : patterns) {
+            for (String polarity : List.of("", "not ")) {
+                String pushed = "from " + index + " | where " + polarity + "mv_rlike(v, \"" + pattern + "\") | keep id | sort id";
+                String evaluated = "from "
+                    + index
+                    + " | eval x = mv_rlike(v, \""
+                    + pattern
+                    + "\") | where "
+                    + polarity
+                    + "x | keep id | sort id";
+                List<Object> pushedIds;
+                List<Object> evaluatedIds;
+                try (EsqlQueryResponse results = run(pushed)) {
+                    pushedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                try (EsqlQueryResponse results = run(evaluated)) {
+                    evaluatedIds = getValuesList(results).stream().map(r -> r.get(0)).toList();
+                }
+                assertThat(
+                    "pushed and evaluated disagree for pattern [" + pattern + "] polarity [" + polarity + "]",
+                    pushedIds,
+                    equalTo(evaluatedIds)
+                );
+            }
+        }
+    }
+
+    /**
+     * End-to-end proof that YES pushdown is correct with no recheck: for an integer field the FilterExec is dropped, so
+     * rows come straight from the pushed range. The docs cover any-one-value-in-range (b), inclusive bounds (c, d),
+     * just-outside (a, e, f), single-valued (g), and no/empty values (h, i). The NOT query pins must_not(range) as the
+     * exact complement, including the valueless docs — mv_in_range never nulls, so their negation is true.
+     */
+    public void testMvInRangePushdownEndToEnd() {
+        String index = "mv_in_range_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=integer").get());
+        Map<String, List<Integer>> docs = new HashMap<>();
+        docs.put("a", List.of(10, 50));  // neither value in [20, 30]
+        docs.put("b", List.of(5, 25));   // 25 is in range: any one value is enough
+        docs.put("c", List.of(20));      // lower bound, inclusive
+        docs.put("d", List.of(30));      // upper bound, inclusive
+        docs.put("e", List.of(31, 40));  // just above the upper bound
+        docs.put("f", List.of(19));      // just below the lower bound
+        docs.put("g", List.of(22));      // single-valued, in range
+        docs.put("i", List.of());        // field present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f", "h", "i"));
+        }
+        // Open range (4th options arg): the bound values c (20) and d (30) drop out; b (25 interior) and g (22) stay.
+        String open = "{\"include_lower\": false, \"include_upper\": false}";
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30, " + open + ") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "g"));
+        }
+    }
+
+    /**
+     * mv_in_range treats -0.0 as equal to 0.0, but Lucene sorts -0.0 below +0.0. widenZeroBound widens a 0.0 double bound
+     * outward so the pushed (inclusive, RECHECK) range is a superset that surfaces both signed zeros. An inclusive
+     * [0.0, 1.0] then matches both; an exclusive lower (0.0, 1.0] excludes both — applied by the retained evaluator, not
+     * the pushed range. Neither zero can be silently dropped by the pre-filter.
+     */
+    public void testMvInRangeNegativeZeroEndToEnd() {
+        String index = "mv_in_range_negzero_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "d", "type=double").get());
+        prepareIndex(index).setSource("id", "neg", "d", -0.0).get();
+        prepareIndex(index).setSource("id", "pos", "d", 0.0).get();
+        client().admin().indices().prepareRefresh(index).get();
+        // Inclusive lower: both signed zeros are in [0.0, 1.0].
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("neg", "pos"));
+        }
+        // Exclusive lower: neither zero satisfies d > 0.0, so both are excluded.
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0, {\"include_lower\": false}) | keep id")) {
+            assertThat(getValuesList(results), empty());
+        }
+    }
+
+    /**
+     * A float field widens to double, and its Lucene range rounds the bound to float precision — so a naive YES would
+     * return rows the full-double evaluator rejects. 1.00000001 rounds to 1.0f, matching the {f: 1.0} doc in the pushed
+     * range, but the evaluator's 1.0 &gt;= 1.00000001 is false; double stays RECHECK, so the retained evaluator drops it.
+     */
+    public void testMvInRangeFloatPrecisionRecheckEndToEnd() {
+        String index = "mv_in_range_float_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", "type=float").get());
+        prepareIndex(index).setSource("id", "x", "f", 1.0f).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results), empty());
+        }
+        // NOT of the same: evaluator says 1.0 >= 1.00000001 is false, so NOT is true -> the row MUST be returned.
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
+    }
+
+    /**
+     * An <b>exclusive</b> bound on a float field must not be pushed as gt/lt: the float mapper rounds an exclusive bound
+     * inward (nextUp of the nearest float), so a doc whose value sits just past the bound would be dropped by the pushed
+     * range with nothing to restore it. 0.3f stores as 0.30000001192…, which is strictly greater than the double 0.3, so
+     * the evaluator matches `> 0.3` and the row must be returned. The RECHECK path pushes the range inclusive (superset)
+     * and the retained evaluator applies the exclusivity, keeping the row.
+     */
+    public void testMvInRangeFloatExclusiveRecheckEndToEnd() {
+        String index = "mv_in_range_float_excl_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", "type=float").get());
+        prepareIndex(index).setSource("id", "x", "f", 0.3f).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 0.3, 1.0, {\"include_lower\": false}) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
+    }
+
+    /**
+     * A degenerate open range matches nothing, even over a real index where the exclusive integral bounds push an empty
+     * Lucene range (gt 5 lt 5 collapses to NO_DOCS with no error). A doc holding exactly 5 is returned by the closed
+     * [5, 5] but not by the open (5, 5), and nothing lies strictly between the adjacent integers 5 and 6.
+     */
+    public void testMvInRangeDegenerateOpenRangeEndToEnd() {
+        String index = "mv_in_range_degenerate_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=integer").get());
+        prepareIndex(index).setSource("id", "x", "v", 5).get();
+        client().admin().indices().prepareRefresh(index).get();
+        String open = "{\"include_lower\": false, \"include_upper\": false}";
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 5) | keep id")) {
+            assertThat(getValuesList(r).stream().map(row -> row.get(0)).toList(), contains("x")); // closed [5, 5] matches
+        }
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 5, " + open + ") | keep id")) {
+            assertThat(getValuesList(r), empty()); // open (5, 5) is empty
+        }
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 6, " + open + ") | keep id")) {
+            assertThat(getValuesList(r), empty()); // no integer strictly between 5 and 6
+        }
+    }
+
+    /**
+     * The full pushdown correctness matrix over a real Lucene index: every pushable type (the integral YES types and the
+     * double/keyword/ip/version RECHECK types) crossed with every boundary mode ([], [), (], ()) and both polarities
+     * (positive and NOT). For each cell the expected ids are computed by an in-test oracle over the indexed values, so the
+     * pushed path — YES (range trusted), RECHECK (range pre-filters, evaluator re-checks), and NOT (integral must_not vs
+     * RECHECK full-filter) — must return exactly what the evaluator semantics dictate for that type, mode, and polarity.
+     */
+    public void testMvInRangePushdownMatrixEndToEnd() {
+        // Integral -> YES. The bound literals below are pinned to the field type (no implicit widening).
+        assertPushdownMatrix("mvir_mx_int", "type=integer", Object::toString, 20, 30, matrixDocs(19, 20, 25, 30, 31));
+        assertPushdownMatrix("mvir_mx_long", "type=long", v -> v + "::long", 20L, 30L, matrixDocs(19L, 20L, 25L, 30L, 31L));
+        assertPushdownMatrix("mvir_mx_ul", "type=unsigned_long", v -> v + "::unsigned_long", 20L, 30L, matrixDocs(19L, 20L, 25L, 30L, 31L));
+        // Dates: ISO-8601 strings sort chronologically, so the oracle's String order matches the type order.
+        assertPushdownMatrix(
+            "mvir_mx_date",
+            "type=date",
+            v -> "\"" + v + "\"::datetime",
+            "2020-01-01",
+            "2021-01-01",
+            matrixDocs("2019-01-01", "2020-01-01", "2020-06-15", "2021-01-01", "2022-01-01")
+        );
+        assertPushdownMatrix(
+            "mvir_mx_dn",
+            "type=date_nanos",
+            v -> "\"" + v + "\"::date_nanos",
+            "2020-01-01",
+            "2021-01-01",
+            matrixDocs("2019-01-01", "2020-01-01", "2020-06-15", "2021-01-01", "2022-01-01")
+        );
+        // RECHECK types. The chosen values keep String order equal to the type order (2-digit ip octets, single-digit
+        // version majors, plain letters) so the oracle can compare lexically.
+        assertPushdownMatrix("mvir_mx_dbl", "type=double", Object::toString, 20.0, 30.0, matrixDocs(19.0, 20.0, 25.0, 30.0, 31.0));
+        assertPushdownMatrix("mvir_mx_kw", "type=keyword", v -> "\"" + v + "\"", "d", "p", matrixDocs("c", "d", "j", "p", "q"));
+        assertPushdownMatrix(
+            "mvir_mx_ip",
+            "type=ip",
+            v -> "\"" + v + "\"::ip",
+            "20.0.0.0",
+            "30.0.0.0",
+            matrixDocs("19.0.0.0", "20.0.0.0", "25.0.0.0", "30.0.0.0", "31.0.0.0")
+        );
+        assertPushdownMatrix(
+            "mvir_mx_ver",
+            "type=version",
+            v -> "\"" + v + "\"::version",
+            "2.0.0",
+            "8.0.0",
+            matrixDocs("1.0.0", "2.0.0", "5.0.0", "8.0.0", "9.0.0")
+        );
+    }
+
+    /** Nine docs covering every boundary role: below/on-lower/interior/on-upper/above, both-out and one-in multivalues,
+     *  an empty (valueless) doc, and both bounds together. */
+    private static <T> Map<String, List<T>> matrixDocs(T below, T lo, T interior, T hi, T above) {
+        Map<String, List<T>> m = new LinkedHashMap<>();
+        m.put("a", List.of(below));
+        m.put("b", List.of(lo));
+        m.put("c", List.of(interior));
+        m.put("d", List.of(hi));
+        m.put("e", List.of(above));
+        m.put("f", List.of(below, above)); // both values out of range
+        m.put("g", List.of(below, interior)); // any-value: only the interior value is in range
+        m.put("h", List.of()); // no value -> false -> lands in the NOT complement
+        m.put("i", List.of(lo, hi)); // both bounds present
+        return m;
+    }
+
+    private <T extends Comparable<T>> void assertPushdownMatrix(
+        String index,
+        String mapping,
+        Function<T, String> lit,
+        T lo,
+        T hi,
+        Map<String, List<T>> docs
+    ) {
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", mapping).get());
+        for (var doc : docs.entrySet()) {
+            if (doc.getValue().isEmpty()) {
+                prepareIndex(index).setSource("id", doc.getKey()).get();
+            } else {
+                prepareIndex(index).setSource("id", doc.getKey(), "f", doc.getValue()).get();
+            }
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        boolean[][] modes = { { true, true }, { false, true }, { true, false }, { false, false } };
+        for (boolean[] mode : modes) {
+            boolean includeLower = mode[0];
+            boolean includeUpper = mode[1];
+            String options = (includeLower && includeUpper)
+                ? ""
+                : ", {\"include_lower\": " + includeLower + ", \"include_upper\": " + includeUpper + "}";
+            String predicate = "mv_in_range(f, " + lit.apply(lo) + ", " + lit.apply(hi) + options + ")";
+
+            List<String> expected = docs.entrySet().stream().filter(e -> e.getValue().stream().anyMatch(v -> {
+                boolean aboveLower = includeLower ? v.compareTo(lo) >= 0 : v.compareTo(lo) > 0;
+                boolean belowUpper = includeUpper ? v.compareTo(hi) <= 0 : v.compareTo(hi) < 0;
+                return aboveLower && belowUpper;
+            })).map(Map.Entry::getKey).sorted().toList();
+            try (EsqlQueryResponse r = run("from " + index + " | where " + predicate + " | keep id | sort id")) {
+                assertThat(predicate, getValuesList(r).stream().map(row -> row.get(0)).toList(), equalTo(expected));
+            }
+
+            List<String> expectedNot = docs.keySet().stream().filter(id -> expected.contains(id) == false).sorted().toList();
+            try (EsqlQueryResponse r = run("from " + index + " | where not " + predicate + " | keep id | sort id")) {
+                assertThat("NOT " + predicate, getValuesList(r).stream().map(row -> row.get(0)).toList(), equalTo(expectedNot));
+            }
         }
     }
 
@@ -1941,6 +2360,49 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testGrokTimeoutIsUserError() {
+        String indexName = "test_grok_timeout";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("message", "type=keyword"));
+        client().prepareIndex(indexName)
+            .setSource(
+                "message",
+                "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+                    + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018"
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        admin().cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+                    Settings.builder().put(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME.getKey(), "200ms").build()
+                )
+            )
+            .actionGet();
+
+        try {
+            // This pattern causes catastrophic backtracking and reliably exceeds the 200 ms watchdog timeout.
+            // The same pattern is used in GrokTests.testExponentialExpressions.
+            var ex = expectThrows(
+                ElasticsearchException.class,
+                () -> run(
+                    "FROM "
+                        + indexName
+                        + " | GROK message \"\"\""
+                        + "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+                        + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10}"
+                        + " Datum->%{DATESTAMP_OTHER:param11}"
+                        + "\"\"\""
+                ).close()
+            );
+            assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
+        } finally {
+            clearPersistentSettings(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
+        }
+    }
+
     public void testScriptField() throws Exception {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
@@ -2072,6 +2534,109 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testPushTopNToAggregate() {
+        String indexName = "test-pushdown-topn";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("value", "type=long", "tag", "type=keyword"));
+        Map<String, Long> counts = new HashMap<>();
+        Map<String, Double> sums = new HashMap<>();
+        int numDocs = between(10, 500);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            String tag = "tag-" + randomIntBetween(10, 50);
+            int value = randomIntBetween(1, 1000);
+            bulk.add(new IndexRequest(indexName).id("1" + i).source("value", value, "tag", tag));
+            counts.merge(tag, 1L, Long::sum);
+            sums.merge(tag, (double) value, Double::sum);
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        int limit = between(1, 100);
+        boolean asc = randomBoolean();
+        var request = syncEsqlQueryRequest(
+            "FROM test-pushdown-topn | STATS c = COUNT(*), avg = AVG(value) BY tag | SORT c " + (asc ? "ASC" : "DESC") + " | LIMIT " + limit
+        ).profile(true);
+        Comparator<Long> ordering = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
+        List<Long> expectedTopCounts = counts.values().stream().sorted(ordering).limit(limit).toList();
+        try (var result = run(request)) {
+            List<List<Object>> rows = getValuesList(result);
+            int expectedRows = Math.min(limit, counts.size());
+            assertThat(rows, hasSize(expectedRows));
+            Long previousCount = null;
+            for (List<Object> row : rows) {
+                long c = ((Number) row.get(0)).longValue();
+                double avg = ((Number) row.get(1)).doubleValue();
+                String tag = (String) row.get(2);
+                if (previousCount != null) {
+                    assertThat(
+                        "rows must be sorted by count " + (asc ? "asc" : "desc"),
+                        ordering.compare(previousCount, c),
+                        lessThanOrEqualTo(0)
+                    );
+                }
+                previousCount = c;
+                assertThat("count mismatch for tag " + tag, c, equalTo(counts.get(tag)));
+                assertEquals("avg mismatch for tag " + tag, sums.get(tag) / counts.get(tag), avg, 0.01);
+            }
+            // the returned groups must be exactly the true top-N groups by count
+            List<Long> actualCounts = rows.stream().map(r -> ((Number) r.get(0)).longValue()).sorted(ordering).toList();
+            assertThat(actualCounts, equalTo(expectedTopCounts));
+
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            DriverProfile finalDriver = profile.drivers().stream().filter(d -> d.description().contains("final")).findFirst().get();
+            HashAggregationOperator.Status status = finalDriver.operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), equalTo((long) expectedRows));
+        }
+        request = syncEsqlQueryRequest("""
+            FROM test-pushdown-topn | STATS c = COUNT(*), avg = AVG(value) BY tag | WHERE avg > 100 | SORT c DESC | LIMIT
+            """ + limit).profile(true);
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            DriverProfile finalDriver = profile.drivers().stream().filter(d -> d.description().contains("final")).findFirst().get();
+            HashAggregationOperator.Status status = finalDriver.operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), equalTo((long) counts.size()));
+        }
+    }
+
+    public void testLookupJoin() {
+        Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("color_names")
+                .setSettings(lookupSettings)
+                .setMapping("color", "type=keyword", "color_name", "type=keyword")
+        );
+        Map<String, String> expectedColorNames = Map.of("red", "Crimson", "blue", "Azure", "green", "Emerald");
+        for (var entry : expectedColorNames.entrySet()) {
+            prepareIndex("color_names").setSource("color", entry.getKey(), "color_name", entry.getValue()).get();
+        }
+        client().admin().indices().prepareRefresh("color_names").get();
+
+        try (EsqlQueryResponse results = run("FROM test | LOOKUP JOIN color_names ON color | KEEP color, color_name")) {
+            assertThat(results.columns(), hasSize(2));
+            List<List<Object>> rows = getValuesList(results);
+            assertThat(rows.size(), equalTo(40));
+            int colorIdx = results.columns().indexOf(new ColumnInfoImpl("color", "keyword", null));
+            int colorNameIdx = results.columns().indexOf(new ColumnInfoImpl("color_name", "keyword", null));
+            for (List<Object> row : rows) {
+                String color = (String) row.get(colorIdx);
+                String colorName = (String) row.get(colorNameIdx);
+                assertThat("wrong color_name for color=" + color, colorName, equalTo(expectedColorNames.get(color)));
+            }
+        }
+    }
+
     private void clearPersistentSettings(Setting<?>... settings) {
         Settings.Builder clearedSettings = Settings.builder();
 
@@ -2087,5 +2652,594 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     private DiscoveryNode randomDataNode() {
         return randomFrom(clusterService().state().nodes().getDataNodes().values());
+    }
+
+    public void testExplain() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+
+        String query = "FROM test | WHERE data > 2 | STATS count = COUNT(*) BY color";
+
+        // First, run the query with profile=true to get the actual execution plan
+        EsqlQueryRequest profileRequest = new EsqlQueryRequest();
+        profileRequest.query(query);
+        profileRequest.profile(true);
+        profileRequest.pragmas(randomPragmas());
+
+        String profiledPlanTree = null;
+        try (EsqlQueryResponse profiledResponse = run(profileRequest)) {
+            assertNotNull("Profile should be present", profiledResponse.profile());
+            assertThat("Should have plan profiles", profiledResponse.profile().plans().size(), greaterThan(0));
+
+            // Get the data node plan (the one that runs on data nodes)
+            for (var planProfile : profiledResponse.profile().plans()) {
+                if (planProfile.description().contains("data")) {
+                    profiledPlanTree = planProfile.planTree();
+                    break;
+                }
+            }
+        }
+        assertNotNull("Should have found a data node plan in profile", profiledPlanTree);
+
+        // Now run EXPLAIN and compare the local physical plan
+        try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+            // Verify the columns are correct
+            assertThat(
+                explainResults.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("cluster", "keyword", null),
+                        new ColumnInfoImpl("node", "keyword", null),
+                        new ColumnInfoImpl("role", "keyword", null),
+                        new ColumnInfoImpl("type", "keyword", null),
+                        new ColumnInfoImpl("plan", "keyword", null)
+                    )
+                )
+            );
+
+            List<List<Object>> values = getValuesList(explainResults);
+
+            String explainLocalPhysicalPlan = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    explainLocalPhysicalPlan = plan;
+                    break;
+                }
+            }
+
+            assertNotNull("Should have local physical plan from EXPLAIN", explainLocalPhysicalPlan);
+
+            // Compare the plans by extracting operator sequence
+            List<String> profiledOperators = extractOperators(profiledPlanTree);
+            List<String> explainOperators = extractOperators(explainLocalPhysicalPlan);
+
+            // Strip ExchangeSinkExec from both plans if present (it's just a wrapper)
+            if (profiledOperators.size() > 0 && profiledOperators.get(0).equals("ExchangeSinkExec")) {
+                profiledOperators = profiledOperators.subList(1, profiledOperators.size());
+            }
+            if (explainOperators.size() > 0 && explainOperators.get(0).equals("ExchangeSinkExec")) {
+                explainOperators = explainOperators.subList(1, explainOperators.size());
+            }
+
+            assertThat(
+                "EXPLAIN local physical plan should have same operators as profiled execution plan",
+                explainOperators,
+                equalTo(profiledOperators)
+            );
+        }
+    }
+
+    /**
+     * Normalize a plan string by removing non-deterministic elements like IDs, timestamps, memory addresses,
+     * and computed statistics. This allows comparing plan structures across different executions.
+     */
+    private String determinizePlanString(String plan) {
+        // Remove ExchangeSinkExec wrapper (present in profile but not in EXPLAIN local plan)
+        // This regex handles nested brackets by matching until we find "] \_"
+        String result = plan.replaceAll("ExchangeSinkExec\\[.*?\\],\\w+\\]\\s*\\\\_", "");
+
+        return result
+            // Remove attribute IDs like {r}#123, {f}#456
+            .replaceAll("\\{[rf]\\}#\\d+", "{_}#_")
+            // Remove reference IDs like #123
+            .replaceAll("#\\d+", "#_")
+            // Normalize estimatedRowSize (may have computed values or null)
+            .replaceAll("estimatedRowSize\\[\\d+\\]", "estimatedRowSize[_]")
+            .replaceAll("estimatedRowSize\\[null\\]", "estimatedRowSize[_]")
+            // Normalize the last parameter in AggregateExec (position/count - can be number or null)
+            .replaceAll("(\\],)(\\d+|null)(\\]\\s*\\\\_)", "$1_$3")
+            .replaceAll("(\\],)(\\d+|null)(\\]$)", "$1_$3")
+            // Normalize source position references like @1:19 or @_:19
+            .replaceAll("@\\d+:\\d+", "@_:_")
+            .replaceAll("@_:\\d+", "@_:_")
+            // Normalize source text (may be absent when query is null, e.g. PreparedEsqlQueryRequest)
+            .replaceAll("(\"source\":\"?)[^@\"]*(@_:_)", "$1$2")
+            // Remove memory addresses
+            .replaceAll("@[0-9a-f]+", "@_")
+            // Remove UUIDs
+            .replaceAll("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "_UUID_")
+            // Remove timestamps
+            .replaceAll("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "_TIMESTAMP_")
+            // Normalize whitespace
+            .replaceAll("\\s+", " ")
+            .trim();
+    }
+
+    /**
+     * Extract operator names from a plan string in order.
+     * Operators are identified by the pattern "OperatorName[" in the plan string.
+     */
+    private List<String> extractOperators(String plan) {
+        List<String> operators = new ArrayList<>();
+        Pattern pattern = Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
+        Matcher matcher = pattern.matcher(plan);
+        while (matcher.find()) {
+            operators.add(matcher.group(1));
+        }
+        return operators;
+    }
+
+    public void testExplainSimple() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        try (EsqlQueryResponse results = run("EXPLAIN (ROW x = 1)")) {
+            // Verify the columns are correct
+            assertThat(
+                results.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("cluster", "keyword", null),
+                        new ColumnInfoImpl("node", "keyword", null),
+                        new ColumnInfoImpl("role", "keyword", null),
+                        new ColumnInfoImpl("type", "keyword", null),
+                        new ColumnInfoImpl("plan", "keyword", null)
+                    )
+                )
+            );
+
+            // Verify we have rows with plan information (ROW doesn't need data nodes)
+            List<List<Object>> values = getValuesList(results);
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+        }
+    }
+
+    /**
+     * Test EXPLAIN with multiple data nodes to verify that local plans are fetched from data nodes
+     * and match the actual profiled execution plans.
+     */
+    public void testExplainMultiNode() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+
+        // Ensure we have at least 2 data nodes
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        // Create a test index with multiple shards
+        String indexName = "explain_multinode_test";
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping("value", "type=integer", "name", "type=keyword")
+        );
+
+        // Index some test data
+        int numDocs = 100;
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numDocs; i++) {
+            bulk.add(new IndexRequest(indexName).source(Map.of("value", i, "name", "doc" + i)));
+        }
+        BulkResponse bulkResponse = bulk.get();
+        assertFalse(bulkResponse.hasFailures());
+
+        String query = "FROM " + indexName + " | WHERE value > 50 | STATS count = COUNT(*)";
+
+        try {
+            // First, run the query with profile=true to get the actual execution plan
+            EsqlQueryRequest profileRequest = new EsqlQueryRequest();
+            profileRequest.query(query);
+            profileRequest.profile(true);
+            profileRequest.pragmas(randomPragmas());
+
+            String profiledPlanTree = null;
+            try (EsqlQueryResponse profiledResponse = run(profileRequest)) {
+                assertNotNull("Profile should be present", profiledResponse.profile());
+                // Get the data node plan
+                for (var planProfile : profiledResponse.profile().plans()) {
+                    if (planProfile.description().contains("data")) {
+                        profiledPlanTree = planProfile.planTree();
+                        break;
+                    }
+                }
+            }
+            assertNotNull("Should have found a data node plan in profile", profiledPlanTree);
+
+            // Now run EXPLAIN and compare
+            try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                String explainLocalPhysicalPlan = null;
+                String localPlanNodeName = null;
+
+                for (List<Object> row : values) {
+                    String node = (String) row.get(1);
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                        explainLocalPhysicalPlan = plan;
+                        localPlanNodeName = node;
+                        break;
+                    }
+                }
+
+                assertNotNull("Should have local physical plan from EXPLAIN", explainLocalPhysicalPlan);
+
+                // Compare the plans by normalizing non-deterministic elements
+                String normalizedProfiledPlan = determinizePlanString(profiledPlanTree);
+                String normalizedExplainPlan = determinizePlanString(explainLocalPhysicalPlan);
+
+                assertThat(
+                    "EXPLAIN local physical plan should match profiled execution plan structure",
+                    normalizedExplainPlan,
+                    equalTo(normalizedProfiledPlan)
+                );
+
+                // Verify the node name is one of the actual cluster nodes
+                if (localPlanNodeName != null) {
+                    Set<String> nodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+                    assertThat(
+                        "Local plan node name should be a valid cluster node",
+                        nodeNames,
+                        org.hamcrest.Matchers.hasItem(localPlanNodeName)
+                    );
+                }
+            }
+        } finally {
+            // Clean up the test index
+            assertAcked(indicesAdmin().prepareDelete(indexName));
+        }
+    }
+
+    /**
+     * Test EXPLAIN with LOOKUP JOIN to verify that join plans are captured correctly.
+     * Unlike INLINE STATS, LOOKUP JOIN is optimized into a regular Join and executed
+     * directly without creating a separate subplan.
+     */
+    public void testExplainWithLookupJoin() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+
+        String mainIndex = "explain_lookup_main";
+        String lookupIndex = "explain_lookup_index";
+
+        try {
+            // Create the lookup index (must be in lookup mode)
+            Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+            assertAcked(
+                indicesAdmin().prepareCreate(lookupIndex)
+                    .setSettings(lookupSettings)
+                    .setMapping("category_id", "type=keyword", "category_name", "type=keyword")
+            );
+
+            // Index lookup data
+            prepareIndex(lookupIndex).setSource("category_id", "A", "category_name", "Alpha").get();
+            prepareIndex(lookupIndex).setSource("category_id", "B", "category_name", "Beta").get();
+            prepareIndex(lookupIndex).setSource("category_id", "C", "category_name", "Gamma").get();
+            indicesAdmin().prepareRefresh(lookupIndex).get();
+
+            // Create main index
+            assertAcked(
+                indicesAdmin().prepareCreate(mainIndex)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                    .setMapping("id", "type=integer", "category_id", "type=keyword")
+            );
+
+            // Index main data
+            prepareIndex(mainIndex).setSource("id", 1, "category_id", "A").get();
+            prepareIndex(mainIndex).setSource("id", 2, "category_id", "B").get();
+            prepareIndex(mainIndex).setSource("id", 3, "category_id", "A").get();
+            indicesAdmin().prepareRefresh(mainIndex).get();
+
+            // Query with LOOKUP JOIN
+            String query = "FROM " + mainIndex + " | LOOKUP JOIN " + lookupIndex + " ON category_id | KEEP id, category_id, category_name";
+
+            try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                // Track plans from EXPLAIN
+                String parsedPlan = null;
+                String optimizedLogicalPlan = null;
+                String optimizedPhysicalPlan = null;
+                String localPhysicalPlan = null;
+                String nodeReducePlan = null;
+                String finalPlan = null;
+                int dataNodePlanCount = 0;
+
+                for (List<Object> row : values) {
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("coordinator".equals(role)) {
+                        if ("parsedPlan".equals(type)) {
+                            parsedPlan = plan;
+                        } else if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = plan;
+                        } else if ("optimizedPhysicalPlan".equals(type)) {
+                            optimizedPhysicalPlan = plan;
+                        }
+                    } else if ("data".equals(role)) {
+                        dataNodePlanCount++;
+                        if ("localPhysicalPlan".equals(type)) {
+                            localPhysicalPlan = plan;
+                        }
+                    } else if ("node_reduce".equals(role)) {
+                        nodeReducePlan = plan;
+                    } else if ("final".equals(role)) {
+                        finalPlan = plan;
+                    }
+                }
+
+                // Verify coordinator plans are present
+                assertNotNull("Should have parsed plan", parsedPlan);
+                assertNotNull("Should have optimized logical plan", optimizedLogicalPlan);
+                assertNotNull("Should have optimized physical plan", optimizedPhysicalPlan);
+
+                // === Parsed Plan Assertions ===
+                // The parsed plan should show the original LookupJoin before any optimization
+                assertThat("Parsed plan should contain LookupJoin", parsedPlan, containsString("LookupJoin"));
+                assertThat("Parsed plan should reference main index", parsedPlan, containsString(mainIndex));
+                assertThat("Parsed plan should reference lookup index", parsedPlan, containsString(lookupIndex));
+                assertThat("Parsed plan should contain join key category_id", parsedPlan, containsString("category_id"));
+
+                // === Optimized Logical Plan Assertions ===
+                // LookupJoin is transformed into a LEFT Join during optimization
+                assertThat("Optimized logical plan should contain Join[LEFT", optimizedLogicalPlan, containsString("Join[LEFT"));
+                assertThat("Optimized logical plan should reference main index", optimizedLogicalPlan, containsString(mainIndex));
+                assertThat("Optimized logical plan should reference lookup index", optimizedLogicalPlan, containsString(lookupIndex));
+                // The lookup index should be marked as LOOKUP mode
+                assertThat("Optimized logical plan should show LOOKUP mode", optimizedLogicalPlan, containsString("[LOOKUP]"));
+                // Project should contain the kept fields
+                assertThat("Optimized logical plan should have Project", optimizedLogicalPlan, containsString("Project"));
+
+                // === Optimized Physical Plan Assertions ===
+                // The physical plan should contain LookupJoinExec for LOOKUP JOIN execution
+                assertThat(
+                    "Optimized physical plan should contain LookupJoinExec",
+                    optimizedPhysicalPlan,
+                    containsString("LookupJoinExec")
+                );
+                // Should have exchange for distributed execution
+                assertThat(
+                    "Optimized physical plan should contain ExchangeExec for distribution",
+                    optimizedPhysicalPlan,
+                    containsString("ExchangeExec")
+                );
+                // Should have FragmentExec for query fragments
+                assertThat("Optimized physical plan should contain FragmentExec", optimizedPhysicalPlan, containsString("FragmentExec"));
+
+                // === Data Node Plan Assertions ===
+                assertTrue("EXPLAIN with LOOKUP JOIN should include data node plans", dataNodePlanCount > 0);
+                assertNotNull("Should have local physical plan from data node", localPhysicalPlan);
+                // Local plan should contain the source operations
+                assertThat(
+                    "Local physical plan should contain source execution",
+                    localPhysicalPlan,
+                    anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
+                );
+
+                // === Node Reduce Plan Assertions ===
+                assertNotNull("Should have node_reduce plan", nodeReducePlan);
+                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
+                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
+
+                // === Final Plan Assertions ===
+                assertNotNull("Should have final coordinator plan", finalPlan);
+                // Final plan should contain OutputExec for final result output
+                assertThat("Final plan should contain OutputExec", finalPlan, containsString("OutputExec"));
+                // Final plan should contain ExchangeSourceExec to receive data from data nodes
+                assertThat("Final plan should contain ExchangeSourceExec", finalPlan, containsString("ExchangeSourceExec"));
+            }
+        } finally {
+            // Clean up
+            try {
+                indicesAdmin().prepareDelete(mainIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+            try {
+                indicesAdmin().prepareDelete(lookupIndex).get();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Test EXPLAIN with query approximation to verify that approximation plans are captured.
+     * Approximation transforms STATS into SampledAggregate when the data set is large enough.
+     * With small data sets (like this test), approximation may fall back to exact execution.
+     */
+    public void testExplainWithApproximation() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V7.isEnabled());
+
+        String indexName = "explain_approximation_test";
+
+        try {
+            // Create an index
+            assertAcked(
+                indicesAdmin().prepareCreate(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+                    .setMapping("value", "type=integer", "category", "type=keyword")
+            );
+
+            // Index test data
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < 1000; i++) {
+                bulk.add(new IndexRequest(indexName).source(Map.of("value", i, "category", "cat" + (i % 10))));
+            }
+            BulkResponse bulkResponse = bulk.get();
+            assertFalse(bulkResponse.hasFailures());
+
+            // Query with approximation enabled via SET command
+            // rows must be at least 10000 per ApproximationSettings validation
+            // SET must be placed before EXPLAIN as a separate statement
+            String query = "SET approximation={\"rows\":10000}; EXPLAIN (FROM " + indexName + " | STATS count=COUNT(*), sum=SUM(value))";
+
+            try (EsqlQueryResponse explainResults = run(query)) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                // Track what we find in the EXPLAIN output
+                String parsedPlan = null;
+                String optimizedLogicalPlan = null;
+                String optimizedPhysicalPlan = null;
+                String localPhysicalPlan = null;
+                String nodeReducePlan = null;
+                String finalPlan = null;
+                int dataNodePlanCount = 0;
+
+                for (List<Object> row : values) {
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("coordinator".equals(role)) {
+                        if ("parsedPlan".equals(type)) {
+                            parsedPlan = plan;
+                        } else if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = plan;
+                        } else if ("optimizedPhysicalPlan".equals(type)) {
+                            optimizedPhysicalPlan = plan;
+                        }
+                    } else if ("data".equals(role)) {
+                        dataNodePlanCount++;
+                        if ("localPhysicalPlan".equals(type)) {
+                            localPhysicalPlan = plan;
+                        }
+                    } else if ("node_reduce".equals(role)) {
+                        nodeReducePlan = plan;
+                    } else if ("final".equals(role)) {
+                        finalPlan = plan;
+                    }
+                }
+
+                // === Verify all plan types are present ===
+                assertNotNull("Should have parsed plan", parsedPlan);
+                assertNotNull("Should have optimized logical plan", optimizedLogicalPlan);
+                assertNotNull("Should have optimized physical plan", optimizedPhysicalPlan);
+
+                // === Parsed Plan Assertions ===
+                // The parsed plan shows the original query structure before optimization
+                assertThat("Parsed plan should contain Aggregate", parsedPlan, containsString("Aggregate"));
+                assertThat("Parsed plan should contain COUNT aggregation", parsedPlan, containsString("COUNT"));
+                assertThat("Parsed plan should contain SUM aggregation", parsedPlan, containsString("SUM"));
+                assertThat("Parsed plan should reference the index", parsedPlan, containsString(indexName));
+
+                // === Optimized Logical Plan Assertions ===
+                // With approximation enabled, STATS may be transformed to SampledAggregate
+                // However, with small data (1000 rows < 10000 target), it may use exact Aggregate
+                assertThat(
+                    "Optimized logical plan should contain aggregation (Aggregate or SampledAggregate)",
+                    optimizedLogicalPlan,
+                    anyOf(containsString("Aggregate"), containsString("SampledAggregate"))
+                );
+                // The aggregation functions should be present
+                assertThat("Optimized logical plan should contain COUNT", optimizedLogicalPlan, containsString("COUNT"));
+                assertThat("Optimized logical plan should contain SUM", optimizedLogicalPlan, containsString("SUM"));
+                // Should reference the source index
+                assertThat("Optimized logical plan should reference index", optimizedLogicalPlan, containsString(indexName));
+
+                // === Optimized Physical Plan Assertions ===
+                // Physical plan should have aggregation execution operators
+                assertThat("Optimized physical plan should contain AggregateExec", optimizedPhysicalPlan, containsString("AggregateExec"));
+                // Should have exchange for final aggregation coordination
+                assertThat("Optimized physical plan should contain ExchangeExec", optimizedPhysicalPlan, containsString("ExchangeExec"));
+
+                // === Data Node Plan Assertions ===
+                assertTrue("EXPLAIN with approximation should include data node plans", dataNodePlanCount > 0);
+                assertNotNull("Should have local physical plan from data node", localPhysicalPlan);
+                // Local plan should contain source and aggregation operators
+                assertThat(
+                    "Local physical plan should contain source execution",
+                    localPhysicalPlan,
+                    anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
+                );
+                // Local plan should have partial aggregation
+                assertThat(
+                    "Local physical plan should contain aggregation operator",
+                    localPhysicalPlan,
+                    anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
+                );
+
+                // === Node Reduce Plan Assertions ===
+                assertNotNull("Should have node_reduce plan", nodeReducePlan);
+                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
+                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
+
+                // === Final Plan Assertions ===
+                assertNotNull("Should have final coordinator plan", finalPlan);
+                // Final plan should contain OutputExec for final result output
+                assertThat("Final plan should contain OutputExec", finalPlan, containsString("OutputExec"));
+                // Final plan should contain ExchangeSourceExec to receive data from data nodes
+                assertThat("Final plan should contain ExchangeSourceExec", finalPlan, containsString("ExchangeSourceExec"));
+            }
+        } finally {
+            // Clean up
+            try {
+                indicesAdmin().prepareDelete(indexName).get();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    /**
+     * Verifies that unmapped fields are loaded from _source (not replaced with constant nulls) when shards are processed one at a time.
+     * Reproducer for a bug where single-shard concurrency causes potentiallyUnmappedExpression to be lost during shard-level planning,
+     * resulting in null values instead of the actual _source values for unmapped fields.
+     */
+    public void testUnmappedFieldsLoadWithSingleShardConcurrency() {
+        assumeTrue("requires pragmas, which are disabled on non-SNAPSHOT builds", Build.current().isSnapshot());
+        assertAcked(prepareCreate("test_mapped").setMapping("event_duration", "type=long"));
+        assertAcked(prepareCreate("test_unmapped").setMapping("""
+            {"dynamic": false, "properties": {}}"""));
+
+        client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(prepareIndex("test_mapped").setSource(Map.of("event_duration", 100)))
+            .add(prepareIndex("test_mapped").setSource(Map.of("event_duration", 200)))
+            .add(prepareIndex("test_unmapped").setSource(Map.of("event_duration", 10)))
+            .add(prepareIndex("test_unmapped").setSource(Map.of("event_duration", 20)))
+            .get();
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+        try (var resp = run(syncEsqlQueryRequest("""
+            SET unmapped_fields="load";
+            FROM test_mapped, test_unmapped METADATA _index
+            | EVAL event_duration = event_duration::long
+            | KEEP _index, event_duration
+            | SORT _index, event_duration""").pragmas(pragmas))) {
+
+            assertThat(
+                resp.columns(),
+                equalTo(List.of(new ColumnInfoImpl("_index", "keyword", null), new ColumnInfoImpl("event_duration", "long", null)))
+            );
+
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("test_mapped", 100L),
+                        List.of("test_mapped", 200L),
+                        List.of("test_unmapped", 10L),
+                        List.of("test_unmapped", 20L)
+                    )
+                )
+            );
+        }
     }
 }

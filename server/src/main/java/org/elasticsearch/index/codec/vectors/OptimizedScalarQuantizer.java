@@ -150,6 +150,108 @@ public class OptimizedScalarQuantizer {
     }
 
     /**
+     * Quantize a byte vector against a byte centroid.
+     * @param vector The byte vector to quantize
+     * @param residualDestination destination for centered (residual) float values
+     * @param destination destination for quantized int values
+     * @param bits number of bits for quantization
+     * @param centroid the byte centroid to center against
+     * @return the quantization result
+     */
+    public QuantizationResult scalarQuantize(byte[] vector, float[] residualDestination, int[] destination, byte bits, byte[] centroid) {
+        assert vector.length <= destination.length;
+        assert bits > 0 && bits <= 8;
+        int points = 1 << bits;
+        if (similarityFunction == EUCLIDEAN) {
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+        } else {
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+        }
+        float vecMean = statsScratch[0];
+        float vecVar = statsScratch[1];
+        float norm2 = statsScratch[2];
+        float min = statsScratch[3];
+        float max = statsScratch[4];
+        float vecStd = (float) Math.sqrt(vecVar);
+        initInterval(bits, vecStd, vecMean, min, max, intervalScratch);
+        boolean hasQuantization = optimizeIntervals(intervalScratch, destination, residualDestination, norm2, points);
+        int sumQuery;
+        if (hasQuantization) {
+            sumQuery = getSumQuery(destination);
+        } else {
+            sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                residualDestination,
+                destination,
+                intervalScratch[0],
+                intervalScratch[1],
+                bits
+            );
+        }
+        return new QuantizationResult(
+            intervalScratch[0],
+            intervalScratch[1],
+            similarityFunction == EUCLIDEAN ? norm2 : statsScratch[5],
+            sumQuery
+        );
+    }
+
+    /**
+     * Multi-level quantize a byte vector against a byte centroid.
+     * @param vector The byte vector to quantize
+     * @param residualDestination destination for centered (residual) float values
+     * @param destinations destinations for quantized int values at each bit level
+     * @param bits array of bit levels for quantization
+     * @param centroid the byte centroid to center against
+     * @return the quantization results for each bit level
+     */
+    public QuantizationResult[] multiScalarQuantize(
+        byte[] vector,
+        float[] residualDestination,
+        int[][] destinations,
+        byte[] bits,
+        byte[] centroid
+    ) {
+        assert bits.length == destinations.length;
+        if (similarityFunction == EUCLIDEAN) {
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, residualDestination, statsScratch);
+        } else {
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, residualDestination, statsScratch);
+        }
+        float vecMean = statsScratch[0];
+        float vecVar = statsScratch[1];
+        float norm2 = statsScratch[2];
+        float min = statsScratch[3];
+        float max = statsScratch[4];
+        float vecStd = (float) Math.sqrt(vecVar);
+        QuantizationResult[] results = new QuantizationResult[bits.length];
+        for (int i = 0; i < bits.length; ++i) {
+            assert bits[i] > 0 && bits[i] <= 8;
+            int points = (1 << bits[i]);
+            initInterval(bits[i], vecStd, vecMean, min, max, intervalScratch);
+            boolean hasQuantization = optimizeIntervals(intervalScratch, destinations[i], residualDestination, norm2, points);
+            int sumQuery;
+            if (hasQuantization) {
+                sumQuery = getSumQuery(destinations[i]);
+            } else {
+                sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                    residualDestination,
+                    destinations[i],
+                    intervalScratch[0],
+                    intervalScratch[1],
+                    bits[i]
+                );
+            }
+            results[i] = new QuantizationResult(
+                intervalScratch[0],
+                intervalScratch[1],
+                similarityFunction == EUCLIDEAN ? norm2 : statsScratch[5],
+                sumQuery
+            );
+        }
+        return results;
+    }
+
+    /**
      * Optimize the quantization interval for the given vector. This is done via a coordinate descent trying to minimize the quantization
      * loss. Note, the loss is not always guaranteed to decrease, so we have a maximum number of iterations and will exit early if the
      * loss increases.
@@ -186,6 +288,10 @@ public class OptimizedScalarQuantizer {
             float bOpt = (float) ((m0 * dbx - m1 * dax) / det);
             // If there is no change in the interval, we can stop
             if ((Math.abs(initInterval[0] - aOpt) < 1e-8 && Math.abs(initInterval[1] - bOpt) < 1e-8)) {
+                return true;
+            }
+            if (bOpt < aOpt) {
+                // This can happen if the optimal interval is very small and we have numerical instability, in which case we can stop
                 return true;
             }
             double newLoss = ESVectorUtil.calculateOSQLoss(vector, aOpt, bOpt, points, norm2, lambda, destination);

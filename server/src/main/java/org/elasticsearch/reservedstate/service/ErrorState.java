@@ -17,7 +17,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 
-record ErrorState(
+public record ErrorState(
     Optional<ProjectId> projectId,
     String namespace,
     Long version,

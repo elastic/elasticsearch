@@ -49,7 +49,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
 
         try (var stringsReader = stringsLoader.reader(breaker, ctx); var codePointsReader = codePointsLoader.reader(breaker, ctx)) {
             assertThat(codePointsReader, readerMatcher());
-            try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+            try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                 checkBlocks(strings, codePoints);
             }
             assertThat(warnings.warnings(), equalTo(expectedWarnings));
@@ -63,7 +63,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                     checkBlocks(strings, codePoints);
                 }
             }

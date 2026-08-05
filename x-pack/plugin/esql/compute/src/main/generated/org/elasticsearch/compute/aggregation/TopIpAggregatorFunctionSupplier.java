@@ -36,13 +36,13 @@ public final class TopIpAggregatorFunctionSupplier implements AggregatorFunction
 
   @Override
   public TopIpAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return TopIpAggregatorFunction.create(driverContext, channels, limit, ascending);
+    return new TopIpAggregatorFunction(driverContext, channels, limit, ascending);
   }
 
   @Override
   public TopIpGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopIpGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+    return new TopIpGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

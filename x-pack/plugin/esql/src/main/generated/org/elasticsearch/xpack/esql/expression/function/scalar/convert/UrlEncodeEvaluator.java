@@ -15,32 +15,32 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link UrlEncode}.
+ * {@link ExpressionEvaluator} implementation for {@link UrlEncode}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(UrlEncodeEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final BreakingBytesRefBuilder scratch;
 
-  public UrlEncodeEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      BreakingBytesRefBuilder scratch, DriverContext driverContext) {
+  public UrlEncodeEvaluator(Source source, ExpressionEvaluator val, BreakingBytesRefBuilder scratch,
+      DriverContext driverContext) {
     super(driverContext, source);
     this.val = val;
     this.scratch = scratch;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return val;
   }
 
@@ -135,14 +135,14 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+    public Factory(Source source, ExpressionEvaluator.Factory val,
         Function<DriverContext, BreakingBytesRefBuilder> scratch) {
       this.source = source;
       this.val = val;

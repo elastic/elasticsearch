@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -102,7 +103,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        registry = new SnapshotLifecycleTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry,
+            new FeatureService(List.of())
+        );
     }
 
     @After
@@ -119,7 +127,8 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry
+            xContentRegistry,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));

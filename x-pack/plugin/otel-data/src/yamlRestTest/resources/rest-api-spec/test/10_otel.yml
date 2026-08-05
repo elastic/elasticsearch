@@ -36,3 +36,37 @@ setup:
         name: logs-otel*
   - length: {index_templates: 1}
   - contains: {index_templates: {name: logs-otel@template}}
+
+---
+"Test logs-otel@custom can override exception.message mapping":
+  - requires:
+      test_runner_features: [allowed_warnings]
+  - do:
+      cluster.put_component_template:
+        name: logs-otel@custom
+        body:
+          template:
+            mappings:
+              properties:
+                attributes.exception.message:
+                  type: match_only_text
+                  fields:
+                    keyword:
+                      type: keyword
+                      ignore_above: 1024
+
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-05-07T08:00:00.000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"logs"},"attributes":{"exception.message":"boom"}}'
+  - is_false: errors
+
+  - do:
+      field_caps:
+        index: logs-generic.otel-default
+        fields: ["attributes.exception.message.keyword"]
+
+  - match: { fields.attributes\.exception\.message\.keyword.keyword.type: keyword }

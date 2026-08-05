@@ -14,17 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <math.h>
 #include <limits>
-
-// Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=icelake-client")
-#endif
 
 #include "vec.h"
 #include "vec_common.h"
@@ -117,31 +107,27 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
     f32_t maxScore = _mm512_reduce_max_ps(max_score);
 
     for (; i < bulkSize; ++i) {
-        f32_t score = apply_corrections_maximum_inner_product_inner(
+        const f32_t score = apply_base_corrections_common(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,
-            queryAdditionalCorrection,
             queryBitScale,
             indexBitScale,
-            centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            scores[i]
         );
-        *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        scores[i] = maximum_inner_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrections[i],
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 
     return maxScore;
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif
 

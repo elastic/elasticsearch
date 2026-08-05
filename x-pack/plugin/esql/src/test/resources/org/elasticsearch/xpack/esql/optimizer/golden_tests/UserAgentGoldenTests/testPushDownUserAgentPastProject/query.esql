@@ -1,0 +1,4 @@
+FROM employees
+| rename first_name as x
+| keep x
+| user_agent ua = x WITH { "extract_device_type": true }

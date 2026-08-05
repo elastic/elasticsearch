@@ -44,4 +44,9 @@ public class EsqlPluginWithNonEnterpriseOrExpiredLicense extends EsqlPlugin {
             new XPackLicenseStatus(operationMode, active, "Test license expired")
         );
     }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+    }
 }

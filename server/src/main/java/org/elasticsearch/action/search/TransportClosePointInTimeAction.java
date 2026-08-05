@@ -81,7 +81,21 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
         if (clusters.isEmpty()) {
             lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
         } else {
-            searchTransportService.getRemoteClusterService().collectNodes(clusters, lookupListener);
+            searchTransportService.getRemoteClusterService().collectNodes(clusters, new ActionListener<>() {
+                @Override
+                public void onResponse(BiFunction<String, String, DiscoveryNode> nodeFunction) {
+                    lookupListener.onResponse(
+                        (clusterAlias, nodeId) -> Strings.isEmpty(clusterAlias)
+                            ? nodes.get(nodeId)
+                            : nodeFunction.apply(clusterAlias, nodeId)
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
         lookupListener.addListener(listener.delegateFailure((l, nodeLookup) -> {
             final var successes = new AtomicInteger();

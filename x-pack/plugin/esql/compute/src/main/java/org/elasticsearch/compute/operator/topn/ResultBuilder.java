@@ -42,6 +42,13 @@ interface ResultBuilder extends Releasable {
      */
     Block build();
 
+    /**
+     * An estimate of the number of bytes the {@link Block} created by
+     * {@link #build} will use. This may overestimate the size but shouldn't
+     * underestimate it.
+     */
+    long estimatedBytes();
+
     static ResultBuilder resultBuilderFor(
         BlockFactory blockFactory,
         ElementType elementType,
@@ -60,6 +67,7 @@ interface ResultBuilder extends Releasable {
             case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
+            case DOUBLE_RANGE -> new ResultBuilderForDoubleRange(blockFactory, positions);
             case EXPONENTIAL_HISTOGRAM -> new ResultBuilderForExponentialHistogram(blockFactory, positions);
             case TDIGEST -> new ResultBuilderForTDigest(blockFactory, positions);
             default -> {

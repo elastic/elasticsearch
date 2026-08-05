@@ -10,7 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerDistanceBulkBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "384", "782", "1024" })
@@ -109,7 +109,7 @@ public class VectorScorerDistanceBulkBenchmark {
         for (int j = 0; j < numQueries; j++) {
             float[] query = queries[j];
             for (int i = 0; i < numVectors; i += 4) {
-                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], distances);
+                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], 0, distances);
                 for (float distance : distances) {
                     bh.consume(distance);
                 }

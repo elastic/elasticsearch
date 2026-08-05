@@ -40,9 +40,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,6 +78,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("pretty");
             add("refresh");
             add("require_data_stream");
+            add(SliceIndexing.PARAM_NAME);
             add("timeout");
             add("include_source_on_error");
             // Add internal marker params
@@ -97,7 +98,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
-    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -111,8 +111,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -128,7 +127,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
-        this.samplingService = samplingService;
     }
 
     @Override
@@ -276,15 +274,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             project = state.metadata().getProject(projectId);
         }
 
-        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
+        final long pipelineResolutionTimeMillis = threadPool.absoluteTimeInMillis();
+        Map<PipelineCacheKey, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 if (indexRequest.isPipelineResolved() == false) {
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
-                        indexRequest.index(),
-                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
-                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, System.currentTimeMillis())
+                        new PipelineCacheKey(actionRequest.index(), indexRequest.index()),
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, project, pipelineResolutionTimeMillis)
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }
@@ -318,16 +316,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
-        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured(project)) {
-            /*
-             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
-             * bulk had pipelines and we sampled in IngestService already.
-             */
-            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-                if (actionRequest instanceof IndexRequest ir) {
-                    samplingService.maybeSample(project, ir);
-                }
-            }
         }
         return false;
     }
@@ -403,6 +391,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      *     doesn't correspond to a data stream.
      */
     protected abstract Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis);
+
+    private record PipelineCacheKey(String originalIndex, String embeddedIndex) {}
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are

@@ -21,17 +21,18 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -87,8 +89,6 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "embeddings": [
@@ -108,7 +108,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of(input), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(input), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -162,11 +162,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -186,11 +182,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -204,11 +196,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -217,9 +205,21 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
     private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = createModel(modelName, apiKey, url);
-        var requestManager = new GoogleAiStudioEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio embeddings");
-        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
+        var truncator = TruncatorTests.createTruncator();
+        var requestManager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            GoogleAiStudioService.EMBEDDING_HANDLER,
+            (embeddingsInput) -> new GoogleAiStudioEmbeddingsRequest(
+                truncator,
+                truncate(embeddingsInput.getTextInputs(), model.getServiceSettings().maxInputTokens()),
+                embeddingsInput.getInputType(),
+                model
+            ),
+            EmbeddingsInput.class
+        );
+
+        return new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage("Google AI Studio embeddings"));
     }
 
 }

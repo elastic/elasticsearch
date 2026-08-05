@@ -85,6 +85,86 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
         assertArrayEquals(new Object[] { "e" }, values);
     }
 
+    /**
+     * When {@link SearchAfterDocumentsIterator#retainSearchHitsContainerForBatch()} is true, pooled hits must
+     * outlive {@link org.elasticsearch.action.search.SearchResponse#decRef()}; the iterator releases the previous
+     * batch at the next {@link SearchAfterDocumentsIterator#next()} and the final batch via
+     * {@link SearchAfterDocumentsIterator#releaseRetainedSearchHits()}.
+     */
+    public void testRetainSearchHitsContainer_pagingMatchesDefaultIterator() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch(createJsonDoc("a"), createJsonDoc("b"), createJsonDoc("c"))
+            .addBatch(createJsonDoc("d"), createJsonDoc("e"))
+            .finishMock();
+
+        TestHitRetainingIterator testIterator = new TestHitRetainingIterator(originSettingClient, INDEX_NAME);
+        testIterator.setBatchSize(3);
+        assertTrue(testIterator.hasNext());
+        assertThat(testIterator.next(), hasSize(3));
+        assertTrue(testIterator.hasNext());
+        assertThat(testIterator.next(), hasSize(2));
+        assertFalse(testIterator.hasNext());
+        ESTestCase.expectThrows(NoSuchElementException.class, testIterator::next);
+        testIterator.releaseRetainedSearchHits();
+    }
+
+    public void testRetainSearchHitsContainer_emptyFirstBatch() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch().finishMock();
+
+        TestHitRetainingIterator testIterator = new TestHitRetainingIterator(originSettingClient, INDEX_NAME);
+        assertTrue(testIterator.hasNext());
+        assertThat(testIterator.next(), empty());
+        assertFalse(testIterator.hasNext());
+        testIterator.releaseRetainedSearchHits();
+    }
+
+    public void testReleaseRetainedSearchHits_idempotent() {
+        new BatchedDocumentsIteratorTests.SearchResponsesMocker(client).addBatch(createJsonDoc("a")).finishMock();
+
+        TestHitRetainingIterator testIterator = new TestHitRetainingIterator(originSettingClient, INDEX_NAME);
+        testIterator.next();
+        testIterator.releaseRetainedSearchHits();
+        testIterator.releaseRetainedSearchHits();
+    }
+
+    private static class TestHitRetainingIterator extends SearchAfterDocumentsIterator<SearchHit> {
+
+        private String searchAfterValue;
+
+        TestHitRetainingIterator(OriginSettingClient client, String index) {
+            super(client, index);
+        }
+
+        @Override
+        protected boolean retainSearchHitsContainerForBatch() {
+            return true;
+        }
+
+        @Override
+        protected QueryBuilder getQuery() {
+            return QueryBuilders.matchAllQuery();
+        }
+
+        @Override
+        protected FieldSortBuilder sortField() {
+            return new FieldSortBuilder("name");
+        }
+
+        @Override
+        protected SearchHit map(SearchHit hit) {
+            return hit;
+        }
+
+        @Override
+        protected Object[] searchAfterFields() {
+            return new Object[] { searchAfterValue };
+        }
+
+        @Override
+        protected void extractSearchAfterFields(SearchHit lastSearchHit) {
+            searchAfterValue = (String) lastSearchHit.getSourceAsMap().get("name");
+        }
+    }
+
     private static class TestIterator extends SearchAfterDocumentsIterator<String> {
 
         private String searchAfterValue;

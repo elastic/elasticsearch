@@ -11,10 +11,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.action.search.SearchLogProducer;
+import org.elasticsearch.action.search.SearchLogContext;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SearchLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -78,7 +78,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     private List<LogEvent> getNonSystemEvents() {
         return appender.events.stream().filter(event -> {
             Map<String, String> message = getMessageData(event);
-            return message.get(ES_FIELDS_PREFIX + "type").equals("search") == false
+            return message.get(QueryLogging.ES_QUERY_FIELDS_PREFIX + "type").equals(SearchLogContext.TYPE) == false
                 || Objects.equals(message.get(QUERY_FIELD_INDICES), ".async-search") == false;
         }).toList();
     }
@@ -101,7 +101,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertMessageSuccess(message, "search", "quick");
+        assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }
@@ -124,7 +124,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertMessageFailure(message, "search", "throw", SearchPhaseExecutionException.class, "all shards failed");
+        assertMessageFailure(message, SearchLogContext.TYPE, "throw", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }

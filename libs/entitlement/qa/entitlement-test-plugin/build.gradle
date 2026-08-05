@@ -36,3 +36,8 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+// ASM bundled with forbidden-apis cannot parse JDK 26+ class files
+tasks.matching { it instanceof CheckForbiddenApisTask && it.name == 'forbiddenApisMain26' }.configureEach {
+  exclude 'org/elasticsearch/entitlement/qa/test/StructuredTaskScopeActions.class'
+}
+

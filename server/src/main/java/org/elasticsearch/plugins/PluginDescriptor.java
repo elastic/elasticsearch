@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +44,18 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
+    /**
+     * Deployment target describing when to load a plugin (stateful, stateless, or both).
+     */
+    public enum DeploymentTarget {
+        /** Only load plugin on stateful deployments (stateless mode disabled) */
+        STATEFUL_ONLY,
+        /** Only load plugin on stateless deployments (stateless mode enabled) */
+        STATELESS_ONLY,
+        /** All deployment targets (default) */
+        ALL
+    }
+
     private final String name;
     private final String description;
     private final String version;
@@ -52,25 +65,31 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final String moduleName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final List<String> nativeControllerEnabledSettings;
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
+    private final DeploymentTarget deploymentTarget;
 
     /**
      * Construct plugin info.
      *
-     * @param name                 the name of the plugin
-     * @param description          a description of the plugin
-     * @param version              an opaque version identifier for the plugin
-     * @param elasticsearchVersion the version of Elasticsearch the plugin was built for
-     * @param javaVersion          the version of Java the plugin was built with
-     * @param classname            the entry point to the plugin
-     * @param moduleName           the module name to load the plugin class from, or null if not in a module
-     * @param extendedPlugins      other plugins this plugin extends through SPI
-     * @param hasNativeController  whether or not the plugin has a native controller
-     * @param isLicensed           whether is this a licensed plugin
-     * @param isModular            whether this plugin should be loaded in a module layer
-     * @param isStable             whether this plugin is implemented using the stable plugin API
+     * @param name                             the name of the plugin
+     * @param description                      a description of the plugin
+     * @param version                          an opaque version identifier for the plugin
+     * @param elasticsearchVersion             the version of Elasticsearch the plugin was built for
+     * @param javaVersion                      the version of Java the plugin was built with
+     * @param classname                        the entry point to the plugin
+     * @param moduleName                       the module name to load the plugin class from, or null if not in a module
+     * @param extendedPlugins                  other plugins this plugin extends through SPI
+     * @param hasNativeController              whether or not the plugin has a native controller
+     * @param isLicensed                       whether is this a licensed plugin
+     * @param isModular                        whether this plugin should be loaded in a module layer
+     * @param isStable                         whether this plugin is implemented using the stable plugin API
+     * @param deploymentTarget                 when to load this plugin
+     * @param nativeControllerEnabledSettings  node setting keys that must all resolve to true for the native
+     *                                         controller to be spawned; empty means always spawn when
+     *                                         {@code hasNativeController} is {@code true}
      */
     public PluginDescriptor(
         String name,
@@ -84,7 +103,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean hasNativeController,
         boolean isLicensed,
         boolean isModular,
-        boolean isStable
+        boolean isStable,
+        DeploymentTarget deploymentTarget,
+        List<String> nativeControllerEnabledSettings
     ) {
         this.name = name;
         this.description = description;
@@ -98,6 +119,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+        this.deploymentTarget = deploymentTarget;
+        this.nativeControllerEnabledSettings = Collections.unmodifiableList(nativeControllerEnabledSettings);
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -123,6 +146,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         isModular = in.readBoolean();
         isStable = in.readBoolean();
+        deploymentTarget = DeploymentTarget.ALL; // only read from descriptor property files, not serialized
+        nativeControllerEnabledSettings = List.of(); // only read from descriptor property files, not serialized
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -245,6 +270,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         }
 
         boolean nativeCont = readBoolean(propsMap, name, "has.native.controller");
+
+        String nativeControllerSettingsString = propsMap.remove("native.controller.enabled.settings");
+        List<String> nativeControllerEnabledSettings = List.of();
+        if (nativeControllerSettingsString != null) {
+            nativeControllerEnabledSettings = List.of(Strings.delimitedListToStringArray(nativeControllerSettingsString, ","));
+        }
+
         String classname = readNonEmptyString(propsMap, name, "classname");
         String module = propsMap.remove("modulename");
         if (module != null && module.isBlank()) {
@@ -253,8 +285,43 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
         boolean modular = module != null;
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            classname,
+            module,
+            extended,
+            nativeCont,
+            isLicensed,
+            modular,
+            false,
+            deploymentTarget,
+            nativeControllerEnabledSettings
+        );
+    }
+
+    private static DeploymentTarget readDeploymentTarget(Map<String, String> propsMap, String pluginId) {
+        String rawValue = propsMap.remove("deployment.target");
+        if (rawValue == null) {
+            return DeploymentTarget.ALL;
+        }
+        try {
+            return DeploymentTarget.valueOf(rawValue.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Descriptor of plugin [%s] contains invalid deployment.target [%s], expected one of %s",
+                    pluginId,
+                    rawValue,
+                    Arrays.toString(DeploymentTarget.values())
+                )
+            );
+        }
     }
 
     private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
@@ -264,8 +331,24 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
+        return new PluginDescriptor(
+            name,
+            desc,
+            ver,
+            esVer,
+            javaVer,
+            null,
+            null,
+            List.of(),
+            false,
+            false,
+            isModular,
+            true,
+            deploymentTarget,
+            List.of()
+        );
     }
 
     private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
@@ -395,6 +478,16 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     /**
+     * Node setting keys that must all resolve to true for this plugin's native controller to be spawned.
+     * An empty list means the native controller is always spawned (subject to {@link #hasNativeController()}).
+     *
+     * @return the gating setting keys
+     */
+    public List<String> getNativeControllerEnabledSettings() {
+        return nativeControllerEnabledSettings;
+    }
+
+    /**
      * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
@@ -415,6 +508,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return isStable;
     }
 
+    /**
+     * The deployment target of this plugin, specifically if to include the plugin in stateful and/or stateless mode.
+     */
+    public DeploymentTarget getDeploymentTarget() {
+        return deploymentTarget;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -432,8 +532,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         builder.field("classname", classname);
         builder.field("extended_plugins", extendedPlugins);
         builder.field("has_native_controller", hasNativeController);
+        builder.field("native_controller_enabled_settings", nativeControllerEnabledSettings);
         builder.field("licensed", isLicensed);
-
         return builder;
     }
 
@@ -467,9 +567,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Elasticsearch Version: ", elasticsearchVersion);
         appendLine(lines, prefix, "Java Version: ", javaVersion);
         appendLine(lines, prefix, "Native Controller: ", hasNativeController);
+        appendLine(lines, prefix, "Native Controller Enabled Settings: ", nativeControllerEnabledSettings.toString());
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
+        appendLine(lines, prefix, "Deployment Target: ", deploymentTarget);
 
         return String.join(System.lineSeparator(), lines);
     }

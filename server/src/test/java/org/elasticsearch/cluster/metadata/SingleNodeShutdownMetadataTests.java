@@ -53,4 +53,69 @@ public class SingleNodeShutdownMetadataTests extends ESTestCase {
         status = SingleNodeShutdownMetadata.Status.combine();
         assertEquals(status, SingleNodeShutdownMetadata.Status.COMPLETE);
     }
+
+    public void testBuilderFromExistingShutdownMetadata() {
+        // SIGTERM
+        {
+            final var singleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomUUID())
+                .setNodeEphemeralId(randomUUID())
+                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                .setReason(randomIdentifier())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setNodeSeen(randomBoolean())
+                .setGracePeriod(randomPositiveTimeValue())
+                .build();
+
+            final var newSingleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).build();
+            assertEquals(singleNodeShutdownMetadata, newSingleNodeShutdownMetadata);
+        }
+
+        // RESTART
+        {
+            final var singleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomUUID())
+                .setNodeEphemeralId(randomUUID())
+                .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                .setReason(randomIdentifier())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setNodeSeen(randomBoolean())
+                .setAllocationDelay(randomPositiveTimeValue())
+                .build();
+
+            final var newSingleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).build();
+            assertEquals(singleNodeShutdownMetadata, newSingleNodeShutdownMetadata);
+        }
+
+        // REPLACE
+        {
+            final var singleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomUUID())
+                .setNodeEphemeralId(randomUUID())
+                .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                .setReason(randomIdentifier())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setNodeSeen(randomBoolean())
+                .setTargetNodeName(randomIdentifier("node"))
+                .build();
+
+            final var newSingleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).build();
+            assertEquals(singleNodeShutdownMetadata, newSingleNodeShutdownMetadata);
+        }
+
+        // REMOVE
+        {
+            final var singleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomUUID())
+                .setNodeEphemeralId(randomUUID())
+                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                .setReason(randomIdentifier())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setNodeSeen(randomBoolean())
+                .build();
+
+            final var newSingleNodeShutdownMetadata = SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).build();
+            assertEquals(singleNodeShutdownMetadata, newSingleNodeShutdownMetadata);
+        }
+    }
 }

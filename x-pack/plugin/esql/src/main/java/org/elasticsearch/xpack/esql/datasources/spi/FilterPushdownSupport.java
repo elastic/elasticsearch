@@ -87,9 +87,19 @@ public interface FilterPushdownSupport {
      * Result of attempting to push filters to a data source.
      *
      * @param pushedFilter source-specific filter object (opaque to core), or null if nothing was pushed
+     * @param pushedExpressions the original ESQL expressions that were successfully translated into
+     *        the pushed filter. Carried through the pipeline so per-file filter adaptation can
+     *        re-translate them for files with different schemas (UNION_BY_NAME).
      * @param remainder expressions that could not be pushed and must remain in FilterExec
      */
-    record PushdownResult(Object pushedFilter, List<Expression> remainder) {
+    record PushdownResult(Object pushedFilter, List<Expression> pushedExpressions, List<Expression> remainder) {
+
+        /**
+         * Backward-compatible constructor for implementations that do not track pushed expressions.
+         */
+        public PushdownResult(Object pushedFilter, List<Expression> remainder) {
+            this(pushedFilter, List.of(), remainder);
+        }
 
         /**
          * Creates a result indicating no filters could be pushed.
@@ -98,7 +108,7 @@ public interface FilterPushdownSupport {
          * @return a PushdownResult with null pushed filter and all expressions as remainder
          */
         public static PushdownResult none(List<Expression> all) {
-            return new PushdownResult(null, all);
+            return new PushdownResult(null, List.of(), all);
         }
 
         /**
@@ -108,7 +118,7 @@ public interface FilterPushdownSupport {
          * @return a PushdownResult with the pushed filter and empty remainder
          */
         public static PushdownResult all(Object pushedFilter) {
-            return new PushdownResult(pushedFilter, List.of());
+            return new PushdownResult(pushedFilter, List.of(), List.of());
         }
 
         /**

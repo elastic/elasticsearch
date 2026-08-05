@@ -23,7 +23,10 @@ public class SearchLogContextBuilder extends ActivityLoggerContextBuilder<Search
 
     @Override
     public SearchLogContext build(SearchResponse response) {
-        return new SearchLogContext(task, namedWriteableRegistry, request, response);
+        // response's getTook() is actually in millis, so we get 0 if it took less than 1ms.
+        // That's why we have to involve elapsed() here.
+        long tookInNanos = Math.max(response.getTook().nanos(), elapsed());
+        return new SearchLogContext(task, namedWriteableRegistry, request, tookInNanos, response);
     }
 
     @Override

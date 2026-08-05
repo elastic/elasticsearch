@@ -17,23 +17,29 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockSourceReader;
@@ -44,23 +50,44 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -75,10 +102,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -240,6 +272,324 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
+    public void testExternalSourceUsesSliceQueueWhenGenericFileListIsUnresolved() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit child1 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00000.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit child2 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00001.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit coalesced = new CoalescedSplit("file", List.of(child1, child2));
+
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/stress/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(List.of(coalesced));
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().sliceQueue(), notNullValue());
+        assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * Regression guard for the multi-file over-read. When an instance is assigned splits AND also carries a
+     * resolved {@link FileList} (the coordinator keeps one; data nodes don't), it must route through the
+     * slice queue and read only the assigned splits — NOT fall through to the resolved-FileList multi-file
+     * read, which would re-read the entire glob behind the splits and double-count rows that the slice-queue
+     * instances also read. Before the fix, {@code useSliceQueue} was false for a single split + resolved
+     * FileList, so {@code sliceQueue} was null here and the operator took the whole-glob path.
+     */
+    public void testExternalSourceUsesSliceQueueWhenResolvedFileListHasAssignedSplits() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        StoragePath p1 = StoragePath.of("s3://test-bucket/warehouse/stress/part-00000.csv");
+        StoragePath p2 = StoragePath.of("s3://test-bucket/warehouse/stress/part-00001.csv");
+        // Resolved FileList over both files — the shape a coordinator holds.
+        FileList resolved = GlobExpander.fileListOf(
+            List.of(new StorageEntry(p1, 10, Instant.EPOCH), new StorageEntry(p2, 10, Instant.EPOCH)),
+            "s3://test-bucket/warehouse/stress/*.csv"
+        );
+        assertThat("precondition: FileList must be resolved", resolved.isResolved(), equalTo(true));
+
+        // A single (coalesced) split assigned to this instance — splitCount == 1.
+        ExternalSplit child1 = new FileSplit("file", p1, 0, 10, ".csv", Map.of(), Map.of());
+        ExternalSplit child2 = new FileSplit("file", p2, 0, 10, ".csv", Map.of(), Map.of());
+        ExternalSplit coalesced = new CoalescedSplit("file", List.of(child1, child2));
+
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/stress/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withFileList(resolved).withSplits(List.of(coalesced));
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "a resolved FileList with assigned splits must still route through the slice queue (read only the "
+                + "splits), not the whole-glob multi-file read",
+            captured.get().sliceQueue(),
+            notNullValue()
+        );
+        assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * The data-node backstop: building the operator for an external source is refused on a node that does not have
+     * federation, whoever planned the query. An already-rewritten {@link ExternalSourceExec} can arrive from an
+     * enabled coordinator, from a remote cluster, or from a rolling restart that has not reached this node yet.
+     */
+    public void testExternalSourceRefusedWhenFederationIsNotAvailable() throws IOException {
+        SourceOperatorFactoryProvider provider = capturingProvider(new AtomicReference<>());
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner(operatorFactoryRegistry, false).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance()
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external data sources are not available"));
+    }
+
+    /**
+     * {@link LocalExecutionPlanner} must pass {@link OperatorFactoryRegistry#executor()} and
+     * {@link OperatorFactoryRegistry#fileReadExecutor()} into {@link SourceOperatorContext} separately.
+     * Production wires the main executor to external-source work and {@code fileReadExecutor} to
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#GENERIC} via
+     * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}.
+     */
+    public void testPlanExternalSourcePassesDistinctExecutorsToSourceOperatorContext() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        Executor mainExecutor = r -> r.run();
+        Executor fileReadExecutor = r -> r.run();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", provider),
+            mainExecutor,
+            fileReadExecutor
+        );
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit child1 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00000.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit child2 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00001.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit coalesced = new CoalescedSplit("file", List.of(child1, child2));
+
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/stress/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(List.of(coalesced));
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().executor(), sameInstance(mainExecutor));
+        assertThat(captured.get().fileReadExecutor(), sameInstance(fileReadExecutor));
+    }
+
+    /**
+     * When every column is pruned (e.g. {@code COUNT(*)} with no referenced fields), {@link ProjectAwayColumns}
+     * inserts a single synthetic {@code "<all-fields-projected>"} attribute into the {@link ExternalSourceExec}
+     * output. The planner must translate that sentinel into an empty {@code projectedColumns} list before
+     * handing it to the format reader, so the reader can take its row-count-only fast path.
+     */
+    public void testExternalSourceCountStarYieldsEmptyProjection() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        // Mirrors what ProjectAwayColumns inserts when COUNT(*) prunes every real column.
+        List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, null, ProjectAwayColumns.ALL_FIELDS_PROJECTED, DataType.NULL));
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "COUNT(*) sentinel must arrive at the format reader as an empty projection",
+            captured.get().projectedColumns(),
+            equalTo(List.of())
+        );
+    }
+
+    /**
+     * Guards the partition-column seeding in {@link LocalExecutionPlanner} {@code planExternalSource}: on a data node
+     * the coordinator's {@link FileList} is not serialized ({@code ExternalSourceExec.writeTo} drops it, so it
+     * deserializes to {@code null}), so the Hive partition-column NAMES must instead be recovered from the serialized
+     * {@code _partition.columns} stamp in {@code sourceMetadata} — read through the node-safe
+     * {@code ExternalSourceExec.partitionColumnNames()} accessor. Without it
+     * {@link SourceOperatorContext#partitionColumnNames()} is empty on the data node, {@code VirtualColumnIterator}
+     * never materialises the partition column, and a distributed partition-column read attaches SQL {@code NULL}.
+     * <p>
+     * Here {@code fileList} is deliberately left {@code null} (the data-node shape) and the partition name {@code p} is
+     * present in NEITHER the output attributes NOR a {@code FileList} — its only possible source is the stamp, so
+     * seeing it in the resolved set pins exactly this read. The end-to-end value-attachment twin is
+     * {@code ExternalHivePartitionDistributedValueIT}.
+     */
+    public void testExternalSourceReadsPartitionColumnNamesFromSourceMetadataStamp() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        // Only the data column 'id' is in the output — the partition column 'p' is NOT, so the sole path that can put
+        // it into partitionColumnNames is the serialized stamp read below.
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit split = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/p=a/part-00000.parquet"),
+            0,
+            10,
+            ".parquet",
+            Map.of(),
+            Map.of("p", "a")
+        );
+
+        // fileList left null (the data-node shape: the coordinator's resolved FileList is not serialized), so the
+        // fileList partition-metadata branch contributes nothing and 'p' can only come from the _partition.columns stamp.
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/*.parquet",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")),
+            null, // pushedFilter
+            10
+        ).withSplits(List.of(split));
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "partition column names must be recovered from the serialized _partition.columns stamp when the "
+                + "coordinator FileList is absent (data-node read)",
+            captured.get().partitionColumnNames(),
+            equalTo(Set.of("p"))
+        );
+    }
+
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
         // In case of stored source we expect bytes based block source loader (this loads source from _source)
@@ -279,15 +629,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         PlannerSettings plannerSettings = new PlannerSettings(
             DataPartitioning.AUTO,
+            PlannerSettings.DEFAULTS.docsThresholdForAutoPartitioning(),
             ByteSizeValue.ofMb(1),
             10_000,
             ByteSizeValue.ofMb(1),
             between(1, 10000),
             randomDoubleBetween(0.1, 1.0, true),
+            PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getDefault(Settings.EMPTY),
             between(0, 1000),
             MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
             MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE,
-            10
+            10,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
+            PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -304,6 +663,97 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } else {
             assertThat(factory.maxPageSize(), equalTo(2048));
         }
+    }
+
+    /**
+     * When the child EsQueryExec contains a {@code _doc} attribute, the planner should
+     * build the full LuceneSourceOperator pipeline for MetricsInfoExec.
+     */
+    public void testPlanMetricsInfoBuildsLuceneSourceWhenDocAttributePresent() throws IOException {
+        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(docAttr),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
+            Source.EMPTY,
+            queryExec,
+            outputAttrs,
+            outputAttrs,
+            MetricsInfoExec.Mode.INITIAL
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            metricsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LuceneSourceOperator when EsQueryExec child has _doc",
+            sourceFactory,
+            instanceOf(LuceneSourceOperator.Factory.class)
+        );
+    }
+
+    /**
+     * When the child plan does not contain a {@code _doc} attribute,
+     * the planner should correctly fall back to an empty source.
+     */
+    public void testPlanMetricsInfoEmptySourceWhenNoDocAttribute() throws IOException {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
+            Source.EMPTY,
+            queryExec,
+            outputAttrs,
+            outputAttrs,
+            MetricsInfoExec.Mode.INITIAL
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            metricsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LocalSourceOperator (empty source) when no _doc attribute is present",
+            sourceFactory,
+            instanceOf(LocalSourceOperator.LocalSourceFactory.class)
+        );
+    }
+
+    private static List<Attribute> buildMetricsInfoAttributes() {
+        List<Attribute> attributes = new ArrayList<>();
+        for (String name : MetricsInfo.ATTRIBUTES) {
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
+        }
+        return attributes;
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
@@ -334,7 +784,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.loaderAndConverter().apply(0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -349,7 +800,53 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return equalTo(SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
     }
 
+    /**
+     * A {@link SourceOperatorFactoryProvider} that captures the {@link SourceOperatorContext} the planner hands it and
+     * returns a no-op {@link SourceOperator} (never produces a page). Lets a test assert on the context the planner
+     * built for an external source without running a real read.
+     */
+    private static SourceOperatorFactoryProvider capturingProvider(AtomicReference<SourceOperatorContext> captured) {
+        return context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
+    }
+
     private LocalExecutionPlanner planner() throws IOException {
+        return planner(null);
+    }
+
+    private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry) throws IOException {
+        return planner(operatorFactoryRegistry, true);
+    }
+
+    private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry, boolean federationEnabled) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -360,6 +857,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "dev-cluster")
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+                // several tests here plan an ExternalSourceExec, which the federation gate refuses unless it is enabled
+                .put(Federation.FEDERATION_ENABLED.getKey(), federationEnabled)
                 .build(),
             config(),
             null,
@@ -367,14 +866,19 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
+            null,
+            null,
             esPhysicalOperationProviders(shardContexts),
-            null  // OperatorFactoryRegistry - not needed for these tests
+            operatorFactoryRegistry,
+            null, // parallelWorkerExecutor - not needed for these tests
+            0,    // esqlWorkerPoolSize - not needed for these tests
+            MatcherWatchdog.noop()
         );
     }
 
     private Configuration config() {
         return new Configuration(
-            randomZone(),
             randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE)),
             randomLocale(random()),
             "test_user",
@@ -389,7 +893,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             randomBoolean(),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
-            null,
+            ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, randomZone().normalized()),
             Map.of()
         );
     }
@@ -399,7 +903,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
         );
     }
 

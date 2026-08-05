@@ -106,9 +106,7 @@ public class NerProcessor extends NlpTask.Processor {
                 ve.addValidationError("classification label [" + label + "] is not an entity I-O-B tag.");
             }
         }
-        if (ve.validationErrors().isEmpty() == false) {
-            throw ve;
-        }
+        ve.throwIfValidationErrorsExist();
     }
 
     static IobTag[] buildIobMap(List<String> classificationLabels) {

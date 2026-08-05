@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,7 +34,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CountTests extends AbstractAggregationTestCase {
     public CountTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -43,7 +43,9 @@ public class CountTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -54,6 +56,7 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -66,8 +69,15 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.tdigestCases(1, 1000).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList()
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000),
+            MultiRowTestCaseSupplier.tdigestCases(1, 1000)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -78,12 +88,14 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DATE_RANGE,
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.BOOLEAN,
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
+            DataType.FLATTENED,
             DataType.TDIGEST,
             DataType.TEXT,
             DataType.GEO_POINT,
@@ -92,22 +104,22 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.AGGREGATE_METRIC_DOUBLE
         )) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
-                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field").withAppliesTo(histogramAppliesTo)
+                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                    .withAppliesTo(histogramPreviewAppliesTo)
+                    .withAppliesTo(histogramGaAppliesTo)
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(field),
-                        dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
-                        DataType.LONG,
-                        // AGGREGATE_METRIC_DOUBLE currently returns null instead of 0
-                        // Remove this check after https://github.com/elastic/elasticsearch/issues/141852
-                        dataType == DataType.AGGREGATE_METRIC_DOUBLE ? nullValue() : equalTo(0L)
-                    )
-                )
-            );
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(
+                    List.of(field),
+                    // Dense vector uses a different count implementation
+                    dataType == DataType.DENSE_VECTOR ? "DenseVectorCount" : "Count",
+                    DataType.LONG,
+                    equalTo(0L)
+                );
+            }));
         }
 
         // "No rows" expects 0 here instead of null
@@ -135,7 +147,7 @@ public class CountTests extends AbstractAggregationTestCase {
             } else if (fieldSupplier.type() == DataType.TDIGEST) {
                 count = fieldData.stream().mapToLong(data -> {
                     TDigestHolder tdigest = (TDigestHolder) data;
-                    return tdigest.getValueCount();
+                    return tdigest.size();
                 }).sum();
             } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 count = fieldData.stream().mapToLong(obj -> ((ExponentialHistogram) obj).valueCount()).sum();

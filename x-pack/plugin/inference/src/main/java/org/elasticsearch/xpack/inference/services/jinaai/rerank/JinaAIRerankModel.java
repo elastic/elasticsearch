@@ -51,7 +51,7 @@ public class JinaAIRerankModel extends JinaAIModel {
             inferenceId,
             JinaAIRerankServiceSettings.fromMap(serviceSettings, context),
             JinaAIRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             null
         );
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -48,7 +49,7 @@ import java.util.Objects;
  * only for GeoPoint.
  *
  */
-public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilder> {
+public class GeoGridQueryBuilder extends LeafQueryBuilder<GeoGridQueryBuilder> {
     public static final String NAME = "geo_grid";
 
     /**

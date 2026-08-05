@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "host_name": {
+      "type": "keyword"
+    },
+    "info": {
+      "type": "flattened"
+    }
+  }
+}

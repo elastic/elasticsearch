@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.CacheControl;
+import org.elasticsearch.inference.completion.CacheControlTests;
 import org.elasticsearch.inference.completion.Content;
 import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
@@ -26,11 +28,16 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetailTests;
+import org.elasticsearch.inference.completion.ReasoningTests;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,10 +49,10 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
-import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
@@ -86,6 +93,31 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                             },
                             "type": "function"
                         }
+                    ],
+                    "reasoning": "some reasoning",
+                    "reasoning_details": [
+                        {
+                            "type": "reasoning.encrypted",
+                            "format": "some encrypted reasoning detail format",
+                            "id": "some id 0",
+                            "index": 0,
+                            "data": "some encrypted data"
+                        },
+                        {
+                            "type": "reasoning.summary",
+                            "format": "some summary reasoning detail format",
+                            "id": "some id 1",
+                            "index": 1,
+                            "summary": "some summary"
+                        },
+                        {
+                            "type": "reasoning.text",
+                            "format": "some text reasoning detail format",
+                            "id": "some id 2",
+                            "index": 2,
+                            "text": "some text",
+                            "signature": "some signature"
+                        }
                     ]
                   }
                 ],
@@ -111,7 +143,17 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ],
                 "top_p": 0.2,
                 "max_completion_tokens": 100,
-                "model": "gpt-4o"
+                "model": "gpt-4o",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "detailed",
+                    "exclude": false,
+                    "enabled": false
+                },
+                "cache_control": {
+                    "type": "ephemeral"
+                },
+                "session_id": "test_session_123"
             }
             """;
 
@@ -135,6 +177,28 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                                 new ToolCall.FunctionField("{'order_id': 'order_12345'}", "get_delivery_date"),
                                 "function"
                             )
+                        ),
+                        "some reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some encrypted reasoning detail format",
+                                "some id 0",
+                                0L,
+                                "some encrypted data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some summary reasoning detail format",
+                                "some id 1",
+                                1L,
+                                "some summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some text reasoning detail format",
+                                "some id 2",
+                                2L,
+                                "some text",
+                                "some signature"
+                            )
                         )
                     )
                 ),
@@ -154,7 +218,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         )
                     )
                 ),
-                0.2F
+                0.2F,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false),
+                new CacheControl("ephemeral", null),
+                "test_session_123"
             );
 
             assertThat(request, is(expected));
@@ -435,39 +502,44 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
-    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
-    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    /**
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
+     * non-text content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
     }
 
     public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
-            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
-            .toList();
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            var testInstance = createTestInstance();
-            for (var unsupportedVersion : unsupportedVersions) {
-                if (testInstance.containsMultimodalContent()) {
-                    var statusException = assertThrows(
-                        ElasticsearchStatusException.class,
-                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
-                    );
-                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
-                    assertThat(
-                        statusException.getMessage(),
-                        is(
-                            "Cannot send a multimodal chat completion request to an older node. "
-                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
-                        )
-                    );
-                } else {
-                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
-                    assertBwcSerialization(testInstance, unsupportedVersion);
-                }
-            }
-        }
+        testSerializationIsNotBackwardsCompatible(
+            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
+            UnifiedCompletionRequest::containsMultimodalContent,
+            """
+                Cannot send a multimodal chat completion request to an older node. \
+                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
+        );
+    }
+
+    public void testContainsMultimodalContentWithNullContent() {
+        var messageWithNullContent = new Message(null, "user", null, null, null, null);
+        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent));
+        assertFalse(request.containsMultimodalContent());
+    }
+
+    public void testContainsMultimodalContentWithMixedNullAndMultimodalContent() {
+        var messageWithNullContent = new Message(null, "assistant", "call_1", null, null, null);
+        var messageWithMultimodalContent = new Message(
+            new ContentObjects(List.of(randomContentObjectImage())),
+            "user",
+            null,
+            null,
+            null,
+            null
+        );
+        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent, messageWithMultimodalContent));
+        assertTrue(request.containsMultimodalContent());
     }
 
     public static UnifiedCompletionRequest randomUnifiedCompletionRequest() {
@@ -479,7 +551,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull(),
+            randomCacheControlOrNull(),
+            randomAlphaOfLengthOrNull(10)
         );
     }
 
@@ -492,7 +567,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull(),
+            randomCacheControlOrNull(),
+            randomAlphaOfLengthOrNull(10)
         );
     }
 
@@ -505,7 +583,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomContent(allowMultimodal),
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
-            randomToolCallListOrNull()
+            randomToolCallListOrNull(),
+            randomAlphaOfLengthOrNull(10),
+            randomReasoningDetailListOrNull()
         );
     }
 
@@ -557,6 +637,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
+    public static List<ReasoningDetail> randomReasoningDetailListOrNull() {
+        return randomBoolean() ? randomList(10, ReasoningDetailTests::randomReasoningDetail) : null;
+    }
+
     public static List<String> randomStopOrNull() {
         return randomBoolean() ? randomStop() : null;
     }
@@ -591,10 +675,54 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new Tool.FunctionField(randomAlphaOfLengthOrNull(10), randomAlphaOfLength(10), null, randomOptionalBoolean());
     }
 
+    public static Reasoning randomReasoningOrNull() {
+        return randomBoolean() ? ReasoningTests.randomReasoning() : null;
+    }
+
+    public static CacheControl randomCacheControlOrNull() {
+        return randomBoolean() ? CacheControlTests.randomCacheControl() : null;
+    }
+
     @Override
     protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
-        // No need to mutate the instance for backwards compatibility, because unsupported content types cause an exception to be thrown
-        // when serializing to older nodes
+        return mutateInstanceForTransportVersion(instance, version);
+    }
+
+    public static UnifiedCompletionRequest mutateInstanceForTransportVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+        // Unsupported content types cause an exception to be thrown when serializing to older nodes,
+        // so there is no need to mutate the instance for backwards compatibility for versions that don't support multimodal content.
+        // This is tested in testMultimodalContentIsNotBackwardsCompatible
+
+        if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
+            instance = new UnifiedCompletionRequest(
+                instance.messages()
+                    .stream()
+                    .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
+                    .toList(),
+                instance.model(),
+                instance.maxCompletionTokens(),
+                instance.stop(),
+                instance.temperature(),
+                instance.toolChoice(),
+                instance.tools(),
+                instance.topP()
+            );
+        }
+        if (version.supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) == false) {
+            instance = new UnifiedCompletionRequest(
+                instance.messages(),
+                instance.model(),
+                instance.maxCompletionTokens(),
+                instance.stop(),
+                instance.temperature(),
+                instance.toolChoice(),
+                instance.tools(),
+                instance.topP(),
+                instance.reasoning(),
+                null,
+                null
+            );
+        }
         return instance;
     }
 
@@ -618,7 +746,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         ToolChoice toolChoice = instance.toolChoice();
         List<Tool> tools = instance.tools();
         Float topP = instance.topP();
-        switch (between(0, 7)) {
+        Reasoning reasoning = instance.reasoning();
+        CacheControl cacheControl = instance.cacheControl();
+        String sessionId = instance.sessionId();
+        switch (between(0, 10)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
@@ -627,9 +758,24 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestTests::randomToolChoiceOrNull);
             case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
             case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
+            case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestTests::randomReasoningOrNull);
+            case 9 -> cacheControl = randomValueOtherThan(cacheControl, UnifiedCompletionRequestTests::randomCacheControlOrNull);
+            case 10 -> sessionId = randomValueOtherThan(sessionId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP);
+        return new UnifiedCompletionRequest(
+            messages,
+            model,
+            maxCompletionTokens,
+            stop,
+            temperature,
+            toolChoice,
+            tools,
+            topP,
+            reasoning,
+            cacheControl,
+            sessionId
+        );
     }
 
     @Override

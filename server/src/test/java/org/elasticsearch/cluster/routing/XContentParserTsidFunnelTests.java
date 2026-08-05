@@ -9,7 +9,10 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -49,7 +52,10 @@ public class XContentParserTsidFunnelTests extends ESTestCase {
             .addDoubleDimension("array", 4.5)
             .addBooleanDimension("array", false);
         assertThat(xContentTsidBuilder.hash(), equalTo(manualTsidBuilder.hash()));
-        assertThat(xContentTsidBuilder.buildTsid(), equalTo(manualTsidBuilder.buildTsid()));
+        IndexVersion indexVersion = randomBoolean()
+            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+        assertThat(xContentTsidBuilder.buildTsid(indexVersion), equalTo(manualTsidBuilder.buildTsid(indexVersion)));
     }
 
     public void testFilteredTsidFunnel() throws IOException {
@@ -69,7 +75,10 @@ public class XContentParserTsidFunnelTests extends ESTestCase {
             .addIntDimension("attributes.int", 42)
             .addLongDimension("attributes.long", 1234567890123L);
         assertThat(xContentTsidBuilder.hash(), equalTo(manualTsidBuilder.hash()));
-        assertThat(xContentTsidBuilder.buildTsid(), equalTo(manualTsidBuilder.buildTsid()));
+        IndexVersion indexVersion = randomBoolean()
+            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+        assertThat(xContentTsidBuilder.buildTsid(indexVersion), equalTo(manualTsidBuilder.buildTsid(indexVersion)));
     }
 
     public void testNoMatchingDimensions() {

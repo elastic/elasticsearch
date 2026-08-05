@@ -12,6 +12,9 @@ package org.elasticsearch.http;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -21,8 +24,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Queue;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
+
 @SuppressForbidden(reason = "We use HttpServer for the fixtures")
 public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryIntegTestCase.DelegatingHttpHandler {
+
+    private static final Logger logger = LogManager.getLogger(ResponseInjectingHttpHandler.class);
 
     private final HttpHandler delegate;
     private final Queue<RequestHandler> requestHandlerQueue;
@@ -34,8 +41,13 @@ public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryInt
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        logger.trace(
+            () -> format("Handling request x-ms-client-request-id=%s", exchange.getRequestHeaders().get("x-ms-client-request-id"))
+        );
+
         RequestHandler nextHandler = requestHandlerQueue.peek();
         if (nextHandler != null && nextHandler.matchesRequest(exchange)) {
+            logger.trace(() -> format("Using injected requestHandler %s", nextHandler.getClass().getSimpleName()));
             requestHandlerQueue.poll().writeResponse(exchange, delegate);
         } else {
             delegate.handle(exchange);
@@ -86,12 +98,15 @@ public class ResponseInjectingHttpHandler implements ESMockAPIBasedRepositoryInt
 
         @Override
         public void writeResponse(HttpExchange exchange, HttpHandler delegateHandler) throws IOException {
-            if (responseBody != null) {
-                byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(status.getStatus(), responseBytes.length == 0 ? -1 : responseBytes.length);
-                exchange.getResponseBody().write(responseBytes);
-            } else {
-                exchange.sendResponseHeaders(status.getStatus(), -1);
+            try (exchange) {
+                Streams.readFully(exchange.getRequestBody());
+                if (responseBody != null) {
+                    byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(status.getStatus(), responseBytes.length == 0 ? -1 : responseBytes.length);
+                    exchange.getResponseBody().write(responseBytes);
+                } else {
+                    exchange.sendResponseHeaders(status.getStatus(), -1);
+                }
             }
         }
     }

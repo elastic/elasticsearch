@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * system will identify the promotions associated with a user's query string and use this object to ensure these are "pinned" to the top of
  * the other search results.
  */
-public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder> {
+public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
     public static final String NAME = "pinned";
     public static final int MAX_NUM_PINNED_HITS = 100;
 

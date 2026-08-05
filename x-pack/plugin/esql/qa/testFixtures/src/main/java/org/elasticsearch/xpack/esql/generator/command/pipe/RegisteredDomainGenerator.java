@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -33,7 +35,7 @@ public class RegisteredDomainGenerator implements CommandGenerator {
 
     private static final LinkedHashMap<String, String> REGISTERED_DOMAIN_OUTPUT_FIELDS;
     static {
-        LinkedHashMap<String, Class<?>> outputFields = RegisteredDomainFunctionBridge.getAllOutputFields();
+        SequencedMap<String, Class<?>> outputFields = RegisteredDomainFunctionBridge.getAllOutputFields();
         REGISTERED_DOMAIN_OUTPUT_FIELDS = new LinkedHashMap<>(outputFields.size());
         for (Map.Entry<String, Class<?>> e : outputFields.entrySet()) {
             REGISTERED_DOMAIN_OUTPUT_FIELDS.putLast(e.getKey(), Objects.requireNonNull(DataType.fromJavaType(e.getValue())).typeName());
@@ -55,7 +57,8 @@ public class RegisteredDomainGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         String inputExpression = pickFqdnInput(previousOutput);
         if (inputExpression == null) {

@@ -11,20 +11,19 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,43 +33,64 @@ import java.util.Map;
  * Infers schema from NDJSON files by reading the first N lines.
  * - Flattens nested objects using dot notation
  * - Detects arrays as multi-value fields
- * - Marks fields as nullable when null values are encountered
+ * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, LONG, DOUBLE, BOOLEAN, NULL. Number types are large to be on the safe side if the sample
- * only shows small values.
- *
- * Missing:
- * - Support for union types (e.g., string or integer)
- * - Support for nested arrays (does it exist in ESQL?)
- * - Support for complex types (e.g., date, ip)
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
  */
 public class NdJsonSchemaInferrer {
 
-    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-    private static final int DEFAULT_SAMPLE_SIZE = 100;
+    // Known issue: missing field in structures in nested arrays will not be marked as nullable.
+    // In this example, "events.page" will not be nullable:
+    // {"events": [{"type": "click", "page": 1}, {"type": "view", "page": 2}]}
+    // {"events": [{"type": "click", "page": 3}, {"type": "view"}]}
+    //
+    // Accurately detecting this would require a more costly null/missing algorithm, and nulls are
+    // not supported in arrays anyway.
 
-    /**
-     * Infers schema from an NDJSON input stream.
-     */
-    public static List<Attribute> inferSchema(InputStream inputStream) throws IOException {
-        return inferSchema(inputStream, DEFAULT_SAMPLE_SIZE);
+    // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
+    // Use the string part of this default for schema inference (we cannot assume that a number
+    // is a date)
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
+
+    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
+
+    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
+
+    // Fields that we've actually seen in the current json document
+    private final BitSet fieldsSeen = new BitSet();
+    private final List<FieldInfo> fields = new ArrayList<>();
+    private int lineCount = 0;
+
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
     }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo();
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
+    }
+
+    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
+        FieldInfo root = new FieldInfo(null);
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
         try {
-            int lineCount = 0;
             while (lineCount < maxLines) {
                 try {
                     if (parser.nextToken() == null) {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
-                    logger.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue.
+                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
@@ -80,10 +100,20 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
-                    logger.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    // See comment above: deferred to the slice read for policy-driven handling.
+                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
+
+                // Mark fields we haven't seen in this round as nullable
+                for (int i = 0; i < fields.size(); i++) {
+                    if (fieldsSeen.get(i) == false) {
+                        fields.get(i).nullable = true;
+                    }
+                }
+                fieldsSeen.clear();
+
             }
         } finally {
             parser.close();
@@ -95,7 +125,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -110,7 +140,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -118,33 +148,74 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
-            case START_OBJECT -> inferObjectSchema(parser, field);
+            // Keep in sync with NdJsonPageDecoder.BlockDecoder.decodeValue. A field seen as both a
+            // scalar and an object across sampled records resolves to whichever shape was observed
+            // first (mirrors core ES dynamic mapping's first-writer-wins); the other shape is ignored
+            // here for schema-inference purposes so buildSchema never emits both a scalar attribute
+            // and nested children for the same name (elastic/esql-planning#1028). The decoder applies
+            // ErrorPolicy to the actual conflicting value at read time.
+            case START_OBJECT -> {
+                if (field.types.isEmpty() == false) {
+                    parser.skipChildren();
+                } else {
+                    inferObjectSchema(parser, field);
+                }
+            }
             case VALUE_STRING -> {
-                try {
-                    Instant.parse(parser.getText());
-                    field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException e) {
-                    field.addType(DataType.KEYWORD);
+                if (field.children == null) {
+                    String text = parser.getText();
+                    if (field.types.contains(DataType.KEYWORD) == false && isDateTimeString(text)) {
+                        field.addType(DataType.DATETIME);
+                    } else {
+                        field.addType(DataType.KEYWORD);
+                    }
                 }
             }
             case VALUE_NUMBER_INT -> {
-                long value = parser.getLongValue();
-                if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
-                    field.addType(DataType.INTEGER);
-                } else {
-                    field.addType(DataType.LONG);
+                if (field.children == null) {
+                    switch (parser.getNumberType()) {
+                        case INT:
+                            field.addType(DataType.INTEGER);
+                            return;
+                        case LONG:
+                            field.addType(DataType.LONG);
+                            return;
+                        case BIG_INTEGER: {
+                            field.addType(DataType.DOUBLE);
+                            var location = parser.getTokenLocation();
+                            logger.debug(
+                                "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                                parser.getText(),
+                                location.getLineNr(),
+                                location.getColumnNr()
+                            );
+                        }
+                    }
                 }
             } // conservative size
-            case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
-            case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
-            case VALUE_NULL -> field.addType(DataType.NULL);
+            case VALUE_NUMBER_FLOAT -> {
+                if (field.children == null) {
+                    field.addType(DataType.DOUBLE); // conservative size
+                }
+            }
+            case VALUE_TRUE, VALUE_FALSE -> {
+                if (field.children == null) {
+                    field.addType(DataType.BOOLEAN);
+                }
+            }
+            case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
     }
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
@@ -156,7 +227,7 @@ public class NdJsonSchemaInferrer {
             DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
-                attributes.add(attribute(name, dataType, info.types.contains(DataType.NULL)));
+                attributes.add(attribute(name, dataType, info.nullable));
             }
 
             if (info.children != null) {
@@ -166,36 +237,41 @@ public class NdJsonSchemaInferrer {
     }
 
     public static Attribute attribute(String name, DataType type, boolean nullable) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            null,
-            null,
-            name,
-            new EsField(name, type, Map.of(), false, null),
-            nullable ? Nullability.TRUE : Nullability.UNKNOWN,
-            null,
-            false
-        );
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
     }
 
     /**
      * Field type information collected during schema inference.
      */
-    private static class FieldInfo {
+    private class FieldInfo {
         final EnumSet<DataType> types = EnumSet.noneOf(DataType.class);
         boolean isArray = false;
+        boolean nullable = false;
         Map<String, FieldInfo> children = null;
+        final int idx;
+        final String name;
+
+        FieldInfo(String name) {
+            this.name = name;
+            this.idx = fields.size();
+            fields.add(this);
+            if (lineCount > 0) {
+                // Field appearing after the first lines.
+                nullable = true;
+            }
+        }
 
         FieldInfo getChild(String name) {
             // TODO: limit depth
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, (_name) -> new FieldInfo());
+            return children.computeIfAbsent(name, (n) -> new FieldInfo(n));
         }
 
         void addType(DataType type) {
             types.add(type);
+            fieldsSeen.set(idx);
         }
 
         DataType resolveType() {
@@ -203,27 +279,55 @@ public class NdJsonSchemaInferrer {
                 // Can happen with parent and always-empty array
                 return DataType.UNSUPPORTED;
             }
+
+            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
             if (types.size() == 1) {
                 return types.iterator().next();
             }
-            // Multiple types - for now, use the widest type
-            // TODO: Create MultiTypeEsField for proper union type support
-            if (types.contains(DataType.DATETIME)) {
-                return DataType.DATETIME;
-            }
+
+            // Multiple types - use the widest type
+            // Nullability is handled separately and not part of type resolution
             if (types.contains(DataType.KEYWORD)) {
                 return DataType.KEYWORD;
             }
-            if (types.contains(DataType.DOUBLE)) {
-                return DataType.DOUBLE;
+
+            if (hasOnly(types, NUMBER_TYPES)) {
+                if (types.contains(DataType.DOUBLE)) {
+                    return DataType.DOUBLE;
+                }
+                if (types.contains(DataType.LONG)) {
+                    return DataType.LONG;
+                }
+                if (types.contains(DataType.INTEGER)) {
+                    return DataType.INTEGER;
+                }
             }
-            if (types.contains(DataType.LONG)) {
-                return DataType.LONG;
-            }
-            if (types.contains(DataType.INTEGER)) {
-                return DataType.INTEGER;
-            }
-            return types.iterator().next();
+
+            // Widest type
+            return DataType.KEYWORD;
         }
+    }
+
+    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
+        if (values.isEmpty()) {
+            return false;
+        }
+        var copy = EnumSet.copyOf(values);
+        copy.removeAll(from);
+        return copy.isEmpty();
+    }
+
+    /**
+     * Check if a string parses as a datetime. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
+     */
+    private boolean isDateTimeString(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+        }
+        return dateFormatter.tryParse(text) != null;
     }
 }

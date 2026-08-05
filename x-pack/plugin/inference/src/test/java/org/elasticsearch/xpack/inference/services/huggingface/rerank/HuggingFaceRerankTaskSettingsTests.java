@@ -70,13 +70,13 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        var updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false);
+        var newSettings = new HashMap<String, Object>(Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false));
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
@@ -84,7 +84,7 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
+        var newSettings = new HashMap<String, Object>(Map.of(HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7));
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
@@ -92,11 +92,8 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7
+        var newSettings = new HashMap<String, Object>(
+            Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false, HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7)
         );
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());

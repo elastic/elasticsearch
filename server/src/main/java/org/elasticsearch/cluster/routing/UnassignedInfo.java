@@ -89,6 +89,9 @@ public record UnassignedInfo(
     );
 
     private static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = TransportVersion.fromName("unassignedinfo_reshard_added");
+    private static final TransportVersion UNASSIGNEDINFO_RECOVERY_CANCELLED = TransportVersion.fromName(
+        "unassignedinfo_recovery_cancelled"
+    );
 
     /**
      * Reason why the shard is in unassigned state.
@@ -100,80 +103,107 @@ public record UnassignedInfo(
         /**
          * Unassigned as a result of an API creation of an index.
          */
-        INDEX_CREATED,
+        INDEX_CREATED(true),
         /**
          * Unassigned as a result of a full cluster recovery.
          */
-        CLUSTER_RECOVERED,
+        CLUSTER_RECOVERED(false),
         /**
          * Unassigned as a result of opening a closed index.
          */
-        INDEX_REOPENED,
+        INDEX_REOPENED(true),
         /**
          * Unassigned as a result of importing a dangling index.
          */
-        DANGLING_INDEX_IMPORTED,
+        DANGLING_INDEX_IMPORTED(true),
         /**
          * Unassigned as a result of restoring into a new index.
          */
-        NEW_INDEX_RESTORED,
+        NEW_INDEX_RESTORED(true),
         /**
          * Unassigned as a result of restoring into a closed index.
          */
-        EXISTING_INDEX_RESTORED,
+        EXISTING_INDEX_RESTORED(true),
         /**
          * Unassigned as a result of explicit addition of a replica.
          */
-        REPLICA_ADDED,
+        REPLICA_ADDED(true),
         /**
          * Unassigned as a result of a failed allocation of the shard.
          */
-        ALLOCATION_FAILED,
+        ALLOCATION_FAILED(false),
         /**
          * Unassigned as a result of the node hosting it leaving the cluster.
          */
-        NODE_LEFT,
+        NODE_LEFT(false),
         /**
          * Unassigned as a result of explicit cancel reroute command.
          */
-        REROUTE_CANCELLED,
+        REROUTE_CANCELLED(true),
         /**
-         * When a shard moves from started back to initializing.
+         * A replica shard which restarted initialization either because the primary changed or because it was previously a relocation
+         * target whose relocation source has failed; the "source" of a replica relocation isn't the source of its data, that's the primary,
+         * but we represent the movement of a STARTED replica shard as if it was.
          */
-        REINITIALIZED,
+        REINITIALIZED(false),
         /**
          * A better replica location is identified and causes the existing replica allocation to be cancelled.
          */
-        REALLOCATED_REPLICA,
+        REALLOCATED_REPLICA(false),
         /**
          * Unassigned as a result of a failed primary while the replica was initializing.
          */
-        PRIMARY_FAILED,
+        PRIMARY_FAILED(false),
         /**
          * Unassigned after forcing an empty primary
          */
-        FORCED_EMPTY_PRIMARY,
+        FORCED_EMPTY_PRIMARY(true),
         /**
-         * Forced manually to allocate
+         * Manual allocation via the cluster reroute API, to force allocation of a shard and/or to reset the
+         * allocation failure counter.
+         *
+         * <p>Note: This reason is also assigned when the allocation failure counter is automatically reset due to
+         * cluster topology changes (e.g., new node joining).
+         * See https://github.com/elastic/elasticsearch-team/issues/4064 for more details
          */
-        MANUAL_ALLOCATION,
+        MANUAL_ALLOCATION(true),
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED,
+        INDEX_CLOSED(true),
         /**
          * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
          * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
          */
-        NODE_RESTARTING,
+        NODE_RESTARTING(false),
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA,
+        UNPROMOTABLE_REPLICA(false),
         /**
          * New shard added as part of index re-sharding operation
          */
-        RESHARD_ADDED
+        RESHARD_ADDED(true),
+        /**
+         * The master node deliberately direct cancelled an in-progress recovery (via `TransportCancelRecoveriesAction`).
+         */
+        RECOVERY_CANCELLED(true);
+
+        private final boolean isExpectedTransient;
+
+        Reason(boolean isExpectedTransient) {
+            this.isExpectedTransient = isExpectedTransient;
+        }
+
+        /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation,
+        /// replica addition) where the shard is anticipated to be assigned shortly and brief unassignment is
+        /// not a sign of a problem.
+        ///
+        /// Returns `false` for reasons that indicate something went wrong (e.g. allocation failure,
+        /// node loss), where the unassignment should be reported as unhealthy without delay.
+        public boolean isExpectedTransient() {
+            return isExpectedTransient;
+        }
     }
 
     /**
@@ -284,7 +314,8 @@ public record UnassignedInfo(
         Objects.requireNonNull(reason);
         Objects.requireNonNull(lastAllocationStatus);
         failedNodeIds = Set.copyOf(failedNodeIds);
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
+        // RECOVERY_CANCELLED preserves the existing failedAllocations without incrementing it.
+        assert reason == Reason.RECOVERY_CANCELLED || (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
             : "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
         assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
@@ -329,9 +360,16 @@ public record UnassignedInfo(
             // We should have protection to ensure we do not reshard in mixed clusters
             assert false;
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        } else if (reason.equals(Reason.RECOVERY_CANCELLED)
+            && out.getTransportVersion().supports(UNASSIGNEDINFO_RECOVERY_CANCELLED) == false) {
+                // Direct cancellation is gated by the min cluster-wide transport version
+                // DIRECT_RECOVERY_CANCELLATION > UNASSIGNEDINFO_RECOVERY_CANCELLED
+                assert false;
+                final Reason fallbackReason = failedAllocations > 0 ? Reason.ALLOCATION_FAILED : Reason.MANUAL_ALLOCATION;
+                out.writeByte((byte) fallbackReason.ordinal());
+            } else {
+                out.writeByte((byte) reason.ordinal());
+            }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

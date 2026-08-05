@@ -26,9 +26,10 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -98,9 +99,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     // In face of errors, exponential backoff scheme is used.
     public static final TimeValue DEFAULT_TRIGGER_SAVE_STATE_INTERVAL = TimeValue.timeValueSeconds(60);
 
+    private final ThreadPool threadPool;
+    private final boolean supportsMultipleProjects;
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     protected final TransformFailureHandler failureHandler;
+    private final IndicesOptions strictIndicesOptions;
     private volatile float docsPerSecond = -1;
 
     protected final TransformAuditor auditor;
@@ -153,7 +157,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     ) {
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
+        this.threadPool = threadPool;
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
+        this.supportsMultipleProjects = transformServices.projectResolver().supportsMultipleProjects();
         this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.auditor();
@@ -162,6 +168,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
+        ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
+        this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+                ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS
+                : SearchRequest.DEFAULT_INDICES_OPTIONS;
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
 
@@ -178,7 +189,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
 
-    abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
+    /**
+     * Hook invoked from the continuous-config-reload path on {@link #onStart} whenever a new
+     * {@link TransformConfig} is loaded from the index. Subclasses use this to detect changes
+     * to the cross-project cloud credential (via {@link TransformConfig#getCredentialId()}) and
+     * swap the in-memory token + revoke the prior one.
+     */
+    protected abstract void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener);
+
+    abstract void doDeleteByQuery(
+        DeleteByQueryRequest deleteByQueryRequest,
+        ActionListener<BulkByPaginatedSearchResponse> responseListener
+    );
 
     abstract void refreshDestinationIndex(ActionListener<Void> responseListener);
 
@@ -323,13 +345,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                        request.setProjectRouting(transformConfig.getSource().getProjectRouting());
+                    }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
                         transformConfig.getSource().getRuntimeMappings()
                     );
 
                     function.buildSearchQueryForInitialProgress(searchSourceBuilder);
                     searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
-                    request.allowPartialSearchResults(false).source(searchSourceBuilder);
+                    request.allowPartialSearchResults(false).indicesOptions(strictIndicesOptions).source(searchSourceBuilder);
 
                     doGetInitialProgress(request, ActionListener.wrap(response -> {
                         function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
@@ -394,9 +419,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
+                        TransformConfig priorConfig = transformConfig;
                         transformConfig = config;
                         logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                        reLoadFieldMappingsListener.onResponse(null);
+                        // Give subclasses a chance to reconcile the cloud token (load new + revoke old)
+                        // when the credentialId on the config has changed.
+                        doMaybeRefreshCloudToken(priorConfig, config, reLoadFieldMappingsListener.map(ignored -> null));
                     }
                 }, failure -> {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
@@ -537,31 +565,36 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             listener::onFailure
         );
 
-        doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
-            logger.trace(() -> format("[%s] dbq response: [%s]", getJobId(), bulkByScrollResponse));
+        doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            logger.trace(() -> format("[%s] dbq response: [%s]", getJobId(), bulkByPaginatedSearchResponse));
 
             getStats().markEndDelete();
-            getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
-            logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
+            getStats().incrementNumDeletedDocuments(bulkByPaginatedSearchResponse.getDeleted());
+            logger.debug(
+                "[{}] deleted [{}] documents as part of the retention policy.",
+                getJobId(),
+                bulkByPaginatedSearchResponse.getDeleted()
+            );
 
             // this should not happen as part of checkpointing
-            if (bulkByScrollResponse.getVersionConflicts() > 0) {
+            if (bulkByPaginatedSearchResponse.getVersionConflicts() > 0) {
                 // note: the failure gets logged by the failure handler
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found [{}] version conflicts when deleting documents as part of the retention policy.",
-                        bulkByScrollResponse.getDeleted()
+                        bulkByPaginatedSearchResponse.getVersionConflicts()
                     )
                 );
                 return;
             }
             // paranoia: we are not expecting dbq to fail for other reasons
-            if (bulkByScrollResponse.getBulkFailures().size() > 0 || bulkByScrollResponse.getSearchFailures().size() > 0) {
-                assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
+            if (bulkByPaginatedSearchResponse.getBulkFailures().size() > 0
+                || bulkByPaginatedSearchResponse.getSearchFailures().size() > 0) {
+                assert false : "delete by query failed unexpectedly" + bulkByPaginatedSearchResponse;
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found failures when deleting documents as part of the retention policy. Response: [{}]",
-                        bulkByScrollResponse
+                        bulkByPaginatedSearchResponse
                     )
                 );
                 return;
@@ -664,6 +697,20 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
                 return false;
+            }
+
+            if (supportsMultipleProjects) {
+                // The scheduler fires triggered() on a thread without project context. Ensure the project ID is
+                // set before dispatching the async job so that all outbound calls (search, bulk, etc.) inherit it.
+                // HEADERS_TO_COPY preserves the project ID through stashContext() and thread pool dispatches.
+                // newStoredContext() prevents the header from leaking to other transforms on the same scheduler thread.
+                String existingProjectId = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+                if (existingProjectId == null) {
+                    try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, context.projectId().id());
+                        return super.maybeTriggerAsyncJob(now);
+                    }
+                }
             }
 
             return super.maybeTriggerAsyncJob(now);
@@ -792,7 +839,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // we might need to call the save state listeners, but do not want to stop rolling
-        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
+        persistStateWithAutoStop(state, ActionListener.runAfter(ActionListener.wrap(r -> {
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
                     ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
@@ -802,7 +849,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 logger.warn(msg, onResponseException);
             } finally {
                 lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
-                next.run();
             }
         }, e -> {
             try {
@@ -812,10 +858,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             } catch (Exception onFailureException) {
                 String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
                 logger.warn(msg, onFailureException);
-            } finally {
-                next.run();
             }
-        }));
+        }), next));
     }
 
     private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {
@@ -1127,9 +1171,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(getConfig().getSource().getProjectRouting());
+        }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(getConfig().getSource().indicesOptions());
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1155,6 +1202,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(config.getSource().getProjectRouting());
+        }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
@@ -1192,7 +1242,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(getConfig().getSource().indicesOptions());
     }
 
     /**

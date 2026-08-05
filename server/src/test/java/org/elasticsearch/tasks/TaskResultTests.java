@@ -86,6 +86,16 @@ public class TaskResultTests extends ESTestCase {
         assertEquals(taskInfo, read);
     }
 
+    public void testNonNullErrorAndResultShouldThrow() throws IOException {
+        TaskResult withError = new TaskResult(randomTaskInfo(), new RuntimeException("error"));
+        TaskResult withResponse = new TaskResult(randomTaskInfo(), randomTaskResponse());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TaskResult(randomBoolean(), randomTaskInfo(), withError.getError(), withResponse.getResponse())
+        );
+        assertEquals("TaskResult cannot have both a non-null error and a non-null result", e.getMessage());
+    }
+
     private XContentBuilder addRandomUnknownFields(XContentBuilder builder) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             Map<String, Object> map = parser.mapOrdered();
@@ -102,7 +112,8 @@ public class TaskResultTests extends ESTestCase {
         }
     }
 
-    private static TaskResult randomTaskResult() throws IOException {
+    /** Build a {@link TaskResult} covering completed, error, and response variants */
+    public static TaskResult randomTaskResult() throws IOException {
         return switch (between(0, 2)) {
             case 0 -> new TaskResult(randomBoolean(), randomTaskInfo());
             case 1 -> new TaskResult(randomTaskInfo(), new RuntimeException("error"));

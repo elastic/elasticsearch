@@ -84,9 +84,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
                 }
             }
         }
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenShiftAiEmbeddingsServiceSettings(
             commonServiceSettings.model(),
@@ -161,6 +159,36 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         Boolean dimensionsSetByUser
     ) {
         this(modelId, createUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
+    }
+
+    @Override
+    public OpenShiftAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new OpenShiftAiEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings,
+            this.dimensionsSetByUser
+        );
     }
 
     @Override

@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.Collection;
 
@@ -52,14 +53,28 @@ public interface IndicesRequest {
          * Determines whether the request type can support cross-project processing. Cross-project processing entails
          * 1. UIAM authentication and authorization projects resolution.
          * 2. If applicable, cross-project flat-world index resolution and error handling
-         * Note: this method only determines in the request _supports_ cross-project. Whether cross-project processing
+         * Note: this method only determines if the request <em>supports</em> cross-project. Whether cross-project processing
          * is actually performed depends on other factors such as:
-         * - Whether CPS is enabled which impacts both 1 and 2.
-         * - Whether {@link IndicesOptions} supports it when the request is an {@link IndicesRequest}. This only impacts 2.
+         * <ul>
+         *   <li>Whether CPS is enabled which impacts both 1 and 2.</li>
+         *   <li>Whether {@link IndicesOptions} supports it when the request is an {@link IndicesRequest}. This only impacts 2.</li>
+         * </ul>
          * See also {@link org.elasticsearch.search.crossproject.CrossProjectModeDecider}.
          */
         default boolean allowsCrossProject() {
             return false;
+        }
+
+        @Nullable // if no routing is specified
+        default String getProjectRouting() {
+            return null;
+        }
+
+        default void setResolvedTargetProjects(TargetProjects targetProjects) {}
+
+        @Nullable
+        default TargetProjects getResolvedTargetProjects() {
+            return null;
         }
     }
 
@@ -100,11 +115,6 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
-
-        @Nullable // if no routing is specified
-        default String getProjectRouting() {
-            return null;
-        }
     }
 
     /**
@@ -119,11 +129,7 @@ public interface IndicesRequest {
             return true;
         }
 
-        /**
-         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
-         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
-         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
-         */
+        @Override
         default boolean allowsCrossProject() {
             return true;
         }

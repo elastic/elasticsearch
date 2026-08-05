@@ -11,13 +11,13 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,9 +41,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, CrossProjectModeDecider crossProjectModeDecider) {
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -99,7 +99,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         return channel -> client.execute(
             MustachePlugin.SEARCH_TEMPLATE_ACTION,
             searchTemplateRequest,
-            new RestToXContentListener<>(channel, SearchTemplateResponse::status)
+            new RestRefCountedChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(SearchTemplateResponse searchTemplateResponse) {
+                    return searchTemplateResponse.status();
+                }
+            }
         );
     }
 

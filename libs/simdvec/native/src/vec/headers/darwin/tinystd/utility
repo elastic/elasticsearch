@@ -1,0 +1,20 @@
+#ifndef STD_UTILITY_H
+#define STD_UTILITY_H
+
+#include <type_traits>
+
+namespace std {
+
+template<typename T>
+constexpr T&& forward(typename remove_reference<T>::type& t) noexcept {
+    return static_cast<T&&>(t);
+}
+
+template<typename T>
+constexpr T&& forward(typename remove_reference<T>::type&& t) noexcept {
+    return static_cast<T&&>(t);
+}
+
+}
+
+#endif //STD_UTILITY_H

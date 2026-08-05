@@ -23,10 +23,22 @@ public record QueryRequest(
     List<Attribute> attributes,
     Map<String, Object> config,
     int batchSize,
+    int rowLimit,
     BlockFactory blockFactory
 ) {
 
+    public QueryRequest(
+        String target,
+        List<String> projectedColumns,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        int batchSize,
+        BlockFactory blockFactory
+    ) {
+        this(target, projectedColumns, attributes, config, batchSize, FormatReader.NO_LIMIT, blockFactory);
+    }
+
     public QueryRequest withBlockFactory(BlockFactory blockFactory) {
-        return new QueryRequest(target, projectedColumns, attributes, config, batchSize, blockFactory);
+        return new QueryRequest(target, projectedColumns, attributes, config, batchSize, rowLimit, blockFactory);
     }
 }

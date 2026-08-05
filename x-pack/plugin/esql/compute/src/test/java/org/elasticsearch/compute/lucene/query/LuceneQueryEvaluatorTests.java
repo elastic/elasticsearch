@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -208,7 +209,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> ValuesSourceReaderOperator.load(
+                            (ctx, unused) -> ValuesSourceReaderOperator.load(
                                 new BytesRefsFromOrdsBlockLoader(FIELD, ByteSizeValue.ofBytes(randomLongBetween(1, 1000)))
                             )
                         )
@@ -217,7 +218,10 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                         throw new UnsupportedOperationException();
                     }, 0.2)),
                     true,
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    500,
+                    () -> 0L
                 )
             );
             var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
@@ -283,10 +287,14 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            scoring
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 

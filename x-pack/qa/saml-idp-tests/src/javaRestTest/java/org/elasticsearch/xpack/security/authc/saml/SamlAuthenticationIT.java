@@ -53,7 +53,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
@@ -538,7 +537,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             .build();
         request.setConfig(requestConfig);
         logger.info("Execute HTTP " + request.getMethod() + ' ' + request.getURI());
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request, context))) {
+        try (CloseableHttpResponse response = client.execute(request, context)) {
             return body.apply(response);
         } catch (Exception e) {
             logger.warn(() -> "HTTP Request [" + request.getURI() + "] failed", e);

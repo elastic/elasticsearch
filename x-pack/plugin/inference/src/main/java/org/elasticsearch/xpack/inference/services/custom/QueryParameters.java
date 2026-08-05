@@ -36,9 +36,7 @@ public record QueryParameters(List<Parameter> parameters) implements ToXContentF
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return QueryParameters.fromTuples(queryParams);
     }

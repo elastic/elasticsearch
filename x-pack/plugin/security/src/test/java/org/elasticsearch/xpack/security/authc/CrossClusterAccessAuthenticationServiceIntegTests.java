@@ -20,6 +20,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
@@ -180,7 +181,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                     createTestSignature().encodeToString()
                 )
             );
-            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             service.tryAuthenticate(credentials, future);
             future.actionGet();
         }
@@ -260,7 +261,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedRestApiKeyWithId.encoded)
             );
-            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
@@ -284,7 +285,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKeyWithCorrectId)
             );
-            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
@@ -301,7 +302,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, wrongApiKey)
             );
-            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);
@@ -314,7 +315,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
             final Map<String, String> headers = withRandomizedAdditionalSecurityHeaders(
                 Map.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, encodedCrossClusterAccessApiKeyWithId.encoded)
             );
-            final ApiKeyService.ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
+            final ApiKeyCredentials credentials = service.extractApiKeyCredentialsFromHeaders(headers);
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             service.tryAuthenticate(credentials, future);
             final ExecutionException actualException = expectThrows(ExecutionException.class, future::get);

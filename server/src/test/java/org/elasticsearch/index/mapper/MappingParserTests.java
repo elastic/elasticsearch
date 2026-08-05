@@ -62,7 +62,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             bitsetFilterCache::getBitSetProducer,
             null
         );
@@ -346,6 +345,21 @@ public class MappingParserTests extends MapperServiceTestCase {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
+    }
+
+    /**
+     * Verifies that supplementary Unicode characters (above U+FFFF) in field names survive the full
+     * mapping round-trip: XContentBuilder serialization -> CompressedXContent compression -> decompression
+     * and parsing by MappingParser. This is a regression guard for
+     * <a href="https://github.com/FasterXML/jackson-core/issues/1541">jackson-core#1541</a>.
+     */
+    public void testSupplementaryCharacterInFieldName() throws Exception {
+        MappingParser mappingParser = createMappingParser(Settings.EMPTY);
+        String fieldName = "emoji_\uD83C\uDFB5_field";
+        XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
+        CompressedXContent compressed = new CompressedXContent(BytesReference.bytes(builder));
+        Mapping mapping = mappingParser.parse("_doc", compressed);
+        assertNotNull(mapping.getRoot().getMapper(fieldName));
     }
 
     public void testDynamicFieldEdgeCaseNamesRuntimeSection() throws Exception {

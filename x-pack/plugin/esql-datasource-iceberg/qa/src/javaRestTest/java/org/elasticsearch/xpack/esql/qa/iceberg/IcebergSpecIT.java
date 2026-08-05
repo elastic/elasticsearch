@@ -14,15 +14,10 @@ import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.SpecReader;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
-import java.net.URL;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.junit.Assert.assertTrue;
 
 /** Integration tests for Iceberg tables with metadata (loads iceberg-*.csv-spec). */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -30,8 +25,10 @@ import static org.junit.Assert.assertTrue;
 public class IcebergSpecIT extends IcebergSpecTestCase {
 
     /** Elasticsearch cluster with S3 fixture and Iceberg catalog for testing. */
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     public IcebergSpecIT(
         String fileName,
@@ -51,8 +48,6 @@ public class IcebergSpecIT extends IcebergSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/iceberg-*.csv-spec");
-        assertTrue("No iceberg-*.csv-spec files found", urls.size() > 0);
-        return SpecReader.readScriptSpec(urls, specParser());
+        return readExternalSpecTests("/iceberg-basic.csv-spec");
     }
 }

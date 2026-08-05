@@ -13,8 +13,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -27,15 +27,15 @@ import java.util.HexFormat;
 class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDenseVectorFromStringEvaluator.class);
 
-    private final EvalOperator.ExpressionEvaluator field;
+    private final ExpressionEvaluator field;
 
-    ToDenseVectorFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+    ToDenseVectorFromStringEvaluator(Source source, ExpressionEvaluator field, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator next() {
+    protected ExpressionEvaluator next() {
         return field;
     }
 
@@ -104,17 +104,17 @@ class ToDenseVectorFromStringEvaluator extends AbstractConvertFunction.AbstractE
         Releasables.closeExpectNoException(field);
     }
 
-    static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory field;
+        private final ExpressionEvaluator.Factory field;
 
-        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+        Factory(Source source, ExpressionEvaluator.Factory field) {
             this.source = source;
             this.field = field;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ToDenseVectorFromStringEvaluator(source, field.get(context), context);
         }
 

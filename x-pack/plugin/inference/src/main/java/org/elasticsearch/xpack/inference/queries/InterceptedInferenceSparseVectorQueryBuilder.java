@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -67,17 +68,17 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     private InterceptedInferenceSparseVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
+        InterceptedInferenceSparseVectorQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other.queryVectorSupplier;
     }
 
     private InterceptedInferenceSparseVectorQueryBuilder(
-        InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
+        InterceptedInferenceSparseVectorQueryBuilder other,
         SparseVectorQueryBuilder originalQuery,
         SetOnce<TextExpansionResults> queryVectorSupplier
     ) {
@@ -107,19 +108,32 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected String getQuery() {
+    protected InferenceStringGroup getInput() {
         if (queryVectorSupplier != null) {
             // We are in the process of rewriting to generate a query vector. Return null to prevent
             // InferenceQueryUtils from attempting to generate inference results based on the query text.
             return null;
         }
 
-        return originalQuery.getQuery();
+        String query = originalQuery.getQuery();
+        return query != null ? new InferenceStringGroup(query) : null;
     }
 
     @Override
     protected InterceptedInferenceSparseVectorQueryBuilder customDoRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext) {
         return getQueryVector(this, queryRewriteContext);
+    }
+
+    @Override
+    protected QueryBuilder rewriteToOriginalQuery() {
+        QueryBuilder rewritten = originalQuery;
+        if (queryVectorSupplier != null) {
+            // We are in the process of generating a query vector for the original query. Return the current query builder to allow this to
+            // complete before we rewrite to the original query.
+            rewritten = this;
+        }
+
+        return rewritten;
     }
 
     private static InterceptedInferenceSparseVectorQueryBuilder getQueryVector(

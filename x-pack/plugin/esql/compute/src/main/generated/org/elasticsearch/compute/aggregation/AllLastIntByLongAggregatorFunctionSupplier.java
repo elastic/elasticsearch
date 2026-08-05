@@ -31,13 +31,13 @@ public final class AllLastIntByLongAggregatorFunctionSupplier implements Aggrega
   @Override
   public AllLastIntByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllLastIntByLongAggregatorFunction.create(driverContext, channels);
+    return new AllLastIntByLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AllLastIntByLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AllLastIntByLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new AllLastIntByLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

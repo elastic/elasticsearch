@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM sample_data, partial_mapping_sample_data
+| KEEP @timestamp, message, unmapped_message

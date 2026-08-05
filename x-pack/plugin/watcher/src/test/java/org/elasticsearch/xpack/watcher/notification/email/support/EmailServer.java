@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -106,11 +104,7 @@ public class EmailServer {
     }
 
     public void start() {
-        // Must have privileged access because underlying server will accept socket connections
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            server.start();
-            return null;
-        });
+        server.start();
     }
 
     public void stop() {

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -230,6 +231,21 @@ class JavaDateFormatter implements DateFormatter {
         }
     }
 
+    @Override
+    @Nullable
+    public TemporalAccessor tryParse(String input) {
+        if (Strings.isNullOrEmpty(input)) {
+            return null;
+        }
+        for (DateTimeParser parser : this.parsers) {
+            var result = parser.tryParse(input).result();
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
     /**
      * Attempt parsing the input without throwing exception. If multiple parsers are provided,
      * it will continue iterating until it finds one that works.
@@ -322,7 +338,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (obj == null || obj.getClass().equals(this.getClass()) == false) {
             return false;
         }
         JavaDateFormatter other = (JavaDateFormatter) obj;

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -42,7 +42,7 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
 
         public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
         public static final ParseField SORT = new ParseField("sort");

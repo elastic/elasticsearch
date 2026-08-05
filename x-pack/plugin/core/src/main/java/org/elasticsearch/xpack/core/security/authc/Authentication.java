@@ -784,8 +784,25 @@ public final class Authentication implements ToXContentObject {
             assert tokenSource != null : "token source cannot be null";
             builder.field(
                 User.Fields.TOKEN.getPreferredName(),
-                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource)
+                Map.of(
+                    "name",
+                    tokenName,
+                    "type",
+                    ServiceAccountSettings.REALM_TYPE + "_" + tokenSource,
+                    "managed_by",
+                    CredentialManagedBy.ELASTICSEARCH.getDisplayName()
+                )
             );
+        } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
+            String managedBy = (String) metadata.get("managed_by");
+            if (managedBy != null) {
+                builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("managed_by", managedBy));
+            } else {
+                builder.field(
+                    User.Fields.TOKEN.getPreferredName(),
+                    Map.of("managed_by", CredentialManagedBy.ELASTICSEARCH.getDisplayName())
+                );
+            }
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());

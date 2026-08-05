@@ -2052,9 +2052,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
                 .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
                 .build();
-            var settings = Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-                .build();
+            var settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
             int nbReplicas = randomIntBetween(0, 1);
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
@@ -2084,9 +2082,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         boolean isStateless = randomBoolean();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
-            Settings.builder()
-                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless)
-                .build()
+            Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless).build()
         );
         assertThat(applier, notNullValue());
 

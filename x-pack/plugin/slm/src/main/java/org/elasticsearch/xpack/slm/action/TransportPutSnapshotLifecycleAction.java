@@ -34,9 +34,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -84,10 +87,55 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
 
+        // If the config map contains encryption_password, encrypt it with the PEK before storing.
+        final SnapshotLifecyclePolicy lifecycle = encryptPasswordIfPresent(request.getLifecycle());
+        final PutSnapshotLifecycleAction.Request effectiveRequest = lifecycle == request.getLifecycle()
+            ? request
+            : new PutSnapshotLifecycleAction.Request(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.getLifecycleId(),
+                lifecycle
+            );
+
         submitUnbatchedTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
-            new UpdateSnapshotPolicyTask(request, listener, filteredHeaders)
+            new UpdateSnapshotPolicyTask(effectiveRequest, listener, filteredHeaders)
         );
+    }
+
+    /**
+     * If the policy's configuration map contains {@code encryption_password}, encrypts it with the cluster PEK
+     * and returns a new policy with {@code encryptedPassword} set and the plaintext removed from the config.
+     * Returns the original policy unchanged if no password is present.
+     */
+    private static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy) {
+        final Map<String, Object> config = policy.getConfig();
+        if (config == null || config.containsKey("encryption_password") == false) {
+            return policy;
+        }
+        final Object rawPassword = config.get("encryption_password");
+        if (rawPassword instanceof String == false) {
+            return policy;
+        }
+        final byte[] passwordBytes = ((String) rawPassword).getBytes(StandardCharsets.UTF_8);
+        try {
+            final var encryptedPassword = EncryptionServiceRegistry.getEncryptionService().encrypt(passwordBytes);
+            final Map<String, Object> newConfig = new HashMap<>(config);
+            newConfig.remove("encryption_password");
+            return new SnapshotLifecyclePolicy(
+                policy.getId(),
+                policy.getName(),
+                policy.getSchedule(),
+                policy.getRepository(),
+                newConfig,
+                policy.getRetentionPolicy(),
+                policy.getUnhealthyIfNoSnapshotWithin(),
+                encryptedPassword
+            );
+        } finally {
+            Arrays.fill(passwordBytes, (byte) 0);
+        }
     }
 
     /**

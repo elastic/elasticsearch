@@ -210,6 +210,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final IndexMetadataRestoreTransformer indexMetadataRestoreTransformer;
 
+    private final SnapshotEncryptionExtension snapshotEncryptionExtension;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
 
     public RestoreService(
@@ -224,7 +226,8 @@ public final class RestoreService implements ClusterStateApplier {
         FileSettingsService fileSettingsService,
         ThreadPool threadPool,
         boolean deserializeProjectMetadata,
-        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer
+        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
+        SnapshotEncryptionExtension snapshotEncryptionExtension
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -246,6 +249,7 @@ public final class RestoreService implements ClusterStateApplier {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
         this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
+        this.snapshotEncryptionExtension = snapshotEncryptionExtension;
     }
 
     /**
@@ -400,6 +404,28 @@ public final class RestoreService implements ClusterStateApplier {
             metadataBuilder = Metadata.builder(globalMetadata);
         } else {
             metadataBuilder = Metadata.builder();
+        }
+
+        // Decrypt and apply encrypted project customs if a password was provided
+        if (snapshotInfo.hasEncryptedData()) {
+            if (request.encryptionPassword() == null) {
+                logger.warn(
+                    "snapshot [{}] contains encrypted data but no encryption_password was provided; encrypted data will not be restored",
+                    snapshot
+                );
+            } else {
+                final byte[] encryptedBlob = repository.readSnapshotEncryptedData(snapshotId);
+                if (encryptedBlob != null) {
+                    final Map<String, Metadata.ProjectCustom> decryptedCustoms = snapshotEncryptionExtension.decryptFromSnapshot(
+                        projectId,
+                        encryptedBlob,
+                        request.encryptionPassword()
+                    );
+                    for (Map.Entry<String, Metadata.ProjectCustom> entry : decryptedCustoms.entrySet()) {
+                        metadataBuilder.putCustom(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
         }
 
         // TODO: https://github.com/elastic/elasticsearch/issues/119545 - This does not yet support selectors

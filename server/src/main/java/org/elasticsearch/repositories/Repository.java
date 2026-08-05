@@ -185,6 +185,16 @@ public interface Repository extends LifecycleComponent {
     void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext);
 
     /**
+     * Reads the encrypted customs data blob for the given snapshot, if one exists. Returns {@code null} if
+     * the snapshot was created without an encryption password or this repository implementation does not
+     * support encrypted blobs.
+     */
+    @Nullable
+    default byte[] readSnapshotEncryptedData(SnapshotId snapshotId) throws IOException {
+        return null;
+    }
+
+    /**
      * Deletes snapshots
      *
      * @param snapshotIds                  snapshot ids to delete

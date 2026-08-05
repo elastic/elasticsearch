@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.snapshots.SnapshotEncryptionExtension;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
@@ -101,12 +102,16 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         this.coordinator.set(coordinator);
         this.healthIndicatorService.set(healthIndicator);
 
+        SnapshotEncryptionExtensionImpl snapshotEncryptionExtension = new SnapshotEncryptionExtensionImpl(handlerRegistry);
+
         List<Object> components = new ArrayList<>();
         components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
+        components.add(new PluginComponentBinding<>(SnapshotEncryptionExtension.class, snapshotEncryptionExtension));
         components.add(pekService);
         components.add(coordinator);
         components.add(healthIndicator);
         components.add(handlerRegistry);
+        components.add(snapshotEncryptionExtension);
         return components;
     }
 

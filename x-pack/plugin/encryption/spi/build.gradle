@@ -16,6 +16,7 @@ base {
 }
 
 dependencies {
+  compileOnly project(":libs:core")
   compileOnly project(":server")
   testImplementation project(":test:framework")
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
@@ -46,6 +47,9 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final Runnable onDone;
 
+    @Nullable
+    private final byte[] encryptedCustomsData;
+
     /**
      * @param serializeProjectMetadata serialize only the project metadata of the cluster metadata
      * @param updatedShardGenerations updated shard generations for both live and deleted indices
@@ -57,7 +61,30 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
      *                                added to the repository
      * @param onDone                  consumer of the new {@link SnapshotInfo} for the snapshot that is invoked after the {@code listener}
      *                                once all cleanup operations after snapshot completion have executed
+     * @param encryptedCustomsData    password-encrypted serialized project customs, or {@code null} if none
      */
+    public FinalizeSnapshotContext(
+        boolean serializeProjectMetadata,
+        UpdatedShardGenerations updatedShardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        IndexVersion repositoryMetaVersion,
+        ActionListener<RepositoryData> listener,
+        Runnable onDone,
+        @Nullable byte[] encryptedCustomsData
+    ) {
+        super(listener);
+        this.serializeProjectMetadata = serializeProjectMetadata;
+        this.updatedShardGenerations = updatedShardGenerations;
+        this.repositoryStateId = repositoryStateId;
+        this.clusterMetadata = clusterMetadata;
+        this.snapshotInfo = snapshotInfo;
+        this.repositoryMetaVersion = repositoryMetaVersion;
+        this.onDone = onDone;
+        this.encryptedCustomsData = encryptedCustomsData;
+    }
+
     public FinalizeSnapshotContext(
         boolean serializeProjectMetadata,
         UpdatedShardGenerations updatedShardGenerations,
@@ -68,14 +95,17 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         ActionListener<RepositoryData> listener,
         Runnable onDone
     ) {
-        super(listener);
-        this.serializeProjectMetadata = serializeProjectMetadata;
-        this.updatedShardGenerations = updatedShardGenerations;
-        this.repositoryStateId = repositoryStateId;
-        this.clusterMetadata = clusterMetadata;
-        this.snapshotInfo = snapshotInfo;
-        this.repositoryMetaVersion = repositoryMetaVersion;
-        this.onDone = onDone;
+        this(
+            serializeProjectMetadata,
+            updatedShardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            listener,
+            onDone,
+            null
+        );
     }
 
     public boolean serializeProjectMetadata() {
@@ -100,6 +130,11 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     public Metadata clusterMetadata() {
         return clusterMetadata;
+    }
+
+    @Nullable
+    public byte[] encryptedCustomsData() {
+        return encryptedCustomsData;
     }
 
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteShardGenerations() {

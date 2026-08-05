@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -104,6 +107,98 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
             return new DataSourceSetting(encryptionService.encrypt(plaintext), true);
         } finally {
             Arrays.fill(plaintext, (byte) 0);
+        }
+    }
+
+    /**
+     * Serializes {@code current} to plaintext bytes, decrypting PEK-encrypted secrets so they can be
+     * re-encrypted with a user-supplied password for snapshot storage. Wire format:
+     * <ul>
+     *   <li>vint: number of data sources</li>
+     *   <li>for each data source: name, type, optional description, vint setting count</li>
+     *   <li>for each setting: key, boolean(isSecret), if secret: boolean(hasValue) + byteArray(plaintextValue), else genericValue</li>
+     * </ul>
+     */
+    @Override
+    public byte[] toSnapshotBytes(DataSourceMetadata current, EncryptionService encryptionService) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(current.dataSources().size());
+            for (DataSource dataSource : current.dataSources().values()) {
+                out.writeString(dataSource.name());
+                out.writeString(dataSource.type());
+                out.writeOptionalString(dataSource.description());
+                int settingsCount = 0;
+                for (var ignored : dataSource.settings()) {
+                    settingsCount++;
+                }
+                out.writeVInt(settingsCount);
+                for (Map.Entry<String, DataSourceSetting> entry : dataSource.settings()) {
+                    out.writeString(entry.getKey());
+                    DataSourceSetting setting = entry.getValue();
+                    out.writeBoolean(setting.secret());
+                    if (setting.secret()) {
+                        if (setting.isEncrypted()) {
+                            byte[] plaintext = encryptionService.decrypt((EncryptedData) setting.rawValue());
+                            try {
+                                out.writeBoolean(true);
+                                out.writeByteArray(plaintext);
+                            } finally {
+                                Arrays.fill(plaintext, (byte) 0);
+                            }
+                        } else {
+                            out.writeBoolean(false);
+                        }
+                    } else {
+                        out.writeGenericValue(setting.nonSecretValue());
+                    }
+                }
+            }
+            return out.bytes().array();
+        } catch (IOException e) {
+            throw new RuntimeException("failed to serialize DataSourceMetadata for snapshot", e);
+        }
+    }
+
+    /**
+     * Deserializes bytes produced by {@link #toSnapshotBytes} and re-encrypts secrets under the destination cluster's PEK.
+     */
+    @Override
+    public DataSourceMetadata fromSnapshotBytes(byte[] bytes, EncryptionService encryptionService) {
+        try (StreamInput in = StreamInput.wrap(bytes)) {
+            int count = in.readVInt();
+            Map<String, DataSource> dataSources = new HashMap<>(count);
+            for (int i = 0; i < count; i++) {
+                String name = in.readString();
+                String type = in.readString();
+                String description = in.readOptionalString();
+                int settingsCount = in.readVInt();
+                Map<String, DataSourceSetting> settings = new HashMap<>(settingsCount);
+                for (int j = 0; j < settingsCount; j++) {
+                    String key = in.readString();
+                    boolean isSecret = in.readBoolean();
+                    final DataSourceSetting setting;
+                    if (isSecret) {
+                        boolean hasValue = in.readBoolean();
+                        if (hasValue) {
+                            byte[] plaintext = in.readByteArray();
+                            try {
+                                setting = new DataSourceSetting(encryptionService.encrypt(plaintext), true);
+                            } finally {
+                                Arrays.fill(plaintext, (byte) 0);
+                            }
+                        } else {
+                            setting = new DataSourceSetting(null, true);
+                        }
+                    } else {
+                        setting = new DataSourceSetting(in.readGenericValue(), false);
+                    }
+                    settings.put(key, setting);
+                }
+                dataSources.put(name, new DataSource(name, type, description, settings));
+            }
+            return new DataSourceMetadata(dataSources);
+        } catch (IOException e) {
+            throw new RuntimeException("failed to deserialize DataSourceMetadata from snapshot bytes", e);
         }
     }
 }

@@ -14,7 +14,7 @@ esplugin {
   name = 'x-pack-slm'
   description = 'Elasticsearch Expanded Pack Plugin - Snapshot Lifecycle Management'
   classname = 'org.elasticsearch.xpack.slm.SnapshotLifecycle'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'x-pack-encryption']
   hasNativeController = false
   requiresKeystore = true
 }
@@ -25,6 +25,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(':x-pack:plugin:encryption:spi')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('ilm'))

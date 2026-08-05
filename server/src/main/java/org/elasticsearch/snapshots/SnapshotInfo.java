@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -85,8 +86,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     static final String USER_METADATA = "metadata";
     static final String FEATURE_STATES = "feature_states";
     static final String INDEX_DETAILS = "index_details";
+    static final String HAS_ENCRYPTED_DATA = "has_encrypted_data";
 
     static final String UNKNOWN_REPO_NAME = "_na_";
+
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
 
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
@@ -125,6 +129,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     private final List<SnapshotShardFailure> shardFailures;
 
     private final Map<String, IndexSnapshotDetails> indexSnapshotDetails;
+
+    private final boolean hasEncryptedData;
 
     public SnapshotInfo(
         Snapshot snapshot,
@@ -265,6 +271,44 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         SnapshotState state,
         Map<String, IndexSnapshotDetails> indexSnapshotDetails
     ) {
+        this(
+            snapshot,
+            indices,
+            dataStreams,
+            featureStates,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            state,
+            indexSnapshotDetails,
+            false
+        );
+    }
+
+    public SnapshotInfo(
+        Snapshot snapshot,
+        List<String> indices,
+        List<String> dataStreams,
+        List<SnapshotFeatureInfo> featureStates,
+        String reason,
+        IndexVersion version,
+        long startTime,
+        long endTime,
+        int totalShards,
+        int successfulShards,
+        List<SnapshotShardFailure> shardFailures,
+        Boolean includeGlobalState,
+        Map<String, Object> userMetadata,
+        SnapshotState state,
+        Map<String, IndexSnapshotDetails> indexSnapshotDetails,
+        boolean hasEncryptedData
+    ) {
         this.snapshot = Objects.requireNonNull(snapshot);
         this.indices = List.copyOf(indices);
         this.dataStreams = List.copyOf(dataStreams);
@@ -280,6 +324,31 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.includeGlobalState = includeGlobalState;
         this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
+        this.hasEncryptedData = hasEncryptedData;
+    }
+
+    /**
+     * Returns a copy of this {@link SnapshotInfo} with {@code hasEncryptedData} set to the given value.
+     */
+    public SnapshotInfo withHasEncryptedData(boolean value) {
+        return new SnapshotInfo(
+            snapshot,
+            indices,
+            dataStreams,
+            featureStates,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            state,
+            indexSnapshotDetails,
+            value
+        );
     }
 
     public SnapshotInfo maybeWithoutIndices(boolean retainIndices) {
@@ -301,7 +370,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             includeGlobalState,
             userMetadata,
             state,
-            indexSnapshotDetails
+            indexSnapshotDetails,
+            hasEncryptedData
         );
     }
 
@@ -324,6 +394,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final List<String> dataStreams = in.readStringCollectionAsImmutableList();
         final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
+        final boolean hasEncryptedData = in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV) && in.readBoolean();
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -339,7 +410,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             includeGlobalState,
             userMetadata,
             state,
-            indexSnapshotDetails
+            indexSnapshotDetails,
+            hasEncryptedData
         );
     }
 
@@ -496,6 +568,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     }
 
     /**
+     * @return true if the snapshot contains customs data that was encrypted with a user-supplied password
+     */
+    public boolean hasEncryptedData() {
+        return hasEncryptedData;
+    }
+
+    /**
      * @return details of each index in the snapshot, if available, or an empty map otherwise.
      */
     public Map<String, IndexSnapshotDetails> indexSnapshotDetails() {
@@ -646,6 +725,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             builder.endArray();
 
         }
+        if (hasEncryptedData) {
+            builder.field(HAS_ENCRYPTED_DATA, true);
+        }
         builder.endObject();
         return builder;
     }
@@ -702,6 +784,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             entry.getValue().toXContent(builder, params);
         }
         builder.endObject();
+        if (hasEncryptedData) {
+            builder.field(HAS_ENCRYPTED_DATA, true);
+        }
 
         builder.endObject();
         return builder;
@@ -729,6 +814,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
         List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
         Map<String, IndexSnapshotDetails> indexSnapshotDetails = null;
+        boolean hasEncryptedData = false;
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -794,6 +880,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                     indexSnapshotDetails = parser.map(HashMap::new, p -> IndexSnapshotDetails.PARSER.parse(p, null));
                     break;
+                case HAS_ENCRYPTED_DATA:
+                    hasEncryptedData = parser.booleanValue();
+                    break;
                 default:
                     // It was probably created by newer version - ignoring
                     parser.skipChildren();
@@ -821,7 +910,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             includeGlobalState,
             userMetadata,
             state,
-            indexSnapshotDetails == null ? Collections.emptyMap() : indexSnapshotDetails
+            indexSnapshotDetails == null ? Collections.emptyMap() : indexSnapshotDetails,
+            hasEncryptedData
         );
     }
 
@@ -851,8 +941,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
         out.writeCollection(featureStates);
-
         out.writeMap(indexSnapshotDetails, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+            out.writeBoolean(hasEncryptedData);
+        }
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {
@@ -886,7 +978,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             && Objects.equals(shardFailures, that.shardFailures)
             && Objects.equals(userMetadata, that.userMetadata)
             && Objects.equals(featureStates, that.featureStates)
-            && Objects.equals(indexSnapshotDetails, that.indexSnapshotDetails);
+            && Objects.equals(indexSnapshotDetails, that.indexSnapshotDetails)
+            && hasEncryptedData == that.hasEncryptedData;
     }
 
     @Override
@@ -906,7 +999,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             shardFailures,
             userMetadata,
             featureStates,
-            indexSnapshotDetails
+            indexSnapshotDetails,
+            hasEncryptedData
         );
     }
 

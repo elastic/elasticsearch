@@ -67,7 +67,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
     private final Integer minimumSnapshotCount;
     private final Integer maximumSnapshotCount;
 
-    SnapshotRetentionConfiguration(StreamInput in) throws IOException {
+    public SnapshotRetentionConfiguration(StreamInput in) throws IOException {
         nowSupplier = System::currentTimeMillis;
         this.expireAfter = in.readOptionalTimeValue();
         this.minimumSnapshotCount = in.readOptionalVInt();

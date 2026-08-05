@@ -6,6 +6,7 @@
  */
 
 module org.elasticsearch.encryption.spi {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
 

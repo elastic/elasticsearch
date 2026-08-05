@@ -20,15 +20,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Logs raw byte counts across block sizes. Each workload runs two passes: "parity" compares
- * ColumNAR and ES95 at bs=128 and bs=512 and asserts the ratio stays within a per-workload
- * ceiling; "scaling" logs each codec independently across its own supported range. For pinned
+ * Asserts ColumNAR storage parity with ES95 at block sizes 128 and 512. For pinned
  * byte-count assertions see {@link ColumnarNumericFootprintTests}.
  */
 public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase {
 
     private static final Logger logger = LogManager.getLogger(ColumnarBlockSizeSweepTests.class);
-    private static final int[] COLUMNAR_BLOCK_SIZES = { 128, 256, 512, 1024, 2048, 4096, 8192 };
     private static final int[] ES95_BLOCK_SIZES = { 128, 512 };
 
     private record Ceiling(double bs128, double bs512) {}
@@ -87,7 +84,6 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
     private void runSweep(String workload, NumericPipelineSelector selector) throws IOException {
         final long[] values = generate(workload, DOC_COUNT);
         runParity(workload, selector, values);
-        runScaling(workload, selector, values);
     }
 
     private void runParity(String workload, NumericPipelineSelector selector, long[] values) throws IOException {
@@ -113,14 +109,4 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
         }
     }
 
-    private void runScaling(String workload, NumericPipelineSelector selector, long[] values) throws IOException {
-        for (int blockSize : COLUMNAR_BLOCK_SIZES) {
-            final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, blockSize), values, true);
-            logger.info("scaling workload={} codec=COLUMNAR blockSize={} bytes={}", workload, blockSize, columnar);
-        }
-        for (int blockSize : ES95_BLOCK_SIZES) {
-            final long es95 = measureConsumer(es95Format(workload, blockSize == 512), values, false);
-            logger.info("scaling workload={} codec=ES95 blockSize={} bytes={}", workload, blockSize, es95);
-        }
-    }
 }

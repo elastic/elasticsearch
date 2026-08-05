@@ -494,7 +494,6 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         // Mix primary moves with genuine replica failures, ensure at least one primary move.
         int genuineFailures = 0;
-        boolean primaryMoved = false;
         while (genuineFailures < maxRetries) {
             final var replica = soleReplicaShard(clusterState, 0);
             assertThat(replica.state(), equalTo(STARTED));
@@ -504,11 +503,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 alloc -> assertThat(decider.canAllocate(replica, alloc).type(), equalTo(Decision.Type.YES))
             );
 
-            final boolean doPrimaryMove = randomBoolean() || (primaryMoved == false && genuineFailures == maxRetries - 1);
             final List<String> freeNodes = unoccupiedNodeIds(clusterState, shardId);
             assertThat(freeNodes.size(), equalTo(2));
 
-            if (doPrimaryMove) {
+            if (randomBoolean()) { // primary move
                 final String primaryTargetNode = freeNodes.get(0);
                 final String replicaTargetNode = freeNodes.get(1);
 
@@ -537,21 +535,21 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 final var replicaTarget = restartedReplica.getTargetRelocatingShard();
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, replicaTarget.allocationId().getId());
-                    alloc.routingNodes()
-                        .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.RECOVERY_CANCELLED, "cleanup"), alloc.changes());
+                    final var cancelledInfo = new UnassignedInfo(UnassignedInfo.Reason.RECOVERY_CANCELLED, "cleanup");
+                    alloc.routingNodes().failShard(target, cancelledInfo, alloc.changes());
                 });
-                primaryMoved = true;
-            } else {
+            } else { // genuine failure
                 final String replicaTargetNode = randomFrom(freeNodes);
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var startedReplica = soleStartedReplicaShard(alloc, shardId);
                     alloc.routingNodes().relocateShard(startedReplica, replicaTargetNode, 0, "test", alloc.changes());
                 });
+
                 final var relocationTarget = soleReplicaShard(clusterState, 0).getTargetRelocatingShard();
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, relocationTarget.allocationId().getId());
-                    alloc.routingNodes()
-                        .failShard(target, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure"), alloc.changes());
+                    final var failedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure");
+                    alloc.routingNodes().failShard(target, failedInfo, alloc.changes());
                 });
                 genuineFailures++;
             }

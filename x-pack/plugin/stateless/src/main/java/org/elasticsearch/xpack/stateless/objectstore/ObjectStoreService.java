@@ -106,6 +106,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1079,6 +1080,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 )
                             );
                         },
+                        (blobFile, bccSize) -> {},
                         l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges))
                     );
                 }
@@ -1274,6 +1276,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * {@param referencedCCsConsumer} on each one of them.
      * The optional param {@param bcc} is passed-in in order to avoid re-reading it from the blobstore (usually one gets a
      * commit's files from a {@code bcc}).
+     * {@param bccBlobSizeConsumer} is called once per BCC blob with the blob file and the BCC blob's size in bytes (without trailing
+     * page-alignment padding).
      */
     public static void readReferencedCompoundCommitsUsingCache(
         Map<String, BlobLocation> commitFiles,
@@ -1282,6 +1286,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         IOContext context,
         Executor bccHeaderReadExecutor,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        ObjLongConsumer<BlobFile> bccBlobSizeConsumer,
         ActionListener<Void> listener
     ) {
         readReferencedCompoundCommits(
@@ -1291,6 +1296,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 ? bcc.compoundCommits().iterator()
                 : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
             referencedCCsConsumer,
+            bccBlobSizeConsumer,
             listener
         );
     }
@@ -1300,6 +1306,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Executor bccHeaderReadExecutor,
         BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        ObjLongConsumer<BlobFile> bccBlobSizeConsumer,
         ActionListener<Void> listener
     ) {
         var referencedFilesByBlob = groupReferencedFilesByBlob(commitFiles);
@@ -1313,6 +1320,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         referencedFilesForBlob.getValue().maxBlobOffset()
                     );
                     long offsetInBlob = 0L;
+                    long lastCCSizeInBytes = 0L;
                     // only used for asserts
                     Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
                     while (commitsIterator.hasNext()) {
@@ -1328,7 +1336,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 )
                             );
                         }
-                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+                        lastCCSizeInBytes = compoundCommit.sizeInBytes();
+                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(lastCCSizeInBytes);
                         if (Assertions.ENABLED) {
                             assert Sets.intersection(referencedInternalFiles, commitInternalFiles).isEmpty()
                                 : "some commits contain the same internal file names between them";
@@ -1337,6 +1346,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                     assert Assertions.ENABLED == false || referencedInternalFiles.equals(referencedFiles)
                         : "could not find some internal file names";
+                    if (lastCCSizeInBytes > 0) {
+                        // BCC blob size = accumulated page-aligned offsets minus the trailing padding of the last CC
+                        bccBlobSizeConsumer.accept(
+                            referencedBlob,
+                            offsetInBlob - BlobCacheUtils.toPageAlignedSize(lastCCSizeInBytes) + lastCCSizeInBytes
+                        );
+                    }
                 }));
             }
         }

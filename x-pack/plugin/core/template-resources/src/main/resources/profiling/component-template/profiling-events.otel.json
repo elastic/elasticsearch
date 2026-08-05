@@ -7,6 +7,28 @@
         "auto_expand_replicas": "0-1",
         "max_result_window": 150000,
         "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "resource.attributes.k8s.namespace.name",
+            "resource.attributes.k8s.pod.name",
+            "resource.attributes.service.name",
+            "resource.attributes.host.name",
+            "resource.attributes.container.name",
+            "resource.attributes.process.executable.name",
+            "resource.attributes.thread.name",
+            "@timestamp"
+          ],
+          "order": [
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "desc"
+          ]
+        },
         "routing.allocation.include._tier_preference": "data_hot"
       },
       "codec": "best_compression"
@@ -24,7 +46,8 @@
             "path_match": "resource.attributes.*",
             "match_mapping_type": "string",
             "mapping": {
-              "type": "keyword"
+              "type": "keyword",
+              "index": false
             }
           }
         }
@@ -53,7 +76,37 @@
               "dynamic": true,
               "priority": 40,
               "properties": {
+                "host.id": {
+                  "type": "keyword"
+                },
+                "host.name": {
+                  "type": "keyword"
+                },
+                "host.ip": {
+                  "type": "ip"
+                },
+                "k8s.namespace.name": {
+                  "type": "keyword"
+                },
+                "k8s.pod.name": {
+                  "type": "keyword"
+                },
+                "container.name": {
+                  "type": "keyword"
+                },
+                "container.id": {
+                  "type": "keyword"
+                },
+                "service.name": {
+                  "type": "keyword"
+                },
+                "process.executable.name": {
+                  "type": "keyword"
+                },
                 "thread.name": {
+                  "type": "keyword"
+                },
+                "os.version": {
                   "type": "keyword"
                 }
               }

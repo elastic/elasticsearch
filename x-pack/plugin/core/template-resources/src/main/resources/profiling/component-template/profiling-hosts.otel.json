@@ -4,6 +4,12 @@
       "index": {
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "resource.attributes.host.id",
+            "@timestamp"
+          ]
+        },
         "routing.allocation.include._tier_preference": "data_hot"
       },
       "codec": "best_compression"
@@ -24,7 +30,8 @@
             "path_match": "resource.attributes.*",
             "match_mapping_type": "string",
             "mapping": {
-              "type": "keyword"
+              "type": "keyword",
+              "index": false
             }
           }
         }
@@ -42,6 +49,21 @@
               "priority": 40,
               "properties": {
                 "host.id": {
+                  "type": "keyword"
+                },
+                "host.arch": {
+                  "type": "keyword"
+                },
+                "host.type": {
+                  "type": "keyword"
+                },
+                "cloud.provider": {
+                  "type": "keyword"
+                },
+                "cloud.region": {
+                  "type": "keyword"
+                },
+                "os.type": {
                   "type": "keyword"
                 }
               }

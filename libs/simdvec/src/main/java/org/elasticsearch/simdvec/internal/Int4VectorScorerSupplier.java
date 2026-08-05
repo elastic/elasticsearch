@@ -36,6 +36,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
     private final int vectorPitch;
     private final Int4VectorScorer.ScorerImpl scorerImpl;
     private final MemorySegment unpackedQuerySegment;
+    private final FixedSizeScratch scratch;
 
     public Int4VectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, VectorSimilarityType similarityType) {
         IndexInputUtils.checkInputType(input);
@@ -47,6 +48,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         this.packedDims = dims / 2;
         this.vectorPitch = packedDims + Int4VectorScorer.CORRECTIONS_BYTES;
         this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
+        this.scratch = new FixedSizeScratch(vectorPitch);
         float centroidDP;
         try {
             centroidDP = values.getCentroidDP();
@@ -66,19 +68,23 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
     }
 
     private Int4VectorScorer.QueryContext createQueryContext(int ord) throws IOException {
-        var correctiveTerms = values.getCorrectiveTerms(ord);
+        // Read the full per-vector record (packed vector + corrections) in a single slice, instead of a
+        // separate getCorrectiveTerms(ord) I/O plus a readBytes for the packed vector. The query nibbles
+        // are unpacked straight from the slice, and the corrections are read from its trailing bytes.
         long offset = (long) ord * vectorPitch;
         input.seek(offset);
-        byte[] packed = new byte[packedDims];
-        input.readBytes(packed, 0, packedDims);
-        unpackNibbles(packed);
-        return new Int4VectorScorer.QueryContext(
-            correctiveTerms.lowerInterval(),
-            correctiveTerms.upperInterval(),
-            correctiveTerms.additionalCorrection(),
-            correctiveTerms.quantizedComponentSum(),
-            unpackedQuerySegment
-        );
+        return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+            unpackNibbles(seg);
+            // The corrections trailer starts at byte offset packedDims within the record; read the
+            // 3 floats + 1 int directly from the slice rather than materializing a short-lived sub-slice.
+            return new Int4VectorScorer.QueryContext(
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, packedDims),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, packedDims + Float.BYTES),
+                seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, packedDims + 2L * Float.BYTES),
+                seg.get(ValueLayout.JAVA_INT_UNALIGNED, packedDims + 3L * Float.BYTES),
+                unpackedQuerySegment
+            );
+        });
     }
 
     @Override
@@ -124,11 +130,11 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         return values;
     }
 
-    private void unpackNibbles(byte[] packed) {
-        int packedLen = packed.length;
-        for (int i = 0; i < packedLen; i++) {
-            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i, (byte) ((packed[i] & 0xFF) >>> 4));
-            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i + packedLen, (byte) (packed[i] & 0x0F));
+    private void unpackNibbles(MemorySegment packed) {
+        for (int i = 0; i < packedDims; i++) {
+            byte b = packed.get(ValueLayout.JAVA_BYTE, i);
+            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i, (byte) ((b & 0xFF) >>> 4));
+            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i + packedDims, (byte) (b & 0x0F));
         }
     }
 }

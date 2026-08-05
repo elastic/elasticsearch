@@ -12,10 +12,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -36,12 +36,6 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvaluatorTests {
 
-    @Before
-    public void assumeRuntimeMatchPhraseEnabled() {
-        // Runtime match_phrase is gated behind a snapshot-only capability; there is nothing to test in release builds.
-        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
-    }
-
     private static MatchPhrase runtimeMatchPhrase(String queryValue) {
         return runtimeMatchPhrase(TEXT, queryValue);
     }
@@ -52,6 +46,22 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, null);
         assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
         return matchPhrase;
+    }
+
+    private static MatchPhrase runtimeMatchPhraseWithOptions(String queryValue, MapExpression options) {
+        ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", TEXT);
+        Literal query = new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD);
+        MatchPhrase matchPhrase = new MatchPhrase(Source.EMPTY, field, query, options);
+        assertTrue("expected a runtime search, not a pushed-down query", matchPhrase.isRuntimeSearch());
+        return matchPhrase;
+    }
+
+    private Boolean[] evaluatePhraseWithOptions(String query, MapExpression options, String... values) {
+        return evaluate(runtimeMatchPhraseWithOptions(query, options), factory -> bytesRefBlock(factory, builder -> {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
+            }
+        }));
     }
 
     private Boolean[] evaluatePhrase(String query, String... values) {
@@ -145,6 +155,90 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         // The default zero_terms_query is "none", so a query that analyzes to no tokens matches nothing.
         MatchPhrase matchPhrase = runtimeMatchPhrase("! ! !");
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
+    // ---- text with options: Lucene-query evaluator path ----
+
+    public void testTextWithoutOptionsUsesOptimizedEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhrase("brown fox");
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextEvaluator.Factory.class));
+    }
+
+    public void testTextWithOptionsUsesLuceneQueryEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "1"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
+    }
+
+    public void testTextWithSlopAllowsInterveningToken() {
+        Boolean[] result = evaluatePhraseWithOptions(
+            "brown fox",
+            mapOptions("slop", "1"),
+            "a brown fox",
+            "a brown quick fox",
+            "a brown very quick fox"
+        );
+        assertArrayEquals(new Boolean[] { true, true, false }, result);
+    }
+
+    public void testTextWithExplicitSlopZeroRequiresAdjacentPositions() {
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("slop", "0"), "a brown fox", "a brown quick fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithSlopTwoMatchesTransposedTerms() {
+        // Transposed terms have a slop of 2: "fox brown" matches "brown fox" with slop 2 but not slop 1.
+        Boolean[] result = evaluatePhraseWithOptions("fox brown", mapOptions("slop", "2"), "a brown fox");
+        assertArrayEquals(new Boolean[] { true }, result);
+        result = evaluatePhraseWithOptions("fox brown", mapOptions("slop", "1"), "a brown fox");
+        assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testTextWithZeroTermsQueryNoneAndNoTokensUsesConstantFalse() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "none"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
+    public void testTextWithZeroTermsQueryAllAndNoTokensUsesConstantTrue() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "all"));
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_TRUE_FACTORY.getClass()));
+    }
+
+    public void testTextWithZeroTermsQueryAllMatchesEverything() {
+        Boolean[] result = evaluatePhraseWithOptions("", mapOptions("zero_terms_query", "all"), "a brown fox", "the lazy dog");
+        assertArrayEquals(new Boolean[] { true, true }, result);
+    }
+
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace"),
+            "the Brown Fox runs",
+            "the brown fox runs"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value.
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("analyzer", "keyword"), "brown fox", "a brown fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndSlopCombined() {
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace", "slop", "1"),
+            "the Brown quick Fox",
+            "the brown quick fox"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithBoostDoesNotChangeMatching() {
+        // Boost only affects scoring, which runtime match_phrase does not contribute to.
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("boost", "2.5"), "a brown fox", "a brown quick fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     // ---- keyword: exact (unanalyzed) matching, mirroring the term query a pushed-down match_phrase rewrites to ----

@@ -19,11 +19,13 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -75,11 +77,14 @@ import org.junit.runner.notification.RunListener;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -97,7 +102,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
@@ -108,9 +112,11 @@ public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
 
     /**
-     * RandomizedRunner appends {@code {seed=[...]}} to {@link #getTestName()} for {@code -Dtests.iters} / {@code @Repeat} (See #144763).
+     * RandomizedRunner appends {@code {seed=[...]}} to {@link #getTestName()} for {@code -Dtests.iters} / {@code @Repeat} (See #144763),
+     * and {@code {<params>}} for {@code @ParametersFactory}-parameterized suites. Neither may leak into the golden directory path,
+     * which must stay stable across seeds and parameters.
      */
-    private static final Pattern RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{seed=\\[[^\\]]+\\]\\})+$");
+    private static final Pattern RANDOMIZED_RUNNER_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{[^}]*\\})+$");
 
     /**
      * Fixed sample probability that is used for all query approximation plans.
@@ -119,9 +125,31 @@ public abstract class GoldenTestCase extends ESTestCase {
      */
     private static final double SAMPLE_PROBABILITY = 0.0123456789;
 
+    /**
+     * {@code {current}} checks the newest version range at {@link TransportVersion#current()}; {@code {historical}} checks
+     * every range at a random defined version inside it. Two fixed values so muting one never disarms the other.
+     * See GoldenTestsReadme.MD.
+     */
+    public static final String MODE_CURRENT = "current";
+    public static final String MODE_HISTORICAL = "historical";
+
+    /** What a parameterized golden suite's {@code @ParametersFactory} method returns. */
+    public static Iterable<Object[]> goldenModes() {
+        return List.of(new Object[] { MODE_CURRENT }, new Object[] { MODE_HISTORICAL });
+    }
+
     private final Path baseFile;
+    private final String goldenMode;
 
     public GoldenTestCase() {
+        this(null);
+    }
+
+    protected GoldenTestCase(String goldenMode) {
+        if (goldenMode != null && MODE_CURRENT.equals(goldenMode) == false && MODE_HISTORICAL.equals(goldenMode) == false) {
+            throw new IllegalArgumentException("unknown golden mode [" + goldenMode + "]");
+        }
+        this.goldenMode = goldenMode;
         try {
             String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
@@ -160,21 +188,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         TransportVersion transportVersion,
         String... nestedPath
     ) {
-        String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(
-            baseFile,
-            testName,
-            nestedPath,
-            esqlQuery,
-            stages,
-            searchStats,
-            transportVersion,
-            null,
-            null,
-            null,
-            ExternalSourceResolution.EMPTY,
-            Map.of()
-        ).doTest();
+        builder(esqlQuery).stages(stages).searchStats(searchStats).transportVersion(transportVersion).nestedPath(nestedPath).run();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -187,6 +201,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         private SearchStats searchStats;
         private String[] nestedPath;
         private TransportVersion transportVersion;
+        private boolean explicitTransportVersion;
+        private TransportVersion since;
+        private final List<Label> labels = new ArrayList<>();
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
@@ -210,7 +227,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         TestBuilder(String esqlQuery) {
-            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion(), null);
+            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], null, null);
         }
 
         public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
@@ -249,9 +266,62 @@ public abstract class GoldenTestCase extends ESTestCase {
             return transportVersion;
         }
 
+        /**
+         * Pins every run of this test to exactly this version — mutually exclusive with {@link #since} and
+         * {@link #expectationChangesAt}, which describe a version window instead of a point.
+         *
+         * @deprecated declare the version dependence with {@link #since} / {@link #expectationChangesAt}; the pin
+         *             disappears once existing suites have migrated.
+         */
+        @Deprecated
         public TestBuilder transportVersion(TransportVersion transportVersion) {
             this.transportVersion = transportVersion;
+            this.explicitTransportVersion = true;
             return this;
+        }
+
+        /**
+         * Lower-bounds the versions this test covers — coverage below is dropped, visibly. Use the transport version of
+         * the feature under test. Distinct from {@link #expectationChangesAt}, which splits coverage instead of removing it.
+         */
+        public TestBuilder since(String transportVersionName) {
+            return since(resolve(transportVersionName));
+        }
+
+        /**
+         * Same as {@link #since(String)}, for callers that already hold the version constant — which is why,
+         * unlike the string form, no resolution check happens here.
+         */
+        public TestBuilder since(TransportVersion since) {
+            this.since = since;
+            return this;
+        }
+
+        /**
+         * Declares a transport version at which this test's expected plan changes. Each declared cut-point starts a new
+         * version range with its own expected files, in a subdirectory named after the version. Declare oldest-first.
+         */
+        public TestBuilder expectationChangesAt(String transportVersionName) {
+            labels.add(new Label(transportVersionName, resolve(transportVersionName)));
+            return this;
+        }
+
+        /** A retired transport version name means the code path it gated is gone — the declaration must go with it. */
+        private static TransportVersion resolve(String transportVersionName) {
+            try {
+                return TransportVersion.fromName(transportVersionName);
+            } catch (IllegalStateException e) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "golden version declaration [%s] no longer resolves — its transport version was retired, so the planning "
+                            + "path it covered no longer exists. Remove this declaration; for a label, also delete its "
+                            + "[before_%s] directory. See GoldenTestsReadme.MD.",
+                        transportVersionName,
+                        transportVersionName
+                    ),
+                    e
+                );
+            }
         }
 
         public TestBuilder aliasFilter(AliasFilter aliasFilter) {
@@ -289,21 +359,166 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         public void run() {
-            String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-            new Test(
+            String testName = RANDOMIZED_RUNNER_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
+            if (explicitTransportVersion && (since != null || labels.isEmpty() == false)) {
+                throw new IllegalStateException("since()/expectationChangesAt() describe a version window; a pinned version has none");
+            }
+            if (since != null && labels.isEmpty() == false && labels.getFirst().version().id() <= since.id()) {
+                throw new IllegalArgumentException(Strings.format("label [%s] must be above since [%s]", labels.getFirst().name(), since));
+            }
+            List<VersionRange> ranges = explicitTransportVersion
+                ? List.of(new VersionRange(null, transportVersion, List.of(transportVersion)))
+                : liveRanges(testName);
+            try {
+                Set<String> written = new HashSet<>();
+                for (VersionRange range : ranges) {
+                    if (overwriteMode() || hasExpectedFiles(outputDir(testName, range.dir())) == false) {
+                        writeReference(testName, range);
+                        written.add(String.valueOf(range.dir()));
+                    }
+                }
+                List<String> failures = new ArrayList<>();
+                for (Tuple<VersionRange, TransportVersion> check : checkPlan(ranges)) {
+                    if (written.contains(String.valueOf(check.v1().dir()))) {
+                        continue; // just written from these same plans — nothing to compare yet
+                    }
+                    List<Stage> failed = failedStages(test(testName, check.v1().dir(), check.v2(), false).doTests());
+                    if (failed.isEmpty() == false) {
+                        failures.add(Strings.format("%sstages %s at version [%s]", rangePrefix(check.v1()), failed, check.v2()));
+                    }
+                }
+                if (failures.isEmpty() == false) {
+                    fail(Strings.format("Output for test '%s' does not match: %s", testName, failures));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private boolean undeclared() {
+            return since == null && labels.isEmpty();
+        }
+
+        /** Ranges whose window can still be sampled; a dead range is a cleanup prompt, not a failure. */
+        private List<VersionRange> liveRanges(String testName) {
+            TransportVersion lowerBound = since != null ? since : TransportVersion.minimumCompatible();
+            List<VersionRange> ranges = deriveRanges(lowerBound, labels, COMPATIBLE_VERSIONS);
+            List<VersionRange> live = new ArrayList<>(ranges.size());
+            for (int i = 0; i < ranges.size(); i++) {
+                if (ranges.get(i).versions().isEmpty()) {
+                    if (i >= labels.size()) {
+                        // the newest range always samples current(); an empty one means the version bookkeeping broke
+                        throw new IllegalStateException(
+                            Strings.format("test [%s]: the newest golden range has no sampled versions", testName)
+                        );
+                    }
+                    // dead ranges form the oldest prefix, so the boundary that lost its meaning is labels[i]
+                    reportDeadRange(testName, ranges.get(i), labels.get(i).name());
+                } else {
+                    live.add(ranges.get(i));
+                }
+            }
+            return live;
+        }
+
+        private void reportDeadRange(String testName, VersionRange range, String nextLabel) {
+            String message = Strings.format(
+                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s]. "
+                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory. See GoldenTestsReadme.MD.",
+                testName,
+                range.dir(),
+                nextLabel,
+                nextLabel,
+                range.dir()
+            );
+            if (System.getProperty("golden.gc.strict") != null) {
+                fail(message);
+            } else {
+                logger.warn(message);
+            }
+        }
+
+        /**
+         * Writes the range's files at its anchor, then re-plans at the opposite end of the sampled window and fails on a
+         * mismatch: a fork inside the range must be declared, not regenerated over.
+         */
+        private void writeReference(String testName, VersionRange range) throws IOException {
+            TransportVersion anchor = explicitTransportVersion == false && undeclared() ? TransportVersion.current() : range.start();
+            test(testName, range.dir(), anchor, true).doTests();
+            TransportVersion guard = undeclared() ? range.versions().getFirst() : range.versions().getLast();
+            if (guard.equals(anchor)) {
+                return;
+            }
+            List<Stage> mismatched = failedStages(test(testName, range.dir(), guard, false).doTests());
+            if (mismatched.isEmpty() == false) {
+                fail(
+                    Strings.format(
+                        "test [%s]: %sfiles were written at [%s] but planning at [%s] disagrees for stages %s — the plan forks "
+                            + "inside the version window these files cover. Declare expectationChangesAt(\"<version name>\") to keep "
+                            + "the old shape covered, or since(\"<version name>\") to drop coverage below the fork. "
+                            + "See GoldenTestsReadme.MD.",
+                        testName,
+                        rangePrefix(range),
+                        anchor,
+                        guard,
+                        mismatched
+                    )
+                );
+            }
+        }
+
+        private List<Tuple<VersionRange, TransportVersion>> checkPlan(List<VersionRange> ranges) {
+            if (explicitTransportVersion) {
+                return List.of(Tuple.tuple(ranges.getFirst(), transportVersion));
+            }
+            if (MODE_CURRENT.equals(goldenMode)) {
+                return List.of(Tuple.tuple(ranges.getLast(), TransportVersion.current()));
+            }
+            if (MODE_HISTORICAL.equals(goldenMode)) {
+                return ranges.stream().map(r -> Tuple.tuple(r, randomFrom(r.versions()))).toList();
+            }
+            // unmigrated suite: one draw, uniform across the whole sampled window
+            List<Tuple<VersionRange, TransportVersion>> union = ranges.stream()
+                .flatMap(r -> r.versions().stream().map(v -> Tuple.tuple(r, v)))
+                .toList();
+            return List.of(randomFrom(union));
+        }
+
+        private Test test(String testName, String rangeDir, TransportVersion version, boolean writeReference) {
+            return new Test(
                 baseFile,
                 testName,
                 nestedPath,
+                rangeDir,
                 esqlQuery,
                 stages,
                 searchStats,
-                transportVersion,
+                version,
+                writeReference,
                 optimizerFactory,
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
                 views
-            ).doTest();
+            );
+        }
+
+        private Path outputDir(String testName, String rangeDir) {
+            String[] parts = new String[nestedPath.length + (rangeDir == null ? 1 : 2)];
+            parts[0] = testName;
+            System.arraycopy(nestedPath, 0, parts, 1, nestedPath.length);
+            if (rangeDir != null) {
+                parts[parts.length - 1] = rangeDir;
+            }
+            return PathUtils.get(baseFile.toString(), parts);
+        }
+
+        private static List<Stage> failedStages(List<Tuple<Stage, Test.TestResult>> results) {
+            return results.stream().filter(r -> r.v2() == Test.TestResult.FAILURE).map(Tuple::v1).toList();
+        }
+
+        private static String rangePrefix(VersionRange range) {
+            return range.dir() == null ? "" : "range [" + range.dir() + "] ";
         }
 
         public Optional<Throwable> tryRun() {
@@ -316,32 +531,117 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
     }
 
+    record Label(String name, TransportVersion version) {}
+
+    /**
+     * {@code dir} is null for the newest range and for tests without labels — their files live directly in the test
+     * directory. {@code versions} holds every supplied compatible version the range covers, ascending; checks draw from it.
+     */
+    record VersionRange(String dir, TransportVersion start, List<TransportVersion> versions) {}
+
+    /**
+     * Splits the version window at the labels and assigns every candidate version to the range it belongs to,
+     * by {@link TransportVersion#supports}. Ranges may come back empty ({@code versions}) — the caller decides
+     * whether that's a cleanup prompt or a failure.
+     */
+    static List<VersionRange> deriveRanges(TransportVersion lowerBound, List<Label> labels, Collection<TransportVersion> candidates) {
+        List<TransportVersion> cuts = new ArrayList<>(labels.size() + 1);
+        cuts.add(lowerBound);
+        for (Label label : labels) {
+            // declaration order = version order, so a misordering never silently builds wrong ranges
+            if (cuts.size() > 1 && label.version().id() <= cuts.getLast().id()) {
+                throw new IllegalArgumentException(
+                    Strings.format("expectationChangesAt labels must be declared oldest-first: [%s] is out of order", label.name())
+                );
+            }
+            cuts.add(label.version());
+        }
+        List<List<TransportVersion>> partition = new ArrayList<>(cuts.size());
+        for (int i = 0; i < cuts.size(); i++) {
+            partition.add(new ArrayList<>());
+        }
+        for (TransportVersion version : candidates) {
+            if (version.supports(cuts.getFirst()) == false) {
+                continue; // below the lower bound
+            }
+            int range = 0;
+            for (int i = cuts.size() - 1; i > 0; i--) {
+                if (version.supports(cuts.get(i))) {
+                    range = i;
+                    break;
+                }
+            }
+            rejectStraddler(version, cuts, range);
+            partition.get(range).add(version);
+        }
+        List<VersionRange> ranges = new ArrayList<>(cuts.size());
+        for (int i = 0; i < cuts.size(); i++) {
+            // named by the exclusive upper bound: when the floor passes a label, [before_<label>] is exactly what dies
+            String dir = i < labels.size() ? "before_" + labels.get(i).name() : null;
+            partition.get(i).sort(Comparator.naturalOrder());
+            ranges.add(new VersionRange(dir, cuts.get(i), List.copyOf(partition.get(i))));
+        }
+        return ranges;
+    }
+
+    /**
+     * A version supporting a newer cut but not an older one means a version-aware change was backported below another
+     * one that wasn't. No range's expectations can be correct for such a version, so this is an error, not a skip:
+     * it fails deterministically on the PR that registers the interfering backport id.
+     */
+    private static void rejectStraddler(TransportVersion version, List<TransportVersion> cuts, int range) {
+        for (int i = 1; i < range; i++) {
+            if (version.supports(cuts.get(i)) == false) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "transport version [%s] supports [%s] but not the older [%s] — a version-aware change was "
+                            + "backported below another one that wasn't. No golden version range can describe this version's "
+                            + "planning; see the backporting caution on Versioned's javadoc. If the backport is deliberate, "
+                            + "cover this combination with explicitly pinned transport versions.",
+                        version,
+                        cuts.get(range),
+                        cuts.get(i)
+                    )
+                );
+            }
+        }
+    }
+
+    /** Every defined compatible version: any of them may identify a running cluster, particularly on Serverless. */
+    private static final List<TransportVersion> COMPATIBLE_VERSIONS = TransportVersionUtils.allReleasedVersions()
+        .stream()
+        .filter(TransportVersion::isCompatible)
+        .toList();
+
+    private static boolean overwriteMode() {
+        return System.getProperty("golden.overwrite") != null;
+    }
+
+    private static boolean hasExpectedFiles(Path dir) throws IOException {
+        if (Files.notExists(dir)) {
+            return false;
+        }
+        try (var files = Files.list(dir)) {
+            return files.anyMatch(f -> f.getFileName().toString().endsWith(".expected"));
+        }
+    }
+
     private record Test(
         Path basePath,
         String testName,
         String[] nestedPath,
+        String rangeDir,
         String esqlQuery,
         EnumSet<Stage> stages,
         SearchStats searchStats,
         TransportVersion transportVersion,
+        boolean writeReference,
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         Map<String, String> views
     ) {
-
-        private void doTest() {
-            try {
-                var results = doTests();
-                var failedStages = results.stream().filter(e -> e.v2() == TestResult.FAILURE).map(Tuple::v1).toList();
-                if (failedStages.isEmpty() == false) {
-                    fail(Strings.format("Output for test '%s' does not match for stages '%s'", testName, failedStages));
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
@@ -368,6 +668,9 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            if (rangeDir != null) {
+                Files.createDirectories(queryPath.getParent().resolve(rangeDir));
+            }
             UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
@@ -531,7 +834,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Path outputFile) throws IOException {
-            if (System.getProperty("golden.overwrite") != null) {
+            if (writeReference) {
                 logger.info("Overwriting file {}", outputFile);
                 return createNewOutput(outputFile, plan);
             } else {
@@ -549,9 +852,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private Path outputPath(String stageName) {
-            var paths = new String[nestedPath.length + 2];
+            var paths = new String[nestedPath.length + (rangeDir == null ? 2 : 3)];
             paths[0] = testName;
             System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
+            if (rangeDir != null) {
+                paths[paths.length - 2] = rangeDir;
+            }
             paths[paths.length - 1] = Strings.format("%s.expected", stageName);
             return PathUtils.get(basePath.toString(), paths);
         }
@@ -931,14 +1237,30 @@ public abstract class GoldenTestCase extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets,
         boolean trackUnmappedFieldIndices
     ) {
-        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
-        Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
+        Map<String, IndexMode> indexModes = datasets.datasets()
+            .stream()
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, GoldenTestCase::indexModeOf));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    /**
+     * The dataset's real index mode, read from its settings file (e.g. k8s-settings.json declares
+     * {@code index.mode: time_series}) rather than assumed - a golden test's query can reference the
+     * same index via TS or FROM, and TS requires every matched index to genuinely be time-series
+     * mode (see https://github.com/elastic/elasticsearch/issues/153030), so this must reflect the
+     * dataset's actual settings, not a blanket default.
+     */
+    private static IndexMode indexModeOf(CsvTestsDataLoader.TestDataset dataset) {
+        try {
+            return IndexSettings.MODE.get(dataset.loadSettings());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile

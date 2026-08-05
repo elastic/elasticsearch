@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 152867
-summary: Resolve `NoSuchElementException` in `ViewUnionAll` analyzer retries
-type: bug

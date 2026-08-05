@@ -923,7 +923,7 @@ public class NdJsonPageDecoder implements Closeable {
         }
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
-            decoder.setupBuilders(blockBuilders);
+            decoder.setupBuilders(blockBuilders, batchSize);
             return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
         } finally {
             Releasables.close(blockBuilders);
@@ -1044,7 +1044,11 @@ public class NdJsonPageDecoder implements Closeable {
             long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
 
             try {
-                decoder.setupBuilders(rowScratch);
+                // One record's worth, not one page's worth: these scratch builders hold exactly the row being
+                // decoded and are built-and-released before the next one. Sizing them at batchSize would zero a
+                // page-sized array (and reserve it on the breaker) per record — the whole cost of the lenient
+                // path — to hold a single value. Multivalued cells grow the scratch on demand.
+                decoder.setupBuilders(rowScratch, 1);
                 try {
                     decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
@@ -1330,14 +1334,20 @@ public class NdJsonPageDecoder implements Closeable {
             this.declaredFormatter = pattern != null ? DateFormatter.forPattern(pattern) : null;
         }
 
-        // Builders setup independently as we need to create new ones for each page.
-        void setupBuilders(Block.Builder[] blockBuilders) {
+        /**
+         * Builders are set up independently as we need to create new ones for each page — and, on the lenient
+         * path, for each record. {@code estimatedSize} is how many positions the caller expects these builders
+         * to hold: {@code batchSize} for the page builders, {@code 1} for the per-record scratch builders. It is
+         * only an initial capacity — a builder grows on demand — but it is eagerly allocated and charged to the
+         * circuit breaker, so a caller that over-states it pays for the whole array on every setup.
+         */
+        void setupBuilders(Block.Builder[] blockBuilders, int estimatedSize) {
             if (dataType != null) {
                 // The type -> block-shape mapping is not re-derived here: it belongs to the declared-read SPI,
                 // which delegates the enumeration to PlannerUtils.toElementType. A reader-local copy of it is
                 // exactly how unsigned_long came to pass dataset validation and then throw at page setup.
                 try {
-                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
+                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, estimatedSize);
                 } catch (IllegalArgumentException e) {
                     throw unsupportedTypeForNdjson(dataType, e);
                 }
@@ -1346,7 +1356,7 @@ public class NdJsonPageDecoder implements Closeable {
 
             if (children != null) {
                 for (var child : children.values()) {
-                    child.setupBuilders(blockBuilders);
+                    child.setupBuilders(blockBuilders, estimatedSize);
                 }
             }
         }

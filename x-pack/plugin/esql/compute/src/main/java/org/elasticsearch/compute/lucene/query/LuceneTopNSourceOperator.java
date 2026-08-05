@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -21,6 +23,7 @@ import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -34,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -57,6 +61,73 @@ import java.util.stream.Collectors;
  * </p>
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
+
+    /**
+     * {@link DataPartitioning#AUTO} strategy for a field-sorted TopN. {@link LuceneSliceQueue.PartitioningStrategy#DOC}
+     * parallelizes a scan-dominant TopN across sub-segment slices, but for a sort that Lucene can short-circuit
+     * sub-segment slicing only adds overhead, so we keep {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT} when:
+     * <ul>
+     *   <li>sorting by {@code _score} ({@code needsScore}) — out of scope for DOC for now;</li>
+     *   <li>the primary sort field has a points index (numeric/date/ip): the sort prunes via the BKD tree,
+     *       e.g. a data stream sorted by {@code @timestamp};</li>
+     *   <li>the query sort is congruent with the index sort: Lucene early-terminates per segment;</li>
+     *   <li>the filter contains a costly-to-build clause (point range, multi-term): sub-segment DOC slices would each
+     *       pay the full-segment scorer-build cost (BKD/automaton iterate in value order);</li>
+     *   <li>the query is cheap enough that DOC's per-slice overhead isn't worth it
+     *       ({@code cost < minCostForDoc}).</li>
+     * </ul>
+     * Otherwise (e.g. sorting on a keyword or a doc-values-only field with a scan-heavy {@code WHERE}) the sort
+     * is a full scan and DOC parallelizes it.
+     */
+    public static DataPartitioning.AutoStrategy autoStrategy(List<SortBuilder<?>> sorts, boolean needsScore, long minCostForDoc) {
+        if (needsScore || sorts.isEmpty() || sorts.get(0) instanceof FieldSortBuilder == false) {
+            return unusedLimit -> (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+        }
+        String primarySortField = ((FieldSortBuilder) sorts.get(0)).getFieldName();
+        return unusedLimit -> (ctx, query) -> pickStrategy(ctx, query, primarySortField, sorts, minCostForDoc);
+    }
+
+    // Visible for testing.
+    static LuceneSliceQueue.PartitioningStrategy pickStrategy(
+        ShardContext ctx,
+        Query query,
+        String primarySortField,
+        List<SortBuilder<?>> sorts,
+        long minCostForDoc
+    ) {
+        try {
+            List<LeafReaderContext> leaves = ctx.searcher().getIndexReader().leaves();
+            // Primary sort field has a points index -> the sort prunes via the points tree; DOC breaks it.
+            for (LeafReaderContext leaf : leaves) {
+                FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(primarySortField);
+                if (fieldInfo != null && fieldInfo.getPointDimensionCount() > 0) {
+                    return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                }
+            }
+            // Sort congruent with the index sort -> Lucene early-terminates per segment.
+            if (leaves.isEmpty() == false) {
+                Sort indexSort = leaves.get(0).reader().getMetaData().sort();
+                if (indexSort != null) {
+                    Optional<SortAndFormats> searchSort = ctx.buildSort(sorts);
+                    if (searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
+                        return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                    }
+                }
+            }
+            // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must
+            // examine every matching doc (no early termination), so a costly clause -> SEGMENT and a cheap query -> SEGMENT
+            // (below the threshold DOC's per-slice overhead isn't amortized); otherwise the sort is a full scan -> DOC.
+            return LuceneSourceOperator.Factory.autoPartitioning(
+                ctx,
+                query,
+                LuceneSliceQueue.PartitioningStrategy.DOC, // matchAll: a field sort must scan every doc
+                minCostForDoc,
+                LuceneSliceQueue.PartitioningStrategy.SEGMENT // cheap / empty
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     public static class Factory extends LuceneOperator.Factory {
         private final IndexedByShardId<? extends ShardContext> contexts;

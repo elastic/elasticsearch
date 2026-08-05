@@ -46,11 +46,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -100,7 +102,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * Project[[!avg_worked_seconds, birth_date{r}#961, !emp_no, !gender, height{r}#965, height.float{r}#966, height.half_float{r}#967,
      *          height.scaled_float{r}#968, hire_date{r}#969, !job_positions, languages{r}#972, languages.byte{r}#973,
      *          languages.long{r}#974, languages.short{r}#975, !last_name, !salary, salary_change{r}#978, salary_change.int{r}#979,
-     *          salary_change.keyword{r}#980, salary_change.long{r}#981, height.double{r}#983, languages.int{r}#984, x{r}#891, y{r}#894,
+     *          salary_change.keygord{r}#980, salary_change.long{r}#981, height.double{r}#983, languages.int{r}#984, x{r}#891, y{r}#894,
      *          z{r}#897, first_name{r}#900, still_hired{r}#904, is_rehired{r}#907]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_OrderBy[[Order[still_hired{r}#904,ASC,LAST], Order[is_rehired{r}#907,ASC,LAST]]]
@@ -951,14 +953,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *               null[KEYWORD] AS message#2357]]
      *   |     \_Subquery[]
      *   |       \_Project[[m{r}#6, cluster{r}#11]]
-     *   |         \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#56) AS cluster#11]]
-     *   |           \_Aggregate[[pack_cluster_$1{r}#55 AS group_cluster_$1#56],
-     *                           [MAX(RATE_$1{r}#53,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#56]]
-     *   |             \_Eval[[PACKDIMENSION(cluster{r}#54) AS pack_cluster_$1#55]]
-     *   |               \_TimeSeriesAggregate[[_tsid{m}#52],[RATE(network.total_bytes_in{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                         @timestamp{f}#10) AS RATE_$1#53, DIMENSIONVALUES(cluster{f}#11,true[BOOLEAN],
-     *                                         PT0S[TIME_DURATION]) AS cluster#54, _tsid{m}#52],null,null,@timestamp{f}#10,TS_COMMAND]
-     *   |                 \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#10, client.ip{f}#14, cluster{f}#11, e..]
+     *   |         \_UnpackDims[packed, [cluster]]
+     *   |           \_Aggregate[[_$packed_dims AS packed],
+     *                           [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *   |             \_PackDims[[cluster], _$packed_dims]
+     *   |               \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                         VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *   |                 \_EsRelation[k8s][TIME_SERIES][...]
      *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
      *     \_Eval[[null[KEYWORD] AS m#2366]]
      *       \_Eval[[null[KEYWORD] AS cluster#2358]]
@@ -993,15 +994,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
-        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
-        assertEquals(1, tsUnpackEval.fields().size());
-        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
+        assertEquals(1, tsUnpack.dims().size());
+        Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertEquals(1, tsOuterAggregate.groupings().size());
-        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
-        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
+        PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+        assertEquals(1, tsPack.dims().size());
+        TimeSeriesAggregate tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -1046,15 +1048,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                       null[KEYWORD] AS message#46]]
      *         |       \_Subquery[]
      *         |         \_Project[[m{r}#6, cluster{r}#15]]
-     *         |           \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#63) AS cluster#15]]
-     *         |             \_Aggregate[[pack_cluster_$1{r}#62 AS group_cluster_$1#63],
-     *                                   [MAX(RATE_$1{r}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#63]]
-     *         |               \_Eval[[PACKDIMENSION(cluster{r}#61) AS pack_cluster_$1#62]]
-     *         |                 \_TimeSeriesAggregate[[_tsid{m}#59],[RATE(network.total_bytes_in{f}#28,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                                  @timestamp{f}#14) AS RATE_$1#60, VALUES(cluster{f}#15,true[BOOLEAN],
-     *                                                  PT0S[TIME_DURATION]) AS cluster#61, _tsid{m}#59],null,null,@timestamp{f}#14,
-     *                                                  TS_COMMAND]
-     *         |                   \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#14, client.ip{f}#18, cluster{f}#15, e..]
+     *         |           \_UnpackDims[packed, [cluster]]
+     *         |             \_Aggregate[[_$packed_dims AS packed],
+     *                                   [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *         |               \_PackDims[[cluster], _$packed_dims]
+     *         |                 \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                                  VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *         |                   \_EsRelation[k8s][TIME_SERIES][...]
      *         \_Project[[m{r}#58, $$m$converted_to$keyword{r$}#55, cluster{r}#47, @timestamp{f}#38, client_ip{f}#39,
      *                    event_duration{f}#40, message{f}#41]]
      *           \_Eval[[null[KEYWORD] AS m#58]]
@@ -1111,13 +1111,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        // The TS STATS BY clause is expanded: Project -> UnpackDims -> Aggregate -> PackDims -> TimeSeriesAggregate
         Project tsInnerProject = as(tsSubquery.child(), Project.class);
-        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
-        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
+        assertEquals(1, tsUnpack.dims().size());
+        Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
-        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
-        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
+        PackDims tsPack = as(tsOuterAggregate.child(), PackDims.class);
+        assertEquals(1, tsPack.dims().size());
+        TimeSeriesAggregate tsAggregate = as(tsPack.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -1279,6 +1281,43 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals(DOUBLE, as(castSampleInnerEval.fields().get(0).child(), Literal.class).dataType());
         EsRelation castSampleRelation = as(castSampleInnerEval.child(), EsRelation.class);
         assertEquals("sample_data", castSampleRelation.indexPattern());
+    }
+
+    public void testTimeSeriesAggregateFunctionAfterUnionAllSubquery() {
+        // The outer STATS must reject time-series aggregate functions with a descriptive error
+        // explaining that TS aggregations cannot span a union.
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (FROM k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (TS k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
     }
 
     /*

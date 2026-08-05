@@ -730,6 +730,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             });
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );

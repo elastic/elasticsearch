@@ -20,10 +20,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
@@ -33,9 +37,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -49,6 +57,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -58,11 +67,15 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,6 +91,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -116,7 +130,22 @@ public class DatafeedManagerTests extends ESTestCase {
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor
     ) {
-        return new DatafeedManager(datafeedConfigProvider, jobConfigProvider, xContentRegistry(), settings, client, mlExtension, auditor);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            new HashSet<>(Collections.singletonList(MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE))
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return new DatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            xContentRegistry(),
+            settings,
+            clusterService,
+            client,
+            mlExtension,
+            auditor
+        );
     }
 
     private static void mockGrantSucceeds(InternalCloudApiKeyService apiKeyService, PersistedCloudCredential persisted) {
@@ -226,7 +255,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     /**
-     * Simulates the {@link DatafeedConfigProvider#updateDatefeedConfigInternal} behaviour for the
+     * Simulates the {@code DatafeedConfigProvider#updateDatefeedConfigInternal} behaviour for the
      * {@link CredentialTransitions.Change.Mint} arm: applies the update to {@code storedConfig},
      * invokes the mint hook with the resulting config, then either returns a success tuple or
      * propagates {@code persistFailureOrNull} after the hook completes.
@@ -297,7 +326,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(new CloudCredential(new SecureString("t".toCharArray())));
         when(client.threadPool()).thenReturn(threadPool);
         mockSearchProbeSucceeds(credentialManager, client);
-        mockGrantSucceeds(apiKeyService, new PersistedCloudCredential("minted-key-id", new SecureString("secret".toCharArray())));
+        mockGrantSucceeds(apiKeyService, new PersistedCloudCredential("minted-key-id", randomCloudCredentialEncryptedData()));
         stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
         stubUpdateDatefeedConfigCapturesUpdateAndInvokesMintHook(datafeedConfigProvider, storedConfig, capturedUpdate);
         doAnswer(invocation -> {
@@ -305,6 +334,49 @@ public class DatafeedManagerTests extends ESTestCase {
             listener.onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+    }
+
+    private static void mockGetJobWithSnapshot(JobConfigProvider jobConfigProvider, String jobId, @Nullable String snapshotId) {
+        doAnswer(invocation -> {
+            ActionListener<Job.Builder> listener = invocation.getArgument(2);
+            Job.Builder builder = DatafeedRunnerTests.createDatafeedJob().setId(jobId);
+            if (snapshotId != null) {
+                builder.setModelSnapshotId(snapshotId);
+            }
+            listener.onResponse(builder);
+            return null;
+        }).when(jobConfigProvider).getJob(eq(jobId), isNull(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void mockUpdateModelSnapshotSucceeds(Client client, String jobId, String snapshotId) {
+        doAnswer(invocation -> {
+            ActionListener<UpdateModelSnapshotAction.Response> listener = invocation.getArgument(2);
+            ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId)
+                .setRetain(true)
+                .setDescription("retained")
+                .build();
+            listener.onResponse(new UpdateModelSnapshotAction.Response(snapshot));
+            return null;
+        }).when(client).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+    }
+
+    private static ClusterState mockClusterStateWithOpenJob(String jobId) {
+        ClusterState clusterState = mockClusterStateForUpdate();
+        Metadata metadata = clusterState.metadata();
+        ProjectMetadata projectMetadata = metadata.getProject();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(jobId, "node-1", JobState.OPENED, tasksBuilder);
+        when(projectMetadata.custom(PersistentTasksCustomMetadata.TYPE)).thenReturn(tasksBuilder.build());
+        return clusterState;
+    }
+
+    private static DatafeedConfig migratedCpsDatafeed(String datafeedId, String jobId) {
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
+        return new DatafeedConfig.Builder(datafeedId, jobId).setIndices(List.of("logs-*"))
+            .setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(existingCred)
+            .build();
     }
 
     private static ClusterState mockClusterStateWithNoTasks() {
@@ -370,7 +442,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("minted-key-id-2", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id-2");
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
@@ -447,7 +519,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("minted-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
@@ -519,7 +591,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("test-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("new-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("new-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
         mockRevokeSucceeds(apiKeyService);
 
@@ -579,7 +651,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("test-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("update-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("update-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
         mockRevokeSucceeds(apiKeyService);
         mockSearchProbeSucceeds(credentialManager, client);
@@ -870,7 +942,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("existing-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -935,7 +1007,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("old-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -1002,7 +1074,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         DatafeedConfig updatedConfig = new DatafeedConfig.Builder("test-datafeed", "test-job").setIndices(List.of("logs-*"))
-            .setProjectRouting("_origin")
+            .setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
             .build();
 
         doAnswer(invocation -> {
@@ -1012,7 +1084,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
 
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");
-        updateBuilder.setProjectRouting("_origin");
+        updateBuilder.setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY);
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(updateBuilder.build());
 
         AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
@@ -1024,7 +1096,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener.wrap(response::set, e -> fail("unexpected failure: " + e))
         );
 
-        assertThat(response.get().getResponse().getProjectRouting(), equalTo("_origin"));
+        assertThat(response.get().getResponse().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL_ONLY));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
@@ -1048,7 +1120,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("old-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -1280,7 +1352,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         mockSearchProbeSucceeds(credentialManager, client);
-        PersistedCloudCredential minted = new PersistedCloudCredential("minted-key", new SecureString("s".toCharArray()));
+        PersistedCloudCredential minted = randomPersistedCloudCredential("minted-key");
         mockGrantSucceeds(apiKeyService, minted);
         mockRevokeSucceeds(apiKeyService);
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingBuilder.build(), new RuntimeException("persist failed"));
@@ -1590,6 +1662,8 @@ public class DatafeedManagerTests extends ESTestCase {
             legacyConfig,
             capturedUpdate
         );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-3", "migration-explicit-snap");
+        mockUpdateModelSnapshotSucceeds(client, "job-3", "migration-explicit-snap");
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-3").setProjectRouting("_alias:explicit").build()
@@ -1598,6 +1672,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:explicit"));
+        verify(client, times(1)).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1623,7 +1698,7 @@ public class DatafeedManagerTests extends ESTestCase {
             mockAuditor()
         );
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", randomCloudCredentialEncryptedData());
         DatafeedConfig migratedConfig = new DatafeedConfig.Builder("df-4", "job-4").setIndices(List.of("logs-*"))
             .setCloudInternalCredential(existingCred)
             .build();
@@ -1647,6 +1722,280 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), nullValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedUserInitiatedScopeChangeWithOpenJobShouldReject() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-open", "job-scope-open");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-scope-open").setProjectRouting("_alias:prod-*").build()
+        );
+        manager.updateDatafeed(
+            request,
+            mockClusterStateWithOpenJob("job-scope-open"),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.CONFLICT));
+        assertThat(failure.get().getMessage(), containsString("df-scope-open"));
+        assertThat(failure.get().getMessage(), containsString("job-scope-open"));
+        assertThat(capturedUpdate.get(), nullValue());
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndSnapshotShouldRetainThenProceed() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        AnomalyDetectionAuditor auditor = mockAuditor();
+        DatafeedManager manager = newDatafeedManager(datafeedConfigProvider, jobConfigProvider, settings, client, mlExtension, auditor);
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-retain", "job-scope-retain");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-scope-retain", "rollback-snap-1");
+        mockUpdateModelSnapshotSucceeds(client, "job-scope-retain", "rollback-snap-1");
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-scope-retain").setProjectRouting("_alias:prod-*").build()
+        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
+        verify(client, times(1)).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verify(auditor).info(
+            eq("job-scope-retain"),
+            eq(
+                Messages.getMessage(
+                    Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED,
+                    "rollback-snap-1",
+                    Messages.getMessage(
+                        Messages.DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION,
+                        ProjectRoutingResolver.LOCAL_ONLY,
+                        "_alias:prod-*"
+                    )
+                )
+            )
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedUserInitiatedScopeChangeWithClosedJobAndNoSnapshotShouldReject() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-nosnap", "job-scope-nosnap");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-scope-nosnap", null);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-scope-nosnap").setProjectRouting("_alias:prod-*").build()
+        );
+        manager.updateDatafeed(
+            request,
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.get().getMessage(),
+            containsString(Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, "df-scope-nosnap", "job-scope-nosnap"))
+        );
+        assertThat(capturedUpdate.get(), nullValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedNonRoutingUpdateShouldNotRetainSnapshot() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-noop", "job-scope-noop");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-scope-noop").setIndices(List.of("new-logs-*")).build()
+        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), nullValue());
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verify(jobConfigProvider, never()).getJob(anyString(), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedScopeChangeGuardDisabledShouldSkipSnapshotRetain() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder()
+            .put("serverless.cross_project.enabled", true)
+            .put("xpack.security.enabled", false)
+            .put("xpack.ml.datafeed.require_rollback_snapshot_before_scope_change", false)
+            .build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-off", "job-scope-off");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+
+        UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
+            new DatafeedUpdate.Builder("df-scope-off").setProjectRouting("_alias:prod-*").build()
+        );
+        manager.updateDatafeed(
+            request,
+            mockClusterStateWithOpenJob("job-scope-off"),
+            null,
+            threadPool,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        assertThat(capturedUpdate.get(), notNullValue());
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:prod-*"));
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verify(jobConfigProvider, never()).getJob(anyString(), any(), any());
     }
 
     /**

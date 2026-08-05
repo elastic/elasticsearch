@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+import org.elasticsearch.cluster.NodeHeapEstimates;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -39,7 +40,7 @@ public class StatelessHeapUsageReader implements EstimatedHeapUsageCollector {
     }
 
     @Override
-    public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+    public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
         StatelessMemoryMetricsService memoryMetricsService = plugin.getStatelessMemoryMetricsService();
         ClusterService clusterService = plugin.getClusterService();
         ActionListener.completeWith(listener, () -> memoryMetricsService.getPerNodeMemoryMetrics(clusterService.state()));

@@ -82,7 +82,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `search_as_you_type`
 
 
-Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all.
+Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all. To understand how unsupported types are reported in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
 
 
 ### Limitations on supported types [_limitations_on_supported_types]
@@ -165,12 +165,18 @@ This restriction does not apply when `MATCH` targets an expression rather
 than an indexed field (for example, a column produced by `EVAL` or `STATS`).
 In that case, `MATCH` evaluates by scanning values row by row instead of
 using the index, and can appear anywhere in the query.
-When searching expressions:
+`MATCH` on an expression does not contribute to the relevance score when
+using `METADATA _score`.
 
-* [Function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-  (match query options) are not supported.
-* `MATCH` on an expression does not contribute to the relevance score when
-  using `METADATA _score`.
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are supported on `text` expressions; the `analyzer` option must name a
+registered analyzer (prebuilt or plugin-contributed), not a per-index custom analyzer. On other
+expression types options are not supported.
+
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
 For example, this query is valid:
 

@@ -255,7 +255,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 }
             }));
 
-            // withMemorySegmentSlices on the slice: verifies offset adjustment for the bulk path
+            // withSliceAddresses on the slice: verifies offset adjustment for the bulk path
             int vectorSize = randomIntBetween(1, 16);
             int numVectors = Math.min(randomIntBetween(2, 5), sliceLength / vectorSize);
             if (numVectors >= 2) {
@@ -263,9 +263,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 for (int i = 0; i < numVectors; i++) {
                     offsets[i] = (long) i * vectorSize;
                 }
-                assertTrue(((FrozenIndexInput) sliceInput).withMemorySegmentSlices(offsets, vectorSize, numVectors, segments -> {
+                MemorySegment addrsOut = MemorySegment.ofArray(new long[numVectors]);
+                assertTrue(((FrozenIndexInput) sliceInput).withSliceAddresses(offsets, vectorSize, numVectors, addrsOut, addrs -> {
                     for (int i = 0; i < numVectors; i++) {
-                        MemorySegment ms = segments[i];
+                        long addr = addrs.getAtIndex(ValueLayout.JAVA_LONG, i);
+                        assertNotEquals(0L, addr);
+                        MemorySegment ms = MemorySegment.ofAddress(addr).reinterpret(vectorSize);
                         for (int j = 0; j < vectorSize; j++) {
                             int absPos = sliceOffset + i * vectorSize + j;
                             assertEquals("byte mismatch at vector " + i + " byte " + j, fileData[absPos], ms.get(ValueLayout.JAVA_BYTE, j));

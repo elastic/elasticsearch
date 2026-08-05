@@ -399,6 +399,80 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
+     * Regression test for the spurious "Closing with incomplete batches" WARN that fired on every
+     * cancellation or error. Root cause: {@code StreamingLookupFromIndexOperator.cleanupBatchResources}
+     * discards in-flight batches without calling {@link BidirectionalBatchExchangeClient#markBatchCompleted},
+     * so the counters always read {@code started=N, completed=N-1} on the failure path.
+     *
+     * <p>The fix guards the WARN with {@code primaryFailure.get() == null}: when a failure is recorded,
+     * the counter discrepancy is expected and the real error has already propagated via
+     * {@link ActionListener#onFailure} — there is nothing actionable about the WARN.
+     *
+     * <p>This test reproduces the counter state seen in production by using a setup callback that
+     * fails synchronously: {@link BidirectionalBatchExchangeClient#sendPage} first passes
+     * {@code checkFailure()} (primaryFailure is null), then creates a worker whose setup fails
+     * immediately (setting primaryFailure), then {@code startedBatchCount++} executes. On close:
+     * {@code started=1, completed=0, primaryFailure != null}.
+     */
+    public void testNoSpuriousIncompletesBatchWarnOnFailure() throws Exception {
+        ThreadPool threadPool = threadPool();
+        BlockFactory blockFactory = blockFactory();
+        TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory);
+        try {
+            String sessionId = "test-session-no-warn-" + UUID.randomUUID().toString().substring(0, 8);
+            PlainActionFuture<Void> batchExchangeStatusFuture = new PlainActionFuture<>();
+
+            // Fails synchronously — reproduces the production failure path where a task is
+            // cancelled while a batch is in-flight.
+            BidirectionalBatchExchangeClient.ServerSetupCallback failingCallback = (
+                node,
+                clientToServerId,
+                serverToClientId,
+                listener) -> listener.onFailure(new TaskCancelledException("task cancelled"));
+
+            BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
+                sessionId,
+                infra.clientExchangeService(),
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                10,
+                infra.clientTransportService(),
+                mock(Task.class),
+                batchExchangeStatusFuture,
+                CLIENT_SETTINGS,
+                failingCallback,
+                null,
+                1,
+                () -> infra.serverTransportServices().get(0).getLocalNode()
+            );
+
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1);
+            builder.appendInt(42);
+            IntBlock block = builder.build();
+            Page page = new Page(block);
+            client.sendPage(page.withBatchMetadata(new BatchMetadata(0, 0, true)));
+            page.releaseBlocks();
+
+            assertTrue("client should have recorded the setup failure", client.hasFailed());
+
+            // Before the fix, close() emitted WARN because started(1) > completed(0) regardless
+            // of primaryFailure. After the fix the guard suppresses it.
+            String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+            MockLog.assertThatLogger(
+                client::close,
+                BidirectionalBatchExchangeClient.class,
+                new MockLog.UnseenEventExpectation(
+                    "no spurious WARN for incomplete batches on failure path",
+                    loggerName,
+                    Level.WARN,
+                    "*incomplete batches*"
+                )
+            );
+        } finally {
+            cleanupServices(infra, threadPool);
+        }
+    }
+
+    /**
      * Asserts that {@link BidirectionalBatchExchangeBase#logExchangeFailure}, called with
      * {@code nonCancellationLevel}, logs the given failure at {@code nonCancellationLevel} for a genuine failure,
      * or at DEBUG for a cancellation (which is downgraded), and not at the other of those two levels.

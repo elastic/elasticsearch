@@ -18,18 +18,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CloudCredentialManagerTests extends ESTestCase {
 
     private CloudCredentialManager manager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initManager() {
         manager = new CloudCredentialManager.Noop();
     }
 
@@ -50,7 +51,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testNoopResolverOfPersistedThrows() {
-        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var persisted = randomPersistedCloudCredential();
         expectThrows(UnsupportedOperationException.class, () -> manager.resolverOf(persisted));
     }
 
@@ -76,7 +77,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
             // not crash a request path that carries a dormant persisted credential from a
             // previously-active config.
             var credential = new CloudCredential(new SecureString("v".toCharArray()));
-            var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+            var persisted = randomPersistedCloudCredential();
             CloudCredentialResolver throwingResolver = () -> { throw new AssertionError("resolver must not be invoked on Noop"); };
 
             assertThat(manager.wrapClient(delegate, throwingResolver), sameInstance(delegate));

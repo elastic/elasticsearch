@@ -172,6 +172,7 @@ import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommit
 import org.elasticsearch.xpack.stateless.commits.HollowIndexEngineDeletionPolicy;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.IndexEngineDeletionPolicy;
+import org.elasticsearch.xpack.stateless.commits.PendingCommitUploadPressure;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -857,6 +858,7 @@ public class StatelessPlugin extends Plugin
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
+        services.indexingPressure().addContributor(commitService.getPendingCommitUploadPressure());
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -1305,6 +1307,7 @@ public class StatelessPlugin extends Plugin
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
             TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
+            PendingCommitUploadPressure.PENDING_CC_UPLOAD_MEMORY_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,

@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -121,6 +122,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -2711,6 +2713,72 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
             totalSize += ccSizes[ccSizes.length - 1];
             assertThat(totalSize, greaterThanOrEqualTo(uploadMaxSize));
+        }
+    }
+
+    /**
+     * End-to-end back-pressure: when VBCC uploads cannot drain (here because SHARD_WRITE_THREAD_POOL is
+     * saturated), frozen VBCCs accumulate in {@code pendingUploadBccGenerations}, the tracked pressure
+     * rises, and once it exceeds the limit {@link PendingCommitUploadPressure#checkAndMaybeReject()}
+     * rejects new indexing operations. Once the uploads drain, the tracked pressure returns to zero.
+     */
+    public void testBackpressureRejectsWhenPendingUploadsAccumulate() throws Exception {
+        int numCommits = randomIntBetween(2, 10);
+        AtomicInteger uploadCount = new AtomicInteger(0);
+        CountDownLatch blockPool = new CountDownLatch(1);
+        // Tiny limit so a small pending backlog trips back-pressure; maxCommits=1 → one VBCC per commit.
+        ByteSizeValue limit = ByteSizeValue.ofKb(1);
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .put(PendingCommitUploadPressure.PENDING_CC_UPLOAD_MEMORY_LIMIT.getKey(), limit.getStringRep())
+                    .build();
+            }
+        }) {
+            var commitService = testHarness.commitService;
+            var shardId = testHarness.shardId;
+            var pressure = commitService.getPendingCommitUploadPressure();
+            commitService.addConsumerForNewUploadedBcc(shardId, info -> uploadCount.incrementAndGet());
+
+            // Empty queue: no pressure, nothing rejected.
+            assertEquals(0L, pressure.getPendingBytes());
+            pressure.checkAndMaybeReject();
+
+            // Fill every thread slot in SHARD_WRITE_THREAD_POOL so upload tasks queue and the backlog cannot drain.
+            int maxThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            var executor = testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+            CyclicBarrier allBlockersRunning = new CyclicBarrier(maxThreads + 1);
+            for (int i = 0; i < maxThreads; i++) {
+                executor.execute(() -> {
+                    safeAwait(allBlockersRunning); // signal: this thread slot is occupied
+                    safeAwait(blockPool);          // hold the slot until released
+                });
+            }
+            safeAwait(allBlockersRunning); // wait until all maxThreads slots are confirmed occupied
+
+            // Freeze several VBCCs while uploads are blocked → they accumulate as pending upload backlog.
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(numCommits);
+            long lastGeneration = commitRefs.get(commitRefs.size() - 1).getGeneration();
+            for (StatelessCommitRef ref : commitRefs) {
+                commitService.onCommitCreation(ref);
+            }
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastGeneration);
+
+            // Backlog is pending and over the limit → back-pressure rejects new indexing operations.
+            assertTrue("Uploads should be pending while the pool is saturated", commitService.hasPendingBccUploads(shardId));
+            assertThat(pressure.getPendingBytes(), greaterThan(limit.getBytes()));
+            expectThrows(EsRejectedExecutionException.class, pressure::checkAndMaybeReject);
+
+            // Drain: unblock the pool, wait for uploads to complete, pressure returns to zero.
+            blockPool.countDown();
+            waitUntilBCCIsUploaded(commitService, shardId, lastGeneration);
+            assertThat(uploadCount.get(), greaterThanOrEqualTo(1));
+            assertBusy(() -> assertEquals("Pressure must return to zero once the backlog drains", 0L, pressure.getPendingBytes()));
+            pressure.checkAndMaybeReject();
         }
     }
 

@@ -116,6 +116,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
+    private final AtomicLong headerBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -334,6 +335,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert headerOffset == BlobCacheUtils.toPageAlignedSize(headerOffset) : "header offset is not page-aligned: " + headerOffset;
         var previousHeaderOffset = internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
         assert previousHeaderOffset == null;
+        headerBytes.addAndGet(header.length);
 
         long replicatedContentOffset = headerOffset + header.length;
         for (var replicatedRangeReader : replicatedContent.readers()) {
@@ -750,6 +752,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     public long getTotalSizeInBytes() {
         return currentOffset.get();
+    }
+
+    /**
+     * The total bytes this VBCC has materialized on the JVM heap for its compound-commit headers.
+     */
+    long getHeaderBytes() {
+        return headerBytes.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

@@ -130,6 +130,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final long operationLimit;
 
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<IndexingPressureContributor> contributors = new CopyOnWriteArrayList<>();
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
@@ -292,6 +293,15 @@ public class IndexingPressure implements IndexingPressureMonitor {
                     false
                 );
             }
+            if (forceExecution == false) {
+                try {
+                    checkContributors();
+                } catch (EsRejectedExecutionException e) {
+                    currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+                    coordinatingRejections.getAndIncrement();
+                    throw e;
+                }
+            }
             currentOperations += operations;
             currentOperationsSize += bytes;
             logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
@@ -442,6 +452,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
                     + "]",
                 false
             );
+        }
+        if (forceExecution == false) {
+            try {
+                checkContributors();
+            } catch (EsRejectedExecutionException e) {
+                this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+                this.primaryRejections.getAndIncrement();
+                this.primaryDocumentRejections.addAndGet(operations);
+                throw e;
+            }
         }
         logger.trace(() -> Strings.format("adding [%d] primary operations and [%d] bytes", operations, bytes));
         currentPrimaryBytes.getAndAdd(bytes);
@@ -606,5 +626,38 @@ public class IndexingPressure implements IndexingPressureMonitor {
     @Override
     public void addListener(IndexingPressureListener listener) {
         listeners.add(listener);
+    }
+
+    /**
+     * Registers a {@link IndexingPressureContributor} that can reject writes when an external resource
+     * (e.g. an unbounded downstream queue) is under pressure.
+     */
+    public void addContributor(IndexingPressureContributor contributor) {
+        contributors.add(contributor);
+    }
+
+    private void checkContributors() {
+        for (var contributor : contributors) {
+            contributor.checkAndMaybeReject();
+        }
+    }
+
+    /**
+     * A source of additional write-path back-pressure, registered via {@link #addContributor}. If the
+     * contributor's internal limit is exceeded it should throw
+     * {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException} to reject the
+     * operation, with enough context (current value, limit) for operators to act on it.
+     *
+     * <p>Implementations must be thread-safe and must not block or do significant work, as
+     * {@link #checkAndMaybeReject()} runs on every coordinating and primary indexing operation.
+     */
+    public interface IndexingPressureContributor {
+        /**
+         * Called before each indexing operation is admitted. Throws
+         * {@link org.elasticsearch.common.util.concurrent.EsRejectedExecutionException} if this
+         * contributor's limit is currently exceeded (rejecting the op with HTTP 429); returns normally
+         * otherwise.
+         */
+        void checkAndMaybeReject();
     }
 }

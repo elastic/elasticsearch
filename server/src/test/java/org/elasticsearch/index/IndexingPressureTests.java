@@ -386,4 +386,45 @@ public class IndexingPressureTests extends ESTestCase {
         }
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
+
+    public void testContributorRejectsCoordinatingOperation() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        var rejection = new EsRejectedExecutionException("contributor rejection", false);
+        indexingPressure.addContributor(() -> { throw rejection; });
+
+        var thrown = expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1, 1, false));
+        assertSame(rejection, thrown);
+        assertEquals(1, indexingPressure.stats().getCoordinatingRejections());
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
+
+    public void testContributorRejectsPrimaryOperation() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        var rejection = new EsRejectedExecutionException("contributor rejection", false);
+        indexingPressure.addContributor(() -> { throw rejection; });
+
+        var thrown = expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1, 1, false));
+        assertSame(rejection, thrown);
+        assertEquals(1, indexingPressure.stats().getPrimaryRejections());
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+    }
+
+    public void testContributorBypassedWhenForceExecution() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        indexingPressure.addContributor(() -> { throw new EsRejectedExecutionException("should not be thrown", false); });
+
+        try (Releasable ignore = indexingPressure.markCoordinatingOperationStarted(1, 1, true)) {
+            assertEquals(1, indexingPressure.stats().getCurrentCoordinatingBytes());
+        }
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
+
+    public void testContributorBytesRolledBackOnCoordinatingRejection() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        indexingPressure.addContributor(() -> { throw new EsRejectedExecutionException("contributor", false); });
+
+        expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markCoordinatingOperationStarted(1, 100, false));
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
 }

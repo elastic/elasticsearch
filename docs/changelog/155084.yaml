@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 155084
+summary: Bound pending commit uploads to prevent indexing-node OOM
+type: bug

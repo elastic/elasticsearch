@@ -31,13 +31,10 @@ final class AshBinaryQuantizer implements AshDimQuantizer {
         float[] codeNorms = new float[n];
 
         for (int i = 0; i < n; i++) {
-            double normSq = 0;
             for (int j = 0; j < nDims; j++) {
-                float val = x[i][j] >= 0 ? 1.0f : -1.0f;
-                centeredCodes[i][j] = val;
-                normSq += val * val;
+                centeredCodes[i][j] = x[i][j] >= 0 ? 1.0f : -1.0f;
             }
-            codeNorms[i] = (float) Math.sqrt(normSq);
+            codeNorms[i] = (float) Math.sqrt(nDims);
         }
         return new QuantizeResult(centeredCodes, codeNorms);
     }

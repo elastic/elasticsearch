@@ -246,7 +246,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         assertThat(normalCacheBypassCount, equalTo(0L));
     }
 
-public void testSearchNodeOnlyPeriodicCacheMetrics() {
+    public void testSearchNodeOnlyPeriodicCacheMetrics() {
         final var indexNode = startMasterAndIndexNode();
         final var searchNode = startSearchNode();
 

@@ -1,0 +1,11 @@
+area: Search
+deprecation:
+  area: Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  title: Deprecate cross-cluster chaining
+issues: []
+pr: 155995
+summary: Deprecate cross-cluster chaining
+type: deprecation

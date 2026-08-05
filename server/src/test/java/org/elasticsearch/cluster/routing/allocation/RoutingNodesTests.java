@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -505,6 +506,57 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
     public void testMoveShardWithPromotableOnlyRole() {
         runMoveShardRolesTest(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
+    }
+
+    public void testStartingPrimaryRelocationDoesNotIncrementReplicaFailedRelocations() {
+        final var projectId = randomProjectIdOrDefault();
+        final var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
+        final var indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .putInSyncAllocationIds(0, Set.copyOf(inSync))
+            .build();
+
+        final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+        final int priorFailedRelocations = randomIntBetween(0, 5);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).build())
+            .addShard(
+                shardRoutingBuilder(shardId, "node-2", false, STARTED).withRelocationFailureInfo(
+                    new RelocationFailureInfo(priorFailedRelocations)
+                ).build()
+            )
+            .build();
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .nodes(
+                DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")).add(newNode("node-4")).build()
+            )
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+            .build();
+
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", RoutingChangesObserver.NOOP);
+        routingNodes.relocateShard(routingNodes.node("node-2").getByShardId(shardId), "node-4", 0L, "test", RoutingChangesObserver.NOOP);
+
+        final var primaryTarget = routingNodes.node("node-3").getByShardId(shardId);
+        routingNodes.startShard(primaryTarget, RoutingChangesObserver.NOOP, primaryTarget.getExpectedShardSize());
+
+        final var startedPrimary = routingNodes.node("node-3").getByShardId(shardId);
+        assertThat(startedPrimary.state(), equalTo(STARTED));
+        assertThat(startedPrimary.primary(), equalTo(true));
+
+        final var restartedReplica = routingNodes.node("node-2").getByShardId(shardId);
+        assertThat(restartedReplica.state(), equalTo(RELOCATING));
+        assertThat(restartedReplica.relocatingNodeId(), equalTo("node-4"));
+        assertThat(
+            "restarting replica relocation due to primary moving should not increment failedRelocations",
+            restartedReplica.relocationFailureInfo().failedRelocations(),
+            equalTo(priorFailedRelocations)
+        );
+        assertThat(routingNodes.node("node-4").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertTrue(routingNodes.node("node-4").getByShardId(shardId).isRelocationTarget());
     }
 
     private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {

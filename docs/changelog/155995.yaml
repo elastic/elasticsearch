@@ -1,6 +1,6 @@
 area: CCS
 deprecation:
-  area: CCS
+  area: Search
   details: Queries that use cross-cluster chaining (`cluster1:cluster2:index`) are now deprecated and may be not supported in future versions. 
   impact: Cross-cluster chaining is deprecated 
   title: Deprecate cross-cluster chaining

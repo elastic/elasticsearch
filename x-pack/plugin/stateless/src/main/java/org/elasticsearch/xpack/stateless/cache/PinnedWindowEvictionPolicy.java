@@ -70,7 +70,7 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
         return hasShardPredicate.test(shardId);
     }
 
-    protected long currentTimeMillis() {
+    private long currentTimeMillis() {
         return timeProvider.absoluteTimeInMillis();
     }
 

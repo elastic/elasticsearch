@@ -608,6 +608,19 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /**
+         * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> null;
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder histogramUnary(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.HISTOGRAM;
             this.arity = PromqlFunctionArity.ONE;

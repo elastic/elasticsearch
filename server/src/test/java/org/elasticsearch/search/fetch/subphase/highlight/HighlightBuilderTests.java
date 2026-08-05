@@ -63,6 +63,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.NUMBER_OF_FRAGMENTS_FIELD;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -293,42 +294,7 @@ public class HighlightBuilderTests extends ESTestCase {
     * than what we have in the random {@link HighlightBuilder}
     */
     public void testBuildSearchContextHighlight() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
-        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
-        // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        SearchExecutionContext mockContext = new SearchExecutionContext(
-            0,
-            0,
-            idxSettings,
-            null,
-            null,
-            null,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            parserConfig(),
-            namedWriteableRegistry,
-            null,
-            null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
-        ) {
-            @Override
-            public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
-                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
-            }
-        };
+        SearchExecutionContext mockContext = mockSearchExecutionContext(Settings.EMPTY);
         mockContext.setMapUnmappedFieldAsString(true);
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
@@ -581,6 +547,71 @@ public class HighlightBuilderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "]"));
         assertThat(e.getCause().getMessage(), containsString("[max_analyzed_offset] must be a positive integer"));
+    }
+
+    public void testNegativeNumberOfFragments() throws IOException {
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{ \"number_of_fragments\" : " + randomIntBetween(-100, -1) + "}"
+        );
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("[number_of_fragments] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]")
+        );
+    }
+
+    public void testNumberOfFragmentsAboveMaximum() throws IOException {
+        XContentParseException e = expectParseThrows(
+            XContentParseException.class,
+            "{ \"number_of_fragments\" : " + randomIntBetween(HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + 1, Integer.MAX_VALUE) + "}"
+        );
+        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [" + NUMBER_OF_FRAGMENTS_FIELD.toString() + "]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("[number_of_fragments] must be between [0] and [" + HighlightBuilder.MAX_NUMBER_OF_FRAGMENTS + "]")
+        );
+    }
+
+    private SearchExecutionContext mockSearchExecutionContext(Settings settings) {
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        return new SearchExecutionContext(
+            0,
+            0,
+            idxSettings,
+            null,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            parserConfig(),
+            namedWriteableRegistry,
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap(),
+            MapperMetrics.NOOP
+        ) {
+            @Override
+            public MappedFieldType getFieldType(String name) {
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                    name,
+                    createDefaultIndexAnalyzers(),
+                    SourceFieldMapper.isSynthetic(idxSettings)
+                );
+                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
+            }
+        };
     }
 
     /**

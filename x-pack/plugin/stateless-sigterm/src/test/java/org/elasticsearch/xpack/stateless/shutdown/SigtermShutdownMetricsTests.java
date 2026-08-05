@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.shutdown;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -15,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -31,35 +32,35 @@ public class SigtermShutdownMetricsTests extends ESTestCase {
     }
 
     public void testRecordShutdownTime() {
-        final long durationMs = randomNonNegativeLong();
+        final long durationMs = randomLongBetween(0, TimeUnit.HOURS.toMillis(2));
         final var status = randomBoolean() ? "COMPLETE" : "FAILED";
         metrics.recordShutdownTime(durationMs, status, false);
 
         List<Measurement> measurements = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
         assertThat(measurements, hasSize(1));
-        assertThat(measurements.getFirst().getLong(), equalTo(durationMs));
+        assertThat(measurements.getFirst().getDouble(), equalTo(durationMs / 1000.0));
         assertThat(
             measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
-            equalTo(Strings.toLowercaseAscii(status))
+            equalTo(status.toLowerCase(Locale.ROOT))
         );
         assertThat(measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
     }
 
     public void testRecordMigrationTime() {
-        final long durationMs = randomNonNegativeLong();
+        final long durationMs = randomLongBetween(0, TimeUnit.HOURS.toMillis(2));
         metrics.recordMigrationTime(durationMs, true);
 
         List<Measurement> measurements = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
         assertThat(measurements, hasSize(1));
-        assertThat(measurements.getFirst().getLong(), equalTo(durationMs));
-        assertThat(measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
+        assertThat(measurements.getFirst().getDouble(), equalTo(durationMs / 1000.0));
+        assertThat(measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_MIGRATION_COMPLETED), equalTo(true));
 
         metrics.recordMigrationTime(durationMs, false);
         measurements = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
         assertThat(measurements, hasSize(2));
-        assertThat(measurements.get(1).attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(true));
+        assertThat(measurements.get(1).attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_MIGRATION_COMPLETED), equalTo(false));
     }
 }

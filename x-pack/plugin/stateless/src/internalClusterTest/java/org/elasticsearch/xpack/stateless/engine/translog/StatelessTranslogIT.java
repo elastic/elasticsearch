@@ -802,7 +802,6 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
         assertBatchDocCount(indexName, docCount);
     }
 
-
     public void testBatchTranslogWithFailedItemRecoveredAfterRestart() throws Exception {
         assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
         startMasterOnlyNode(batchIndexingNodeSettings());
@@ -864,7 +863,6 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         return indexName;
     }
-
 
     private BulkResponse batchIndexDocs(String indexName, int docCount) {
         var bulkRequest = client().prepareBulk();

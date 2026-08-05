@@ -271,7 +271,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 new Translog.IndexBatch.IndexOp(1L, 2L, 101L, 1, XContentType.JSON, Uid.encodeId("doc-1"), null),
                 new Translog.IndexBatch.NoOpOp(3L, "test failure")
             );
-            final Translog.IndexBatch batch = buildEscfBatch(sources, XContentType.JSON, term, ops);
+            final Translog.IndexBatch batch = new Translog.IndexBatch(encodeBatchData(sources), term, ops);
             final Translog.Location location = listeningTranslog.add(batch);
 
             assertEquals(List.of(0L), singleOpSeqNos);

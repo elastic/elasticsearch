@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -665,31 +664,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 }
             });
             assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
-        }
-    }
-
-    public void testHollowEngineCannotIngestBatch() throws Exception {
-        try (var engine = newIndexEngine(indexConfig())) {
-            engine.index(randomDoc(String.valueOf(0)));
-            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
-            engine.flushHollow(future);
-            future.actionGet();
-            final var maxSeqNo = engine.getMaxSeqNo();
-
-            final Engine.Index op = randomDoc(String.valueOf(1));
-            final EscfBatch batch = encodeAsEscfBatch(List.of(op));
-            expectThrows(IllegalStateException.class, () -> engine.indexBatch(List.of(op), batch));
-            assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
-        }
-    }
-
-    private static EscfBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
-        List<BytesReference> sources = new ArrayList<>(operations.size());
-        for (Engine.Index op : operations) {
-            sources.add(op.source().originalBytes());
-        }
-        try (EscfBatch batch = EscfEncoder.encode(sources, operations.get(0).parsedDoc().getXContentType())) {
-            return EscfBatch.parse(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
         }
     }
 

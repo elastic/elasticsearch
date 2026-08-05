@@ -255,7 +255,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
         translogReplicator.doStart();
         List<Long> persistedSeqNos = Collections.synchronizedList(new ArrayList<>());
-        translogReplicator.register(shardId, primaryTerm, persistedSeqNos::add);
+        translogReplicator.register(shardId, primaryTerm, seqNos -> {
+            for (int i = seqNos.offset; i < seqNos.offset + seqNos.length; i++) {
+                persistedSeqNos.add(seqNos.longs[i]);
+            }
+        });
 
         Translog.Operation[] singles = generateRandomOperations(2);
         Translog.Serialized[] serializedSingles = serializeOperations(singles);

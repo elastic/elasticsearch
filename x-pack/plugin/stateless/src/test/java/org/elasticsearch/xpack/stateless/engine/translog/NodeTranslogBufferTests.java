@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.shard.ShardId;
@@ -94,7 +95,7 @@ public class NodeTranslogBufferTests extends ESTestCase {
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(1, Set.of(shardSyncState));
         assertThat(translog.metadata().totalOps().get(shardId), equalTo(3L));
         ShardSyncState.SyncMarker syncMarker = translog.metadata().syncedLocations().get(shardId);
-        assertThat(syncMarker.syncedSeqNos(), equalTo(List.of(5L, 6L, 7L)));
+        assertThat(syncMarker.syncedSeqNos(), equalTo(LongArrayList.from(5L, 6L, 7L)));
         assertThat(syncMarker.location(), equalTo(new Translog.Location(0, operation.length(), 0)));
     }
 

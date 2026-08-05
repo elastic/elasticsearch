@@ -266,8 +266,8 @@ public class NodeTranslogBuffer implements Releasable {
          */
         private void appendBatch(Translog.Serialized operation, List<Long> seqNos, Translog.Location location) throws IOException {
             operation.writeToTranslogBuffer(buffer);
-            this.seqNos.addAll(seqNos);
             for (long seqNo : seqNos) {
+                this.seqNos.add(seqNo);
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
             }

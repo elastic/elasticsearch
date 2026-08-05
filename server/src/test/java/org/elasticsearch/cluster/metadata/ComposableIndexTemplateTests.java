@@ -106,6 +106,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
+            .managed(randomBoolean())
             .createdDate(createdDate)
             .modifiedDate(modifiedDate)
             .build();
@@ -168,7 +169,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(
                     orig.indexPatterns(),
@@ -216,9 +217,19 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 return orig.toBuilder().ignoreMissingComponentTemplates(ignoreMissingComponentTemplates).build();
             case 8:
                 return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
+            case 9:
+                return orig.toBuilder().managed(orig.isManaged() == false).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
+    }
+
+    public void testIsManaged() {
+        ComposableIndexTemplate notManaged = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(notManaged.isManaged(), equalTo(false));
+
+        ComposableIndexTemplate managed = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(true).build();
+        assertThat(managed.isManaged(), equalTo(true));
     }
 
     public void testComponentTemplatesEquals() {

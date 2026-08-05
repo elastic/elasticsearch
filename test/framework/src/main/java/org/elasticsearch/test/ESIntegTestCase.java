@@ -2908,6 +2908,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     indexName,
                     dataStreamName,
                     templateIndexMode,
+                    managedTemplate,
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,

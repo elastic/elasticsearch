@@ -103,6 +103,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
         AtomicBoolean failed = new AtomicBoolean(false);
         AtomicLong migrationStartMillis = new AtomicLong(-1);
         AtomicLong migrationCompleteMillis = new AtomicLong(-1);
+
         client.execute(PutShutdownNodeAction.INSTANCE, shutdownRequest(), ActionListener.wrap(res -> {
             migrationStartMillis.set(threadPool.rawRelativeTimeInMillis());
             pollStatusAndLoop(0, latch, lastStatus, migrationCompleteMillis);
@@ -111,17 +112,18 @@ public class SigtermTerminationHandler implements TerminationHandler {
             failed.set(true);
             latch.countDown();
         }));
+
         try {
-            boolean latchReachedZero = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
-            boolean timedOut = latchReachedZero == false && timeout.millis() != 0;
+            final boolean latchReachedZero = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            final boolean timedOut = latchReachedZero == false && timeout.millis() != 0;
             SingleNodeShutdownStatus status = lastStatus.get();
             if (timedOut && status != null && status.migrationStatus().getShardsRemaining() > 0) {
                 logger.info("Timed out waiting for graceful shutdown, retrieving current recoveries status");
                 logDetailedRecoveryStatusAndWait();
             }
 
-            final var end = threadPool.rawRelativeTimeInMillis();
-            final var shutdownDuration = end - started;
+            final long end = threadPool.rawRelativeTimeInMillis();
+            final long shutdownDuration = end - started;
             final String shutdownStatus = getShutdownStatus(failed.get(), status);
             logger.info(
                 new ESLogMessage("shutdown completed after [{}] ms with status [{}]", shutdownDuration, status) //

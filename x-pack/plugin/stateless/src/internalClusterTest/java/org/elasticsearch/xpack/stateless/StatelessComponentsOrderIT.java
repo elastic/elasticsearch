@@ -20,11 +20,14 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
@@ -58,9 +61,12 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
 
         logger.info("--> indexing and flush docs to trigger background merge");
         for (int i = 0; i < 11; i++) {
-            indexDocs(indexName, 10);
             flush(indexName);
+            indexDocs(indexName, 10);
         }
+        // Allow merges to happen, flush to trigger one
+        plugin.allowMerges.set(true);
+        flush(indexName);
 
         // Wait for merge to trigger and evict cache so that merge will attempt to fill the cache
         safeAwait(plugin.mergeReadStartedLatch);
@@ -93,6 +99,11 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
+        /**
+         * Skip all merges until this is set to true, ensures we don't start a merge
+         * while we're still ingesting
+         */
+        private final AtomicBoolean allowMerges = new AtomicBoolean(false);
         private final CountDownLatch mergeReadStartedLatch = new CountDownLatch(1);
         private final CountDownLatch cacheEvictedLatch = new CountDownLatch(1);
         private final CountDownLatch statelessCloseCalledLatch = new CountDownLatch(1);
@@ -116,6 +127,12 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
                     return super.doOpenInput(name, context, blobFileRanges);
                 }
             };
+        }
+
+        @Override
+        protected Predicate<ShardId> shouldSkipMerges(IndicesService indexServices, SplitSourceService splitSourceService) {
+            final var defaultPredicate = super.shouldSkipMerges(indexServices, splitSourceService);
+            return shardId -> allowMerges.get() == false || defaultPredicate.test(shardId);
         }
 
         @Override

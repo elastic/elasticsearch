@@ -1022,7 +1022,7 @@ public class StatelessPlugin extends Plugin
             )
         );
         components.add(splitSourceService);
-        skipMerges.set(new ShouldSkipMerges(indicesService, splitSourceService));
+        skipMerges.set(shouldSkipMerges(indicesService, splitSourceService));
         // PIT relocation
         var pitRelocationMetrics = new PitRelocationMetrics(services.telemetryProvider().getMeterRegistry());
         components.add(pitRelocationMetrics);
@@ -2159,6 +2159,10 @@ public class StatelessPlugin extends Plugin
     private boolean isInitializingNoSearchShards(IndexShard shard) {
         ShardRouting shardRouting = shard.routingEntry();
         return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
+    }
+
+    protected Predicate<ShardId> shouldSkipMerges(IndicesService indexServices, SplitSourceService splitSourceService) {
+        return new ShouldSkipMerges(indexServices, splitSourceService);
     }
 
     private record ShouldSkipMerges(IndicesService indicesService, SplitSourceService splitSourceService) implements Predicate<ShardId> {

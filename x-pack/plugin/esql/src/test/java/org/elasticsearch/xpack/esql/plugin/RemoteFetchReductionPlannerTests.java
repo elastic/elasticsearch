@@ -63,6 +63,14 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         Project fieldsNeededBeforeTopN = new Project(Source.EMPTY, relation, List.of(doc, hireDate));
         TopN topN = new TopN(Source.EMPTY, fieldsNeededBeforeTopN, order, EsqlTestUtils.of(20), false);
         Project finalFields = new Project(Source.EMPTY, topN, List.of(hireDate, salary, empNo));
+
+        /*
+         * coordinator: Project[hire_date, salary, emp_no]
+         *                  \- TopN[hire_date]
+         *                       \- ExchangeSource[hire_date, salary, emp_no]
+         * data: ExchangeSink[hire_date, salary, emp_no]
+         *           \- Fragment[Project[hire_date, salary, emp_no] -> TopN[hire_date] -> EsRelation]
+         */
         ExchangeSinkExec dataNodePlan = new ExchangeSinkExec(Source.EMPTY, finalFields.output(), false, new FragmentExec(finalFields));
         PhysicalPlan coordinatorPlan = new ProjectExec(
             Source.EMPTY,
@@ -76,6 +84,14 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             coordinatorPlan
         ).orElseThrow();
 
+        /*
+         * coordinator: Project[hire_date, salary, emp_no]
+         *                  \- RemoteFetch[salary, emp_no]
+         *                       |- TopN[hire_date] -> ExchangeSource[handle, hire_date]
+         *                       \- Fragment[RemoteFetchSource[salary, emp_no]]
+         * data: ExchangeSink[handle, hire_date]
+         *           \- Fragment[Project[doc, hire_date] -> TopN[hire_date] -> EsRelation]
+         */
         assertThat(planned.dataNodePlan().output().getFirst().name(), equalTo(RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME));
         assertThat(planned.dataNodePlan().output(), equalTo(List.of(planned.dataNodePlan().output().getFirst(), hireDate)));
         assertThat(planned.dataNodePlan().child().output(), equalTo(List.of(doc, hireDate)));
@@ -93,6 +109,13 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
             "session-a[n]"
         ).orElseThrow();
 
+        /*
+         * shard data: ExchangeSink[doc, hire_date]
+         *                 \- Fragment[Project[doc, hire_date] -> TopN[hire_date] -> EsRelation]
+         * node reduce: ExchangeSink[handle, hire_date]
+         *                  \- Project[handle, hire_date]
+         *                       \- Eval[handle] -> TopN[hire_date] -> ExchangeSource[doc, hire_date]
+         */
         assertThat(reductionPlan.dataNodePlan().output(), equalTo(List.of(doc, hireDate)));
         assertThat(reductionPlan.nodeReducePlan().output(), equalTo(planned.dataNodePlan().output()));
 

@@ -169,7 +169,9 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     public PhysicalPlan pushdownPlan() {
-        return fetchPlan;
+        FragmentExec fragmentExec = fetchPlan();
+        // A bare source describes only the fields to fetch. A wrapper means that the target must also execute pushdown work.
+        return fragmentExec.fragment() instanceof RemoteFetchSource ? null : fragmentExec;
     }
 
     public FragmentExec fetchPlan() {

@@ -155,25 +155,27 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             .indices()
             .prepareCreate(regressionIndex)
             .setSettings(indexSettings(1, 0))
-            .setMapping("content", "type=text", "payload", "type=keyword")
+            .setMapping("content", "type=text", "unique_sort", "type=long", "payload", "type=keyword")
             .get();
 
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 320; i++) {
             bulk.add(
                 prepareIndex(regressionIndex).setId(Integer.toString(i))
-                    .setSource("content", "industrial revolution", "payload", "payload-" + i)
+                    .setSource("content", "industrial revolution", "unique_sort", i, "payload", "payload-" + i)
             );
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
+        // Remote-fetch handles are arbitrary binary values. This regression test sends enough handles through TopN to ensure that
+        // they are not interpreted or corrupted as UTF-8. The secondary sort key also gives the profile a normal eagerly loaded field.
         try (
             EsqlQueryResponse response = runQuery(
                 "FROM "
                     + regressionIndex
                     + " METADATA _score"
                     + " | WHERE MATCH(content, \"industrial revolution\")"
-                    + " | SORT _score DESC"
+                    + " | SORT _score DESC, unique_sort + 0 DESC"
                     + " | LIMIT 300"
                     + " | KEEP payload",
                 true
@@ -181,6 +183,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         ) {
             assertThat(EsqlTestUtils.getValuesList(response), hasSize(300));
             assertRemoteFetchRows(response, 300);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
         }
     }
 
@@ -204,6 +208,9 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                 )
             );
             assertThat(remoteFetchStatuses(response), empty());
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldLoadedBeforeFetch(response, "payload");
+            assertFieldLoadedBeforeFetch(response, "category");
         }
     }
 
@@ -225,6 +232,9 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                 )
             );
             assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "_remote_fetch_handle");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
         }
     }
 
@@ -255,6 +265,9 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             );
             assertThat(remoteFetchStatuses(response), hasSize(1));
             assertThat(remoteFetchRowsEmitted(response), equalTo(20L));
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "tie_breaker");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
         }
     }
 
@@ -267,22 +280,21 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                 equalTo(List.of(List.of(63L), List.of(62L), List.of(61L), List.of(60L), List.of(59L)))
             );
             assertThat(remoteFetchStatuses(response), empty());
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
         }
     }
 
     private EsqlQueryResponse runQuery(String query, boolean remoteFetchTopN) {
+        // Keep the data path deterministic and ensure these tests exercise shard-level node reduction.
         Settings.Builder pragmas = Settings.builder()
-            .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
             .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
-            .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 10)
-            .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 10)
             .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard");
         if (remoteFetchTopN) {
             pragmas.put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true);
         }
         return client().execute(
             EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest(query).pragmas(new QueryPragmas(pragmas.build())).profile(true)
+            syncEsqlQueryRequest(query).acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmas.build())).profile(true)
         ).actionGet(1, TimeUnit.MINUTES);
     }
 

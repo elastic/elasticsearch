@@ -447,21 +447,28 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
-            // Integral types push an exact range, so drop the filter (YES). Everything else stays RECHECK — push a superset
-            // range and re-check the surfaced rows: the double family widens reduced-precision mappers (float/half_float/
-            // scaled_float) that round the bound outward, an over-match the retained evaluator removes; byte-encoded types
-            // (ip/version/keyword) push a faithful range but are kept conservatively out of the exact-YES set. Because this
-            // predicate is two-valued, RECHECK's negation cannot be pushed: must_not(superset) is a subset of the true
-            // complement and the recheck can only drop rows, not restore them — so RECHECK_BUT_NO_NEGATED.
+            // Exact types (integral + ip/version/keyword) push a faithful range, so drop the filter (YES) and allow
+            // must_not(range) under negation. DOUBLE stays RECHECK — push a superset range and re-check the surfaced
+            // rows: reduced-precision mappers (float/half_float/scaled_float, all widened to DataType.DOUBLE) round the
+            // bound outward, an over-match the retained evaluator removes. Because this predicate is two-valued,
+            // RECHECK's negation cannot be pushed: must_not(superset) is a subset of the true complement and the
+            // recheck can only drop rows, not restore them — so RECHECK_BUT_NO_NEGATED.
             return isExactRangeType() ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
         }
         return Translatable.NO;
     }
 
-    /** Integral element types (integer, long, date, date_nanos, unsigned_long) whose pushed range matches the evaluator exactly. */
+    /** True when the pushed Lucene range matches the evaluator exactly (integral types, plus ip/version/keyword). */
     private boolean isExactRangeType() {
         var elementType = PlannerUtils.toElementType(field.dataType());
-        return elementType == ElementType.INT || elementType == ElementType.LONG;
+        if (elementType == ElementType.INT || elementType == ElementType.LONG) {
+            return true;
+        }
+        if (elementType == ElementType.BYTES_REF) {
+            DataType dt = field.dataType();
+            return dt == DataType.IP || dt == DataType.VERSION || dt == DataType.KEYWORD;
+        }
+        return false;
     }
 
     private static boolean isPushableBound(Expression bound) {
@@ -474,11 +481,12 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         // returns the bare RangeQuery (its single-value wrap is the framework's job, not ours) — exactly the any-value
         // range semantics we want over a multivalue field.
         //
-        // The pushed range must stay a superset of the evaluator's matches. Integral types push the real inclusivity (gt/lt
-        // is exact on the discrete domain, so YES can drop the filter). For the RECHECK types the range is only a pre-filter
-        // and the retained evaluator applies the exclusivity, so we push both bounds INCLUSIVE regardless of the options: an
-        // exclusive bound on a reduced-precision mapper (float/half_float/scaled_float, all widened to DOUBLE) rounds inward
-        // and would drop a boundary row that RECHECK could never restore. Inclusive keeps the range a true superset.
+        // The pushed range must stay a superset of the evaluator's matches. Exact types (integral + ip/version/keyword)
+        // push the real inclusivity (gt/lt is exact on those encodings, so YES can drop the filter). For DOUBLE the
+        // range is only a RECHECK pre-filter and the retained evaluator applies the exclusivity, so we push both bounds
+        // INCLUSIVE regardless of the options: an exclusive bound on a reduced-precision mapper (float/half_float/
+        // scaled_float, all widened to DOUBLE) rounds inward and would drop a boundary row that RECHECK could never
+        // restore. Inclusive keeps the range a true superset.
         boolean exact = isExactRangeType();
         var optionsMap = exact ? optionsMap() : Map.<String, Object>of();
         boolean pushLower = exact ? (boolean) optionsMap.getOrDefault(INCLUDE_LOWER, Boolean.TRUE) : true;

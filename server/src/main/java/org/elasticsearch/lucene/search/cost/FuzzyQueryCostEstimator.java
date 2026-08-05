@@ -39,7 +39,7 @@ public final class FuzzyQueryCostEstimator implements QueryCostEstimator {
      * bookkeeping) that doesn't grow with the number of index segments a term appears in. See
      * {@link #EXPANSION_BYTES_PER_SEGMENT_PER_TERM} for the part that does.
      */
-    public static final long EXPANSION_BYTES_PER_TERM = 4900L;
+    public static final long EXPANSION_BYTES_PER_TERM = 2500L;
 
     /**
      * Per-expanded-term, per-segment add-on, charged once per {@code maxExpansions · segmentCount}.

@@ -127,7 +127,8 @@ public class SharedCacheCapacityMonitor {
     record RerouteDecision(boolean shouldReroute, String reason, NodeWatermarkTransitions transitions) {
 
         static final String EXCEEDED_HIGH_WATERMARK_REASON = "shared cache capacity exceeded high watermark";
-        static final String DROPPED_BELOW_LOW_WATERMARK_REASON = "shared cache capacity dropped below low watermark";
+        static final String NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON = "new nodes exceeded shared cache capacity high watermark";
+        static final String DROPPED_BELOW_LOW_WATERMARK_REASON = "new nodes dropped below shared cache capacity low watermark";
 
         private static RerouteDecision no(NodeWatermarkTransitions transitions) {
             return new RerouteDecision(false, null, transitions);
@@ -166,7 +167,7 @@ public class SharedCacheCapacityMonitor {
                     "cache commitments exceeded the high watermark for nodes {}, triggering reroute",
                     shortDescriptions(transitions.nodesNewlyExceedingHighWatermark())
                 );
-                return RerouteDecision.yes(RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON, transitions);
+                return RerouteDecision.yes(RerouteDecision.NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON, transitions);
             } else if (transitions.nodesNewlyDroppedBelowLowWatermark().isEmpty() == false) {
                 logger.debug(
                     "cache commitments dropped below the low watermark for nodes {}, triggering reroute",
@@ -230,8 +231,7 @@ public class SharedCacheCapacityMonitor {
 
             if (exceedsLowWatermarkNow == false) {
                 nodesBelowLowWatermark.add(node);
-            }
-            if (exceedsHighWatermarkNow) {
+            } else if (exceedsHighWatermarkNow) {
                 nodesOverHighWatermark.add(node);
             }
 

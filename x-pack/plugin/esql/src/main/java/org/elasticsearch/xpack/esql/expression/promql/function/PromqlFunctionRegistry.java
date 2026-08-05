@@ -187,6 +187,9 @@ public class PromqlFunctionRegistry {
         // Across-series aggregations (not yet available in ESQL)
         "group",
         "count_values",
+        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
+        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
+        "limit_ratio",
 
         // Range vector functions (not yet implemented)
         "changes",

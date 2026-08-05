@@ -10,6 +10,7 @@
 * `holt_winters`
 * `label_join`
 * `label_replace`
+* `limit_ratio`
 * `mad_over_time`
 * `predict_linear`
 * `resets`

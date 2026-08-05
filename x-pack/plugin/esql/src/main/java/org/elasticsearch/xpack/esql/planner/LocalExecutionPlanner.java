@@ -1498,7 +1498,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planDistinctBy(DistinctByExec distinctBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(distinctBy.child(), context);
         var key = source.layout.get(distinctBy.key().id());
-        if (key == null || PlannerUtils.toElementType(key.type()) == ElementType.INT) {
+        if (key == null || PlannerUtils.toElementType(key.type()) != ElementType.INT) {
             throw new IllegalStateException("distinct-by requires non-null integer key, got [" + distinctBy.key() + "]");
         }
 

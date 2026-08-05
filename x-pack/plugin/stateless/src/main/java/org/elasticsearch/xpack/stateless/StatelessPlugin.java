@@ -796,14 +796,6 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        components.add(
-            new StatelessSharedBlobCachePeriodicMetrics(
-                cacheService,
-                clusterService.getClusterSettings(),
-                threadPool,
-                services.telemetryProvider().getMeterRegistry()
-            )
-        );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -1030,6 +1022,14 @@ public class StatelessPlugin extends Plugin
         components.add(pitRelocationService);
 
         if (hasSearchRole) {
+            components.add(
+                new StatelessSharedBlobCachePeriodicMetrics(
+                    cacheService,
+                    clusterService.getClusterSettings(),
+                    threadPool,
+                    services.telemetryProvider().getMeterRegistry()
+                )
+            );
             setAndGet(this.prefetchExecutor, new SearchCommitPrefetcher.PrefetchExecutor(threadPool));
             // it is imperative that we do not listen for dynamic settings updates within the prefetcher itself because the prefetcher is
             // created whenever we create the search engine and it might miss the settings that were updated before the node was started.

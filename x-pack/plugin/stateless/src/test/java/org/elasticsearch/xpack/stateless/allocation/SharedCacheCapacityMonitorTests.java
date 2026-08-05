@@ -25,6 +25,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +57,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     private static final int HIGH_WATERMARK_PERCENT = 95;
 
     private static final String EXCEEDED_HIGH_WATERMARK_REASON = SharedCacheCapacityMonitor.RerouteDecision.EXCEEDED_HIGH_WATERMARK_REASON;
+    private static final String NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON =
+        SharedCacheCapacityMonitor.RerouteDecision.NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON;
     private static final String DROPPED_BELOW_LOW_WATERMARK_REASON =
         SharedCacheCapacityMonitor.RerouteDecision.DROPPED_BELOW_LOW_WATERMARK_REASON;
 
@@ -70,9 +73,8 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
     private RerouteService rerouteService;
     private AtomicLong currentTimeMillis;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMocksAndClock() {
         rerouteService = mock(RerouteService.class);
         // lastRerouteTimeMillis starts at 0. The clock must start well beyond the longest reroute_interval used in this file (30
         // seconds), or a small random starting value could make the very first reroute look throttled.
@@ -122,7 +124,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
-            assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+            assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
             assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
@@ -205,7 +207,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             );
             mockLog.assertAllExpectationsMatched();
             assertThat(decision.shouldReroute(), equalTo(true));
-            assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+            assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
             assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0, SEARCH_1)));
             assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_1)));
             assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
@@ -374,7 +376,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(true));
-        assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
         assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_2)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_2)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of()));
@@ -430,7 +432,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         assertThat(decision.shouldReroute(), equalTo(true));
-        assertThat(decision.reason(), equalTo(EXCEEDED_HIGH_WATERMARK_REASON));
+        assertThat(decision.reason(), equalTo(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON));
         assertThat(decision.transitions().nodesOverHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyExceedingHighWatermark(), equalTo(Set.of(SEARCH_0)));
         assertThat(decision.transitions().nodesNewlyDroppedBelowLowWatermark(), equalTo(Set.of(SEARCH_1)));
@@ -448,15 +450,38 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             return builder.build();
         });
 
-        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1))));
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
     }
 
     public void testNoRerouteWhenDisabled() {
         final SharedCacheCapacityMonitor monitor = createMonitor(false, TimeValue.ZERO, this::twoSearchNodeState);
 
-        // Every node is fully committed, but that must not matter while the monitor is disabled.
-        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, 100))));
+        // search-0 is fully committed and search-1 sits below the low watermark, so there is somewhere to move shards to, and
+        // every other condition for a reroute is satisfied. Only the disabled guard explains why no reroute happens.
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, 100, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
+        verifyNoInteractions(rerouteService);
+    }
+
+    public void testNoRerouteWhenCanRemainDisabled() {
+        // The decider as a whole is enabled, but canRemain specifically is not, so a reroute would give canRemain no chance to
+        // act on the high watermark.
+        final ClusterSettings clusterSettings = clusterSettingsFor(
+            true,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
+            TimeValue.ZERO
+        );
+        clusterSettings.applySettings(
+            Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false).build()
+        );
+        final SharedCacheCapacityMonitor monitor = new SharedCacheCapacityMonitor(
+            clusterSettings,
+            currentTimeMillis::get,
+            this::twoSearchNodeState,
+            rerouteService
+        );
+
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
         verifyNoInteractions(rerouteService);
     }
 
@@ -480,7 +505,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // search-0 crosses the high watermark while enabled, recording it as already known on the next call.
         var commitments = commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1));
         monitor.onNewInfo(clusterInfoOf(commitments));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // Disabling the decider must reset the recorded commitments, not just suppress the reroute.
@@ -493,7 +518,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // the interval nowhere near elapsed, this call would see no reason to reroute at all.
         clusterSettings.applySettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true).build());
         monitor.onNewInfo(clusterInfoOf(commitments));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testNonSearchNodesAreIgnoredEvenWhenConditionsWouldOtherwiseWarrantReroute() {
@@ -559,7 +584,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // A different node now also crosses the high watermark, and the clock has advanced by less than the reroute interval.
@@ -572,7 +597,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testNoRetryWithinIntervalWhenNoNodeNewlyExceedsHighWatermark() {
@@ -586,12 +611,12 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // The same commitments are reported again with the clock advanced by less than the reroute interval. search-0 remains
         // over the high watermark, but that is not a new transition, so the retry is blocked until the interval elapses.
-        currentTimeMillis.addAndGet(rerouteInterval.millis() - 1);
+        currentTimeMillis.addAndGet(randomLongBetween(1, rerouteInterval.millis() - 1));
         monitor.onNewInfo(
             clusterInfoOf(
                 commitmentsAt(
@@ -613,13 +638,13 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // Once the interval has fully elapsed, search-0 remaining over the high watermark is retried even though nothing newly
         // crossed a watermark this time. The earlier reroute may not have relieved the pressure, for example due to
         // concurrent-movement throttling elsewhere that has since cleared.
-        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        currentTimeMillis.addAndGet(randomLongBetween(rerouteInterval.millis(), rerouteInterval.millis() * 10));
         monitor.onNewInfo(
             clusterInfoOf(
                 commitmentsAt(
@@ -635,13 +660,13 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         final SharedCacheCapacityMonitor monitor = createMonitor(true, rerouteInterval, this::twoSearchNodeState);
 
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // search-1 also crosses the high watermark, and the interval has fully elapsed, but every search node is now over the
         // low watermark, so there is nowhere left to move shards to. The retry is suppressed the same way a new transition
         // would be.
-        currentTimeMillis.addAndGet(rerouteInterval.millis());
+        currentTimeMillis.addAndGet(randomLongBetween(rerouteInterval.millis(), rerouteInterval.millis() * 10));
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, HIGH_WATERMARK_PERCENT + 1))));
         verifyNoInteractions(rerouteService);
     }
@@ -705,7 +730,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // search-1 drops back below the low watermark, and the clock has advanced by less than the interval. A newly observed
@@ -759,7 +784,35 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         // Enabling the setting on the live cluster settings, without constructing a new monitor, changes behavior immediately.
         clusterSettings.applySettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.ENABLED_SETTING.getKey(), true).build());
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
+    }
+
+    public void testCanRemainEnabledSettingChangeIsObservedOnTheSameInstance() {
+        final ClusterSettings clusterSettings = clusterSettingsFor(
+            true,
+            SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED,
+            TimeValue.ZERO
+        );
+        clusterSettings.applySettings(
+            Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false).build()
+        );
+        final SharedCacheCapacityMonitor monitor = new SharedCacheCapacityMonitor(
+            clusterSettings,
+            currentTimeMillis::get,
+            this::twoSearchNodeState,
+            rerouteService
+        );
+
+        // canRemain is disabled at construction time, so an over-subscribed node does not trigger a reroute yet.
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
+        verifyNoInteractions(rerouteService);
+
+        // Enabling the setting on the live cluster settings, without constructing a new monitor, changes behavior immediately.
+        clusterSettings.applySettings(
+            Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), true).build()
+        );
+        monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, HIGH_WATERMARK_PERCENT + 1, SEARCH_1, LOW_WATERMARK_PERCENT - 1))));
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testAccountingModeSettingChangeIsObservedOnTheSameInstance() {
@@ -795,7 +848,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         commitments.put(SEARCH_1, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, bytesForPercent(LOW_WATERMARK_PERCENT - 1), 0L));
         commitments.put(SEARCH_2, new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, halfOfHighWatermark, halfOfHighWatermark));
         monitor.onNewInfo(clusterInfoOf(commitments));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testHighWatermarkSettingChangeIsObservedOnTheSameInstance() {
@@ -836,7 +889,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
             ClusterState.builder(ClusterState.EMPTY_STATE).nodes(DiscoveryNodes.builder().add(SEARCH_0).add(SEARCH_1)).build()
         );
         monitor.onNewInfo(clusterInfoOf(commitmentsAt(Map.of(SEARCH_0, LOW_WATERMARK_PERCENT - 1, SEARCH_1, HIGH_WATERMARK_PERCENT - 1))));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
     }
 
     public void testLowWatermarkSettingChangeIsObservedOnTheSameInstance() {
@@ -864,7 +917,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 )
             )
         );
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // Lower the low watermark below search-0's unchanged commitment before search-3 is ever observed.
@@ -914,7 +967,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
         );
 
         monitor.onNewInfo(clusterInfoOf(commitments));
-        assertRerouted(EXCEEDED_HIGH_WATERMARK_REASON);
+        assertRerouted(NEW_NODES_EXCEEDED_HIGH_WATERMARK_REASON);
         reset(rerouteService);
 
         // The same commitments are reported again. search-0 remains over the high watermark, but the clock has advanced by
@@ -1041,6 +1094,7 @@ public class SharedCacheCapacityMonitorTests extends ESTestCase {
                 .build(),
             Set.of(
                 SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
+                SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
                 SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
                 SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
                 SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,

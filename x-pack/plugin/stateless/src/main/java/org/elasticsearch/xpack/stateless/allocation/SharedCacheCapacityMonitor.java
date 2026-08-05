@@ -35,7 +35,9 @@ import java.util.stream.Collectors;
  * {@link RerouteService#reroute}, when a search node's cache commitment newly crosses the high watermark or newly drops back below the
  * low watermark. {@link SharedCacheCapacityAllocationDecider} is only consulted while a reroute is already in progress, but a node's
  * cache commitment can drift past a watermark on its own, for example as shards grow, as boost configuration changes, or as data ages
- * out of the boost window. This monitor is what notices that drift and asks for a reroute so the decider gets a chance to act on it.
+ * out of the boost window. This monitor is what notices that drift and asks for a reroute so the decider gets a chance to act on it. It
+ * only does so when {@link SharedCacheCapacityAllocationDecider#CAN_REMAIN_ENABLED_SETTING} is also enabled, since a reroute would give
+ * the decider's {@code canRemain} check no chance to act on the high watermark otherwise.
  */
 public class SharedCacheCapacityMonitor {
 
@@ -46,6 +48,7 @@ public class SharedCacheCapacityMonitor {
     private final RerouteService rerouteService;
 
     private volatile boolean enabled;
+    private volatile boolean canRemainEnabled;
     private volatile SharedCacheCapacityAllocationDecider.CacheAccountingMode accountingMode;
     private volatile RatioValue lowWatermark;
     private volatile RatioValue highWatermark;
@@ -64,6 +67,10 @@ public class SharedCacheCapacityMonitor {
         this.clusterStateSupplier = clusterStateSupplier;
         this.rerouteService = rerouteService;
         clusterSettings.initializeAndWatch(SharedCacheCapacityAllocationDecider.ENABLED_SETTING, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(
+            SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
+            value -> this.canRemainEnabled = value
+        );
         clusterSettings.initializeAndWatch(
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
             value -> this.accountingMode = value
@@ -90,8 +97,8 @@ public class SharedCacheCapacityMonitor {
             return;
         }
 
-        if (enabled == false) {
-            logger.debug("skipping monitor as the shared cache capacity decider is disabled");
+        if (enabled == false || canRemainEnabled == false) {
+            logger.debug("skipping monitor as the shared cache capacity decider or its canRemain check is disabled");
             lastNodeCommitments = Map.of();
             return;
         }

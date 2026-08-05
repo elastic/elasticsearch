@@ -78,12 +78,17 @@ public enum NumericFormat {
         final DocValuesFormat dv = switch (this) {
             case LUCENE -> new Lucene90DocValuesFormat();
             case ES819 -> new ES819TSDBDocValuesFormat();
-            case ES95 -> ES95TSDBDocValuesFormatFactory.create(
-                blockSize == 512,
-                false,
-                false,
-                (f, bs) -> es95FieldContext(workload, f, bs)
-            );
+            case ES95 -> {
+                final boolean useLargeNumericBlockSize = blockSize == 512;
+                final boolean useLargeBinaryBlockSize = false;
+                final boolean writePartitions = false;
+                yield ES95TSDBDocValuesFormatFactory.create(
+                    useLargeNumericBlockSize,
+                    useLargeBinaryBlockSize,
+                    writePartitions,
+                    (f, bs) -> es95FieldContext(workload, f, bs)
+                );
+            }
             case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
         };
         return new Elasticsearch93Lucene104Codec() {

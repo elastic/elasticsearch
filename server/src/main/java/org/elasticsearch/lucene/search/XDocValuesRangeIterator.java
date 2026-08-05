@@ -33,8 +33,6 @@ import java.io.IOException;
  * <p>The upstream fix is in apache/lucene#16450, which will land in Lucene 10.5.1. Delete this
  * class and revert callers to Lucene's {@code DocValuesRangeIterator} once Elasticsearch upgrades
  * to a Lucene release containing that fix.
- *
- * @lucene.experimental
  */
 public abstract sealed class XDocValuesRangeIterator extends TwoPhaseIterator {
 

@@ -610,3 +610,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/155970
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155972

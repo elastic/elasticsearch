@@ -247,12 +247,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132
@@ -379,9 +373,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/153891
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFuseIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueScoreColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/153902
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -577,9 +568,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/155754
-- class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
-  method: testIncludeEmptyBuckets_timeSeriesAndDimension
-  issue: https://github.com/elastic/elasticsearch/issues/155779
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783
@@ -604,6 +592,24 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
   method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
   issue: https://github.com/elastic/elasticsearch/issues/155887
-- class: org.elasticsearch.xpack.esql.optimizer.PushdownGoldenTests
-  method: testFromUnionOfIndexTimeSeriesRateAndExternalDatasetSubqueries {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/155894
+- class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
+  method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
+  issue: https://github.com/elastic/elasticsearch/issues/155916
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
+  issue: https://github.com/elastic/elasticsearch/issues/153406
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
+  issue: https://github.com/elastic/elasticsearch/issues/155921
+- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
+  method: testSoarAssignmentsValidAfterEmptyClusterRemoval
+  issue: https://github.com/elastic/elasticsearch/issues/155931
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments at the maximum should SUCCEED}
+  issue: https://github.com/elastic/elasticsearch/issues/155969
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155970
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155972

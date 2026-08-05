@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DocValueFormat;
@@ -48,12 +51,15 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -61,6 +67,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -79,8 +86,6 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -503,16 +508,27 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 };
             }
         };
-        try {
-            transport.start();
-
-            SearchService mockSearchService = mock(SearchService.class);
-            when(mockSearchService.getCircuitBreaker()).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-            List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
-            doAnswer(invocation -> {
-                ShardSearchRequest req = invocation.getArgument(0);
-                @SuppressWarnings("unchecked")
-                ActionListener<SearchPhaseResult> listener = invocation.getArgument(2);
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        SearchService searchService = new SearchService(
+            clusterService,
+            null,
+            threadPool,
+            null,
+            null,
+            new FetchPhase(Collections.emptyList()),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            EmptySystemIndices.INSTANCE.getExecutorSelector(),
+            Tracer.NOOP,
+            OnlinePrewarmingService.NOOP
+        ) {
+            @Override
+            public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
                     new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
@@ -526,12 +542,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 result.size(0);
                 resultsToRelease.add(result);
                 listener.onResponse(result);
-                return null;
-            }).when(mockSearchService).executeQueryPhase(any(), any(), any());
+            }
+        };
+        try {
+            transport.start();
 
             SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
                 new SearchTransportService(transport, null, null),
-                mockSearchService,
+                searchService,
                 new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
                 new NamedWriteableRegistry(List.of())
             );
@@ -561,25 +579,33 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             );
 
             CountDownLatch latch = new CountDownLatch(1);
-            TransportChannel mockChannel = mock(TransportChannel.class);
-            when(mockChannel.getVersion()).thenReturn(TransportVersion.current());
-            doAnswer(inv -> {
-                latch.countDown();
-                return null;
-            }).when(mockChannel).sendResponse(any(Exception.class));
+            TransportChannel channel = new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return "";
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {}
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    latch.countDown();
+                }
+            };
 
             @SuppressWarnings("unchecked")
             RequestHandlerRegistry<SearchQueryThenFetchAsyncAction.NodeQueryRequest> handler = (RequestHandlerRegistry<
                 SearchQueryThenFetchAsyncAction.NodeQueryRequest>) transport.getRequestHandler(
                     SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME
                 );
-            handler.processMessageReceived(nodeQueryRequest, mockChannel);
+            handler.processMessageReceived(nodeQueryRequest, channel);
 
             boolean completed = latch.await(10, TimeUnit.SECONDS);
             resultsToRelease.forEach(QuerySearchResult::decRef);
             assertTrue("channel was not responded to within 10 seconds", completed);
         } finally {
-            IOUtils.closeWhileHandlingException(transport, threadPool);
+            IOUtils.closeWhileHandlingException(searchService, clusterService, transport, threadPool);
         }
     }
 

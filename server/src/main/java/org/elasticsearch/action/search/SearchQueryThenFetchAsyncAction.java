@@ -927,8 +927,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
+            final BytesTransportResponse response;
             try {
-                doRespond(channelListener);
+                response = buildResponse();
             } catch (Exception e) {
                 try {
                     releaseAllResultsContexts();
@@ -936,13 +937,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     logger.trace("failed to release contexts after batched query response failure", releaseException);
                 }
                 channelListener.onFailure(e);
+                return;
             }
+            ActionListener.respondAndRelease(channelListener, response);
         }
 
-        private void doRespond(ActionListener<BytesTransportResponse> channelListener) throws Exception {
+        private BytesTransportResponse buildResponse() throws Exception {
             if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
-                bwcRespond(channelListener);
-                return;
+                return bwcBuildResponse();
             }
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
             out.setTransportVersion(channel.getVersion());
@@ -960,11 +962,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -1031,7 +1029,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
          * Any exception thrown here propagates to the wrapper in {@link #onShardDone()}, which is
          * responsible for releasing all result contexts and responding to the channel with an error.
          */
-        private void bwcRespond(ActionListener<BytesTransportResponse> channelListener) throws Exception {
+        private BytesTransportResponse bwcBuildResponse() throws Exception {
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
             try (queryPhaseResultConsumer) {
@@ -1075,10 +1073,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
         }
 
         private void maybeFreeContext(

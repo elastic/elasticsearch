@@ -61,7 +61,10 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     public static void setup() {
-        arena = Arena.ofConfined();
+        // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
+        // instead of silently returning a wrong score.
+        var useGuardPageAllocator = randomBoolean();
+        arena = GuardPageAllocator.isSupported() && useGuardPageAllocator ? GuardPageAllocator.ofConfined() : Arena.ofConfined();
     }
 
     public static void cleanup() {

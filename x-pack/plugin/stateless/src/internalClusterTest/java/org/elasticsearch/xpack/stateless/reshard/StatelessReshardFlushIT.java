@@ -11,6 +11,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -118,13 +119,14 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         assertTrue(flushFailed.get());
     }
 
-    public void testPreFlushWaitsForOngoingFlushes() throws Exception {
+    public void testPreFlushWaitsForOngoingFlushes() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
         ensureStableCluster(2);
 
         final String indexName = randomIndexName();
-        createIndex(indexName, indexSettings(1, 1).build());
+        // Background refresh could race with the prehandoff flush being tested here
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         Index index = resolveIndex(indexName);
         ensureGreen(indexName);
 
@@ -132,6 +134,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         // Release refresh flush and validate that preflush never skips due to ongoing flush. This isn't foolproof since the
         // refresh flush is unblocked just before preflush invokes the actual flush call, but it catches regression reliably
         // on my laptop.
+        var refreshEntered = new CountDownLatch(1);
         var refreshLatch = new CountDownLatch(1);
         var refreshInProgress = new AtomicBoolean(false);
         var preflushResult = new AtomicReference<Engine.FlushResult>();
@@ -139,6 +142,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
             if (force) {
                 // refresh called
                 refreshInProgress.set(true);
+                refreshEntered.countDown();
                 safeAwait(refreshLatch);
             } else if (refreshInProgress.get()) {
                 // preflush has now started, so refresh can be unblocked
@@ -169,6 +173,8 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         });
         refreshThread.start();
 
+        // wait for refresh flush before resharding
+        safeAwait(refreshEntered);
         logger.info("starting reshard");
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
@@ -177,7 +183,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         safeJoin(refreshThread);
 
         flushCallback = null;
-        assertFalse(preflushResult.get().skippedDueToCollision());
+        assertFalse("pre-handoff flush should not have been skipped", preflushResult.get().skippedDueToCollision());
     }
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {

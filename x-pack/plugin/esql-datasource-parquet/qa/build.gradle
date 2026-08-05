@@ -279,9 +279,11 @@ tasks.named('javaRestTest') {
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 
-  // Increase timeouts for S3/Parquet operations which may take longer than standard queries
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
+  // The http datasource fetch triggered by runEsqlSync() retries transient failures against
+  // raw.githubusercontent.com with its own bounded backoff (~30s) before giving up; give the
+  // REST client enough headroom to outlast that plus real transfer time.
+  systemProperty 'tests.rest.client_timeout', '120'
+  systemProperty 'tests.rest.socket_timeout', '120'
 
   // Enable more verbose logging for debugging
   testLogging {

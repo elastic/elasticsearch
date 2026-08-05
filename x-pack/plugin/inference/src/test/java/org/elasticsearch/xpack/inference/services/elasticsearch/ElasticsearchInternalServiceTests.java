@@ -56,6 +56,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
@@ -2103,6 +2104,44 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
+    public void testUpdateModelsWithDynamicFields_MlDisabled() throws Exception {
+        // ML disabled - models returned as-is, no client interaction
+        {
+            var model = mock(ElasticsearchInternalModel.class);
+            var models = List.<Model>of(model);
+
+            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
+                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
+                e -> fail("Unexpected exception: " + e)
+            );
+
+            var client = mock(Client.class);
+            try (
+                var service = createService(client, Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false).build())
+            ) {
+                service.updateModelsWithDynamicFields(models, resultsListener);
+                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
+            }
+        }
+
+        // NLP disabled - models returned as-is, no client interaction
+        {
+            var model = mock(ElasticsearchInternalModel.class);
+            var models = List.<Model>of(model);
+
+            ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
+                updatedModels -> assertThat(updatedModels, Matchers.sameInstance(models)),
+                e -> fail("Unexpected exception: " + e)
+            );
+
+            var client = mock(Client.class);
+            try (var service = createService(client, Settings.builder().put(XPackSettings.NLP_ENABLED.getKey(), false).build())) {
+                service.updateModelsWithDynamicFields(models, resultsListener);
+                verify(client, Mockito.never()).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
+            }
+        }
+    }
+
     public void testUpdateModelsWithDynamicFields_InvalidModelProvided() throws IOException {
         ActionListener<List<Model>> resultsListener = ActionListener.wrap(
             updatedModels -> fail("Expected invalid model assertion error to be thrown"),
@@ -2522,6 +2561,10 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     }
 
     private ElasticsearchInternalService createService(Client client) {
+        return createService(client, Settings.EMPTY);
+    }
+
+    private ElasticsearchInternalService createService(Client client, Settings settingsValues) {
         var cs = mock(ClusterService.class);
         var cSettings = new ClusterSettings(
             Settings.EMPTY,
@@ -2536,7 +2579,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             client,
             threadPool,
             cs,
-            Settings.EMPTY,
+            settingsValues,
             inferenceStats,
             mock(FeatureService.class)
         );

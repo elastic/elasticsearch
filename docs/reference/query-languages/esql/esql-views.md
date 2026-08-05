@@ -1,7 +1,7 @@
 ---
 navigation_title: "Define virtual indices using ES|QL views"
 applies_to:
-  serverless: unavailable
+  serverless: preview
   stack: preview 9.4.0
 products:
   - id: elasticsearch

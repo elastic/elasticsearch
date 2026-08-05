@@ -22,8 +22,11 @@ import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketed
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
 
-    public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
+    private final BucketHelpers.GapPolicy gapPolicy;
+
+    public ChangePointAggregator(String name, String bucketsPath, BucketHelpers.GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, new String[] { bucketsPath }, metadata);
+        this.gapPolicy = gapPolicy;
     }
 
     @Override
@@ -31,7 +34,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketValues = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
-            BucketHelpers.GapPolicy.SKIP,
+            gapPolicy,
             true
         );
         if (maybeBucketValues.isEmpty()) {

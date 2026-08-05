@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InjectTemporal
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceComparisonWithConstantFromMinMax;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplacePotentiallyUnmappedFieldWithMappedField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -49,6 +50,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new IgnoreNullMetrics(),
             new InjectTemporality(),
             new ReplaceTopNWithLimitAndSort(),
+            new ReplacePotentiallyUnmappedFieldWithMappedField(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
             new ReplaceComparisonWithConstantFromMinMax(),

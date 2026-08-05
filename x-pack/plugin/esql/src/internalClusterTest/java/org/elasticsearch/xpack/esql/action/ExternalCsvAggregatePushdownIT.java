@@ -87,6 +87,107 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * The Hive-partitioned twin of {@link #testCountStarColdThenWarmShortCircuits}: a bare
+     * {@code STATS COUNT(*)} over a partitioned CSV dataset. {@code COUNT(*)} projects zero columns, so the
+     * source's output attribute list is empty, while the partition stamp keeps the effective
+     * partition-column set non-empty. Before this fix, the per-split virtual-column wrapper gated only on the
+     * dataset axis and constructed a {@code VirtualColumnIterator} with that empty list as its output,
+     * throwing {@code "fullOutput cannot be null or empty"} at construction — so the cold scan crashed and,
+     * because the stripe-stats warm cache is populated <em>by</em> that scan, every retry re-crashed. The
+     * output-axis guard forwards the reader's position-only pages unchanged, so the cold scan completes (its
+     * capture hook fills the cache) and the warm run folds to {@code LocalSourceExec} exactly like the
+     * unpartitioned path. Red without this fix.
+     */
+    public void testPartitionedCountStarColdThenWarmShortCircuits() throws Exception {
+        Path root = createTempDir().resolve("hive_csv_agg");
+        writePartitionedCsvFiles(root); // 4 rows across year=2024/month=01 (2) + month=02 (2)
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_csv_agg", glob, Map.of("hive_partitioning", true));
+        String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+
+        // Cold: red on main ("fullOutput cannot be null or empty"); with the fix, scans all 4 partitioned rows.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertCount(response, 4);
+            assertThat("cold execution must scan every partitioned row", response.documentsFound(), equalTo(4L));
+        }
+        // Warm: the cold scan's capture hook populated the per-coordinator cache → LocalSourceExec, no data-node scan.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertCount(response, 4);
+            assertNoPushdownBypass(response);
+            assertThat("warm partitioned COUNT(*) must not scan (LocalSourceExec)", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Settles the ticket's disputed claim that {@code KEEP <data-col> | STATS COUNT(*)} sidesteps the crash.
+     * {@code CombineProjections} + {@code PruneColumns} collapse the KEEP-then-count shape to the identical
+     * zero-output plan as the bare query (the count references no columns), so before this fix it crashes the
+     * same way and must pass after it. Runs cold then warm, mirroring
+     * {@link #testPartitionedCountStarColdThenWarmShortCircuits}: the cold scan completes and fills the cache,
+     * the warm run folds to {@code LocalSourceExec}.
+     */
+    public void testPartitionedCountStarWithLeadingKeepIsSamePlan() throws Exception {
+        Path root = createTempDir().resolve("hive_csv_keep");
+        writePartitionedCsvFiles(root);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_csv_keep", glob, Map.of("hive_partitioning", true));
+        String query = "FROM " + dataset + " | KEEP id | STATS c = COUNT(*)";
+
+        // Cold: reduces to the same zero-output plan as the bare COUNT(*) and scans all 4 rows.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertCount(response, 4);
+            assertThat("cold KEEP id | STATS COUNT(*) scans every partitioned row", response.documentsFound(), equalTo(4L));
+        }
+        // Warm: the cold scan filled the cache → LocalSourceExec, no data-node scan.
+        try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertCount(response, 4);
+            assertNoPushdownBypass(response);
+            assertThat("warm KEEP id | STATS COUNT(*) must not scan (LocalSourceExec)", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Guards against over-skipping the wrap: {@code STATS COUNT(*) BY month} projects the partition column
+     * {@code month}, so the source output is non-empty and the virtual-column wrap must still run to attach
+     * each row's partition value. This never-broken grouped shape stays green — the output-axis guard fires
+     * only when the output is genuinely empty.
+     */
+    public void testPartitionedCountStarByPartitionColumnStillWraps() throws Exception {
+        Path root = createTempDir().resolve("hive_csv_by");
+        writePartitionedCsvFiles(root);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_csv_by", glob, Map.of("hive_partitioning", true));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*) BY month | SORT month").profile(true))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("two month partitions", rows.size(), equalTo(2));
+            // Output columns are [c, month]. Each of month=01 and month=02 carries exactly 2 rows; assert both
+            // the count and the injected partition value. month=01/02 cast to INTEGER 1/2 (leading zero stripped,
+            // per HivePartitionDetector.castValue) — pinning it proves the wrap still attaches partition values.
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(0).get(1), equalTo(1));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(1).get(1), equalTo(2));
+        }
+    }
+
+    /**
+     * Two-level Hive-style partition tree ({@code year=2024/month=01/data.csv} + {@code month=02/data.csv}),
+     * 2 rows per file, 4 rows total. Mirrors {@code ExternalCsvHivePartitionedIT#writePartitionedCsvFiles}.
+     */
+    private static void writePartitionedCsvFiles(Path root) throws IOException {
+        Path month01 = root.resolve("year=2024").resolve("month=01");
+        Path month02 = root.resolve("year=2024").resolve("month=02");
+        Files.createDirectories(month01);
+        Files.createDirectories(month02);
+        Files.writeString(month01.resolve("data.csv"), "id,value\n1,alpha\n2,beta\n", StandardCharsets.UTF_8);
+        Files.writeString(month02.resolve("data.csv"), "id,value\n3,gamma\n4,delta\n", StandardCharsets.UTF_8);
+    }
+
+    /**
      * The strict declared-schema twin of {@link #testCountStarColdThenWarmShortCircuits}. A strict
      * ({@code dynamic:false}) CSV dataset reads no file body at resolution, so it cannot harvest the row-count itself;
      * {@code ExternalSourceResolver.strictSingleFileMetadata} seeds a schema-cache entry that the cold scan's capture
@@ -174,8 +275,9 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
         Path csv = createTempDir().resolve("conflict.csv");
         Files.writeString(csv, "9\n10\n", StandardCharsets.UTF_8);
         String uri = StoragePath.fileUri(csv);
-        String asInt = registerStrictDataset("conflict_int", uri, declaredColumn("v", "integer"), Map.of("header_row", false));
-        String asKeyword = registerStrictDataset("conflict_kw", uri, declaredColumn("v", "keyword"), Map.of("header_row", false));
+        // Headerless: the single declared column binds by name against the self-encoded col0, not by position.
+        String asInt = registerStrictDataset("conflict_int", uri, declaredColumn("v", "integer", "col0"), Map.of("header_row", false));
+        String asKeyword = registerStrictDataset("conflict_kw", uri, declaredColumn("v", "keyword", "col0"), Map.of("header_row", false));
 
         // A (integer): MIN = 9. Run twice so any per-column harvest is reconciled into the shared entry.
         for (int i = 0; i < 2; i++) {
@@ -311,8 +413,17 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     private static LinkedHashMap<String, DatasetFieldMapping> declaredColumn(String name, String type) {
+        return declaredColumn(name, type, null);
+    }
+
+    /**
+     * A single declared column bound to an explicit physical {@code path}. A headerless file has no header names, so a
+     * declared column binds by name against the self-encoded {@code col<N>} of each field ({@code path: "col0"} for the
+     * first) — a bare name with no path is a declared column the file does not supply, which reads null.
+     */
+    private static LinkedHashMap<String, DatasetFieldMapping> declaredColumn(String name, String type, String path) {
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put(name, new DatasetFieldMapping(type, null));
+        properties.put(name, new DatasetFieldMapping(type, path));
         return properties;
     }
 

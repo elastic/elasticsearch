@@ -152,8 +152,10 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        // Options are not serialized - they're embedded in the QueryBuilder
-        return new Kql(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
+        Expression options = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)
+            ? in.readOptionalNamedWriteable(Expression.class)
+            : null;
+        return new Kql(source, query, options, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -161,7 +163,9 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
-        // Options are not serialized - they're embedded in the QueryBuilder
+        if (out.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(options());
+        }
     }
 
     @Override
@@ -227,18 +231,17 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
 
     @Override
     public boolean equals(Object o) {
-        // KQL does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var kql = (Kql) o;
         return Objects.equals(query(), kql.query())
             && Objects.equals(queryBuilder(), kql.queryBuilder())
-            && Objects.equals(configuration, kql.configuration);
+            && Objects.equals(configuration, kql.configuration)
+            && Objects.equals(options, kql.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder(), configuration);
+        return Objects.hash(query(), queryBuilder(), configuration, options);
     }
 
     @Override

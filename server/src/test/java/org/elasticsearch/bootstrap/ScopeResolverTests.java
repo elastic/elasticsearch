@@ -170,7 +170,8 @@ public class ScopeResolverTests extends ESTestCase {
             false,
             true,
             false,
-            PluginDescriptor.DeploymentTarget.ALL
+            PluginDescriptor.DeploymentTarget.ALL,
+            List.of()
         );
 
         PluginBundle bundle = mock(PluginBundle.class);

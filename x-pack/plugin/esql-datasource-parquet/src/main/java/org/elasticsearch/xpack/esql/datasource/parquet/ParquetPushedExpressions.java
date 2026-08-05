@@ -512,6 +512,21 @@ final class ParquetPushedExpressions {
     }
 
     /**
+     * Whether {@code ptype} is {@code DECIMAL} with a nonzero scale — its on-disk value is the
+     * <b>unscaled</b> integer, not the value a declared/inferred {@code long}/{@code integer}/
+     * {@code keyword} column exposes. Pushing a raw literal against such stats compares mismatched
+     * units. {@code scale=0} is exempt: unscaled equals scaled there.
+     *
+     * <p>This only matters for <b>value</b> comparisons (EQ/ordered/IN); it must NOT gate IS
+     * NULL/IS NOT NULL dispatch, since nullability is orthogonal to scale — see the {@code value
+     * == null} carve-outs at call sites.
+     */
+    private static boolean isScaledDecimal(PrimitiveType ptype) {
+        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal
+            && decimal.getScale() > 0;
+    }
+
+    /**
      * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be
      * a dotted path into a nested STRUCT) is {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
      */
@@ -538,7 +553,9 @@ final class ParquetPushedExpressions {
      */
     private static FilterPredicate buildLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null) {
+        // isScaledDecimal only matters for a real value comparison; IS NULL/IS NOT NULL (value ==
+        // null) doesn't care about the column's scale, so it's exempt — see buildPredicate's callers.
+        if (ptype == null || (value != null && isScaledDecimal(ptype))) {
             return null;
         }
         // A temporal-annotated column reaching a LONG predicate has a unit transform between the block value and
@@ -548,7 +565,9 @@ final class ParquetPushedExpressions {
         // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and let
         // FilterExec apply the real semantics. Reached via a DECLARED long over a TIMESTAMP/DATE column or an
         // inferred TIME(MICROS) column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
-        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+        // IS NULL/IS NOT NULL (value == null) is exempt: null-checks operate on the null mask only, not on the
+        // decoded value, so there is no unit mismatch to guard against.
+        if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
@@ -588,7 +607,7 @@ final class ParquetPushedExpressions {
         if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
             return null;
         }
-        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
+        if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
         return orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
@@ -992,7 +1011,7 @@ final class ParquetPushedExpressions {
      */
     private static FilterPredicate translateLongIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null) {
+        if (ptype == null || isScaledDecimal(ptype)) {
             return null;
         }
         // Same unit-mismatch decline as buildLongPredicate — a temporal physical carries a unit transform the
@@ -1001,7 +1020,17 @@ final class ParquetPushedExpressions {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
-            case INT64 -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            case INT64 -> {
+                // parquet-mr's IN pruning takes ONE combined min/max over the whole set; a sign mix
+                // straddles the unsigned/signed halves and corrupts it, so decline only for a mix
+                // (same-sign sets, including all-negative, stay exact and pushable).
+                if (ParquetColumnDecoding.isUnsignedInt64(ptype)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() < 0)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() >= 0)) {
+                    yield null;
+                }
+                yield inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            }
             case INT32 -> {
                 List<Object> narrowed = new ArrayList<>();
                 for (Object v : rawValues) {

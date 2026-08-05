@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -148,7 +149,8 @@ public enum FeatureMetric {
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
-        TopNBy.class // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
+        TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
+        InsertEmptyBuckets.class // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
     );
 
     private Predicate<LogicalPlan> planCheck;
@@ -174,7 +176,7 @@ public enum FeatureMetric {
     }
 
     private static boolean explicitlyExcluded(LogicalPlan plan) {
-        return excluded.stream().anyMatch(x -> x.isInstance(plan));
+        return plan.skipTelemetry() || excluded.stream().anyMatch(x -> x.isInstance(plan));
     }
 
     public static boolean set(LogicalPlan plan, BitSet bitset, FeatureMetric metric) {

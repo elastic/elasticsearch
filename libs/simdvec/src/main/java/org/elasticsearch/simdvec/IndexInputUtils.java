@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.DirectAccessInput;
@@ -100,21 +101,20 @@ public final class IndexInputUtils {
      * Resolves {@code count} file ranges to native memory addresses and passes the
      * address array to the action. Tries {@link MemorySegmentAccessInput} first
      * (contiguous segment, pointer arithmetic), then {@link DirectAccessInput}
-     * ({@code withMemorySegmentSlices}). Returns {@code false} without invoking the
+     * ({@link DirectAccessInput#withSliceAddresses}). Returns {@code false} without invoking the
      * action if neither path is available - there is no heap fallback since native
      * addresses are required.
      *
      * <p><b>Memory safety:</b> The addresses in the {@code addrs} array are raw
-     * native pointers extracted via {@link MemorySegment#address()}. The native
-     * code that consumes them (e.g. a bulk-gather FFI downcall) will dereference
-     * these pointers directly - there is no scope or bounds check at that point.
-     * The backing memory must therefore remain valid for the entire duration of
-     * the {@code action}.
+     * native pointers written directly by the implementation. The native code that
+     * consumes them (e.g. a bulk-gather FFI downcall) will dereference these pointers
+     * directly, there is no scope or bounds check at that point. The backing memory must
+     * therefore remain valid for the entire duration of the {@code action}.
      *
      * <p>With the current callers, the backing memory is independently kept alive:
      * on the MSAI path, the arena is owned by the {@code IndexInput} which the
      * caller holds as a field; on the DAI path, cache regions are ref-counted by
-     * {@link DirectAccessInput#withMemorySegmentSlices} for the duration of the
+     * {@link DirectAccessInput#withSliceAddresses} for the duration of the
      * callback. However, that safety relies on implementation details of
      * {@code MMapDirectory} and {@code SharedBlobCacheService}. The JIT is also
      * permitted to discard local references after their last use (JLS 12.6.1),
@@ -150,13 +150,11 @@ public final class IndexInputUtils {
         MemorySegment addrs = addressesBufferSupplier.apply(count);
         assert addrs.byteSize() >= (long) count * ValueLayout.ADDRESS.byteSize()
             : "address buffer too small: " + addrs.byteSize() + " < " + ((long) count * ValueLayout.ADDRESS.byteSize());
-        if (in instanceof MemorySegmentAccessInput msai) {
-            return resolveFromMmap(msai, offsets, length, count, addrs, action);
-        }
-        if (in instanceof DirectAccessInput dai) {
-            return resolveFromDirectAccess(dai, offsets, length, count, addrs, action);
-        }
-        return false;
+        return switch (in) {
+            case MemorySegmentAccessInput msai -> resolveFromMmap(msai, offsets, length, count, addrs, action);
+            case DirectAccessInput dai -> resolveFromDirectAccess(dai, offsets, length, count, addrs, action);
+            default -> false;
+        };
     }
 
     private static boolean resolveFromMmap(
@@ -196,18 +194,19 @@ public final class IndexInputUtils {
         MemorySegment addrs,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        return dai.withMemorySegmentSlices(offsets, length, count, segments -> {
-            assert validateMemorySegments(segments, count, length);
-            for (int i = 0; i < count; i++) {
-                addrs.setAtIndex(ValueLayout.ADDRESS, i, segments[i]);
-            }
-            assert validateAddresses(addrs, count);
-            try {
-                action.accept(addrs);
-            } finally {
-                Reference.reachabilityFence(segments);
-            }
-        });
+        // The impl writes raw addresses into addrs and holds any required resources for the duration of action
+        try {
+            final CheckedConsumer<MemorySegment, IOException> finalAction = Assertions.ENABLED ? segAddrs -> {
+                assert validateAddresses(segAddrs, count);
+                action.accept(segAddrs);
+            } : action;
+            return dai.withSliceAddresses(offsets, length, count, addrs, finalAction);
+        } finally {
+            // Keep dai reachable across the native call. Even when an arena is owned
+            // by an object in the chain (as a live field), the JIT is permitted to discard local
+            // references after their last use (JLS 12.6.1). This fence makes the lifetime explicit.
+            Reference.reachabilityFence(dai);
+        }
     }
 
     private static boolean validateInputs(IndexInput in, long[] offsets, int length, int count) {
@@ -227,17 +226,6 @@ public final class IndexInputUtils {
         assert seg.isNative() : label + " is not a native (off-heap) segment";
         assert seg.scope().isAlive() : label + " scope is closed";
         assert seg.address() > 0 : label + " has non-positive address: 0x" + Long.toHexString(seg.address());
-        return true;
-    }
-
-    private static boolean validateMemorySegments(MemorySegment[] segments, int count, int length) {
-        assert segments.length >= count : "MemorySegment array too small: " + segments.length + " < " + count;
-        for (int i = 0; i < count; i++) {
-            final long segByteSize = segments[i].byteSize();
-            assert segments[i] != null : "null MemorySegment at index " + i;
-            assert segments[i].isNative() : "MemorySegment at index " + i + " is not native (off-heap)";
-            assert segByteSize >= length : "MemorySegment at index " + i + " too small: " + segByteSize + " < " + length;
-        }
         return true;
     }
 

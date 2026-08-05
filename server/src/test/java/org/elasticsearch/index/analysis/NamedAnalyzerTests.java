@@ -85,6 +85,11 @@ public class NamedAnalyzerTests extends ESTestCase {
             public AnalysisMode getAnalysisMode() {
                 return mode;
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         TokenFilterFactory[] tokenfilters = new TokenFilterFactory[] { tokenFilter };
         CharFilterFactory[] charFilters = new CharFilterFactory[0];

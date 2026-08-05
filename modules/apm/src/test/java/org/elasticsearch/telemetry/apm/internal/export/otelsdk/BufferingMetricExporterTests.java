@@ -69,7 +69,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
             .put("telemetry.metrics.buffer.ttl", "5m")
             .put(overrides)
             .build();
-        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider, 100, 200);
+        exporter = new BufferingMetricExporter(delegate, merged, bufferDir, () -> meterProvider, 100);
     }
 
     private CompletableResultCode exportAndWait(String name) {
@@ -84,7 +84,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertThat(counter("writes"), hasSize(1));
 
         delegate.setShouldFail(false);
-        safeSleep(300); // past the test-injected minFileAgeForRead (200ms)
+        safeSleep(200); // let the write window (100ms) expire so the reader can force-close and promote the file
         exportAndWait("trigger");
 
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
@@ -103,7 +103,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     public void testTtlExpiredFilesAreNotReplayed() throws Exception {
-        // TTL must be greater than the test-injected minFileAgeForRead (200ms)
+        // TTL must be greater than the write window (100ms) so the file is promoted before it expires for reads
         build(Settings.builder().put("telemetry.metrics.buffer.ttl", "300ms").build());
 
         delegate.setShouldFail(true);

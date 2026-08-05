@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -77,9 +78,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
     private ClusterService clusterService;
     private DestructiveOperations destructiveOperations;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initSecurityTransportResources() {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);

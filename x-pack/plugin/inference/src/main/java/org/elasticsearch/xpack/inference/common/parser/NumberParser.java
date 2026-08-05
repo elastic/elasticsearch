@@ -13,6 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.invalidTypeErrorMsg;
 
 public final class NumberParser {
@@ -42,6 +43,20 @@ public final class NumberParser {
         if (value != null && value <= 0) {
             throw new IllegalArgumentException(
                 mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
+            );
+        }
+    }
+
+    /**
+     * Validates that an optional integer service setting, when present, is strictly positive and less than or equal to the max value,
+     * throwing an {@link IllegalArgumentException} otherwise.
+     */
+    public static void validatePositiveIntegerLessThanOrEqualToMax(@Nullable Integer value, String settingName, int maxValue) {
+        validatePositiveInteger(value, settingName);
+
+        if (value != null && value > maxValue) {
+            throw new IllegalArgumentException(
+                mustBeLessThanOrEqualNumberErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value, maxValue)
             );
         }
     }

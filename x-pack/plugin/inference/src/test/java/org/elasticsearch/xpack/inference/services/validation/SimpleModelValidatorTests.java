@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.mockito.Mock;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -39,7 +40,7 @@ public class SimpleModelValidatorTests extends ESTestCase {
     @Mock
     private Model mockModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
 
     private SimpleModelValidator underTest;
 
@@ -65,7 +66,7 @@ public class SimpleModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceReturnsInferenceServiceResults() {
         mockCallToServiceIntegrationValidator(SparseEmbeddingResultsTests.createRandomResults());
-        verify(mockActionListener).onResponse(mockModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockModel && result.deploymentStarted() == false));
         verifyInteractions();
     }
 

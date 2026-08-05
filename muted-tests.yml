@@ -598,3 +598,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
   method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155916
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
+  issue: https://github.com/elastic/elasticsearch/issues/153406

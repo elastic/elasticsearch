@@ -79,8 +79,11 @@ public record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
+    boolean autoCalibrate,
     String directoryType,
-    DatasetConfig datasetConfig
+    DatasetConfig datasetConfig,
+    int numDeletedDocs,
+    long deleteSeed
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -110,6 +113,7 @@ public record TestConfiguration(
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
+    static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
@@ -122,7 +126,12 @@ public record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField AUTO_CALIBRATE_FIELD = new ParseField("auto_calibrate");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
+    static final ParseField NUM_DELETED_DOCS_FIELD = new ParseField("num_deleted_docs");
+    static final ParseField DELETE_SEED_FIELD = new ParseField("delete_seed");
+    static final ParseField EXACT_FIELD = new ParseField("exact");
+    static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -179,6 +188,7 @@ public record TestConfiguration(
             EARLY_TERMINATION_FIELD,
             ObjectParser.ValueType.VALUE_ARRAY
         );
+        PARSER.declareFieldArray(Builder::setPostFilter, (p, c) -> p.booleanValue(), POST_FILTER_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareFloatArray(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLongArray(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
@@ -193,7 +203,17 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareBoolean(Builder::setAutoCalibrate, AUTO_CALIBRATE_FIELD);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
+        PARSER.declareInt(Builder::setNumDeletedDocs, NUM_DELETED_DOCS_FIELD);
+        PARSER.declareLong(Builder::setDeleteSeed, DELETE_SEED_FIELD);
+        PARSER.declareFieldArray(Builder::setExact, (p, c) -> p.booleanValue(), EXACT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareFieldArray(
+            Builder::setExactQuantized,
+            (p, c) -> p.booleanValue(),
+            EXACT_QUANTIZED_FIELD,
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
     }
 
     public int numberOfSearchRuns() {
@@ -223,6 +243,12 @@ public record TestConfiguration(
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
+            new ParameterHelp(
+                "num_deleted_docs",
+                "int",
+                "Number of indexed documents to delete after indexing (0 by default). Uses delete_seed to pick which documents."
+            ),
+            new ParameterHelp("delete_seed", "long", "Random seed used to select which documents are deleted."),
             new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
             new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
             new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
@@ -255,6 +281,12 @@ public record TestConfiguration(
             new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
             new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
             new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
+            new ParameterHelp(
+                "auto_calibrate",
+                "boolean",
+                "ivf only: enable per-segment manifold calibration on merge (experimental; "
+                    + "requires sufficient vectors per segment for calibration to take effect)."
+            ),
             new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
             new ParameterHelp("k", "array[int]", "Search: top K results to return."),
             new ParameterHelp("visit_percentage", "array[double]", "IVF: percentage of IVF index to visit (0.0-100.0)."),
@@ -265,6 +297,17 @@ public record TestConfiguration(
             new ParameterHelp("filter_cache", "array[boolean]", "Search: whether filters are cached."),
             new ParameterHelp("early_termination", "array[boolean]", "Search: allow early termination when possible."),
             new ParameterHelp("seed", "array[long]", "Search: random seed used random filters."),
+            new ParameterHelp(
+                "exact",
+                "array[boolean]",
+                "Search: run exact (brute-force) search via DenseVectorQuery instead of the index's "
+                    + "approximate search, regardless of index_type."
+            ),
+            new ParameterHelp(
+                "exact_quantized",
+                "array[boolean]",
+                "Search: when exact is true, score against the codec's quantized representation " + "instead of raw full-precision vectors."
+            ),
             new ParameterHelp(
                 "search_params",
                 "array[object]",
@@ -406,6 +449,7 @@ public record TestConfiguration(
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
+        private List<Boolean> postFilter = List.of(Boolean.TRUE);
         private List<Float> filterSelectivity = List.of(1f);
         private List<Long> seed = List.of(1751900822751L);
         private KnnIndexTester.MergePolicyType mergePolicy = null;
@@ -418,8 +462,13 @@ public record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private boolean autoCalibrate = false;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
+        private int numDeletedDocs = 0;
+        private long deleteSeed = 1751900822751L;
+        private List<Boolean> exact = List.of(Boolean.FALSE);
+        private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -575,6 +624,11 @@ public record TestConfiguration(
             return this;
         }
 
+        public Builder setPostFilter(List<Boolean> postFilter) {
+            this.postFilter = postFilter;
+            return this;
+        }
+
         public Builder setFilterSelectivity(List<Float> filterSelectivity) {
             this.filterSelectivity = filterSelectivity;
             return this;
@@ -635,8 +689,33 @@ public record TestConfiguration(
             return this;
         }
 
+        public Builder setAutoCalibrate(boolean autoCalibrate) {
+            this.autoCalibrate = autoCalibrate;
+            return this;
+        }
+
         public Builder setDirectoryType(String directoryType) {
             this.directoryType = directoryType.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
+        public Builder setNumDeletedDocs(int numDeletedDocs) {
+            this.numDeletedDocs = numDeletedDocs;
+            return this;
+        }
+
+        public Builder setDeleteSeed(long deleteSeed) {
+            this.deleteSeed = deleteSeed;
+            return this;
+        }
+
+        public Builder setExact(List<Boolean> exact) {
+            this.exact = exact;
+            return this;
+        }
+
+        public Builder setExactQuantized(List<Boolean> exactQuantized) {
+            this.exactQuantized = exactQuantized;
             return this;
         }
 
@@ -849,6 +928,20 @@ public record TestConfiguration(
             if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
                 KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
+            if (autoCalibrate && indexType != KnnIndexTester.IndexType.IVF) {
+                throw new IllegalArgumentException("auto_calibrate is only supported when index_type is ivf");
+            }
+            if (exactQuantized.contains(Boolean.TRUE) && quantizeBits == null && indexType != KnnIndexTester.IndexType.IVF) {
+                throw new IllegalArgumentException("exact_quantized requires a quantized index; set quantize_bits or use index_type: ivf");
+            }
+            if (numDeletedDocs < 0) {
+                throw new IllegalArgumentException("num_deleted_docs must be >= 0, but got: " + numDeletedDocs);
+            }
+            if (numDeletedDocs >= numDocs) {
+                throw new IllegalArgumentException(
+                    "num_deleted_docs must be less than num_docs, but got num_deleted_docs=" + numDeletedDocs + " and num_docs=" + numDocs
+                );
+            }
 
             // length of the longest array parameter
             int longestParam = longestParameter();
@@ -878,7 +971,10 @@ public record TestConfiguration(
                     filterSelectivity.getFirst(),
                     filterCached.getFirst(),
                     earlyTermination.getFirst(),
-                    seed.getFirst()
+                    postFilter.getFirst(),
+                    seed.getFirst(),
+                    exact.getFirst(),
+                    exactQuantized.getFirst()
                 );
 
                 for (var so : searchParams) {
@@ -915,8 +1011,11 @@ public record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
+                autoCalibrate,
                 directoryType,
-                datasetConfig
+                datasetConfig,
+                numDeletedDocs,
+                deleteSeed
             );
         }
 
@@ -963,6 +1062,7 @@ public record TestConfiguration(
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
             builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+            builder.field(POST_FILTER_FIELD.getPreferredName(), postFilter);
             builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
             builder.field(SEED_FIELD.getPreferredName(), seed);
             builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
@@ -977,7 +1077,16 @@ public record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(AUTO_CALIBRATE_FIELD.getPreferredName(), autoCalibrate);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
+            if (numDeletedDocs > 0) {
+                builder.field(NUM_DELETED_DOCS_FIELD.getPreferredName(), numDeletedDocs);
+            }
+            if (deleteSeed != 1751900822751L) {
+                builder.field(DELETE_SEED_FIELD.getPreferredName(), deleteSeed);
+            }
+            builder.field(EXACT_FIELD.getPreferredName(), exact);
+            builder.field(EXACT_QUANTIZED_FIELD.getPreferredName(), exactQuantized);
             return builder.endObject();
         }
 
@@ -992,7 +1101,10 @@ public record TestConfiguration(
                 filterSelectivity.size(),
                 filterCached.size(),
                 earlyTermination.size(),
-                seed.size()
+                postFilter.size(),
+                seed.size(),
+                exact.size(),
+                exactQuantized.size()
             );
             return lengths.stream().max(Integer::compareTo).get();
         }
@@ -1009,7 +1121,10 @@ public record TestConfiguration(
                     filterSelectivity,
                     filterCached,
                     earlyTermination,
-                    seed
+                    postFilter,
+                    seed,
+                    exact,
+                    exactQuantized
                 )
             ).stream()
                 .map(
@@ -1023,9 +1138,13 @@ public record TestConfiguration(
                         (Float) params.get(6),
                         (Boolean) params.get(7),
                         (Boolean) params.get(8),
-                        (Long) params.get(9)
+                        (Boolean) params.get(9),
+                        (Long) params.get(10),
+                        (Boolean) params.get(11),
+                        (Boolean) params.get(12)
                     )
                 )
+                .filter(sp -> sp.exact() || sp.exactQuantized() == false)
                 .toList();
         }
 

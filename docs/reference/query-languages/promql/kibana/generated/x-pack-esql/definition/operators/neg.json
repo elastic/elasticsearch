@@ -33,6 +33,5 @@
   "examples" : [
     "-requests_total"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

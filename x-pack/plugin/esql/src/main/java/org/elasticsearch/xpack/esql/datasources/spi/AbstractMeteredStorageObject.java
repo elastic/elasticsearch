@@ -30,6 +30,11 @@ public abstract class AbstractMeteredStorageObject implements StorageObject {
         return counters.snapshot();
     }
 
+    @Override
+    public final void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        counters.attach(metrics, scheme);
+    }
+
     /**
      * Attaches {@code handler} to a native-async read {@code future} and returns the future. The
      * underlying client (the AWS SDK, {@code HttpClient}, the Azure reactive client) hands us a

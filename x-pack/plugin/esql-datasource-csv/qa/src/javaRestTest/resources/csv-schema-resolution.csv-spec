@@ -8,14 +8,19 @@
 // Under FIRST_FILE_WINS, the anchor (lex-smallest = multifile_ubn_a.csv) determines the schema:
 // [name:keyword, age:integer]. File B has 3 columns vs anchor's 2; with error_mode=skip_row the
 // reader skips File B's rows entirely (and emits one warning per skipped row plus a one-time summary).
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. Dataset names encode the WITH options
+// so the same name always carries the same settings.
 
 ffwTypedDivergentAllRows
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+FROM employees_multifile_ubn_ffw_skip
 | SORT name ASC;
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
@@ -26,12 +31,13 @@ bob          | 40
 ;
 
 ffwTypedDivergentCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+FROM employees_multifile_ubn_ffw_skip
 | STATS count = COUNT(*);
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
@@ -41,12 +47,13 @@ count:long
 ;
 
 ffwTypedDivergentFilterNonNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+FROM employees_multifile_ubn_ffw_skip
 | WHERE age IS NOT NULL
 | SORT name ASC;
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
@@ -68,12 +75,13 @@ bob          | 40
 // they are null-filled and the row is kept (one warning per null-filled field plus a one-time summary).
 
 ffwTypeDriftAllRows
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+FROM employees_type_drift_ffw_null
 | SORT id ASC;
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
@@ -88,12 +96,13 @@ id:integer | col:integer | note:keyword
 ;
 
 ffwTypeDriftFilterNonNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+FROM employees_type_drift_ffw_null
 | WHERE col IS NOT NULL
 | SORT id ASC;
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
@@ -106,12 +115,13 @@ id:integer | col:integer | note:keyword
 ;
 
 ffwTypeDriftCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*

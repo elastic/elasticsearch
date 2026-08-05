@@ -242,6 +242,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
+     */
+    protected boolean randomizeColumnarIdMode() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
@@ -300,6 +309,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        if (randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();

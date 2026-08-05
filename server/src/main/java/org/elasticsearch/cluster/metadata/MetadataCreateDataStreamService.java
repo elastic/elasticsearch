@@ -31,7 +31,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -40,6 +42,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -431,6 +434,51 @@ public class MetadataCreateDataStreamService {
             );
         }
         return currentState;
+    }
+
+    /**
+     * Creates a past backing index with the requested start and end time for the specified data stream
+     * and updates the cluster state accordingly. Might throw ResourceAlreadyExistsException if the
+     * resource already exists, the caller needs to handle this.
+     */
+    public ClusterState createPastBackingIndex(
+        ClusterState currentState,
+        ProjectId projectId,
+        RerouteBehavior rerouteBehavior,
+        ActionListener<Void> rerouteListener,
+        DataStream dataStream,
+        String backingIndexName,
+        Instant startTime,
+        Instant endTime
+    ) throws Exception {
+        final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+        assert dataStream.isSystem() == false : "Automatic backing index creation is not supported for system time series data streams.";
+        final ComposableIndexTemplate template = dataStream.getEffectiveIndexTemplate(projectMetadata);
+        CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
+            "initialize_past_backing_index",
+            projectId,
+            backingIndexName,
+            backingIndexName
+        ).dataStreamName(dataStream.getName()).setMatchingTemplate(template);
+
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(startTime))
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(endTime))
+            .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, endTime.toEpochMilli())
+            .put(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+        if (isDslOnlyMode == false) {
+            // If the index is managed by ILM, it will skip rollover
+            settings.put("index.lifecycle.indexing_complete", true);
+        }
+        createIndexRequest.settings(settings.build());
+        return metadataCreateIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexRequest,
+            false,
+            (builder, indexMetadata) -> builder.put(dataStream.unsafeAddBackingIndex(indexMetadata.getIndex())),
+            rerouteBehavior,
+            rerouteListener
+        );
     }
 
     public static ClusterState createFailureStoreIndex(

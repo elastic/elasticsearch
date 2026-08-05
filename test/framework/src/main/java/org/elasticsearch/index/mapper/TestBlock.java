@@ -135,7 +135,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) {
                         for (int i = 0; i < count; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), bytesRefLengths);
+                            BytesRef ref = new BytesRef(bytes, i * bytesRefLengths, bytesRefLengths);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;
@@ -492,6 +492,11 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedSize) {
                 return new LongRangeBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.DoubleRangeBuilder doubleRangeBuilder(int expectedSize) {
+                return new DoubleRangeBuilder(expectedSize);
             }
 
             @Override
@@ -1043,6 +1048,77 @@ public class TestBlock implements BlockLoader.Block {
 
             @Override
             public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    }
+
+    public static class DoubleRangeBuilder implements BlockLoader.DoubleRangeBuilder {
+        private final DoubleBuilder from;
+        private final DoubleBuilder to;
+
+        DoubleRangeBuilder(int expectedSize) {
+            from = new DoubleBuilder(expectedSize);
+            to = new DoubleBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                Object f = fromBlock.values.get(i);
+                if (f == null) {
+                    values.add(null);
+                } else {
+                    values.add(List.of(f, toBlock.values.get(i)));
+                }
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            from.appendNull();
+            to.appendNull();
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class DoubleBuilder extends TestBlock.Builder implements BlockLoader.DoubleBuilder {
+            private DoubleBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.DoubleBuilder appendDouble(double value) {
                 add(value);
                 return this;
             }

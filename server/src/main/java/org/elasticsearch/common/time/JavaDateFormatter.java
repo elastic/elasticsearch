@@ -338,7 +338,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj.getClass().equals(this.getClass()) == false) {
+        if (obj == null || obj.getClass().equals(this.getClass()) == false) {
             return false;
         }
         JavaDateFormatter other = (JavaDateFormatter) obj;

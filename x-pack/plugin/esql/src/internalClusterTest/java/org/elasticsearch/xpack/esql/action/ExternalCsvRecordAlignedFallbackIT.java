@@ -9,22 +9,19 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -34,23 +31,11 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Forces many macro splits via {@code target_split_size} and validates exact row accounting
  * across split boundaries in the single-threaded fallback path.
  */
-public class ExternalCsvRecordAlignedFallbackIT extends AbstractEsqlIntegTestCase {
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
+public class ExternalCsvRecordAlignedFallbackIT extends AbstractExternalDataSourceIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        return plugins;
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
@@ -59,14 +44,11 @@ public class ExternalCsvRecordAlignedFallbackIT extends AbstractEsqlIntegTestCas
     }
 
     public void testCountMinMaxWithMacroSplitsInSingleThreadFallback() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-
         int rows = 20_000;
         Path csvFile = writeCsvFile(rows);
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"target_split_size\":\"1kb\"} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+            String dataset = registerDataset("csv_macro_splits", StoragePath.fileUri(csvFile), Map.of("target_split_size", "1kb"));
+            String query = "FROM " + dataset + " | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);

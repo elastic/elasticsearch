@@ -126,6 +126,18 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(((Map<String, String>) containsAssertion.getExpectedValue()).get("someKey"), equalTo("someValue"));
     }
 
+    public void testParseMatchesInAnyOrder() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ tags: ['b', 'a'] }");
+
+        MatchesInAnyOrderAssertion matchesInAnyOrderAssertion = MatchesInAnyOrderAssertion.parse(parser);
+
+        assertThat(matchesInAnyOrderAssertion, notNullValue());
+        assertThat(matchesInAnyOrderAssertion.getField(), equalTo("tags"));
+        assertThat(matchesInAnyOrderAssertion.getExpectedValue(), instanceOf(List.class));
+        List<?> strings = (List<?>) matchesInAnyOrderAssertion.getExpectedValue();
+        assertThat(strings, transformedItemsMatch(Object::toString, contains("b", "a")));
+    }
+
     @SuppressWarnings("unchecked")
     public void testParseMatchSourceValues() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ _source: { responses.0.hits.total: 3, foo: bar  }}");

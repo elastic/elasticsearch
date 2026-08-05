@@ -76,7 +76,7 @@ public class ParsedDocument {
      */
     // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
-        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, false, id, null /* ignored */);
     }
 
     /**
@@ -89,6 +89,7 @@ public class ParsedDocument {
         SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
         boolean useDocValuesSkipper,
         boolean useSyntheticId,
+        boolean useColumnarId,
         String id,
         BytesRef uid
     ) {
@@ -121,9 +122,15 @@ public class ParsedDocument {
             );
             document.add(field);
 
+        } else if (useColumnarId) {
+            // When uid is provided (slice-enabled indices) the tombstone identity is the compound (slice, id) term, so store that
+            document.add(uid != null ? ProvidedIdFieldMapper.columnarIdField(uid) : ProvidedIdFieldMapper.columnarIdField(id));
         } else {
-            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
-            document.add(IdFieldMapper.standardIdField(id));
+            if (uid != null) {
+                document.add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
+            } else {
+                document.add(IdFieldMapper.standardIdField(id));
+            }
         }
         return new ParsedDocument(
             versionField,

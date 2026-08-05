@@ -36,6 +36,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -155,11 +156,14 @@ public final class StatelessDirectoryFactory {
                 new DefaultBuiltInExecutorBuilders(),
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
             );
+            var clusterService = TestUtils.mockClusterService(nodeSettings);
             var cacheService = new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 nodeSettings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                clusterService,
+                TestUtils.mockIndicesService(clusterService),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -174,7 +178,8 @@ public final class StatelessDirectoryFactory {
                 cacheService,
                 cacheBlobReaderService,
                 MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                shardId
+                shardId,
+                false
             );
 
             var blobStore = new FsBlobStore(8192, dataPath, true);

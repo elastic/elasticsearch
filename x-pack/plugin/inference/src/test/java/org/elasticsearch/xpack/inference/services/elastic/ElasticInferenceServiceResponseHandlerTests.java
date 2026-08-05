@@ -133,15 +133,10 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testCheckForFailureStatusCode_Throws_WithErrorMessage() {
+    public void testHandleFailureStatusCode_Throws_WithErrorMessage() {
         var exception = expectThrows(
             RetryException.class,
-            () -> callCheckForFailureStatusCode(
-                failureTestCase.inputStatusCode,
-                failureTestCase.errorMessage,
-                "id",
-                failureTestCase.headers
-            )
+            () -> callHandleFailureStatusCode(failureTestCase.inputStatusCode, failureTestCase.errorMessage, "id", failureTestCase.headers)
         );
         assertThat(exception.shouldRetry(), is(failureTestCase.shouldRetry));
         assertThat(exception.getCause().getMessage(), containsString(failureTestCase.errorMessage));
@@ -151,15 +146,11 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         }
     }
 
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, null, "id", Map.of());
-    }
-
-    public void testCheckForFailureStatusCode_AlwaysAppliesRetryAfterHeaderWhenPresent() {
+    public void testHandleFailureStatusCode_AlwaysAppliesRetryAfterHeaderWhenPresent() {
         final String retryAfter = String.valueOf(randomIntBetween(1, 1000));
         var exception = expectThrows(
             RetryException.class,
-            () -> callCheckForFailureStatusCode(
+            () -> callHandleFailureStatusCode(
                 randomIntBetween(300, 599),
                 randomAlphaOfLength(10),
                 "id",
@@ -169,7 +160,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         assertCauseHasRetryHeader(exception, retryAfter);
     }
 
-    private static void callCheckForFailureStatusCode(
+    private static void callHandleFailureStatusCode(
         int statusCode,
         @Nullable String errorMessage,
         String modelId,
@@ -192,7 +183,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new ElasticInferenceServiceResponseHandler("", (request, result) -> null);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        handler.handleFailureStatusCode(mockRequest, httpResult);
     }
 
     private static void givenResponseHasHeaders(HttpResponse httpResponse, Map<String, String> headersMap) {

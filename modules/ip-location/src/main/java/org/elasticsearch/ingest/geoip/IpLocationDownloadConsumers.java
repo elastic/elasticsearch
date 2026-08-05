@@ -145,16 +145,9 @@ public final class IpLocationDownloadConsumers implements Metadata.ProjectCustom
     public static boolean isRelevantForNode(IpLocationConsumer consumer, DiscoveryNode localNode) {
         return switch (consumer) {
             case INGEST -> localNode.isIngestNode();
-            // ES|QL physical plans split into a coordinator plan and a data-node plan at the ExchangeExec
-            // boundary: the data-node plan runs on data-containing nodes; the coordinator plan runs on
-            // whichever node received the query. We approximate this with role-based scoping: any node
-            // that can contain data, plus dedicated coordinating-only nodes (no roles). This may
-            // over-stage on coordinating-only nodes that never coordinate an IP-location query, and
-            // under-stage on dedicated ingest-only nodes that happen to coordinate one.
-            // TODO: when ES|QL IP_LOCATION lands, replace this approximation with a coordinator-driven
-            // registration overload (e.g. requestDownloads(projectId, consumer, nodeId)) so the
-            // coordinator that actually built a plan registers itself precisely.
-            case ESQL -> localNode.canContainData() || localNode.getRoles().isEmpty();
+            // Any node can coordinate an ES|QL query, and IpLocationExec can run on both the
+            // coordinator plan and data-node plan, so all nodes need databases staged.
+            case ESQL -> true;
         };
     }
 

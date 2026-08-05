@@ -138,7 +138,14 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
@@ -204,7 +211,14 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, true)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
@@ -279,7 +293,14 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             var maxAggregatorChannels = mode.isInputPartial() ? List.of(4, 5) : List.of(1);
 
             return randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(

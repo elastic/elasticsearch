@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
@@ -213,7 +214,7 @@ public class MachineLearningTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
-            .put(MachineLearning.NLP_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
             .build();
         MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
@@ -237,7 +238,7 @@ public class MachineLearningTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
-            .put(MachineLearning.NLP_ENABLED.getKey(), false)
+            .put(XPackSettings.NLP_ENABLED.getKey(), false)
             .build();
         MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {

@@ -35,6 +35,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Objects;
@@ -394,6 +395,15 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeString(char[] value, int offset, int len) throws IOException {
         try {
             generator.writeString(value, offset, len);
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    @Override
+    public void writeString(Reader reader, int len) throws IOException {
+        try {
+            generator.writeString(reader, len);
         } catch (JsonGenerationException e) {
             throw new XContentGenerationException(e);
         }

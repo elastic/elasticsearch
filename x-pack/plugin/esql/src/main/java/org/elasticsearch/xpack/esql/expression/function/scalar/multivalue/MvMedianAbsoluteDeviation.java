@@ -16,12 +16,15 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -38,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSu
 /**
  * Reduce a multivalued field to a single valued field containing the median absolute deviation of the values.
  */
-public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
+public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvMedianAbsoluteDeviation",
@@ -49,7 +52,9 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         .name("mv_median_absolute_deviation");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Calculates the median absolute deviation of a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the median absolute deviation."
             + "\n\n"
             + "It is calculated as the median of each data point’s deviation from the median of "

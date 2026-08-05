@@ -30,6 +30,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
@@ -68,7 +70,10 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -568,6 +573,106 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
     }
 
+    public void testDefaultFieldsStandardModeReturnsWildcard() {
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
+            Map.of()
+        );
+        assertThat(context.defaultFields(), equalTo(List.of("*")));
+    }
+
+    public void testDefaultFieldsColumnarModeReturnsOnlyIndexedFields() {
+        MappedFieldType indexedField = new MockFieldMapper.FakeFieldType("indexed");
+        MappedFieldType nonIndexedField = new MappedFieldType("non_indexed", IndexType.NONE, false, Collections.emptyMap()) {
+            @Override
+            public String typeName() {
+                return "fake_non_indexed";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        List<FieldMapper> mappers = List.of(new MockFieldMapper(indexedField), new MockFieldMapper(nonIndexedField));
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, Collections.emptyList(), IndexMode.COLUMNAR);
+
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
+        SearchExecutionContext context = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            mappingLookup,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
+
+        assertThat(context.defaultFields(), containsInAnyOrder("indexed"));
+    }
+
+    public void testDefaultFieldsColumnarModeWithExplicitDefaultField() {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, MappingLookup.EMPTY, null);
+        SearchExecutionContext context = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
+
+        assertThat(context.defaultFields(), equalTo(List.of("explicit_field")));
+    }
+
     // ------------------------------------------------------------------
     // addCircuitBreakerMemory reservation-swap semantics (#147428)
     // ------------------------------------------------------------------
@@ -589,13 +694,15 @@ public class SearchExecutionContextTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
 
-        // Charge the pre-flight reservation.
-        context.addCircuitBreakerMemory(1000L, "reservation");
+        context.addCircuitBreakerMemory(1000L, "wildcard");
         assertEquals(1000L, breaker.used);
         assertEquals(1000L, context.getQueryConstructionMemoryUsed());
 
-        // Swap the reservation for the (smaller) actual charge.
-        context.addCircuitBreakerMemory(250L, 1000L, "actual");
+        context.addCircuitBreakerMemory(0L, 1000L, "wildcard");
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+
+        context.addCircuitBreakerMemory(250L, "query");
         assertEquals(250L, breaker.used);
         assertEquals(250L, context.getQueryConstructionMemoryUsed());
 
@@ -607,8 +714,8 @@ public class SearchExecutionContextTests extends ESTestCase {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
 
-        context.addCircuitBreakerMemory(100L, "reservation");
-        context.addCircuitBreakerMemory(500L, 100L, "actual");
+        context.addCircuitBreakerMemory(100L, "wildcard");
+        context.addCircuitBreakerMemory(500L, 100L, "wildcard");
 
         assertEquals(500L, breaker.used);
         assertEquals(500L, context.getQueryConstructionMemoryUsed());
@@ -683,6 +790,35 @@ public class SearchExecutionContextTests extends ESTestCase {
         context.releaseQueryConstructionMemory();
         assertEquals(0L, breaker.used);
         assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleaseDoesNotDriveUsedNegativeAcrossLabels() {
+        Settings breakerSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10mb")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(breakerSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            breakerSettings,
+            Collections.emptyList(),
+            clusterSettings
+        );
+        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+        long baseline = breaker.getUsed();
+
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        long reservation = 1_000L;
+        long actual = 500L;
+        context.addCircuitBreakerMemory(reservation, "regexp");
+        context.addCircuitBreakerMemory(0L, reservation, "regexp");
+        context.addCircuitBreakerMemory(actual, "query");
+
+        context.releaseQueryConstructionMemory();
+
+        assertEquals("breaker used must return to baseline after release", baseline, breaker.getUsed());
+        assertEquals("per-request pool must be drained on release", 0L, context.getQueryConstructionMemoryUsed());
     }
 
     /**

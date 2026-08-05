@@ -8,6 +8,13 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
+Map<String, String> sqlVersions = [
+  jline: "3.21.0",
+  csvjdbc: "1.0.34",
+  h2: "1.4.197",
+  h2gis: "1.5.0"
+]
+
 esplugin {
   name = 'x-pack-sql'
   description = 'The Elasticsearch plugin that powers SQL for Elasticsearch'
@@ -15,15 +22,7 @@ esplugin {
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
-ext {
-  // SQL dependency versions
-  jlineVersion = "3.21.0"
-
-  // SQL test dependency versions
-  csvjdbcVersion = "1.0.34"
-  h2Version = "1.4.197"
-  h2gisVersion = "1.5.0"
-}
+extensions.extraProperties.set('sqlVersions', sqlVersions)
 
 configurations {
   // Bundles the sql-cli.jar into the distribution

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -42,7 +43,7 @@ import java.util.function.Predicate;
 
 /**
  * Perform filters as early as possible in the logical plan by pushing them past certain plan nodes (like {@link Eval},
- * {@link RegexExtract}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
+ * {@link RegexExtract}, {@link Enrich}, {@link Highlight}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
  * Ideally, the filter ends up all the way down at the data source and can be turned into a Lucene query.
  * When pushing down past nodes, only conditions that do not depend on fields created by those nodes are pushed down; if the condition
  * consists of {@code AND}s, we split out the parts that do not depend on the previous node.
@@ -106,6 +107,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
             plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
+        } else if (child instanceof Highlight highlight) {
+            var attributes = AttributeSet.of(highlight.generatedAttributes());
+            plan = maybePushDownPastUnary(filter, highlight, attributes::contains, NO_OP);
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
@@ -206,7 +210,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Join(left, Filter(LocalRelation)) which the mapper does not know how to lower to a
             // HashJoinExec, and a LocalRelation has fixed in-memory data so the pushdown's I/O
             // motivation does not apply. The duplicate filter above the join already enforces the
-            // predicate. The only producer today is SemiJoin.inlineAsHashJoin's sentinel filter
+            // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
             if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);

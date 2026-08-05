@@ -68,10 +68,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
     private TransportGetAllocationStatsAction action;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         startTimeMillis = 0L;
         allocationStatsCacheTTL = TimeValue.timeValueMinutes(1);
         threadPool = new ControlledRelativeTimeThreadPool(TransportClusterAllocationExplainActionTests.class.getName(), startTimeMillis);
@@ -100,10 +98,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         threadPool.shutdown();
         clusterService.close();
         transportService.close();

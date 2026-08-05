@@ -5,21 +5,154 @@
 //                           rows: alice(30, 85.5), bob(40, 92.0)
 //   parquet_ubn_b.parquet — schema [age:long, name:keyword, city:keyword]
 //                           rows: charlie(50, paris), dave(60, london)
+// The mixed-temporal (ts:date/date_nanos) and lossy-representation (code:integer/keyword) columns live in the
+// SEPARATE {{employees_multifile_temporal}} and {{employees_multifile_type_drift}} fixtures, used only by the
+// parquetUbnMixedTemporal* / parquetUbnMixedRepresentation tests below, so they do not perturb this fixture's
+// first-file-wins and widened-column tests.
 //
-// Note: Tests that read the widened `age` column under UNION_BY_NAME (which would require
-// casting int32 → int64 across files A and B) hit a current engine limitation around
-// cross-file column-type widening and are intentionally excluded here. The UBN tests below
-// only project columns that do not require widening.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. ParquetFormatSpecIT
+// registers the dataset on every storage backend and runs the FROM query verbatim. The dataset name encodes
+// the schema_resolution option so the same name always carries the same settings.
+//
+// The widened `age` cases below intentionally verify cross-file int32 -> int64 reconciliation.
 
 // ===== UNION_BY_NAME on divergent Parquet schemas =====
 // Unified schema: name:keyword, age:long (widened), score:double (null in B), city:keyword (null in A)
-// Only tests that project columns NOT requiring cross-file widening are included.
 
-parquetUbnCount
+// Cross-file column-type widening (C3): age is int32 in file A and int64 in file B; the union
+// widens both to long. Projecting age must read all rows with correct values (file A's int32 is
+// cast up to long), not fail with "Failed to map page".
+parquetUbnProjectWidenedColumn
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+alice        | 30
+bob          | 40
+charlie      | 50
+dave         | 60
+;
+
+parquetUbnAggregateWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| STATS total = SUM(age);
+
+total:long
+180
+;
+
+// Unfiltered warm MIN/MAX over the widened age (int32 {30,40} in file A, int64 {50,60} in file B,
+// unified to long). Exercises the source-level stat fold (aggregateFileStatistics), which reconciles
+// each file's per-column stats to the unified type BEFORE folding -- MIN/MAX served from stats must
+// equal a full scan, never a unit/representation-blind mix across files.
+parquetUbnMinMaxWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| STATS lo = MIN(age), hi = MAX(age);
+
+lo:long | hi:long
+30      | 60
+;
+
+// Filtered warm MIN/MAX over the widened age: exercises the split-filter classifier + filtered stat
+// merge on footer splits, which read per-file (file-local-typed) stats reconciled to the unified type.
+parquetUbnFilteredMinMaxWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE age > 45
+| STATS lo = MIN(age), hi = MAX(age);
+
+lo:long | hi:long
+50      | 60
+;
+
+// Mixed-temporal warm MIN/MAX: ts is DATETIME (epoch-millis) in file A {2,5} and DATE_NANOS (epoch-nanos) in
+// file B {9e6,8e6}, widened by union_by_name to DATE_NANOS. File A's stats are rescaled millis->nanos ONCE at
+// the source/split boundary (2->2e6, 5->5e6), so MIN=2e6ns, MAX=9e6ns. A DOUBLE-rescale (the removed merge-side
+// rescale re-applying ×1e6 to already-normalized nanos stats) would serve MIN=8e6ns (8000000) — this test
+// pins the single-rescale correctness.
+parquetUbnMixedTemporalMinMax
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_temporal_union
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;
+
+// Filtered variant: the WHERE routes the aggregate through the split-filter classifier + filtered stat merge
+// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. id>0 matches
+// every row, so the extrema equal the full min/max.
+parquetUbnMixedTemporalFilteredMinMax
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_temporal_union
+| WHERE id > 0
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;
+
+// Representation safe-miss (B4): code is INTEGER in file A {2,9} and KEYWORD in file B {10,11}, widened by
+// union_by_name to KEYWORD. A numeric-blind warm serve would give MIN "2" / MAX "11"; normalizeStatsToReconciled
+// poisons the numeric extremum (numeric -> KEYWORD is not lexicographically servable), so the aggregate
+// safe-misses to a scan, which returns the correct lexicographic extrema (MIN "10" since '1'<'2', MAX "9").
+parquetUbnMixedRepresentationMinMax
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_type_drift_union
+| STATS lo = MIN(code), hi = MAX(code);
+warningRegex:Column \[code\] widened to keyword:.*distinct types: \[integer, keyword\]
+warningRegex:Schema reconciliation widened columns to keyword due to cross-file type disagreement.*
+
+lo:keyword | hi:keyword
+10         | 9
+;
+
+parquetUbnFilterWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE age > 45
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+charlie      | 50
+dave         | 60
+;
+
+parquetUbnCount
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
 | STATS count = COUNT(*);
 
 count:long
@@ -27,10 +160,11 @@ count:long
 ;
 
 parquetUbnProjectPruning
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC;
 
@@ -47,10 +181,11 @@ dave         | london
 // so the entire column is returned as null with a warning, score is missing → null.
 
 parquetFfwAllRows
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
@@ -63,10 +198,11 @@ dave         | null        | null
 ;
 
 parquetFfwCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
@@ -76,10 +212,11 @@ count:long
 ;
 
 parquetFfwFilterAnchorOnly
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | WHERE score IS NOT NULL
 | KEEP name, score
 | SORT name ASC;
@@ -89,5 +226,68 @@ warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk
 name:keyword | score:double
 alice        | 85.5
 bob          | 92.0
+;
+
+// ===== Cross-file column-order reconciliation (C4) =====
+// Uses {{x_multifile_perm}} which resolves to multifile_perm/*.parquet.
+// Two fixture files, same three columns in different physical order, distinct types so a swap
+// cannot pass silently:
+//   parquet_perm_a.parquet — schema [p:integer, q:keyword, r:double]
+//                            rows: (1, alpha, 1.5), (2, beta, 2.5)
+//   parquet_perm_b.parquet — schema [r:double, q:keyword, p:integer]   (columns reversed)
+//                            rows: (3, gamma, 3.5), (4, delta, 4.5)
+// Under union_by_name the unified schema adopts the column order of the first-listed file
+// (glob listing is sorted, so parquet_perm_a). The other file's physical order differs; every
+// column value must still land under its own name (no swap), including the reversed file.
+
+parquetPermThreeColumnReorder
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+1         | alpha     | 1.5
+2         | beta      | 2.5
+3         | gamma     | 3.5
+4         | delta     | 4.5
+;
+
+// Order invariance: projecting in the reverse of the unified column order must not disturb the
+// first-listed file's rows (guards the "unified order happens to be identity" masking).
+parquetPermReversedProjection
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| KEEP r, q, p
+| SORT p ASC;
+
+r:double | q:keyword | p:integer
+1.5      | alpha     | 1
+2.5      | beta      | 2
+3.5      | gamma     | 3
+4.5      | delta     | 4
+;
+
+// Reversed-file row isolation: filter selects only the reversed file's rows, confirming its
+// values are correct per column after reconciliation.
+parquetPermNonAnchorRows
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM reorder_multifile
+| WHERE p > 2
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+3         | gamma     | 3.5
+4         | delta     | 4.5
 ;
 

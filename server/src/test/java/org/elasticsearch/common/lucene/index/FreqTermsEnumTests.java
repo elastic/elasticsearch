@@ -61,9 +61,7 @@ public class FreqTermsEnumTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void buildIndexAndReferenceData() throws Exception {
         referenceAll = new HashMap<>();
         referenceNotDeleted = new HashMap<>();
         referenceFilter = new HashMap<>();
@@ -157,10 +155,8 @@ public class FreqTermsEnumTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void closeIndexResources() throws Exception {
         IOUtils.close(reader, iw, iw.getDirectory());
-        super.tearDown();
     }
 
     public void testAllFreqs() throws Exception {

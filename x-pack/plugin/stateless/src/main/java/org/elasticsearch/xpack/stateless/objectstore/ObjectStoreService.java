@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -48,6 +49,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -269,10 +271,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      */
     public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
         "stateless.object_store.upload_hot_threads_log_interval",
-        TimeValue.timeValueSeconds(30L),
+        TimeValue.ZERO,
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * Translog uploads that exceed this threshold are logged at WARN instead of DEBUG level.
+     */
+    public static final Setting<TimeValue> OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.object_store.slow_translog_upload_log_threshold",
+        TimeValue.timeValueMillis(20_000),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
     );
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
@@ -299,6 +311,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private final boolean concurrentMultipartUploads;
     private final boolean cacheSearchRecoveryBcc;
+
+    private final long slowTranslogUploadLogThresholdMillis;
 
     public ObjectStoreService(
         Settings settings,
@@ -330,6 +344,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.permits = new Semaphore(0);
         this.concurrentMultipartUploads = OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS.get(settings);
         this.cacheSearchRecoveryBcc = CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING.get(settings);
+        this.slowTranslogUploadLogThresholdMillis = OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.get(settings).getMillis();
     }
 
     @Override
@@ -645,11 +660,25 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
+    private boolean isRunning() {
+        return lifecycleState() == Lifecycle.State.STARTED;
+    }
+
     private void ensureRunning() {
-        final Lifecycle.State state = lifecycleState();
-        if (state == Lifecycle.State.INITIALIZED || state == Lifecycle.State.CLOSED) {
-            throw new IllegalStateException("Object store service is not running [" + state + ']');
+        if (isRunning() == false) {
+            throw new IllegalStateException("Object store service is not running [" + lifecycleState() + ']');
         }
+    }
+
+    /**
+     * Acquires a permit for the lifetime of a copy task so that {@link #doClose()} blocks until all in-flight
+     * copies have completed before closing the blob store. The returned releasable must be closed when the copy
+     * finishes. Throws {@link IllegalStateException} if the service is not running.
+     */
+    public Releasable acquireCopyPermit() {
+        ensureRunning();
+        permits.acquireUninterruptibly();
+        return Releasables.releaseOnce(permits::release);
     }
 
     /**
@@ -741,7 +770,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 }
             }
         } catch (Exception e) {
-            assert false : "enqueue task failed: " + e;
+            // Enqueueing can fail once the service is shutting down while uploads are still in flight: notify the listener so callers
+            // release the references they hold (e.g. commit refs) rather than leaking them.
+            assert isRunning() == false : "enqueue task failed while object store service is running: " + e;
             listener.onFailure(e);
         }
     }
@@ -836,7 +867,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewBlobStoreCacheDirectoryForWarming();
+        var dir = directory.createNewBlobStoreCacheDirectoryForMetadataRead();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -1285,18 +1316,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     // only used for asserts
                     Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
                     while (commitsIterator.hasNext()) {
-                        var referencedCompoundCommit = commitsIterator.next();
+                        // iterator returns all the CCs in the blob, not just the referenced ones, but we filter them later
+                        var compoundCommit = commitsIterator.next();
                         assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
-                        var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
+                        var commitInternalFiles = Sets.intersection(compoundCommit.internalFiles(), referencedFiles);
                         if (commitInternalFiles.isEmpty() == false) {
                             referencedCCsConsumer.accept(
                                 new StatelessCompoundCommitReferenceWithInternalFiles(
-                                    new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
+                                    new StatelessCompoundCommitReference(compoundCommit, referencedBlob, offsetInBlob),
                                     commitInternalFiles
                                 )
                             );
                         }
-                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes());
+                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
                         if (Assertions.ENABLED) {
                             assert Sets.intersection(referencedInternalFiles, commitInternalFiles).isEmpty()
                                 : "some commits contain the same internal file names between them";
@@ -1409,15 +1441,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
-            var after = threadPool.relativeTimeInMillis();
-            logger.debug(
-                () -> format(
-                    "translog file %s of size [%s] bytes uploaded in [%s] ms",
-                    blobContainer.path().add(fileName),
-                    reference.length(),
-                    TimeValue.timeValueNanos(after - before).millis()
-                )
+            var uploadDuration = threadPool.relativeTimeInMillis() - before;
+
+            final Supplier<String> logMessage = () -> format(
+                "translog file %s of size [%d] bytes uploaded in [%d] ms",
+                blobContainer.path().add(fileName),
+                reference.length(),
+                uploadDuration
             );
+
+            if (uploadDuration >= slowTranslogUploadLogThresholdMillis) {
+                logger.warn(logMessage);
+            } else {
+                logger.debug(logMessage);
+            }
+
             listener.onResponse(null);
         }
 
@@ -1619,7 +1657,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             (offset, length) -> new LocalIOInputStream(
                                 virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
                             ),
-                            false
+                            false,
+                            // Ensure that one large upload doesn't starve other uploads
+                            new ThrottledTaskRunner(
+                                "bcc-concurrent-multipart-upload",
+                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                            ).asExecutor()
                         );
                     } finally {
                         virtualBatchedCompoundCommit.decRef();

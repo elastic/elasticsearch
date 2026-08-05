@@ -83,6 +83,11 @@ public @interface FunctionInfo {
     int depthOffset() default 0;
 
     /**
+     * A verb-first one-liner (~20 words) that opens each function reference page and can be reused to compile list pages.
+     */
+    String briefSummary() default "";
+
+    /**
      * The position the function can appear in the language.
      */
     FunctionType type() default FunctionType.SCALAR;

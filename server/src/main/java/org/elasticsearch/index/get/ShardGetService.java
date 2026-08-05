@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -28,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
@@ -146,6 +150,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult mget(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -158,7 +163,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,
@@ -191,7 +196,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            final Uid uid = Uid.create(indexSettings.isSliceEnabled(), id, routing);
+            var engineGet = new Engine.Get(realtime, realtime, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm);
@@ -271,6 +277,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult getFromTranslog(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -282,7 +289,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,
@@ -297,10 +304,16 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
+    public GetResult getForUpdate(
+        String id,
+        @Nullable String routing,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext
+    ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,
@@ -458,6 +471,24 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     metadataFields = new HashMap<>();
                 }
                 metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
+            }
+        }
+
+        // A slice-enabled index keeps routing internal: it never exposes _routing and surfaces the slice (stored as
+        // routing doc values, not a stored field) top-level as the _slice metadata field instead, mirroring search.
+        if (indexSettings.isSliceEnabled()) {
+            if (metadataFields == null || metadataFields.containsKey(SliceIndexing.FIELD_NAME) == false) {
+                SortedDocValues routingDocValues = DocValues.getSorted(docIdAndVersion.reader, RoutingFieldMapper.NAME);
+                if (routingDocValues.advanceExact(docIdAndVersion.docId)) {
+                    String sliceValue = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+                    if (metadataFields == null) {
+                        metadataFields = new HashMap<>();
+                    }
+                    metadataFields.put(SliceIndexing.FIELD_NAME, new DocumentField(SliceIndexing.FIELD_NAME, List.of(sliceValue)));
+                }
+            }
+            if (metadataFields != null) {
+                metadataFields.remove(RoutingFieldMapper.NAME);
             }
         }
 

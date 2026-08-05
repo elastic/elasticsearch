@@ -23,6 +23,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class IRDecorations {
@@ -362,6 +363,26 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * describes the per-context heuristic allocation limit in bytes for a method, or {@code -1} when tracking is disabled.
+     * Mirrors {@link IRDMaxLoopCounter}: attached to every protected function so allocation-tracking bytecode can read the
+     * limit without reaching back into the compiler settings.
+     */
+    public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
+
+        public IRDMaxAllocationBytes(Long value) {
+            super(value);
+        }
+    }
+
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
+    public static class IRDAllocationEstimator extends IRDecoration<Method> {
+
+        public IRDAllocationEstimator(Method value) {
+            super(value);
+        }
+    }
+
     /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
     public static class IRCInstanceCancellationCheck implements IRCondition {
 
@@ -377,6 +398,18 @@ public class IRDecorations {
     public static class IRCStaticCancellationCheck implements IRCondition {
 
         private IRCStaticCancellationCheck() {
+
+        }
+    }
+
+    /**
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter, whether for
+     * cancellation or allocation tracking. Decoupled from {@link IRCStaticCancellationCheck}, which additionally emits the
+     * poll; a static cancellation lambda carries both.
+     */
+    public static class IRCStaticScriptCapture implements IRCondition {
+
+        private IRCStaticScriptCapture() {
 
         }
     }

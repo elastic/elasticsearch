@@ -73,6 +73,7 @@ public class MvUnion extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns all unique values from the combined multi-value fields.",
         description = "Returns all unique values from the combined input fields (set union). "
             + "Null values are treated as empty sets; returns `null` only if both fields are null.",
         preview = true,

@@ -31,6 +31,10 @@ public interface DataExtractorFactory {
 
     DataExtractor newExtractor(long start, long end);
 
+    default void excludeProject(String projectAlias) {}
+
+    default void includeProject(String projectAlias) {}
+
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      * <p>

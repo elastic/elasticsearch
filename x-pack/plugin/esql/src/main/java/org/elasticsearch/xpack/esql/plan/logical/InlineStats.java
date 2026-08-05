@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -186,7 +185,7 @@ public class InlineStats extends UnaryPlan
                         } else {
                             foundPreviousStats.set(true);
                         }
-                    } else if (lp instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
+                    } else if (lp instanceof EsRelation er && er.indexMode().isTsdb()) {
                         isTimeSeries.set(true);
                     }
                 });

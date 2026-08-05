@@ -55,4 +55,33 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         assertTrue("expected file:// URI, was: " + uri, uri.startsWith("file:"));
         assertTrue("expected glob to be preserved in URI, was: " + uri, uri.endsWith("/multifile/file?.csv"));
     }
+
+    public void testInjectTrimSpacesAddsToNullWith() {
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces(null));
+    }
+
+    public void testInjectTrimSpacesAddsToEmptyObject() {
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}"));
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{ }"));
+    }
+
+    public void testInjectTrimSpacesMergesIntoExistingOptions() {
+        assertEquals(
+            "{\"header_row\": false, \"trim_spaces\": true}",
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"header_row\": false}")
+        );
+    }
+
+    public void testInjectTrimSpacesLeavesExplicitTrimSpacesUntouched() {
+        String withJson = "{\"trim_spaces\": false}";
+        assertEquals(withJson, AbstractExternalSourceSpecTestCase.injectTrimSpaces(withJson));
+    }
+
+    public void testInjectTrimSpacesDoesNotFalseMatchAValue() {
+        // "trim_spaces" appears only as a value here, so the injection must still fire.
+        assertEquals(
+            "{\"null_value\": \"trim_spaces\", \"trim_spaces\": true}",
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"null_value\": \"trim_spaces\"}")
+        );
+    }
 }

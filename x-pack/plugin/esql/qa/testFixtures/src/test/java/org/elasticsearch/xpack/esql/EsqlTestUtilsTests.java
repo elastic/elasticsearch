@@ -183,6 +183,37 @@ public class EsqlTestUtilsTests extends ESTestCase {
         );
     }
 
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexIsRemoteOnly() {
+        // `languages` is an enrich source index ingested into BOTH clusters, so its subquery source must be rewritten to the remote-only
+        // `*:languages` to avoid double-counting rows, while the regular `sample_data` index uses `*:sample_data,sample_data`,
+        // unmapped-load.loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported is an example of this pattern.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexMixedInSameSubquery() {
+        // A both-cluster index (`languages`) alongside a single-cluster index (`employees`) inside the same subquery FROM: only
+        // `languages` becomes remote-only. unmapped-load.loadMultiIndexPartialMultiFieldInSubquery is an example of this pattern
+        String in = "FROM (FROM employees, languages | WHERE emp_no == 10001) | KEEP emp_no";
+        String out = "FROM (FROM *:employees,employees, *:languages | WHERE emp_no == 10001) | KEEP emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertWhereInSubqueryBothClusterIndexIsRemoteOnly() {
+        // A both-cluster index inside a WHERE IN subquery body is also rewritten to remote-only.
+        String in = "FROM sample_data | WHERE client_ip IN (FROM clientips | KEEP client_ip) | KEEP message";
+        String out = "FROM *:sample_data,sample_data | WHERE client_ip IN (FROM *:clientips | KEEP client_ip) | KEEP message";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("clientips")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesWithoutBothClusterSetIsUnchanged() {
+        // Regression guard: with no both-cluster indices declared, every source keeps the *:index,index form.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages,languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
     public void testConvertSubqueryToRemoteIndicesTsSubquery() {
         assertThat(
             EsqlTestUtils.convertSubqueryToRemoteIndices(
@@ -266,5 +297,189 @@ public class EsqlTestUtilsTests extends ESTestCase {
                     + " | KEEP cluster"
             )
         );
+    }
+
+    // ---- WHERE IN subquery rewriting ----
+
+    public void testConvertWhereInSubqueryBasic() {
+        // The IN subquery body's FROM is rewritten; the outer FROM is also rewritten.
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) | SORT emp_no | KEEP emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+                    + " | SORT emp_no | KEEP emp_no"
+            )
+        );
+    }
+
+    public void testConvertWhereNotInSubquery() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees | WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) | SORT emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE emp_no NOT IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+                    + " | SORT emp_no"
+            )
+        );
+    }
+
+    public void testConvertWhereInLiteralValueListUnchanged() {
+        // Literal value lists must NOT be rewritten — they don't contain a source command.
+        String query = "FROM employees | WHERE gender IN (\"F\", \"M\", null) | SORT emp_no";
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(query),
+            equalTo("FROM *:employees,employees | WHERE gender IN (\"F\", \"M\", null) | SORT emp_no")
+        );
+    }
+
+    public void testConvertWhereInIntegerLiteralListUnchanged() {
+        String query = "FROM employees | WHERE emp_no IN (10001, 10002, 10003) | SORT emp_no";
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(query),
+            equalTo("FROM *:employees,employees | WHERE emp_no IN (10001, 10002, 10003) | SORT emp_no")
+        );
+    }
+
+    public void testConvertNestedInSubquery() {
+        // Two levels of IN nesting: the inner IN body is inside the outer IN body.
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees"
+                    + " | WHERE emp_no IN ("
+                    + "FROM employees"
+                    + " | WHERE salary IN (FROM employees | SORT salary DESC | LIMIT 3 | KEEP salary)"
+                    + " | KEEP emp_no"
+                    + ")"
+                    + " | SORT emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE emp_no IN ("
+                    + "FROM *:employees,employees"
+                    + " | WHERE salary IN (FROM *:employees,employees | SORT salary DESC | LIMIT 3 | KEEP salary)"
+                    + " | KEEP emp_no"
+                    + ")"
+                    + " | SORT emp_no"
+            )
+        );
+    }
+
+    public void testConvertFromUnionInsideInSubquery() {
+        // FROM-union inside the IN subquery body: both union branches are rewritten.
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees"
+                    + " | WHERE emp_no IN (FROM (FROM employees | LIMIT 5), (FROM employees_incompatible | LIMIT 5) | KEEP emp_no)"
+                    + " | SORT emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE emp_no IN ("
+                    + "FROM (FROM *:employees,employees | LIMIT 5), (FROM *:employees_incompatible,employees_incompatible | LIMIT 5)"
+                    + " | KEEP emp_no)"
+                    + " | SORT emp_no"
+            )
+        );
+    }
+
+    public void testConvertWhereInRowSubqueryUnchanged() {
+        // ROW inside an IN subquery must be left untouched (no index to rewrite).
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices("FROM employees | WHERE emp_no IN (ROW emp_no = 10001) | SORT emp_no"),
+            equalTo("FROM *:employees,employees | WHERE emp_no IN (ROW emp_no = 10001) | SORT emp_no")
+        );
+    }
+
+    public void testConvertMultipleInSubqueriesInOneWhere() {
+        // Two IN subqueries in a single WHERE clause — both must be rewritten.
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees"
+                    + " | WHERE emp_no NOT IN (FROM employees | LIMIT 3 | KEEP emp_no)"
+                    + " AND emp_no IN (FROM employees | LIMIT 10 | KEEP emp_no)"
+                    + " | SORT emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE emp_no NOT IN (FROM *:employees,employees | LIMIT 3 | KEEP emp_no)"
+                    + " AND emp_no IN (FROM *:employees,employees | LIMIT 10 | KEEP emp_no)"
+                    + " | SORT emp_no"
+            )
+        );
+    }
+
+    public void testConvertInSubqueryInsideBooleanGrouping() {
+        // The IN subquery is nested inside a parenthesised boolean expression.
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM employees"
+                    + " | WHERE (emp_no NOT IN (FROM employees | LIMIT 5 | KEEP emp_no) AND salary > 70000)"
+                    + " OR emp_no IN (FROM employees | LIMIT 10 | KEEP emp_no)"
+                    + " | SORT emp_no"
+            ),
+            equalTo(
+                "FROM *:employees,employees"
+                    + " | WHERE (emp_no NOT IN (FROM *:employees,employees | LIMIT 5 | KEEP emp_no) AND salary > 70000)"
+                    + " OR emp_no IN (FROM *:employees,employees | LIMIT 10 | KEEP emp_no)"
+                    + " | SORT emp_no"
+            )
+        );
+    }
+
+    public void testConvertInSubqueryAfterRowCommand() {
+        // ROW + IN subquery
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "ROW emp_no = 10007" + " | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)"
+            ),
+            equalTo("ROW emp_no = 10007" + " | WHERE emp_no IN (FROM *:employees,employees | WHERE salary > 70000 | KEEP emp_no)")
+        );
+    }
+
+    public void testConvertInSubqueryAfterTsCommand() {
+        // TS + IN subquery
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "TS employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) | SORT emp_no | KEEP emp_no"
+            ),
+            equalTo(
+                "TS *:employees,employees"
+                    + " | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+                    + " | SORT emp_no | KEEP emp_no"
+            )
+        );
+    }
+
+    public void testConvertWhereInSubqueryMultiline() {
+        // Multi-line formatting is handled: splitIgnoringParentheses joins the main pipe segments
+        // with " | ", collapsing newlines in the FROM clause. The subquery body inside the IN (...)
+        // parens is stripped of leading/trailing whitespace before recursion, so the surrounding
+        // newlines inside the parens are dropped (the rewritten subquery is structurally equivalent).
+        String in = """
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no
+              )
+            | SORT emp_no
+            | KEEP emp_no""";
+        String out = "FROM *:employees,employees"
+            + " | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+            + " | SORT emp_no"
+            + " | KEEP emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
+    public void testConvertWhereInSubqueryIdempotent() {
+        // Calling the method twice on an already-converted query must return the query unchanged.
+        String once = EsqlTestUtils.convertSubqueryToRemoteIndices(
+            "FROM employees | WHERE emp_no IN (FROM employees | LIMIT 3 | KEEP emp_no) | SORT emp_no"
+        );
+        String twice = EsqlTestUtils.convertSubqueryToRemoteIndices(once);
+        assertThat(twice, equalTo(once));
     }
 }

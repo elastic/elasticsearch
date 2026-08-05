@@ -32,6 +32,63 @@ sparkline:long
 [0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
 ;
 
+
+sparklineWithWeightedAvg
+required_capability: fn_sparkline_duplicate_surrogates
+FROM employees
+| STATS sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:double
+[0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+avgAndSparklineWithWeightedAvg
+required_capability: fn_sparkline_duplicate_surrogates
+FROM employees
+| STATS avg = AVG(salary),
+        sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+avg:double | sparkline:double
+48248.55   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+weightedAvgAndSparklineWithCount
+required_capability: fn_sparkline
+FROM employees
+| STATS weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline = SPARKLINE(COUNT(), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+weighted_avg:double | sparkline:long
+48473.84130754439   | [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+;
+
+weightedAvgAndSparklineWithSameWeightedAvg
+required_capability: fn_sparkline_duplicate_surrogates
+FROM employees
+| STATS weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+weighted_avg:double | sparkline:double
+48473.84130754439   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+weightedAvgAndTwoSparklinesWithSameWeightedAvg
+required_capability: fn_sparkline_duplicate_surrogates
+FROM employees
+| STATS sparkline1 = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline2 = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline1:double                                                                                                   | weighted_avg:double | sparkline2:double
+[0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0] | 48473.84130754439   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+
 sparklineWithGrouping
 required_capability: fn_sparkline
 FROM employees
@@ -39,7 +96,7 @@ FROM employees
 | SORT gender
 ;
 
-sparkline:long                         | gender:keyword
+sparkline:long                       | gender:keyword
 [0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0] | F
 [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0] | M
 [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] | null
@@ -70,6 +127,23 @@ sparkline:long | emp_no:integer
 [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10003
 ;
 
+
+sparklineInInlineStatsByMvField
+required_capability: fn_sparkline
+FROM employees
+| INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY job_positions
+| KEEP emp_no, job_positions, sparkline
+| SORT emp_no ASC
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword                 | sparkline:long
+10001          | [Accountant, Senior Python Developer] | [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0]
+10002          | Senior Team Lead                      | [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0]
+10003          | null                                  | [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+;
+
+
 sparklineWithMultipleSparklines
 required_capability: fn_sparkline
 FROM employees
@@ -77,7 +151,7 @@ FROM employees
         s2 = SPARKLINE(MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;
 
-s1:integer                                                      | s2:integer
+s1:integer                                                    | s2:integer
 [0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]  | [0, 26436, 0, 0, 44817, 0, 62405, 0, 49095, 48735, 33956, 0]
 ;
 
@@ -221,17 +295,28 @@ s:long | t:null
 1      | null
 ;
 
-sparklineComplexWithGroupingMapped-Ignore
-required_capability: fn_sparkline_complex
+sparklineComplexWithGroupingMapped
+required_capability: fn_sparkline_nested
 FROM employees
 | STATS name_length = TO_STRING(SPARKLINE(AVG(LENGTH(first_name)::DOUBLE), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z")),
-          silly_sin = TO_STRING(SPARKLINE(MAX(SIN(emp_no + 12))          , hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"))
+          silly_sin = TO_STRING(SPARKLINE(MAX(ROUND(SIN(emp_no + 12), 2)), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"))
      BY gender
 | SORT gender
 ;
 
-name_length:double                                                                                                                    | silly_sin:double                                                                                                                                                                                                                                  | gender:keyword
-[7.0, 7.25, 6.0, 7.333333333333333, 6.125, 7.0, 9.0, 4.5, 4.5, 7.0, 0.0, 0.0, 7.0, 0.0, 0.0]                                          | [0.3474410387926566, 0.9392303171452907, 0.7080633732181456, 0.9767720779155781, 0.6838777683583536, 0.9965396834497365, -0.8111100013828146, 0.9987737948222514, 0.7855030103579055, 0.2358412446491156, 0.0, 0.0, 0.9834351042369986, 0.0, 0.0] | F
-[5.0, 6.285714285714286, 6.857142857142857, 5.666666666666667, 5.666666666666667, 5.857142857142857, 6.0, 6.75, 0.0, 6.5, 6.25, 7.0, 0.0, 0.0, 0.0] | [0.9336232396810002, 0.8059011528037987, 0.9800723473517968, 0.18561118578230287, 0.999493658326963, 0.945160000165055, 0.8855330099400073, 0.9728258415816549, 0.0, 0.9949121795773727, 0.33078747019624394, 0.9977409328844171, 0.0, 0.0, 0.0]  | M
-[9.0, 0.0, 7.0, 0.0, 9.0, 4.0, 0.0, 8.0, 9.0, 0.0, 8.0, 0.0, 0.0, 0.0, 7.0]                                                           | [-0.17690641225790246, 0.0, 0.8936181522971705, 0.0, 0.31403023852776757, 0.9685747384543749, 0.0, 0.7326160906572906, 0.8604997102011178, 0.0, 0.03624180294388945, 0.0, 0.0, 0.0, 0.10514818630245748]                                          | null
+name_length:keyword                                                                                                                                 | silly_sin:keyword                                                                     | gender:keyword
+[7.0, 7.25, 6.0, 7.333333333333333, 6.125, 7.0, 9.0, 4.5, 4.5, 7.0, 0.0, 0.0, 7.0, 0.0, 0.0]                                                        | [0.35, 0.94, 0.71, 0.98, 0.68, 1.0, -0.81, 1.0, 0.79, 0.24, 0.0, 0.0, 0.98, 0.0, 0.0] | F
+[5.0, 6.285714285714286, 6.857142857142857, 5.666666666666667, 5.666666666666667, 5.857142857142857, 6.0, 6.75, 0.0, 6.5, 6.25, 7.0, 0.0, 0.0, 0.0] | [0.93, 0.81, 0.98, 0.19, 1.0, 0.95, 0.89, 0.97, 0.0, 0.99, 0.33, 1.0, 0.0, 0.0, 0.0]  | M
+[9.0, 0.0, 7.0, 0.0, 9.0, 4.0, 0.0, 8.0, 9.0, 0.0, 8.0, 0.0, 0.0, 0.0, 7.0]                                                                         | [-0.18, 0.0, 0.89, 0.0, 0.31, 0.97, 0.0, 0.73, 0.86, 0.0, 0.04, 0.0, 0.0, 0.0, 0.11]  | null
+;
+
+sparklineWithMvExpand
+required_capability: fn_sparkline_nested
+FROM employees
+| STATS sparkline = MV_APPEND(999::LONG, SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")),
+        value     = 7 + MV_COUNT(MV_APPEND(999::LONG, SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")))
+;
+
+sparkline:long                            | value:long
+[999, 0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 20
 ;

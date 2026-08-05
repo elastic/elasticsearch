@@ -10,6 +10,7 @@
 module org.elasticsearch.painless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.geo;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

@@ -101,7 +101,7 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/test/_update/1")
-            .withParams(Map.of("_slice", sliceValue))
+            .withParams(Map.of("slice", sliceValue))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
         dispatchRequest(updateRequest);
@@ -117,14 +117,14 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
-            .withParams(Map.of("_slice", "s1", "routing", "r1"))
+            .withParams(Map.of("slice", "s1", "routing", "r1"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [slice]"));
     }
 
     public void testSliceParamRejectedWhenFeatureDisabled() {
@@ -137,14 +137,14 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
-            .withParams(Map.of("_slice", "s1"))
+            .withParams(Map.of("slice", "s1"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("request does not support [_slice]"));
+        assertThat(e.getMessage(), containsString("request does not support [slice]"));
     }
 
     public void testSliceParamRejectedWhenInvalid() {
@@ -157,14 +157,14 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
-            .withParams(Map.of("_slice", "_all"))
+            .withParams(Map.of("slice", "_all"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("invalid [slice] value"));
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {
@@ -177,13 +177,13 @@ public final class RestUpdateActionTests extends RestActionTestCase {
             }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
-            .withParams(Map.of("_slice", "s1,s2"))
+            .withParams(Map.of("slice", "s1,s2"))
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("invalid [slice] value"));
     }
 }

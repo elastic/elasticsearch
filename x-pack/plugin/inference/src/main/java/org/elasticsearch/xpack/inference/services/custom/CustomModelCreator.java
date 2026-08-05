@@ -74,7 +74,7 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
             // createHttpRequest() takes a listener, but we don't need to do anything with the HttpRequest here, so use a no-op listener
             ActionListener<HttpRequest> listener = ActionListener.noop();
             request.createHttpRequest(listener);
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
             var validationException = new ValidationException();
             validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
             throw validationException;

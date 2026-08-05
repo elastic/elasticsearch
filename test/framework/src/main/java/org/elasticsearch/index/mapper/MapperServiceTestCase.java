@@ -49,6 +49,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
@@ -156,7 +157,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
         return switch (indexMode) {
-            case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> createDocumentMapper(mappings);
+            case STANDARD, LOOKUP -> createDocumentMapper(mappings);
+            case VECTORDB_DOCUMENT -> createVectordbDocumentModeDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
             case COLUMNAR -> createColumnarModeDocumentMapper(mappings);
@@ -191,6 +193,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    protected final DocumentMapper createVectordbDocumentModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName())
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(IndexVersion version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }
@@ -212,7 +222,16 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
-        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createSytheticSourceMapperService(mappings, false);
+    }
+
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings, boolean isColumnar) throws IOException {
+        Settings settings;
+        if (isColumnar) {
+            settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        } else {
+            settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        }
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 
@@ -420,7 +439,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             public long getAsLong() {
                 return value++;
             }
-        }));
+        }), new TokenCountingMetrics(telemetryProvider.getMeterRegistry()));
     }
 
     protected static void withLuceneIndex(
@@ -433,7 +452,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             mapperService::fieldType,
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
-        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+        IndexWriterConfig iwc = new IndexWriterConfig(
+            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
+        ).setCodec(
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
         );
         if (indexSort != null) {

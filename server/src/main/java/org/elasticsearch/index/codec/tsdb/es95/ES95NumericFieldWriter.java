@@ -21,6 +21,7 @@ import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
@@ -69,9 +70,9 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
         final FieldContext context = fieldContextResolver.resolve(field.name, ctx.blockSize());
-        final ES95NumericFieldEncoder numericFieldEncoder = new ES95NumericFieldEncoder(
-            numericCodecFactory.createEncoder(resolver.resolve(context))
-        );
+        final PipelineConfig pipelineConfig = resolver.resolve(context);
+        final int blockSize = pipelineConfig.blockSize();
+        final ES95NumericFieldEncoder numericFieldEncoder = new ES95NumericFieldEncoder(numericCodecFactory.createEncoder(pipelineConfig));
         return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
@@ -79,8 +80,9 @@ final class ES95NumericFieldWriter implements NumericFieldWriter {
             AbstractTSDBDocValuesConsumer.NO_MAX_ORD,
             docValueCountConsumer,
             sortedFieldObserver,
-            (buffer, data) -> numericFieldEncoder.encodeBlock(buffer, buffer.length, data),
-            () -> FieldDescriptor.write(ctx.meta(), numericFieldEncoder.descriptor())
+            (buffer, data) -> numericFieldEncoder.encodeBlock(buffer, blockSize, data),
+            () -> FieldDescriptor.write(ctx.meta(), numericFieldEncoder.descriptor()),
+            blockSize
         );
     }
 }

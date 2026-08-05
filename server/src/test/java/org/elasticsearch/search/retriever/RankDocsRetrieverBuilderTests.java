@@ -67,7 +67,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             } else {
                 KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
                     randomAlphaOfLength(10),
-                    randomVector(randomInt(10)),
+                    randomVector(randomIntBetween(1, 10)),
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),

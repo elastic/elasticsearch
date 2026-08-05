@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -57,7 +58,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * </ul>
  * (date_range, date) and (date, date) are not supported; they do not match "value within range" semantics.
  */
-public class RangeWithin extends EsqlScalarFunction implements TranslationAware {
+public class RangeWithin extends EsqlScalarFunction implements TranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "RangeWithin",
@@ -73,7 +74,8 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware 
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        briefSummary = "Returns true if a date or date range falls within another date range.",
         description = "Returns true if the first argument is "
             + "[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) "
             + "the second argument. "

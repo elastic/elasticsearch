@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_TOKENS;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig.THINKING_BUDGET_FIELD;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig.THINKING_CONFIG_FIELD;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,28 +35,35 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
 
-    private static final String DEFAULT_PROJECT_ID = "test-project";
-    private static final String DEFAULT_LOCATION = "us-central1";
-    private static final String DEFAULT_MODEL_ID = "gemini-pro";
-    private static final String DEFAULT_API_KEY = "test-api-key";
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT = new RateLimitSettings(100);
+    private static final String TEST_PROJECT_ID = "test-project";
+    private static final String TEST_LOCATION = "us-central1";
+    private static final String TEST_MODEL_ID = "gemini-pro";
+    private static final String TEST_API_KEY = "test-api-key";
+    private static final RateLimitSettings TEST_RATE_LIMIT = new RateLimitSettings(100);
     private static final ThinkingConfig EMPTY_THINKING_CONFIG = new ThinkingConfig();
+    private static final int TEST_MAX_TOKENS = 123;
+    private static final int TEST_THINKING_BUDGET = 456;
+    private static final String TEST_INFERENCE_ID = "google-vertex-ai-chat-test-id";
+    private static final String TEST_SERVICE_NAME = "google_vertex_ai";
+    private static final String TEST_STREAMING_URL = "http://example-streaming.com";
+    private static final String TEST_NON_STREAMING_URL = "http://example.com";
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
         var model = createCompletionModel(
-            DEFAULT_PROJECT_ID,
-            DEFAULT_LOCATION,
-            DEFAULT_MODEL_ID,
-            DEFAULT_API_KEY,
-            DEFAULT_RATE_LIMIT,
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
             null,
             null,
             null
         );
+        var requestModelId = "gemini-flash";
         var request = new UnifiedCompletionRequest(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
-            "gemini-flash",
+            requestModelId,
             null,
             null,
             null,
@@ -65,27 +74,27 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
 
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, request);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is("gemini-flash"));
+        assertThat(overriddenModel.getServiceSettings().modelId(), is(requestModelId));
 
         assertThat(overriddenModel, not(sameInstance(model)));
-        assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
-        assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
-        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
-        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getServiceSettings().projectId(), is(TEST_PROJECT_ID));
+        assertThat(overriddenModel.getServiceSettings().location(), is(TEST_LOCATION));
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(TEST_RATE_LIMIT));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(TEST_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel(
-            DEFAULT_PROJECT_ID,
-            DEFAULT_LOCATION,
-            DEFAULT_MODEL_ID,
-            DEFAULT_API_KEY,
-            DEFAULT_RATE_LIMIT,
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
             null,
             null,
-            123
+            TEST_MAX_TOKENS
         );
         var request = new UnifiedCompletionRequest(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
@@ -100,130 +109,168 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
 
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, request);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is(DEFAULT_MODEL_ID));
+        assertThat(overriddenModel.getServiceSettings().modelId(), is(TEST_MODEL_ID));
 
-        assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
-        assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
-        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
-        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getServiceSettings().projectId(), is(TEST_PROJECT_ID));
+        assertThat(overriddenModel.getServiceSettings().location(), is(TEST_LOCATION));
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(TEST_RATE_LIMIT));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(TEST_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
 
         assertThat(overriddenModel, not(sameInstance(model)));
     }
 
-    public void testBuildUri() throws URISyntaxException {
-        String location = "us-east1";
-        String projectId = "my-gcp-project";
-        String model = "gemini-1.5-flash-001";
-        URI expectedUri = new URI(
-            "https://us-east1-aiplatform.googleapis.com/v1/projects/my-gcp-project"
-                + "/locations/global/publishers/google/models/gemini-1.5-flash-001:streamGenerateContent?alt=sse"
-        );
-        URI actualUri = GoogleVertexAiChatCompletionModel.buildUriStreaming(location, projectId, model);
+    public void testBuildStreamingUri() throws URISyntaxException {
+        var expectedUri = new URI(Strings.format("""
+            https://%s-aiplatform.googleapis.com/v1/projects/%s\
+            /locations/global/publishers/google/models/%s:streamGenerateContent?alt=sse""", TEST_LOCATION, TEST_PROJECT_ID, TEST_MODEL_ID));
+        URI actualUri = GoogleVertexAiChatCompletionModel.buildStreamingUri(TEST_LOCATION, TEST_PROJECT_ID, TEST_MODEL_ID);
         assertThat(actualUri, is(expectedUri));
+    }
+
+    public void testBuildNonStreamingUri() throws URISyntaxException {
+        URI expectedUri = new URI(Strings.format("""
+            https://%s-aiplatform.googleapis.com/v1/projects/%s\
+            /locations/global/publishers/google/models/%s:generateContent""", TEST_LOCATION, TEST_PROJECT_ID, TEST_MODEL_ID));
+        URI actualUri = GoogleVertexAiChatCompletionModel.buildNonStreamingUri(TEST_LOCATION, TEST_PROJECT_ID, TEST_MODEL_ID);
+        assertThat(actualUri, is(expectedUri));
+    }
+
+    public void testBuildStreamingUri_NullLocation_UsesGlobalHost() throws URISyntaxException {
+        assertBuildStreamingUri_UsesGlobalHost(null);
+    }
+
+    public void testBuildStreamingUri_EmptyLocation_UsesGlobalHost() throws URISyntaxException {
+        assertBuildStreamingUri_UsesGlobalHost("");
+    }
+
+    private static void assertBuildStreamingUri_UsesGlobalHost(String location) throws URISyntaxException {
+        URI expectedStreamingUri = new URI(Strings.format("""
+            https://aiplatform.googleapis.com/v1/projects/%s\
+            /locations/global/publishers/google/models/%s:streamGenerateContent?alt=sse""", TEST_PROJECT_ID, TEST_MODEL_ID));
+        assertThat(GoogleVertexAiChatCompletionModel.buildStreamingUri(location, TEST_PROJECT_ID, TEST_MODEL_ID), is(expectedStreamingUri));
+    }
+
+    public void testBuildNonStreamingUri_EmptyLocation_UsesGlobalHost() throws URISyntaxException {
+        assertBuildNonStreamingUri_UsesGlobalHost("");
+    }
+
+    public void testBuildNonStreamingUri_NullLocation_UsesGlobalHost() throws URISyntaxException {
+        assertBuildNonStreamingUri_UsesGlobalHost(null);
+    }
+
+    private static void assertBuildNonStreamingUri_UsesGlobalHost(String location) throws URISyntaxException {
+        URI expectedNonStreamingUri = new URI(Strings.format("""
+            https://aiplatform.googleapis.com/v1/projects/%s\
+            /locations/global/publishers/google/models/%s:generateContent""", TEST_PROJECT_ID, TEST_MODEL_ID));
+        assertThat(
+            GoogleVertexAiChatCompletionModel.buildNonStreamingUri(location, TEST_PROJECT_ID, TEST_MODEL_ID),
+            is(expectedNonStreamingUri)
+        );
     }
 
     public void testOf_overridesTaskSettings_whenPresent() {
         var model = createCompletionModel(
-            DEFAULT_PROJECT_ID,
-            DEFAULT_LOCATION,
-            DEFAULT_MODEL_ID,
-            DEFAULT_API_KEY,
-            DEFAULT_RATE_LIMIT,
-            new ThinkingConfig(123),
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
+            new ThinkingConfig(TEST_THINKING_BUDGET),
             null,
             null,
-            123
+            TEST_MAX_TOKENS
         );
-        int newThinkingBudget = 456;
+        int newThinkingBudget = 654;
+        int newMaxTokens = 321;
         Map<String, Object> taskSettings = new HashMap<>(
-            Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of(THINKING_BUDGET_FIELD, newThinkingBudget)), "max_tokens", 456)
+            Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of(THINKING_BUDGET_FIELD, newThinkingBudget)), MAX_TOKENS, newMaxTokens)
         );
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is(DEFAULT_MODEL_ID));
-        assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
-        assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
-        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
-        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getServiceSettings().modelId(), is(TEST_MODEL_ID));
+        assertThat(overriddenModel.getServiceSettings().projectId(), is(TEST_PROJECT_ID));
+        assertThat(overriddenModel.getServiceSettings().location(), is(TEST_LOCATION));
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(TEST_RATE_LIMIT));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(TEST_API_KEY.toCharArray())));
 
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(new ThinkingConfig(newThinkingBudget)));
-        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(456));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(newMaxTokens));
     }
 
     public void testOf_doesNotOverrideTaskSettings_whenNotPresent() {
-        ThinkingConfig originalThinkingConfig = new ThinkingConfig(123);
+        ThinkingConfig originalThinkingConfig = new ThinkingConfig(TEST_THINKING_BUDGET);
         var model = createCompletionModel(
-            DEFAULT_PROJECT_ID,
-            DEFAULT_LOCATION,
-            DEFAULT_MODEL_ID,
-            DEFAULT_API_KEY,
-            DEFAULT_RATE_LIMIT,
+            TEST_PROJECT_ID,
+            TEST_LOCATION,
+            TEST_MODEL_ID,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
             originalThinkingConfig,
             null,
             null,
-            123
+            TEST_MAX_TOKENS
         );
         Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is(DEFAULT_MODEL_ID));
-        assertThat(overriddenModel.getServiceSettings().projectId(), is(DEFAULT_PROJECT_ID));
-        assertThat(overriddenModel.getServiceSettings().location(), is(DEFAULT_LOCATION));
-        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
-        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getServiceSettings().modelId(), is(TEST_MODEL_ID));
+        assertThat(overriddenModel.getServiceSettings().projectId(), is(TEST_PROJECT_ID));
+        assertThat(overriddenModel.getServiceSettings().location(), is(TEST_LOCATION));
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(TEST_RATE_LIMIT));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(TEST_API_KEY.toCharArray())));
 
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(originalThinkingConfig));
-        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(123));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(TEST_MAX_TOKENS));
     }
 
     public void testModelCreationForAnthropicBothUrls() throws URISyntaxException {
-        var uri = new URI("http://example.com");
-        var streamingUri = new URI("http://example-streaming.com");
-        testModelCreation(uri, streamingUri, uri, streamingUri, GoogleModelGardenProvider.ANTHROPIC);
+        var nonStreamingUri = new URI(TEST_NON_STREAMING_URL);
+        var streamingUri = new URI(TEST_STREAMING_URL);
+        testModelCreation(nonStreamingUri, streamingUri, nonStreamingUri, streamingUri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
     public void testModelCreationForAnthropicOnlyNonStreamingUrl() throws URISyntaxException {
-        var uri = new URI("http://example.com");
-        testModelCreation(uri, null, uri, uri, GoogleModelGardenProvider.ANTHROPIC);
+        var nonStreamingUri = new URI(TEST_NON_STREAMING_URL);
+        testModelCreation(nonStreamingUri, null, nonStreamingUri, nonStreamingUri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
     public void testModelCreationForAnthropicOnlyStreamingUrl() throws URISyntaxException {
-        var streamingUri = new URI("http://example-streaming.com");
+        var streamingUri = new URI(TEST_STREAMING_URL);
         testModelCreation(null, streamingUri, streamingUri, streamingUri, GoogleModelGardenProvider.ANTHROPIC);
     }
 
     public void testModelCreationForMetaBothUrls() throws URISyntaxException {
-        var uri = new URI("http://example.com");
-        var streamingUri = new URI("http://example-streaming.com");
-        testModelCreation(uri, streamingUri, uri, streamingUri, GoogleModelGardenProvider.META);
+        var nonStreamingUri = new URI(TEST_NON_STREAMING_URL);
+        var streamingUri = new URI(TEST_STREAMING_URL);
+        testModelCreation(nonStreamingUri, streamingUri, nonStreamingUri, streamingUri, GoogleModelGardenProvider.META);
     }
 
     public void testModelCreationForMetaOnlyNonStreamingUrl() throws URISyntaxException {
-        var uri = new URI("http://example.com");
-        testModelCreation(uri, null, uri, uri, GoogleModelGardenProvider.META);
+        var nonStreamingUri = new URI(TEST_NON_STREAMING_URL);
+        testModelCreation(nonStreamingUri, null, nonStreamingUri, nonStreamingUri, GoogleModelGardenProvider.META);
     }
 
     public void testModelCreationForMetaOnlyStreamingUrl() throws URISyntaxException {
-        var streamingUri = new URI("http://example-streaming.com");
+        var streamingUri = new URI(TEST_STREAMING_URL);
         testModelCreation(null, streamingUri, streamingUri, streamingUri, GoogleModelGardenProvider.META);
     }
 
     private static void testModelCreation(
-        URI uri,
+        URI nonStreamingUri,
         URI streamingUri,
         URI expectedNonStreamingUri,
         URI expectedStreamingUri,
         GoogleModelGardenProvider provider
     ) {
         var model = createGoogleModelGardenChatCompletionModel(
-            DEFAULT_API_KEY,
-            DEFAULT_RATE_LIMIT,
+            TEST_API_KEY,
+            TEST_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
             provider,
-            uri,
+            nonStreamingUri,
             streamingUri,
-            123
+            TEST_MAX_TOKENS
         );
         var request = new UnifiedCompletionRequest(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
@@ -242,13 +289,13 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel, not(sameInstance(model)));
         assertNull(overriddenModel.getServiceSettings().projectId());
         assertNull(overriddenModel.getServiceSettings().location());
-        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(DEFAULT_RATE_LIMIT));
-        assertThat(overriddenModel.getServiceSettings().uri(), is(uri));
+        assertThat(overriddenModel.getServiceSettings().rateLimitSettings(), is(TEST_RATE_LIMIT));
+        assertThat(overriddenModel.getServiceSettings().uri(), is(nonStreamingUri));
         assertThat(overriddenModel.getServiceSettings().streamingUri(), is(streamingUri));
         assertThat(overriddenModel.getServiceSettings().provider(), is(provider));
-        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
+        assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(TEST_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
-        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(123));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(TEST_MAX_TOKENS));
         assertThat(overriddenModel.nonStreamingUri(), is(expectedNonStreamingUri));
         assertThat(overriddenModel.streamingURI(), is(expectedStreamingUri));
     }
@@ -265,9 +312,9 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         Integer maxTokens
     ) {
         return new GoogleVertexAiChatCompletionModel(
-            "google-vertex-ai-chat-test-id",
+            TEST_INFERENCE_ID,
             TaskType.CHAT_COMPLETION,
-            "google_vertex_ai",
+            TEST_SERVICE_NAME,
             new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
@@ -287,9 +334,9 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         String authHeaderValue
     ) {
         return new GoogleVertexAiChatCompletionModel(
-            "google-vertex-ai-chat-test-id",
+            TEST_INFERENCE_ID,
             TaskType.CHAT_COMPLETION,
-            "google_vertex_ai",
+            TEST_SERVICE_NAME,
             new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray())),
@@ -307,9 +354,9 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         int maxTokens
     ) {
         return new GoogleVertexAiChatCompletionModel(
-            "google-vertex-ai-chat-test-id",
+            TEST_INFERENCE_ID,
             TaskType.CHAT_COMPLETION,
-            "google_vertex_ai",
+            TEST_SERVICE_NAME,
             new GoogleVertexAiChatCompletionServiceSettings(null, null, null, uri, streamingUri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
@@ -317,6 +364,6 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {
-        return GoogleVertexAiChatCompletionModel.buildUriStreaming(DEFAULT_LOCATION, DEFAULT_PROJECT_ID, DEFAULT_MODEL_ID);
+        return GoogleVertexAiChatCompletionModel.buildStreamingUri(TEST_LOCATION, TEST_PROJECT_ID, TEST_MODEL_ID);
     }
 }

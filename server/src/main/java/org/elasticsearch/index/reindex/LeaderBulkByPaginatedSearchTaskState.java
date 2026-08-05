@@ -59,6 +59,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
+    @SuppressWarnings("this-escape")
     public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
@@ -69,7 +70,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     }
 
     /**
-     * Returns the number of slices this BulkByScrollRequest will use
+     * Returns the number of slices this BulkByPaginatedSearchRequest will use
      */
     public int getSlices() {
         return slices;
@@ -136,7 +137,8 @@ public class LeaderBulkByPaginatedSearchTaskState {
     public void onSliceFailure(ActionListener<BulkByPaginatedSearchResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
-        // TODO cancel when a slice fails?
+        // TODO - https://github.com/elastic/elasticsearch/issues/150877
+        // Cancel when a slice fails?
     }
 
     public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {

@@ -41,7 +41,12 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
      * Wraps an existing union-type field's per-(index|type) conversions with another conversion expression on top, so the
      * composite expression first does the original cast then the additional cast.
      */
-    public abstract EsField rewrapWithCast(Expression convertExpression);
+    public abstract UnionTypeEsField rewrapWithCast(Expression convertExpression);
+
+    /**
+     * Returns a copy of this field with the given unmapped conversion expression.
+     */
+    public abstract UnionTypeEsField withPotentiallyUnmappedExpression(Expression unmappedExpression);
 
     // Utility functions used by implementors.
     static <K> Map<K, Expression> replaceChildrenWithExpressionField(Map<K, Expression> map, Expression expression) {

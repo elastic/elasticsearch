@@ -80,9 +80,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode frozenNode;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void startClusterService() throws Exception {
         dataNode = DiscoveryNodeUtils.builder("data_node")
             .name("data_node")
             .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
@@ -97,8 +95,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopClusterService() throws Exception {
         clusterService.close();
     }
 

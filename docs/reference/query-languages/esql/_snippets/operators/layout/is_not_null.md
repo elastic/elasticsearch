@@ -1,4 +1,8 @@
 ### `IS NOT NULL` [esql-is_not_null]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
 

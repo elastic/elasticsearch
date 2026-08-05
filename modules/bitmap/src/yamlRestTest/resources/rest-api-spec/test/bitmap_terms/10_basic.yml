@@ -1,0 +1,333 @@
+---
+"bitmap_terms on BKD-indexed integer field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_bkd
+        body:
+          mappings:
+            properties:
+              num:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_bitmap_bkd
+        body:
+          - '{"index": {}}'
+          - '{"num": 1,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 2,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 3,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 4,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 5,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 6,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 7,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 8,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 9,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 11, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 12, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 13, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 14, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 15, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 16, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 17, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 18, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 19, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 20, "category": "even"}'
+
+  # standalone: all 20 values in bitmap → all 20 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OzAAAAEAABMAAQABABMA"
+  - match: { hits.total: 20 }
+
+  # standalone: odd values only → 10 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAEAAAAAAAkAEAAAAAEAAwAFAAcACQALAA0ADwARABMA"
+  - match: { hits.total: 10 }
+
+  # standalone: even values only → 10 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAEAAAAAAAkAEAAAAAIABAAGAAgACgAMAA4AEAASABQA"
+  - match: { hits.total: 10 }
+
+  # combined: bitmap {5..15} AND category "odd" → {5,7,9,11,13,15} = 6 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OzAAAAEAAAoAAQAFAAoA"
+                - term:
+                    category: "odd"
+  - match: { hits.total: 6 }
+
+  # combined: bitmap {5..15} AND category "even" → {6,8,10,12,14} = 5 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OzAAAAEAAAoAAQAFAAoA"
+                - term:
+                    category: "even"
+  - match: { hits.total: 5 }
+
+  # combined: bitmap of odds AND category "even" → no overlap = 0 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_bkd
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OjAAAAEAAAAAAAkAEAAAAAEAAwAFAAcACQALAA0ADwARABMA"
+                - term:
+                    category: "even"
+  - match: { hits.total: 0 }
+
+---
+"bitmap_terms on index_terms integer field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_idx_terms
+        body:
+          mappings:
+            properties:
+              num:
+                type: integer
+                index_terms: true
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_bitmap_idx_terms
+        body:
+          - '{"index": {}}'
+          - '{"num": 1,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 2,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 3,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 4,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 5,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 6,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 7,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 8,  "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 9,  "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 11, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 12, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 13, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 14, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 15, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 16, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 17, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 18, "category": "even"}'
+          - '{"index": {}}'
+          - '{"num": 19, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"num": 20, "category": "even"}'
+
+  # standalone: all 20 values in bitmap → all 20 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OzAAAAEAABMAAQABABMA"
+  - match: { hits.total: 20 }
+
+  # standalone: odd values only → 10 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAEAAAAAAAkAEAAAAAEAAwAFAAcACQALAA0ADwARABMA"
+  - match: { hits.total: 10 }
+
+  # standalone: even values only → 10 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAEAAAAAAAkAEAAAAAIABAAGAAgACgAMAA4AEAASABQA"
+  - match: { hits.total: 10 }
+
+  # combined: bitmap {5..15} AND category "odd" → {5,7,9,11,13,15} = 6 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OzAAAAEAAAoAAQAFAAoA"
+                - term:
+                    category: "odd"
+  - match: { hits.total: 6 }
+
+  # combined: bitmap {5..15} AND category "even" → {6,8,10,12,14} = 5 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OzAAAAEAAAoAAQAFAAoA"
+                - term:
+                    category: "even"
+  - match: { hits.total: 5 }
+
+  # combined: bitmap of odds AND category "even" → no overlap = 0 docs
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_idx_terms
+        body:
+          query:
+            bool:
+              must:
+                - bitmap_terms:
+                    field: num
+                    value: "OjAAAAEAAAAAAAkAEAAAAAEAAwAFAAcACQALAA0ADwARABMA"
+                - term:
+                    category: "even"
+  - match: { hits.total: 0 }
+
+---
+"bitmap_terms rejected on non-integer field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_nonint
+        body:
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_nonint
+        body:
+          query:
+            bitmap_terms:
+              field: kw
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+---
+"bitmap_terms rejected on index-disabled field":
+
+  - do:
+      indices.create:
+        index: test_bitmap_noindex
+        body:
+          mappings:
+            properties:
+              num:
+                type: integer
+                index: false
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_noindex
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OzAAAAEAAAoAAQAFAAoA"

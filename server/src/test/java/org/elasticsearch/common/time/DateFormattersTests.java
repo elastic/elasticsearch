@@ -487,6 +487,11 @@ public class DateFormattersTests extends ESTestCase {
         // different pattern, thus not equals
         assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
 
+        // Object.equals contract: x.equals(null) is false, never a NullPointerException. Objects.equals(fmt, null)
+        // is reached from any record/POJO holding a nullable DateFormatter component.
+        assertThat(DateFormatters.forPattern("YYYY").equals(null), is(false));
+        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(new Object())));
+
         DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
         assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));
         assertThat(epochSecondFormatter, equalTo(DateFormatters.forPattern("epoch_second")));

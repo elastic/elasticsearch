@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -48,10 +48,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
@@ -67,6 +69,7 @@ public class FieldNameUtils {
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
+        TStep.NAME.toLowerCase(Locale.ROOT),
         TRange.NAME.toLowerCase(Locale.ROOT),
         Earliest.NAME.toLowerCase(Locale.ROOT),
         Latest.NAME.toLowerCase(Locale.ROOT)
@@ -131,6 +134,9 @@ public class FieldNameUtils {
         var dropWildcardRefs = AttributeSet.builder();
         // fields required to request for lookup joins to work
         var joinRefs = AttributeSet.builder();
+        // references collected inside subquery (right) branches of subquery joins; they resolve against the subquery's own sources, so
+        // aliases defined by the outer pipeline must not remove them
+        var allSubqueryRefs = AttributeSet.builder();
         // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
@@ -165,11 +171,18 @@ public class FieldNameUtils {
 
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
                     LogicalPlan lastFork = lastSeenFork.get();
-                    if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
+                    if (lastFork != null
+                        && lastFork != fork
+                        && fork instanceof UnionAll == false
+                        && lastFork instanceof UnionAll == false) {
                         // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
                         // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
                         // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
                         // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
+                        //
+                        // Note: lastFork == fork is excluded here because an AbstractSubqueryJoin handler inside a fork branch saves
+                        // and restores lastSeenFork (to preserve context across the subquery traversal), which transiently sets it
+                        // back to the current fork — that is not a nested-fork signal.
                         assert isNestedFork == false : "Nested FORKs are not yet supported";
                     }
 
@@ -213,6 +226,9 @@ public class FieldNameUtils {
             } else if (p instanceof CompoundOutputEval<?> coe) {
                 // keep the input field needed by the CompoundOutputEval
                 referencesBuilder.get().addAll(coe.getInput().references());
+            } else if (p instanceof UnresolvedIpLocation ipLocation) {
+                // IP_LOCATION resolves into a CompoundOutputEval during analysis; keep its input field just like the resolved form
+                referencesBuilder.get().addAll(ipLocation.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -232,6 +248,52 @@ public class FieldNameUtils {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     joinRefs.addAll(keepRefs);
                 }
+            } else if (p instanceof AbstractSubqueryJoin sj) {
+                // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
+                // the regular builder where outer aliases can shadow it.
+                referencesBuilder.get().addAll(sj.leftReferences());
+                // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
+                // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
+                // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
+                AttributeSet savedRefs = referencesBuilder.get().build();
+                AttributeSet savedKeepRefs = keepRefs.build();
+                AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
+                AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
+                boolean savedCanRemoveAliases = canRemoveAliases.get();
+                LogicalPlan savedLastSeenFork = lastSeenFork.get();
+                boolean savedReduceColumnsAfterFork = reduceColumnsAfterFork.get();
+
+                referencesBuilder.set(AttributeSet.builder());
+                keepRefs.clear();
+                currentBranchKeepRefs.set(AttributeSet.builder());
+                dropWildcardRefs.clear();
+                canRemoveAliases.set(true);
+                lastSeenFork.set(null);
+                reduceColumnsAfterFork.set(false);
+
+                sj.right().forEachDownMayReturnEarly(forEachDownProcessor.get());
+
+                // Merge the subquery's collected references into the main-query builder and restore all state.
+                AttributeSet subqueryRefs = referencesBuilder.get().build();
+                allSubqueryRefs.addAll(subqueryRefs);
+                referencesBuilder.set(AttributeSet.builder());
+                referencesBuilder.get().addAll(savedRefs);
+                referencesBuilder.get().addAll(subqueryRefs);
+                keepRefs.clear();
+                keepRefs.addAll(savedKeepRefs);
+                currentBranchKeepRefs.set(AttributeSet.builder());
+                currentBranchKeepRefs.get().addAll(savedBranchKeepRefs);
+                dropWildcardRefs.clear();
+                dropWildcardRefs.addAll(savedDropWildcardRefs);
+                canRemoveAliases.set(savedCanRemoveAliases);
+                lastSeenFork.set(savedLastSeenFork);
+                reduceColumnsAfterFork.set(savedReduceColumnsAfterFork);
+
+                // Traverse the left child explicitly and break early, so the outer traversal does not descend into the children again and
+                // re-visit sj.right() with main-query state.
+                sj.left().forEachDownMayReturnEarly(forEachDownProcessor.get());
+                breakEarly.set(true);
+                return;
             } else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
@@ -295,7 +357,10 @@ public class FieldNameUtils {
                         return;
                     }
                     referencesBuilder.get()
-                        .removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
+                        .removeIf(
+                            attr -> allSubqueryRefs.contains(attr) == false
+                                && matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                        );
                 });
             }
         });
@@ -377,10 +442,10 @@ public class FieldNameUtils {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
-        // Skip the right (subquery) child of SemiJoin/AntiJoin — its KEEP/STATS should not
+        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
         // force the main pipeline into explicit field collection.
-        if (plan instanceof SemiJoin semiJoin) {
-            return mainQueryRequiresFieldCollection(semiJoin.left(), inlinestatsAggs);
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
             if (mainQueryRequiresFieldCollection(child, inlinestatsAggs)) {
@@ -392,7 +457,7 @@ public class FieldNameUtils {
 
     private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
         Holder<Boolean> requireFieldCollection = new Holder<>(true);
-        plan.forEachUp(SemiJoin.class, sj -> {
+        plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
             if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                 requireFieldCollection.set(false);
             }
@@ -425,7 +490,6 @@ public class FieldNameUtils {
             || p instanceof Filter
             || p instanceof Fork
             || p instanceof InlineStats
-            || p instanceof Insist
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
@@ -433,9 +497,10 @@ public class FieldNameUtils {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof CompoundOutputEval<?>
+            || p instanceof UnresolvedIpLocation
             || p instanceof Rename
             || p instanceof TopN
-            || p instanceof UnresolvedRelation) == false;
+            || p instanceof UnresolvedSourceRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {

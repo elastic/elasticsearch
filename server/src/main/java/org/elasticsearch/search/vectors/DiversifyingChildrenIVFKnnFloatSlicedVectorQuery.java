@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
 
@@ -32,7 +33,6 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
      * @param childFilter      filter applied to child hits
      * @param parentsFilter    bit set of parent documents for join diversification
      * @param visitRatio       IVF visit ratio
-     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField       index-sort slice field (e.g. {@code _routing})
      * @param sliceId          slice term to restrict the search doc id space
      */
@@ -44,12 +44,11 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         Query childFilter,
         BitSetProducer parentsFilter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
-        BytesRef sliceId
+        BytesRef... sliceId
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, overSampleFactor, sliceField, sliceId);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

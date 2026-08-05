@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +43,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 

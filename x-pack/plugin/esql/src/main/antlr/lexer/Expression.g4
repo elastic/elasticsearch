@@ -26,6 +26,7 @@ REGISTERED_DOMAIN: 'registered_domain'  -> pushMode(EXPRESSION_MODE);
 TS_INFO : 'ts_info'                     -> pushMode(EXPRESSION_MODE);
 USER_AGENT : 'user_agent'               -> pushMode(EXPRESSION_MODE);
 TS_COLLAPSE : 'ts_collapse'             -> pushMode(EXPRESSION_MODE);
+IP_LOCATION : 'ip_location'             -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 
@@ -131,6 +132,8 @@ PERCENT : '%';
 
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
+
+ARROW : {this.isDevVersion()}? '->';
 
 DOUBLE_PARAMS: '??';
 

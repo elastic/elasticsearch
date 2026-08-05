@@ -248,7 +248,8 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             waitForCheckpointsTimeout,
             false,
             r.splitShardCountSummary,
-            null
+            null,
+            true
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

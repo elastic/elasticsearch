@@ -51,8 +51,8 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return new RethrottleRequestBuilder(client());
     }
 
-    public static BulkIndexByScrollResponseMatcher matcher() {
-        return new BulkIndexByScrollResponseMatcher();
+    public static BulkIndexByPaginatedSearchResponseMatcher matcher() {
+        return new BulkIndexByPaginatedSearchResponseMatcher();
     }
 
     static int randomSlices(int min, int max) {

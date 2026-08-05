@@ -8,31 +8,22 @@
  */
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.DocValuesSkipper;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /** A {@link IVFKnnFloatSlicedVectorQuery} that uses the IVF search strategy with an sliced index. */
 public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     private final String sliceField;
-    private final BytesRef sliceId;
+    private final BytesRef[] sliceIds;
 
     /**
      * Creates a new {@link IVFKnnFloatSlicedVectorQuery} with the given parameters.
@@ -42,9 +33,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField the field used for slicing the index
-     * @param sliceId the slice to be search
+     * @param sliceIds the slices to be searched. If the array is empty, all slices are searched
      */
     public IVFKnnFloatSlicedVectorQuery(
         String field,
@@ -53,102 +43,36 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
-        BytesRef sliceId
+        BytesRef... sliceIds
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
-        this.sliceId = Objects.requireNonNull(sliceId);
+        this.sliceIds = Objects.requireNonNull(sliceIds);
     }
 
     @Override
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        final LeafReader reader = ctx.reader();
-        if (reader.numDocs() == 0) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
-        }
-        final Bits liveDocs = reader.getLiveDocs();
-        final int maxDoc = reader.maxDoc();
-        final Sort sort = reader.getMetaData().sort();
-        if (sort == null
-            || sort.getSort().length == 0
-            || sort.getSort()[0].getField().equals(sliceField) == false
-            || sort.getSort()[0].getType() != SortField.Type.STRING) {
-            throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
-        }
-
-        final SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
-        assert sortedDocValues != null : "sliceField must have doc values";
-        final int sliceOrd = sortedDocValues.lookupTerm(sliceId);
-        if (sliceOrd < 0) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
-        }
-        var skipper = ctx.reader().getDocValuesSkipper(sliceField);
-        if (skipper == null) {
-            throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a DocValuesSkipper field");
-        }
-        if (skipper.docCount() != maxDoc) {
-            throw new IllegalArgumentException(
-                "DocValuesSkipper for sliceField [" + sliceField + "] must have a doc count equal to maxDoc"
-            );
-        }
-        final IOSupplier<ESAcceptDocs.SliceAcceptDocs> sliceAcceptDocsSupplier = () -> getSliceAcceptDocsSupplier(
-            sortedDocValues,
-            skipper,
-            sliceOrd
-        );
-        final AcceptDocs acceptDocs;
-        if (filterWeight == null) {
-            acceptDocs = liveDocs == null
-                ? new ESAcceptDocs.ESAcceptDocsAll(sliceOrd, sliceAcceptDocsSupplier)
-                : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc, sliceOrd, sliceAcceptDocsSupplier);
-        } else {
-            ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
-            if (supplier == null) {
-                return TopDocsCollector.EMPTY_TOPDOCS;
-            }
-            acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc, sliceOrd, sliceAcceptDocsSupplier);
-        }
-        return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
-    }
-
-    private static ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(
-        SortedDocValues sortedDocValues,
-        DocValuesSkipper skipper,
-        int ord
+    TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
     ) throws IOException {
-        int minDocID;
-        if (skipper.minValue() == ord) {
-            minDocID = 0;
-        } else {
-            skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
-        }
-        int maxDocID;
-        if (skipper.maxValue() == ord) {
-            maxDocID = skipper.docCount();
-        } else {
-            int nextOrd = ord + 1;
-            skipper.advance(nextOrd, Long.MAX_VALUE);
-            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
-        }
-        return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
-    }
-
-    private static int nextDoc(int startDoc, SortedDocValues docValues, int ord) throws IOException {
-        int doc = docValues.docID();
-        if (startDoc > doc) {
-            doc = docValues.advance(startDoc);
-        }
-        for (; doc < DocIdSetIterator.NO_MORE_DOCS; doc = docValues.nextDoc()) {
-            if (ord == docValues.ordValue()) {
-                break;
-            }
-        }
-        return doc;
+        final float[] leafQuery = segmentQuery(ctx, usePrecondition);
+        return IVFSlicedSearchHelper.getLeafResults(
+            ctx,
+            filterWeight,
+            knnCollectorManager,
+            visitRatio,
+            numCands,
+            k,
+            field,
+            sliceField,
+            sliceIds,
+            (context, f, collector, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, collector, acceptDocs)
+        );
     }
 
     @Override
@@ -166,11 +90,24 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             .append("[")
             .append(sliceField)
             .append("=")
-            .append(sliceId.utf8ToString())
+            .append(toString(sliceIds))
             .append("]");
         if (this.filter != null) {
             buffer.append("[").append(this.filter).append("]");
         }
+        return buffer.toString();
+    }
+
+    private static String toString(BytesRef[] sliceIds) {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("[");
+        for (int i = 0; i < sliceIds.length; i++) {
+            if (i > 0) {
+                buffer.append(",");
+            }
+            buffer.append(sliceIds[i].utf8ToString());
+        }
+        buffer.append("]");
         return buffer.toString();
     }
 
@@ -179,13 +116,13 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         if (this == o) return true;
         if (super.equals(o) == false) return false;
         IVFKnnFloatSlicedVectorQuery that = (IVFKnnFloatSlicedVectorQuery) o;
-        return Objects.equals(sliceField, that.sliceField) && Objects.equals(sliceId, that.sliceId);
+        return Objects.equals(sliceField, that.sliceField) && Arrays.equals(sliceIds, that.sliceIds);
     }
 
     @Override
     public int hashCode() {
         int result = super.hashCode();
-        result = 31 * result + Objects.hash(sliceField, sliceId);
+        result = 31 * result + Objects.hash(sliceField, Arrays.hashCode(sliceIds));
         return result;
     }
 }

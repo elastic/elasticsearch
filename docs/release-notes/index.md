@@ -117,13 +117,13 @@ You can now query exponential_histogram fields with PromQL syntax for native his
 The supported functions are `increase()`, `sum()`, `histogram_quantile()`, `histogram_avg()`, `histogram_count()` and `histogram_sum()`.
 ::::
 
-::::{dropdown} Encryption at rest for sensitive cluster state
-Elasticsearch provides encryption at rest for sensitive credentials stored in cluster state,
-starting with credentials (for example, access key and secret key pairs) for ES|QL external
-data sources. Credentials are encrypted using a project-scoped primary encryption key before
-being written to cluster state, and are decrypted only when needed, such as during query
-execution. The primary encryption key itself is generated automatically and is protected at
-rest using a password configured through secure settings or the keystore.
+::::{dropdown} ES|QL Data Federation
+[**ES|QL Data Federation** (experimental)](elasticsearch://reference/query-languages/esql/esql-data-federation.md) is now available. This feature enables you to create and manage external
+data sources (Amazon S3 initially) and query datasets using {{esql}}.
+
+This is an experimental feature and is not enabled by default. To try it out, set
+`esql.federation.enabled: true` in your Elasticsearch configuration and
+`xpack.dataFederation.enabled: true` in your Kibana configuration.
 ::::
 
 ::::{dropdown} Columnar index mode (Tech Preview)

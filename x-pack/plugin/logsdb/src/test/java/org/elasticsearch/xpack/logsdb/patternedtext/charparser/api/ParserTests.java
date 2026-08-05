@@ -41,6 +41,49 @@ public class ParserTests extends ESTestCase {
         assertNull("Sign should be null", ((IntegerArgument) argument).sign());
     }
 
+    public void testUuidStandard() throws ParseException {
+        String message = "request 123e4567-e89b-12d3-a456-426614174000 completed";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("request %U completed", patternedMessage.toString());
+        assertEquals(1, parsedArguments.size());
+        assertThat(parsedArguments.getFirst(), instanceOf(UUIDArgument.class));
+        assertEquals("UUID", parsedArguments.getFirst().type().name());
+    }
+
+    public void testUuidAllGroupsMixed() throws ParseException {
+        // every group has BOTH a letter and a digit, so none hits the all-digit integer branch
+        String message = "request 1a2b3c4d-1a2b-3c4d-5e6f-1a2b3c4d5e6f completed";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("request %U completed", patternedMessage.toString());
+    }
+
+    public void testUuidLeadingAllDigitGroup() throws ParseException {
+        // first group is all digits (hits the integer branch at position 0)
+        String message = "id 12345678-e89b-12d3-a456-426614174000 ok";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("id %U ok", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(UUIDArgument.class));
+    }
+
+    public void testUuidCompact() throws ParseException {
+        String message = "token 123e4567e89b12d3a456426614174000 accepted";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("token %U accepted", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(UUIDArgument.class));
+    }
+
+    public void testUuidWrongGroupLengthNotMatched() throws ParseException {
+        // second group is 3 hex chars instead of 4 -> must NOT be recognized as a UUID (length matters)
+        String message = "id 12345678-e89-12d3-a456-426614174000 x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertNotEquals("id %U x", patternedMessage.toString());
+    }
+
     public void testRFC1123TimestampAndIpAndNumber() throws ParseException {
         String messageWithTimestampIpAndNumber = "Oct, 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);

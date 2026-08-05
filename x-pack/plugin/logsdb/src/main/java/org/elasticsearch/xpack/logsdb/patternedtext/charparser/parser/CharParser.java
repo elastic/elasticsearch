@@ -339,41 +339,49 @@ public final class CharParser implements Parser {
                         // current subToken position
                         currentTokenBitmask &= delimiterParsingInfo.tokenBitmaskPerDelimiterPosition[currentTokenSubTokenIndex];
 
-                        // here we enforce subToken specific constraints (numeric or string) to update the current subToken bitmask
+                        // here we enforce subToken specific constraints (numeric or string) to update the current subToken bitmask.
+                        // We evaluate the position's string/hex subToken generator once and consult it in BOTH cases: a numeric subToken
+                        // is also a valid hexadecimal subToken (digits are a subset of hex characters), so a length-constrained hex group
+                        // (e.g. a UUID group like "426614174000") must still be recognized here, otherwise higher-level (token) matching
+                        // would be prematurely eliminated. Where no token type expects a string/hex subToken for this (delimiter, position),
+                        // the generator is null and behavior is unchanged.
+                        ToIntFunction<SubstringView> subTokenBitmaskGenerator = delimiterParsingInfo.bitmaskGeneratorPerPosition == null
+                            ? null
+                            : delimiterParsingInfo.bitmaskGeneratorPerPosition[currentTokenSubTokenIndex];
+                        int generatedSubTokenBitmask = 0;
+                        if (subTokenBitmaskGenerator != null) {
+                            substringView.set(currentSubTokenStartIndex, currentSubTokenEndIndex);
+                            generatedSubTokenBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);
+                        }
+
                         if ((currentSubTokenBitmask & intSubTokenBitmask) != 0) {
-                            // integer subToken
+                            // integer subToken: value-based subToken types, unioned with any hex/string subToken types the digits also match
+                            int intSubTokenBitmaskValue;
                             if (currentSubTokenIntValue >= 0 && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
                                 // faster bitmask lookup for small integers
-                                currentSubTokenBitmask = compiledSchema.smallIntegerSubTokenBitmasks[currentSubTokenIntValue];
+                                intSubTokenBitmaskValue = compiledSchema.smallIntegerSubTokenBitmasks[currentSubTokenIntValue];
                             } else {
-                                currentSubTokenBitmask = findBitmaskForInteger(
+                                intSubTokenBitmaskValue = findBitmaskForInteger(
                                     currentSubTokenIntValue,
                                     compiledSchema.integerSubTokenBitmaskArrayRanges,
                                     compiledSchema.integerSubTokenBitmasks
                                 );
                             }
-                        } else {
+                            currentSubTokenBitmask = intSubTokenBitmaskValue | generatedSubTokenBitmask;
+                        } else if (subTokenBitmaskGenerator != null) {
                             // general string subToken
-                            ToIntFunction<SubstringView> subTokenBitmaskGenerator = null;
-                            if (delimiterParsingInfo.bitmaskGeneratorPerPosition != null) {
-                                subTokenBitmaskGenerator = delimiterParsingInfo.bitmaskGeneratorPerPosition[currentTokenSubTokenIndex];
-                            }
-                            if (subTokenBitmaskGenerator != null) {
-                                substringView.set(currentSubTokenStartIndex, currentSubTokenEndIndex);
-                                int substringBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);
-                                if (substringBitmask == 0) {
-                                    // not a specific subToken, so we keep only the generic subToken types
-                                    currentSubTokenBitmask &= genericSubTokenTypesBitmask;
-                                } else {
-                                    // the subToken is valid, so we set the bitmask to the evaluated value
-                                    currentSubTokenBitmask &= substringBitmask;
-                                    currentSubTokenIntValue = subTokenNumericValueRepresentationMap.applyAsInt(substringView);
-                                }
+                            if (generatedSubTokenBitmask == 0) {
+                                // not a specific subToken, so we keep only the generic subToken types
+                                currentSubTokenBitmask &= genericSubTokenTypesBitmask;
                             } else {
-                                // no bitmask generator for this subToken, meaning no known token expects this delimiter character
-                                // at this position
-                                currentSubTokenBitmask = 0;
+                                // the subToken is valid, so we narrow it to the evaluated subToken types
+                                currentSubTokenBitmask &= generatedSubTokenBitmask;
+                                currentSubTokenIntValue = subTokenNumericValueRepresentationMap.applyAsInt(substringView);
                             }
+                        } else {
+                            // no bitmask generator for this subToken, meaning no known token expects this delimiter character
+                            // at this position
+                            currentSubTokenBitmask = 0;
                         }
 
                         // update the current token bitmask based on all "on" bits in the current sub-token bitmask

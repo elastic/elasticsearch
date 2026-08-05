@@ -2087,7 +2087,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                     // Always use the object-store reader so warming proceeds through the blob container (not the indexing path).
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
                         @Override
                         public CacheBlobReader getCacheBlobReader(
                             ShardId shardId,
@@ -2098,7 +2104,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             LongConsumer totalBytesReadFromIndexing,
                             BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                             Executor objectStoreFetchExecutor,
-                            String fileName
+                            String fileName,
+                            boolean speculativeFill
                         ) {
                             return new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(blobFile.primaryTerm()),

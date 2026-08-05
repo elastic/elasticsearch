@@ -883,7 +883,14 @@ public class SharedBlobCacheWarmingService {
                     type,
                     indexShard.shardId(),
                     "generation=" + commit.generation(),
-                    warmingLabels(indexShard, type, "headerFooter")
+                    Map.of(
+                        "primary",
+                        indexShard.routingEntry().primary(),
+                        "prewarming_type",
+                        type.name(),
+                        WARMING_TYPE_ATTRIBUTE_KEY,
+                        "headerFooter"
+                    )
                 );
                 boolean preWarmForIdLookupRequested = preWarmForIdLookup && (type == Type.INDEXING_EARLY || type == Type.INDEXING);
                 if (preWarmForIdLookupRequested) {
@@ -908,17 +915,6 @@ public class SharedBlobCacheWarmingService {
                 store.decRef();
             }
         }
-    }
-
-    private static Map<String, Object> warmingLabels(IndexShard indexShard, Type type, String warmerType) {
-        return Map.of(
-            "primary",
-            indexShard.routingEntry().primary(),
-            "prewarming_type",
-            type.name(),
-            WARMING_TYPE_ATTRIBUTE_KEY,
-            warmerType
-        );
     }
 
     /**
@@ -1074,7 +1070,19 @@ public class SharedBlobCacheWarmingService {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final Type warmingType = Type.INDEXING_BCC_HEADER_PREWARM;
-        final var warmingRun = new WarmingRun(warmingType, shardId, "prewarm", warmingLabels(indexShard, warmingType, "region0PreWarm"));
+        final var warmingRun = new WarmingRun(
+            warmingType,
+            shardId,
+            "prewarm",
+            Map.of(
+                "primary",
+                indexShard.routingEntry().primary(),
+                "prewarming_type",
+                warmingType.name(),
+                WARMING_TYPE_ATTRIBUTE_KEY,
+                "region0PreWarm"
+            )
+        );
         if (store.isClosing()) {
             listener.onFailure(
                 new AlreadyClosedException("Failed to warm cache [" + warmingType + "] for " + shardId + ", store is closing")
@@ -1218,7 +1226,12 @@ public class SharedBlobCacheWarmingService {
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
-        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name(), WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
+        final var warmingRun = new WarmingRun(
+            type,
+            shardId,
+            "prewarm",
+            Map.of("prewarming_type", type.name(), WARMING_TYPE_ATTRIBUTE_KEY, "offline")
+        );
         if (store.isClosing()) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {

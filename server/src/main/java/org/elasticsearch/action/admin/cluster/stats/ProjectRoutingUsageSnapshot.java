@@ -166,7 +166,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         return searchWithNamedExpression;
     }
 
-    public long getSearchFailures() {
+    public long getSearchProjectRoutingFailures() {
         return searchProjectRoutingFailures;
     }
 
@@ -198,7 +198,7 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
         return esqlWithSet;
     }
 
-    public long getEsqlFailures() {
+    public long getEsqlProjectRoutingFailures() {
         return esqlProjectRoutingFailures;
     }
 

@@ -193,5 +193,23 @@
  *
  * <p>{@link org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader} resolves
  * a single column by binary-searching the key dictionary, then reads only that column's blocks.
+ * For ES|QL block loading, the loader tries a batch path first:
+ *
+ * <ol>
+ *   <li>{@link org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues#keyColumnReader}
+ *       resolves the key ordinal once and returns a
+ *       {@link org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader} bound to
+ *       that column — implemented by
+ *       {@link org.elasticsearch.index.codec.flattened.KeyColumnBatchReader}.</li>
+ *   <li>For each page of documents, {@code KeyColumnBatchReader.tryRead} drives a single
+ *       {@link org.elasticsearch.index.codec.flattened.SequentialColumnReader} forward across
+ *       the page. Whole blocks can be skipped without decompression when the target document is
+ *       past the block's last doc-id (the doc-id arrays live outside the compressed region).
+ *       Within the target block the payload is decompressed once and all documents in the page
+ *       are served from that buffer — no per-doc binary searches or decompression resets.</li>
+ *   <li>If the batch reader is unavailable (ordinal absent, or a non-columnar segment), the loader
+ *       falls back to the per-doc path via
+ *       {@link org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues}.</li>
+ * </ol>
  */
 package org.elasticsearch.index.codec.flattened;

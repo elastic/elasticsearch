@@ -21,6 +21,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -203,6 +205,124 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Duel test for {@link KeyColumnBatchReader}: compares the block produced by the batch path
+     * against the per-doc reference path ({@link ColumnarKeyedBinaryDocValues#advanceExactKey} +
+     * {@link ColumnarKeyedBinaryDocValues#nextKeyValue()}) for every key and every document in
+     * the segment.
+     *
+     * <p>The test uses a small {@code maxDocsPerBlock} so columns span multiple blocks, exercising
+     * the cross-block {@link SequentialColumnReader#advance} block-skip logic.
+     */
+    public void testBatchReaderDuelsPerDocPath() throws IOException {
+        final int numKeys = 6;
+        final int numDocs = 60;
+        final int tinyBlockDocs = 8; // forces multi-block columns
+        final List<byte[]> blobs = generateBlobs(numDocs, numKeys, true, true);
+
+        final FlattenedDocValuesFormat fmt = new FlattenedDocValuesFormat(
+            256, // small targetBlockBytes to mix compressed/uncompressed blocks
+            tinyBlockDocs,
+            MIN_COMPRESS_BYTES_DEFAULT,
+            MAX_BUFFERED_BYTES_DEFAULT
+        );
+
+        try (Directory dir = newDirectory()) {
+            indexBlobs(dir, blobs, fmt);
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                for (final LeafReaderContext ctx : reader.leaves()) {
+                    final LeafReader leaf = ctx.reader();
+                    final BinaryDocValues rawDv = leaf.getBinaryDocValues(FIELD);
+                    assertNotNull(rawDv);
+                    if ((rawDv instanceof ColumnarKeyedBinaryDocValues) == false) continue;
+                    final ColumnarKeyedBinaryDocValues columnar = (ColumnarKeyedBinaryDocValues) rawDv;
+
+                    final int maxDoc = leaf.maxDoc();
+
+                    for (int ki = 0; ki < numKeys; ki++) {
+                        final BytesRef keyRef = new BytesRef(keyName(ki).getBytes(StandardCharsets.UTF_8));
+                        final int ord = columnar.lookupKeyOrdinal(keyRef);
+                        if (ord < 0) continue; // key absent from this segment
+
+                        // Build a per-doc reference: for each doc, collect the sorted/deduped non-null values.
+                        final List<Object> expected = new ArrayList<>(maxDoc);
+                        for (int d = 0; d < maxDoc; d++) {
+                            if (columnar.advanceExact(d) == false) {
+                                expected.add(null);
+                                continue;
+                            }
+                            final int slotCount = columnar.advanceExactKey(ord);
+                            final List<BytesRef> vals = new ArrayList<>(slotCount);
+                            for (int s = 0; s < slotCount; s++) {
+                                final BytesRef v = columnar.nextKeyValue();
+                                if (v != null) vals.add(BytesRef.deepCopyOf(v));
+                            }
+                            vals.sort(BytesRef::compareTo);
+                            // deduplicate
+                            for (int i = vals.size() - 1; i > 0; i--) {
+                                if (vals.get(i).equals(vals.get(i - 1))) vals.remove(i);
+                            }
+                            if (vals.isEmpty()) {
+                                expected.add(null);
+                            } else if (vals.size() == 1) {
+                                expected.add(vals.get(0));
+                            } else {
+                                expected.add(vals);
+                            }
+                        }
+
+                        // Now read via the batch path using a simple sequential Docs list.
+                        final BlockLoader.OptionalColumnAtATimeReader batchReader = columnar.keyColumnReader(ord);
+                        assertNotNull("keyColumnReader must return non-null for ordinal " + ord, batchReader);
+
+                        final int[] docArray = new int[maxDoc];
+                        for (int d = 0; d < maxDoc; d++)
+                            docArray[d] = d;
+                        final TestBlock block = (TestBlock) batchReader.tryRead(
+                            TestBlock.factory(),
+                            sequentialDocs(docArray),
+                            0,
+                            false,
+                            null,
+                            false,
+                            false
+                        );
+                        assertNotNull("tryRead must not return null for key " + ki, block);
+                        assertEquals("block size for key " + ki, maxDoc, block.size());
+
+                        for (int d = 0; d < maxDoc; d++) {
+                            assertEquals("value mismatch at doc " + d + " key " + ki + " (ord=" + ord + ")", expected.get(d), block.get(d));
+                        }
+                        block.close();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns a {@link BlockLoader.Docs} backed by a contiguous {@code [0, maxDoc)} range.
+     * {@code mayContainDuplicates()} returns {@code false}.
+     */
+    private static BlockLoader.Docs sequentialDocs(int[] docs) {
+        return new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return docs.length;
+            }
+
+            @Override
+            public int get(int i) {
+                return docs[i];
+            }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return false;
+            }
+        };
     }
 
     // ---------------------------------------------------------------------------------

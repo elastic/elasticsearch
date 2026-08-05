@@ -28,6 +28,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -606,6 +607,11 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         // Active key ordinal after advanceExactKey().
         private int activeKeyOrd = -1;
 
+        // Lazily created batch reader; null until first keyColumnReader() call.
+        private KeyColumnBatchReader batchReader;
+        // Key ordinal for which batchReader was built; -1 if not yet initialized.
+        private int batchReaderOrd = -1;
+
         // Output buffers for binaryValue().
         private byte[] bvBuf = new byte[256];
         private final BytesRef bvResult = new BytesRef();
@@ -683,6 +689,24 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             // slot.length == -1 signals exhaustion (per ColumnCursor contract).
             if (slot != null && slot.length == -1) return null;
             return slot;
+        }
+
+        @Override
+        public BlockLoader.OptionalColumnAtATimeReader keyColumnReader(int keyOrdinal) throws IOException {
+            if (keyOrdinal < 0 || keyOrdinal >= entry.numKeys) {
+                return null;
+            }
+            if (batchReaderOrd != keyOrdinal) {
+                final SequentialColumnReader seqCursor = new SequentialColumnReader(
+                    dataIn.clone(),
+                    entry.columnStartOffsets[keyOrdinal],
+                    entry.blockIndexRelOffsets[keyOrdinal],
+                    entry.numColumnBlocks[keyOrdinal]
+                );
+                batchReader = new KeyColumnBatchReader(seqCursor);
+                batchReaderOrd = keyOrdinal;
+            }
+            return batchReader;
         }
 
         @Override

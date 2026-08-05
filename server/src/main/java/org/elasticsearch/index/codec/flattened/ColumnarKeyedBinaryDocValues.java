@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.flattened;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -67,4 +68,29 @@ public abstract class ColumnarKeyedBinaryDocValues extends BinaryDocValues {
      */
     @Nullable
     public abstract BytesRef nextKeyValue() throws IOException;
+
+    /**
+     * Returns a batch reader that loads an entire page of documents for the single column
+     * identified by {@code keyOrdinal} in one forward scan, instead of seeking per document.
+     *
+     * <p>The returned reader has its own independent column cursor — using it does not affect
+     * the iterator position of this instance, and interleaving calls to
+     * {@link #advanceExactKey}/{@link #nextKeyValue} with calls to the returned reader is safe.
+     *
+     * <p>The reader produces output identical to the per-doc keyed path: non-null slot values
+     * only, sorted and deduplicated. A document with exactly one surviving value is emitted as
+     * a plain {@code appendBytesRef} (no position entry); a document with zero surviving values
+     * emits a null entry. {@link BlockLoader.Docs} must provide doc ids in non-decreasing order
+     * (the contract of {@link BlockLoader.Docs}); duplicate ids are handled correctly.
+     *
+     * <p>The returned reader is not {@link org.elasticsearch.core.Releasable}; ownership of
+     * any underlying {@link org.apache.lucene.store.IndexInput} clone stays with the producer.
+     *
+     * @param keyOrdinal the key ordinal from {@link #lookupKeyOrdinal(BytesRef)}
+     * @return a batch reader, or {@code null} if batch reading is not available for this ordinal
+     *         (e.g. the ordinal is out of range or this is not a columnar implementation)
+     * @throws IOException on I/O error
+     */
+    @Nullable
+    public abstract BlockLoader.OptionalColumnAtATimeReader keyColumnReader(int keyOrdinal) throws IOException;
 }

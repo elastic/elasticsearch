@@ -1826,16 +1826,19 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
+        Type methodType;
+        Object[] bootstrapArgs;
         if (irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class)) {
             // Charging def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver and pass the charge flag
             // on the REFERENCE call site. Def.lookupReference drops the script capture and charges when the target is annotated.
             writeInstanceScriptCapture(writeScope, methodWriter);
-            Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType(), CLASS_TYPE);
-            methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName, 1);
+            methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType(), CLASS_TYPE);
+            bootstrapArgs = new Object[] { expressionCanonicalTypeName, 1 };
         } else {
-            Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
-            methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName);
+            methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
+            bootstrapArgs = new Object[] { expressionCanonicalTypeName };
         }
+        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, bootstrapArgs);
     }
 
     @Override

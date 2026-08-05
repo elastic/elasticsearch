@@ -2422,7 +2422,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             valueType = String.class;
             semanticScope.putDecoration(
                 userLambdaNode,
-                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size())
+                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size(), false)
             );
         } else {
             FunctionRef ref = FunctionRef.create(
@@ -2498,7 +2498,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 } else {
                     semanticScope.putDecoration(
                         userFunctionRefNode,
-                        EncodingDecoration.of(true, isInstanceReference, symbol, methodName, 0)
+                        EncodingDecoration.of(true, isInstanceReference, symbol, methodName, 0, false)
                     );
                 }
             } else {
@@ -2554,7 +2554,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
                         encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 2, true);
                     } else {
-                        encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 1);
+                        encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 1, false);
                     }
                 } else {
                     // typed implementation. Under tracking, charge a bound ref to an annotated target: capture the script
@@ -2645,7 +2645,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         if (targetType == null) {
             valueType = String.class;
-            scriptScope.putDecoration(userNewArrayFunctionRefNode, EncodingDecoration.of(true, false, "this", name, 0));
+            scriptScope.putDecoration(userNewArrayFunctionRefNode, EncodingDecoration.of(true, false, "this", name, 0, false));
         } else {
             FunctionRef ref = FunctionRef.create(
                 scriptScope.getPainlessLookup(),

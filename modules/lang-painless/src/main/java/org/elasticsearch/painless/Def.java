@@ -431,8 +431,7 @@ public final class Def {
                         defEncoding.methodName,
                         defEncoding.numCaptures,
                         defEncoding.needsInstance,
-                        defEncoding.chargesAllocation,
-                        false
+                        defEncoding.chargesAllocation
                     );
                 } else {
                     // the interface type is now known, but we need to get the implementation.
@@ -515,7 +514,6 @@ public final class Def {
             implMethod.javaMethod().getName(),
             1,
             false,
-            chargesAllocation,
             chargesAllocation
         );
     }
@@ -531,8 +529,7 @@ public final class Def {
         String call,
         int captures,
         boolean needsScriptInstance,
-        boolean chargesAllocation,
-        boolean dynamicScriptCapture
+        boolean chargesAllocation
     ) throws Throwable {
 
         final FunctionRef ref = FunctionRef.create(
@@ -547,10 +544,10 @@ public final class Def {
             needsScriptInstance
         );
         Class<?>[] parameters = ref.factoryMethodParameters(needsScriptInstance ? methodHandlesLookup.lookupClass() : null);
-        // The dropped script capture is at index 0 by default (needsScriptInstance prepends it). For a def-receiver ref the
-        // receiver must stay at index 0, so append the script (the generated script class) as a trailing capture instead.
+        // The dropped script capture is at index 0 when needsScriptInstance prepended it. A charging ref that did not prepend
+        // (a def-receiver ref) keeps the receiver at index 0 and appends the script (the generated script class) at the end.
         int scriptCaptureIndex = 0;
-        if (dynamicScriptCapture) {
+        if (chargesAllocation && needsScriptInstance == false) {
             scriptCaptureIndex = parameters.length;
             Class<?>[] withScript = Arrays.copyOf(parameters, parameters.length + 1);
             withScript[parameters.length] = methodHandlesLookup.lookupClass();
@@ -1942,10 +1939,6 @@ public final class Def {
         public final String encoding;
 
         private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures[c]";
-
-        public Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures) {
-            this(isStatic, needsInstance, symbol, methodName, numCaptures, false);
-        }
 
         public Encoding(
             boolean isStatic,

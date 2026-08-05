@@ -1,0 +1,10 @@
+{
+    "properties" : {
+        "src_ip" : {
+            "type" : "ip"
+        },
+        "dst_domain" : {
+            "type" : "keyword"
+        }
+    }
+}

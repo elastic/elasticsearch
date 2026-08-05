@@ -1071,4 +1071,42 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertFalse(plan.anyMatch(p -> p instanceof Filter));
         assertTrue(plan.anyMatch(p -> p instanceof LocalRelation));
     }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
+     * disappearing from the plan in the logical optimizations
+     */
+    public void testMissingReferencesInCidrMatch() {
+        var testAnalyzer = analyzer().addIndex("network_logs", "mapping-network.json");
+        var analyzed = testAnalyzer.query("""
+            FROM network_logs
+            | EVAL src_ip_local = CASE(
+                    CIDR_MATCH(src_ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR src_ip == "127.0.0.1"::ip,
+                    TO_STRING(src_ip), null),
+                dst_domain_local = CASE(
+                    dst_domain == "localhost",
+                    dst_domain, null),
+                field_name = CASE(
+                    src_ip_local IS NOT NULL, "src_ip",
+                    dst_domain_local IS NOT NULL, "dst_domain",
+                    "unknown")
+            | STATS count = COUNT(*) BY field_name
+            """);
+        optimize(analyzed);
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
+     * disappearing from the plan in the logical optimizations
+     */
+    public void testMissingReferencesInCidrMatch2() {
+        var testAnalyzer = analyzer().addIndex("network_logs", "mapping-network.json");
+        var analyzed = testAnalyzer.query("""
+            FROM network_logs
+            | EVAL src_ip_local = CASE(
+                    CIDR_MATCH(src_ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR src_ip == "127.0.0.1"::ip,
+                    TO_STRING(src_ip), null)
+            """);
+        optimize(analyzed);
+    }
 }

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -284,6 +287,30 @@ public class CombineDisjunctionsTests extends ESTestCase {
                 assertTrue(in1.list().size() == 2 && in1.list().containsAll(List.of(ONE, SIX)));
                 assertTrue(in2.list().size() == 4 && in2.list().containsAll(List.of(ONE, FOUR, FIVE, SIX)));
             }
+        }
+    }
+
+    public void testCombineIpEqualityIntoCidrMatchUsesKeywordType() {
+        FieldAttribute ipField = getFieldAttribute("ip_field", DataType.IP);
+
+        BytesRef cidrPattern = new BytesRef("10.0.0.0/8");
+        List<Expression> cidrPatterns = List.of(new Literal(EMPTY, cidrPattern, DataType.KEYWORD));
+
+        BytesRef encodedIp = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")));
+        Literal ipLiteral = new Literal(EMPTY, encodedIp, DataType.IP);
+        Equals ipEquals = new Equals(EMPTY, ipField, ipLiteral, null);
+
+        CIDRMatch cidrMatch = new CIDRMatch(EMPTY, ipField, cidrPatterns);
+        Or or = new Or(EMPTY, cidrMatch, ipEquals);
+
+        Expression result = combineDisjunctions(or);
+        assertEquals(CIDRMatch.class, result.getClass());
+        CIDRMatch combined = (CIDRMatch) result;
+        assertEquals(ipField, combined.ipField());
+        assertEquals(2, combined.matches().size());
+
+        for (Expression match : combined.matches()) {
+            assertEquals(DataType.KEYWORD, match.dataType());
         }
     }
 }

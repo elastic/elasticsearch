@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineLimitTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.DebugRule;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -228,6 +229,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanFunctionEqualsElimination(),
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
+            new DebugRule(),
             // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             new ReplaceStringCasingWithInsensitiveEquals(),

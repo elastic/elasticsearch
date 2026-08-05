@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateArrays;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineSegment;
@@ -57,11 +58,14 @@ public class IterativeDouglasPeuckerSimplifier {
 
         @Override
         protected CoordinateSequence transformCoordinates(CoordinateSequence coords, Geometry parent) {
+            // Matches JTS DPTransformer.transformCoordinates: a ring's shared endpoint may itself be
+            // simplified away, so only line (non-ring) endpoints are preserved.
+            boolean isPreserveEndpoint = parent instanceof LinearRing == false;
             Coordinate[] inputPts = coords.toCoordinateArray();
             if (inputPts.length == 0) {
                 return factory.getCoordinateSequenceFactory().create(new Coordinate[0]);
             }
-            Coordinate[] simplified = simplifyCoordinates(inputPts, distanceTolerance);
+            Coordinate[] simplified = simplifyCoordinates(inputPts, distanceTolerance, isPreserveEndpoint);
             return factory.getCoordinateSequenceFactory().create(simplified);
         }
 
@@ -123,9 +127,15 @@ public class IterativeDouglasPeuckerSimplifier {
      * <p>
      * This replaces the recursive {@code simplifySection(int i, int j)} in JTS's
      * {@code DouglasPeuckerLineSimplifier} with an explicit stack of {@code (i, j)} index pairs,
-     * so heap memory is used instead of the JVM call stack.
+     * so heap memory is used instead of the JVM call stack. Output matches JTS: it uses the same
+     * {@link LineSegment#distance(Coordinate)} segment distance in the split loop, and, when the
+     * input is a ring and its endpoint is not preserved, applies the same ring-endpoint
+     * simplification as {@code DouglasPeuckerLineSimplifier.simplify}.
+     *
+     * @param isPreserveEndpoint when false (i.e. the geometry is a ring), the shared start/end
+     *                           vertex may itself be simplified away
      */
-    static Coordinate[] simplifyCoordinates(Coordinate[] pts, double distanceTolerance) {
+    static Coordinate[] simplifyCoordinates(Coordinate[] pts, double distanceTolerance, boolean isPreserveEndpoint) {
         int n = pts.length;
         boolean[] usePt = new boolean[n];
         Arrays.fill(usePt, true);
@@ -148,9 +158,9 @@ public class IterativeDouglasPeuckerSimplifier {
             double maxDist = -1.0;
             int maxIdx = i;
             for (int k = i + 1; k < j; k++) {
-                // Use LineSegment.distancePerpendicular to match JTS's own DP distance calculation
-                // exactly, ensuring bit-for-bit identical output to DouglasPeuckerSimplifier.
-                double dist = seg.distancePerpendicular(pts[k]);
+                // Segment distance (clamped to the segment endpoints), matching JTS
+                // DouglasPeuckerLineSimplifier.simplifySection, so the kept-point set is identical.
+                double dist = seg.distance(pts[k]);
                 if (dist > maxDist) {
                     maxDist = dist;
                     maxIdx = k;
@@ -176,7 +186,40 @@ public class IterativeDouglasPeuckerSimplifier {
         for (int i = 0; i < n; i++) {
             if (usePt[i]) result[idx++] = pts[i];
         }
+
+        // Match JTS DouglasPeuckerLineSimplifier.simplify: the closure vertex of a ring is not
+        // exempt from simplification, so retry it against the segment spanning its neighbours.
+        if (isPreserveEndpoint == false && CoordinateArrays.isRing(pts)) {
+            return simplifyRingEndpoint(result, distanceTolerance);
+        }
         return result;
+    }
+
+    /**
+     * Mirrors JTS {@code DouglasPeuckerLineSimplifier.simplifyRingEndpoint}: on an already-simplified
+     * ring, if the shared endpoint lies within tolerance of the segment between its neighbours, drop
+     * it and re-close the ring around the new first vertex. Triangles (fewer than four points) are
+     * left intact to avoid collapsing them.
+     */
+    private static Coordinate[] simplifyRingEndpoint(Coordinate[] pts, double distanceTolerance) {
+        if (pts.length < 4) {
+            return pts;
+        }
+        LineSegment seg = new LineSegment();
+        seg.p0 = pts[1];
+        seg.p1 = pts[pts.length - 2];
+        if (seg.distance(pts[0]) > distanceTolerance) {
+            return pts;
+        }
+        // JTS removes the first and last coordinates then closeRing()s: keep pts[1..n-2] and, unless
+        // that run is already closed, append a copy of the new first vertex.
+        Coordinate[] open = Arrays.copyOfRange(pts, 1, pts.length - 1);
+        if (open.length > 0 && open[0].equals2D(open[open.length - 1]) == false) {
+            Coordinate[] closed = Arrays.copyOf(open, open.length + 1);
+            closed[open.length] = open[0];
+            return closed;
+        }
+        return open;
     }
 
 }

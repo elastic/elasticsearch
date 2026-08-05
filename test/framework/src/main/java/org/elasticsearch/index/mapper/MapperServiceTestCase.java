@@ -429,7 +429,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         Environment env = TestEnvironment.newEnvironment(envSettings);
         var telemetryProvider = getPlugins().stream()
             .filter(p -> p instanceof TelemetryPlugin)
-            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env))
+            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env, List.of()))
             .findFirst()
             .orElse(TelemetryProvider.NOOP);
         return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {

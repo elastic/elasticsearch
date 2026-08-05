@@ -85,7 +85,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     @Override
-    public final TelemetryProvider getTelemetryProvider(Environment environment) {
+    public final TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
         return getTelemetryProvider(environment.settings());
     }
 

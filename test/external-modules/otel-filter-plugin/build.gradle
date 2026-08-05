@@ -7,14 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.plugins;
+apply plugin: 'elasticsearch.internal-es-plugin'
 
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
-import org.elasticsearch.telemetry.TelemetryProvider;
-
-import java.util.List;
-
-public interface TelemetryPlugin {
-    TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders);
+esplugin {
+  name = "test-otel-filter-plugin"
+  description = 'Test plugin that installs a TelemetryLoggingFilterProvider for OTel logging IT tests'
+  classname = 'org.elasticsearch.test.otelfilter.TestOtelFilterPlugin'
 }

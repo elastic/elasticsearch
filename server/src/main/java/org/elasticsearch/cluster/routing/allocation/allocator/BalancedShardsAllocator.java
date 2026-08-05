@@ -934,11 +934,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // to achieve a fairer movement of shards from the nodes that are offloading the shards.
 
             // Execute the first pass, only moving shards where canRemain: NO and canAllocate: YES
-            final var nodeIdsWithDeferredMoves = executeMovesThatMatchPredicate(
+            final var nodeIdsWithDeferredMoves = findAndExecuteMoves(
                 shardMoved,
                 allocation.routingNodes().nodeInterleavedShardIterator(),
                 bestNonPreferredShardMovementsTracker,
-                Set.of(AllocationDecision.YES)
+                MovesToExecute.TO_YES_ONLY
             );
             if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
                 return;
@@ -946,14 +946,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // If we deferred any canRemain: NO, canAllocate: NOT_PREFERRED movements, execute them now.
             if (nodeIdsWithDeferredMoves.isEmpty() == false) {
-                final var secondPassNodesWithDeferredMoves = executeMovesThatMatchPredicate(
+                final var secondPassNodesWithDeferredMoves = findAndExecuteMoves(
                     shardMoved,
                     allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves::contains),
                     bestNonPreferredShardMovementsTracker,
-                    Set.of(AllocationDecision.YES, AllocationDecision.NOT_PREFERRED)
+                    MovesToExecute.TO_YES_OR_NOT_PREFERRED
                 );
                 assert secondPassNodesWithDeferredMoves.isEmpty() : "We shouldn't be deferring any moves on this pass";
             }
+        }
+
+        /// Indication of which moves to execute
+        private enum MovesToExecute {
+            /// Execute only moves where the canAllocate decision is `YES`
+            TO_YES_ONLY,
+            /// Execute moves where the canAllocate decision is `YES` or `NOT_PREFERRED`
+            TO_YES_OR_NOT_PREFERRED
         }
 
         /// Iterate through the shard Iterator looking for shards where `canRemain` is `NO`, acting on any
@@ -965,13 +973,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// @param shardMoved An atomic boolean that is set to true if a move was made
         /// @param shardsToCheck The iterator of shards to check
         /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
-        /// @param acceptableCanAllocateDecisions A set of canAllocate decisions for which we will execute the move, others will be deferred
+        /// @param movesToExecute The type of moves to execute
         /// @return The IDs of any nodes for which we deferred moves due to the `executeMovePredicate`
-        private Set<String> executeMovesThatMatchPredicate(
+        private Set<String> findAndExecuteMoves(
             AtomicBoolean shardMoved,
             Iterator<ShardRouting> shardsToCheck,
             BestShardMovementsTracker bestNonPreferredShardMovementsTracker,
-            Set<AllocationDecision> acceptableCanAllocateDecisions
+            MovesToExecute movesToExecute
         ) {
             final var nodeIdsWithDeferredMoves = new HashSet<String>();
             while (shardsToCheck.hasNext()) {
@@ -999,12 +1007,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
-                    } else if (acceptableCanAllocateDecisions.contains(moveDecision.getAllocationDecision())) {
-                        executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
-                        shardMoved.set(true);
-                    } else {
-                        nodeIdsWithDeferredMoves.add(shardRouting.currentNodeId());
-                    }
+                    } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
+                        || movesToExecute == MovesToExecute.TO_YES_OR_NOT_PREFERRED) {
+                            executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
+                            shardMoved.set(true);
+                        } else {
+                            nodeIdsWithDeferredMoves.add(shardRouting.currentNodeId());
+                        }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
                     logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
                 }
@@ -1769,6 +1778,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private String getNodeDescription(DiscoveryNode node) {
             return node.getId() + "/" + node.getName();
         }
+
     }
 
     /**

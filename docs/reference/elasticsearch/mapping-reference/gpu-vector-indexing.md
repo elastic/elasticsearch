@@ -20,7 +20,7 @@ GPU vector indexing requires the following:
 
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
 * A supported NVIDIA GPU (Ampere architecture or better, compute capability
-  >= 8.0) with a minimum 8GB of GPU memory
+  \>= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
   installed on the node. Refer to the

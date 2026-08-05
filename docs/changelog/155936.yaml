@@ -1,0 +1,7 @@
+area: Codec
+issues:
+ - 155653
+pr: 155936
+summary: "Fix false-positive in TSDB bool{filter:term,must_not:term} queries by forking\
+  \ `DocValuesRangeIterator`"
+type: bug

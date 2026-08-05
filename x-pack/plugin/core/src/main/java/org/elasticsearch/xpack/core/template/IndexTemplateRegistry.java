@@ -314,11 +314,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves return a list of {@link IndexTemplateConfig} that represents
      * the composable templates that are supported by all nodes of the cluster.
-     * <p>
-     * Every template returned by this method is guaranteed to have {@code _meta.managed: true} set,
+     * Every template returned by this method is guaranteed to have {@code managed: true} set,
      * regardless of whether the underlying JSON/YAML resource declares it. This ensures that
-     * {@code IndexSettingProvider} implementations can reliably distinguish registry-owned templates
-     * from user-supplied ones without depending on the resource files to carry that key.
+     * {@code IndexSettingProvider} implementations can reliably distinguish registry-owned templates.
      *
      * @return The configurations for the templates that CAN be installed right now.
      */

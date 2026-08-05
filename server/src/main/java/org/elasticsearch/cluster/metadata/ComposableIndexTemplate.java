@@ -282,10 +282,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
      * (e.g. the stack, APM, Fleet, or OTel template registries).
      * <p>
      * This flag is set programmatically by the registry at install time and is not derived from {@code _meta}
-     * content. {@code IndexSettingProvider} implementations may use it to relax product guardrails for
-     * registry-owned templates (e.g. allowing a managed template to pin a non-default index mode on a project
-     * type that would otherwise forbid it), but must not use it as a security or correctness control — a user
-     * can PUT a template with {@code "managed": true} via the REST API.
+     * content. {@code IndexSettingProvider} implementations may use it to relax guardrails for
+     * registry-owned templates.
      */
     public boolean isManaged() {
         return managed;

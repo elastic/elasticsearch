@@ -91,7 +91,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             .deprecated((Boolean) a[9])
             .createdDate((Long) a[10])
             .modifiedDate((Long) a[11])
-            .managed((Boolean) a[12])
+            .managed(Boolean.TRUE.equals(a[12]))
             .build()
     );
 
@@ -135,8 +135,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private final List<String> ignoreMissingComponentTemplates;
     @Nullable
     private final Boolean deprecated;
-    @Nullable
-    private final Boolean managed;
+    private final boolean managed;
     @Nullable
     private final Long createdDateMillis;
     @Nullable
@@ -196,11 +195,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.createdDateMillis = null;
             this.modifiedDateMillis = null;
         }
-        if (in.getTransportVersion().supports(COMPOSABLE_INDEX_TEMPLATE_MANAGED_FIELD)) {
-            this.managed = in.readOptionalBoolean();
-        } else {
-            this.managed = null;
-        }
+        this.managed = in.getTransportVersion().supports(COMPOSABLE_INDEX_TEMPLATE_MANAGED_FIELD) && in.readBoolean();
     }
 
     public List<String> indexPatterns() {
@@ -293,7 +288,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
      * can PUT a template with {@code "managed": true} via the REST API.
      */
     public boolean isManaged() {
-        return Boolean.TRUE.equals(managed);
+        return managed;
     }
 
     public Optional<Long> createdDateMillis() {
@@ -326,7 +321,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             out.writeOptionalLong(modifiedDateMillis);
         }
         if (out.getTransportVersion().supports(COMPOSABLE_INDEX_TEMPLATE_MANAGED_FIELD)) {
-            out.writeOptionalBoolean(managed);
+            out.writeBoolean(managed);
         }
     }
 
@@ -370,8 +365,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), deprecated);
         }
-        if (this.managed != null) {
-            builder.field(MANAGED.getPreferredName(), managed);
+        if (this.managed) {
+            builder.field(MANAGED.getPreferredName(), true);
         }
         if (this.createdDateMillis != null) {
             builder.timestampFieldsFromUnixEpochMillis(
@@ -515,7 +510,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
             && Objects.equals(deprecated, other.deprecated)
-            && Objects.equals(managed, other.managed)
+            && this.managed == other.managed
             && Objects.equals(createdDateMillis, other.createdDateMillis)
             && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
     }
@@ -643,7 +638,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private Boolean allowAutoCreate;
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
-        private Boolean managed;
+        private boolean managed;
         private Long createdDateMillis;
         private Long modifiedDateMillis;
 
@@ -724,7 +719,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
-        public Builder managed(@Nullable Boolean managed) {
+        public Builder managed(boolean managed) {
             this.managed = managed;
             return this;
         }

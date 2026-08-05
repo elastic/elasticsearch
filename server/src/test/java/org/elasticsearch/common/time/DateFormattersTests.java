@@ -1512,28 +1512,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(input));
     }
 
-    public void testLiteralDatePatternFormatters() {
-        for (String pattern : List.of("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd")) {
-            DateFormatter formatter = DateFormatter.forPattern(pattern);
-
-            List<String> valid = pattern.equals("yyyy-MM-dd")
-                ? List.of("2013-07-15", "2024-02-29", "0001-01-01", "9999-12-31")
-                : List.of("2013-07-15 03:39:00", "2013-07-15 03:39:59", "2024-02-29 23:59:59", "0001-01-01 00:00:00");
-
-            for (String input : valid) {
-                ZonedDateTime zdt = Instant.ofEpochMilli(formatter.parseMillis(input)).atZone(ZoneOffset.UTC);
-                assertThat(formatter.format(zdt), equalTo(input));
-            }
-
-            List<String> invalid = pattern.equals("yyyy-MM-dd")
-                ? List.of("2013-13-15", "2013-07-32", "2013-07-15 03:39:00", "not-a-date")
-                : List.of("2013-07-15T03:39:00", "2013-07-15 24:00:00", "2013-07-15 03:39", "2013-07-15");
-            for (String input : invalid) {
-                expectThrows(IllegalArgumentException.class, () -> formatter.parse(input));
-            }
-        }
-    }
-
     public void testXContentElasticsearchExtensionDefaultFormatter() {
         final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
         assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);
@@ -1575,6 +1553,68 @@ public class DateFormattersTests extends ESTestCase {
             var formatter = DateFormatter.forPattern("MM-dd-yyyy");
             DateTimeException e = expectThrows(DateTimeException.class, () -> parseToInstant(formatter, "02-30-2026"));
             assertThat(e.getMessage(), equalTo("Invalid date 'FEBRUARY 30'"));
+        }
+    }
+
+    public void testFastLiteralDatePatternFormatters() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd")) {
+            DateFormatter fast = DateFormatter.forPattern(pattern);
+            DateFormatter reference = DateFormatters.genericPatternFormatter(pattern);
+
+            List<String> inputs = pattern.equals("yyyy-MM-dd")
+                ? List.of(
+                    "2013-07-15",
+                    "2024-02-29",
+                    "0001-01-01",
+                    "9999-12-31",
+                    "2013-13-15",
+                    "2013-07-32",
+                    "2024-02-30",
+                    "2013-07-15 03:39:00",
+                    "2013-7-15",
+                    "not-a-date"
+                )
+                : List.of(
+                    "2013-07-15 03:39:00",
+                    "2013-07-15 03:39:59",
+                    "2024-02-29 23:59:59",
+                    "0001-01-01 00:00:00",
+                    "2013-07-15T03:39:00",
+                    "2013-07-15 24:00:00",
+                    "2013-07-15 03:60:00",
+                    "2013-07-15 03:39",
+                    "2013-07-15",
+                    "2013-07-15 03:39:00Z"
+                );
+
+            for (String input : inputs) {
+                try {
+                    Instant refInstant = parseToInstant(reference, input);
+                    Instant fastInstant = null;
+                    try {
+                        fastInstant = parseToInstant(fast, input);
+                    } catch (Exception e) {
+                        // if the reference formatter didn't throw, then the fast formatter throwing is a failure
+                        fail(e, "mismatch for [" + input + "] with pattern [" + pattern + "], fast formatter threw an exception");
+                    }
+                    assertThat("mismatch for [" + input + "] with pattern [" + pattern + "]", fastInstant, equalTo(refInstant));
+
+                    // confirm also that the output/formatting works the same, too
+                    assertThat(
+                        "format mismatch for [" + input + "] with pattern [" + pattern + "]",
+                        fast.formatMillis(fastInstant.toEpochMilli()),
+                        equalTo(reference.formatMillis(refInstant.toEpochMilli()))
+                    );
+                } catch (Exception ignored1) {
+                    try {
+                        // if the reference formatter throws, then the fast formatter should also throw
+                        parseToInstant(fast, input);
+                        fail("fast formatter should reject [" + input + "] with pattern [" + pattern + "]");
+                    } catch (Exception ignored2) {
+                        // ignored
+                    }
+                }
+            }
         }
     }
 

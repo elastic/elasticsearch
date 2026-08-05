@@ -33,10 +33,10 @@ public class SigtermShutdownMetricsTests extends ESTestCase {
 
     public void testRecordShutdownTime() {
         final long durationMs = randomLongBetween(0, TimeUnit.HOURS.toMillis(2));
-        final var status = randomBoolean() ? "COMPLETE" : "FAILED";
+        final String status = randomBoolean() ? "COMPLETE" : "FAILED";
         metrics.recordShutdownTime(durationMs, status, false);
 
-        List<Measurement> measurements = registry.getRecorder()
+        final List<Measurement> measurements = registry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.getFirst().getDouble(), equalTo(durationMs / 1000.0));

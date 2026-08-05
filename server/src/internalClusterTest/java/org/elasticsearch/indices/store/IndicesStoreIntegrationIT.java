@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -29,32 +28,22 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportMessageListener;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-import static java.lang.Thread.sleep;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -63,20 +52,11 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) { // simplify this and only use a single data path
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir())
-            // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
-            // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
-            // to prevent this we are setting the timeout here to something highish ie. the default in practice
-            .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(30, TimeUnit.SECONDS))
             .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -125,16 +105,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
-
-        if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
-            BlockClusterStateProcessing disruption = relocateAndBlockCompletion(logger, "test", 0, node_1, node_3);
-            // wait a little so that cluster state observer is registered
-            sleep(50);
-            logger.info("--> stopping disruption");
-            disruption.stopDisrupting();
-        } else {
-            ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand("test", 0, node_1, node_3));
-        }
+        ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand("test", 0, node_1, node_3));
         clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNoRelocatingShards(true).get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -145,106 +116,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(true));
 
-    }
-
-    /**
-     * relocate a shard and block cluster state processing on the relocation target node to activate the shard
-     */
-    public static BlockClusterStateProcessing relocateAndBlockCompletion(
-        Logger logger,
-        String index,
-        int shard,
-        String nodeFrom,
-        String nodeTo
-    ) throws InterruptedException {
-        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
-        internalCluster().setDisruptionScheme(disruption);
-        CountDownLatch beginRelocationLatch = new CountDownLatch(1);
-        CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
-        // use a tracer on the target node to track relocation start and end
-        MockTransportService.getInstance(nodeTo).addMessageListener(new TransportMessageListener() {
-            @Override
-            public void onRequestReceived(long requestId, String action) {
-                if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
-                    logger.info("received: {}, relocation starts", action);
-                    beginRelocationLatch.countDown();
-                } else if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
-                    // Whenever a node deletes a shard because it was relocated somewhere else, it first
-                    // checks if enough other copies are started somewhere else. The node sends a ShardActiveRequest
-                    // to the other nodes that should have a copy according to cluster state.
-                    receivedShardExistsRequestLatch.countDown();
-                    logger.info("received: {}, relocation done", action);
-                }
-            }
-        });
-        ClusterRerouteUtils.reroute(internalCluster().client(), new MoveAllocationCommand(index, shard, nodeFrom, nodeTo));
-        logger.info("--> waiting for relocation to start");
-        beginRelocationLatch.await();
-        logger.info("--> starting disruption");
-        disruption.startDisrupting();
-        logger.info("--> waiting for relocation to finish");
-        receivedShardExistsRequestLatch.await();
-        logger.info("--> relocation completed (but cluster state processing block still in place)");
-        return disruption;
-    }
-
-    /* Test that shard is deleted in case ShardActiveRequest after relocation and next incoming cluster state is an index delete. */
-    public void testShardCleanupIfShardDeletionAfterRelocationFailedAndIndexDeleted() throws Exception {
-        final String node_1 = internalCluster().startNode();
-        logger.info("--> creating index [test] with one shard and on replica");
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(indexSettings())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-        );
-        ensureGreen("test");
-        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index index = state.metadata().getProject().index("test").getIndex();
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
-
-        final String node_2 = internalCluster().startDataOnlyNode(Settings.builder().build());
-        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("2").get().isTimedOut());
-
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
-        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(true));
-        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
-
-        // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
-        // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
-        final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        MockTransportService.getInstance(node_1)
-            .addSendBehavior(MockTransportService.getInstance(node_2), (connection, requestId, action, request, options) -> {
-                if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
-                    shardActiveRequestSent.countDown();
-                    logger.info("prevent shard active request from being sent");
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-
-        logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, node_1, node_2));
-        shardActiveRequestSent.await();
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNoRelocatingShards(true).get();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        // delete the index. node_1 that still waits for the next cluster state update will then get the delete index next.
-        // it must still delete the shard, even if it cannot find it anymore in indicesservice
-        indicesAdmin().prepareDelete("test").get();
-
-        assertShardDeleted(node_1, index, 0);
-        assertIndexDeleted(node_1, index);
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(false));
-
-        assertShardDeleted(node_2, index, 0);
-        assertIndexDeleted(node_2, index);
-        assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
-        assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
     }
 
     public void testShardsCleanup() throws Exception {

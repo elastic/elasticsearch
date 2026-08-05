@@ -105,4 +105,5 @@ public class IndicesStoreTests extends ESTestCase {
         // Shard exists locally, can't delete shard
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
     }
+
 }

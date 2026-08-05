@@ -270,10 +270,9 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/common/subquery_limitations.md
 :::
 
-## Comparing views, subqueries and FORK
+## Comparing views, subqueries, and FORK
 
-:::{include} _snippets/common/comparing_views_subqueries_fork.md
-:::
+For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md#comparing-views-subqueries-and-fork).
 
 ## Related pages
 

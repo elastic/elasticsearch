@@ -14,10 +14,12 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -200,6 +202,25 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * The core mappers (keyword, number, date, boolean, ip, text) have always honored the index-level {@code doc_values} settings, so
+     * the {@link IndexVersions#DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS} gate (which only applies to the mappers that historically ignored
+     * them) must not affect them: an index created before that version still resolves the setting.
+     */
+    public void testCoreMapperHonorsIndexSettingForOlderCreatedVersions() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            settings,
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
     }
 
     /**

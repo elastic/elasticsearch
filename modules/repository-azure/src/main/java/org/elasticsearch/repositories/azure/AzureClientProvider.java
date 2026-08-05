@@ -56,8 +56,10 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -150,17 +152,28 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
     }
 
+    // a `projectId` of `null` corresponds to keys from the `clusterStorageSettings`, if `projectId` is not null then it corresponds
+    // to `perProjectStorageSettings`
     record ConnectionProviderKey(@Nullable ProjectId projectId, String clientName, AzureStorageSettings settings) {}
 
     private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
 
-    void clearCache() {
-        synchronized (this) {
-            // TODO: We could do smarter things here ... such as see the new settings we get and see which clients do not appear in the new
-            // settings anymore and we can only clean up the connectionProviders for those cases ...
-            IOUtils.closeWhileHandlingException(connectionProvidersCache.values()); // for doing the disposeLater on `ConnectionProvider`s
-            connectionProvidersCache = Collections.emptyMap();
+    synchronized void refreshCache(Set<ConnectionProviderKey> keysToRemove) {
+        var refs = connectionProvidersCache.entrySet()
+            .stream()
+            .filter(entry -> keysToRemove.contains(entry.getKey()))
+            .map(entry -> entry.getValue())
+            .toList();
+
+        // We can remove from the cache for now but the reference is still alive as long as we haven't closed it (i.e., have not called
+        // closeInternal).
+        var newConnectionProvidersCache = new HashMap<>(connectionProvidersCache);
+        for (ConnectionProviderKey key : keysToRemove) {
+            newConnectionProvidersCache.remove(key);
         }
+        connectionProvidersCache = Map.copyOf(newConnectionProvidersCache);
+
+        IOUtils.closeWhileHandlingException(refs); // for doing the disposeLater on `ConnectionProvider`s
     }
 
     private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
@@ -215,6 +228,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     AzureBlobServiceClient createClient(
+        @Nullable ProjectId projectId,
         String clientName,
         AzureStorageSettings settings,
         LocationMode locationMode,
@@ -227,7 +241,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
-        ConnectionProviderKey key = new ConnectionProviderKey(null, clientName, settings);
+        ConnectionProviderKey key = new ConnectionProviderKey(projectId, clientName, settings);
         AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(

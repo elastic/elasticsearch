@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,6 +54,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -314,7 +314,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
+                e -> assertThat(e, instanceOf(XContentParseException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings, modelListener);
@@ -484,7 +484,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
             ActionListener<Model> modelListener = ActionListener.<Model>wrap(
                 model -> fail("Model parsing should have failed"),
-                e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
+                e -> assertThat(e, instanceOf(XContentParseException.class))
             );
 
             service.parseRequestConfig(randomInferenceEntityId, TaskType.SPARSE_EMBEDDING, config, modelListener);
@@ -2554,10 +2554,10 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         var serviceSettingsWithNumThreads = new HashMap<String, Object>(Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8));
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
         );
-        assertThat(exception.getMessage(), containsString("[num_threads] cannot be updated"));
+        assertThat(exception.getCause().getMessage(), containsString("[num_threads] cannot be updated"));
     }
 
     private ElasticsearchInternalService createService(Client client) {

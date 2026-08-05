@@ -26,6 +26,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Version;
 
 import java.io.IOException;
 
@@ -34,12 +35,16 @@ import java.io.IOException;
  * for {@code forOrdinalSet} so that {@code docIDRunEnd()} returns a correct, conservative run
  * boundary on {@code MAYBE} and {@code YES_IF_PRESENT} blocks.
  *
- * <p>The upstream fix is in apache/lucene#16450, which only landed in Lucene 11.0.0. Delete this
+ * <p>The upstream fix is in apache/lucene#16450, is available in Lucene 10.5.1. Delete this
  * class, revert callers to {@link MultiTermQuery#DOC_VALUES_REWRITE}, and remove the
  * {@link #DOC_VALUES_REWRITE} singleton once Elasticsearch upgrades to a Lucene release containing
  * that fix.
  */
 public final class XDocValuesRewriteMethod extends MultiTermQuery.RewriteMethod {
+
+    static {
+        assert Version.LUCENE_10_5_0.onOrAfter(Version.LATEST) : "Remove this class as fix is part of 10.5.1 and later";
+    }
 
     /** Drop-in replacement for {@link MultiTermQuery#DOC_VALUES_REWRITE}. */
     public static final MultiTermQuery.RewriteMethod DOC_VALUES_REWRITE = new XDocValuesRewriteMethod();

@@ -21,6 +21,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.Version;
 
 import java.io.IOException;
 
@@ -29,13 +30,17 @@ import java.io.IOException;
  * the current doc ID (an empty run) for {@code MAYBE} and {@code YES_IF_PRESENT} blocks, where the
  * current doc is only an approximation candidate and not a confirmed match.
  *
- * <p>The upstream fix is in apache/lucene#16450, which only landed in Lucene 11.0.0. Delete this
+ * <p>The upstream fix is in apache/lucene#16450, which will land in Lucene 10.5.1. Delete this
  * class and revert callers to Lucene's {@code DocValuesRangeIterator} once Elasticsearch upgrades
  * to a Lucene release containing that fix.
  *
  * @lucene.experimental
  */
 public abstract sealed class XDocValuesRangeIterator extends TwoPhaseIterator {
+
+    static {
+        assert Version.LUCENE_10_5_0.onOrAfter(Version.LATEST) : "Remove this class as fix is part of 10.5.1 and later";
+    }
 
     /**
      * Creates an XDocValuesRangeIterator over a NumericDocValues instance

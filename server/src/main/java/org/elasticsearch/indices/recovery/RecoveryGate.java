@@ -16,6 +16,7 @@ import java.util.Objects;
 /// The node's gates are combined most-restrictive-wins by [RecoveryGateMonitor].
 ///
 /// [#evaluate] is on the recovery dispatch path: it must be fast, non-blocking, and must not call back into recovery scheduling.
+@FunctionalInterface
 public interface RecoveryGate {
 
     /// Evaluates whether new recoveries may start now on this node. Must not throw: a throwing gate is ignored by the

@@ -350,7 +350,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         if (isClosed()) {
             return;
         }
-        final BlockedState state = blockedState.getAndSet(null);
+        final BlockedState state = blockedState.get();
         assert state != null : "resume callback fired without a recorded block";
         try {
             final long blockedTimeMillis = threadPool.relativeTimeInMillis() - state.sinceMillis();
@@ -361,6 +361,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             );
             schedulingListener.onRecoveriesUnblocked(blockedTimeMillis);
         } finally {
+            blockedState.set(null);
             fillSlots();
         }
     }

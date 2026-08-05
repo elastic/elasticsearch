@@ -62,6 +62,7 @@ public final class RecoveryGateMonitor {
                 logger.warn(() -> "recovery gate [" + gate.getClass().getName() + "] failed to evaluate and is ignored", e);
                 continue;
             }
+            assert decision != null : "recovery gate [" + gate.getClass().getName() + "] returned null decision";
             if (decision.mayRun() == false) {
                 return decision;
             }

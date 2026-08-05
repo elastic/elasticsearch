@@ -2036,6 +2036,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new KeywordField(fieldType().name(), binaryValue, fieldType);
     }
 
+    public FieldType luceneFieldType() {
+        return fieldType;
+    }
+
     @Override
     public void doValidate(MappingLookup lookup) {
         if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {

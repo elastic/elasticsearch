@@ -134,10 +134,10 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
-        this.cacheService = cacheService;
         this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
         );
+        this.cacheService = cacheService;
         this.snapshotsCommitService = snapshotsCommitService;
         this.clusterService = clusterService;
         this.recoveryMetricsCollector = recoveryMetricsCollector;
@@ -421,9 +421,13 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert blobContainer != null : indexShard.routingEntry();
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+        final boolean timestampBackfillEnabled = useInternalFilesReplicatedContentForSearchShards
+            && searchDirectory.timestampBackfillEnabled();
+        final var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(timestampBackfillEnabled);
         final var batchedCompoundCommit = objectStoreService.readSearchShardState(
             blobContainer,
             searchDirectory,
+            metadataReadDirectory,
             indexShard.getOperationPrimaryTerm()
         );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
@@ -478,7 +482,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
-                            searchDirectory,
+                            metadataReadDirectory,
                             IOContext.DEFAULT,
                             bccHeaderReadExecutor,
                             referencedCompoundCommit -> {
@@ -494,14 +498,20 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
+                                // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
                                 long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
+                            },
+                            (blobFile, bccSize) -> {
+                                assert targetsToWarm.containsKey(blobFile);
+                                targetsToWarm.merge(blobFile, WarmTarget.withUnknownTimestamp(0L, bccSize), WarmTarget::merge);
                             },
                             l2.map(aVoid -> {
+                                assert targetsToWarm.values().stream().allMatch(t -> t.blobSize() > 0);
                                 var timestampByCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(targetsToWarm.size());
                                 for (var entry : targetsToWarm.entrySet()) {
                                     timestampByCacheKey.put(
@@ -509,8 +519,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         entry.getValue().timestampMillis()
                                     );
                                 }
-                                // This backfill also handles the initial BCC read in readSearchShardState.
-                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                if (timestampBackfillEnabled) {
+                                    // This backfill also handles the initial BCC read in readSearchShardState.
+                                    searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                }
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })
                         );

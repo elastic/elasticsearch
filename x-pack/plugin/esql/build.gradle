@@ -568,6 +568,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongRangeEvaluator.java"
   }
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleRangeEvaluator.java"
+  }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
   template {

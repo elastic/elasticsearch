@@ -106,6 +106,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
+            .managed(randomOptionalBoolean())
             .createdDate(createdDate)
             .modifiedDate(modifiedDate)
             .build();
@@ -168,7 +169,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     }
 
     public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(
                     orig.indexPatterns(),
@@ -216,35 +217,24 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 return orig.toBuilder().ignoreMissingComponentTemplates(ignoreMissingComponentTemplates).build();
             case 8:
                 return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
+            case 9:
+                return orig.toBuilder().managed(orig.isManaged() ? randomFrom(false, null) : true).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
     }
 
     public void testIsManaged() {
-        // _meta absent -> not managed
-        ComposableIndexTemplate noMeta = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
-        assertThat(noMeta.isManaged(), equalTo(false));
+        // managed field absent -> not managed
+        ComposableIndexTemplate noManaged = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(noManaged.isManaged(), equalTo(false));
 
-        // _meta present but without "managed" key -> not managed
-        ComposableIndexTemplate metaNoManaged = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("test-*"))
-            .metadata(Map.of("description", "some template"))
-            .build();
-        assertThat(metaNoManaged.isManaged(), equalTo(false));
-
-        // _meta.managed = false -> not managed
-        ComposableIndexTemplate managedFalse = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("test-*"))
-            .metadata(Map.of(ComposableIndexTemplate.MANAGED_META_KEY, false))
-            .build();
+        // managed = false -> not managed
+        ComposableIndexTemplate managedFalse = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(false).build();
         assertThat(managedFalse.isManaged(), equalTo(false));
 
-        // _meta.managed = true -> managed
-        ComposableIndexTemplate managedTrue = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("test-*"))
-            .metadata(Map.of(ComposableIndexTemplate.MANAGED_META_KEY, true))
-            .build();
+        // managed = true -> managed
+        ComposableIndexTemplate managedTrue = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(true).build();
         assertThat(managedTrue.isManaged(), equalTo(true));
     }
 

@@ -338,9 +338,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (template.isManaged()) {
             return template;
         }
-        Map<String, Object> newMeta = new HashMap<>(template.metadata() != null ? template.metadata() : Map.of());
-        newMeta.put(ComposableIndexTemplate.MANAGED_META_KEY, true);
-        return template.toBuilder().metadata(newMeta).build();
+        return template.toBuilder().managed(true).build();
     }
 
     /**

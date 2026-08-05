@@ -37,11 +37,11 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test1
-          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 10001, "fields" : {"field1" : {}}}}
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 100001, "fields" : {"field1" : {}}}}
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "x_content_parse_exception" }
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [10000]" }
+  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [100000]" }
 
 ---
 "number_of_fragments at the maximum should SUCCEED":
@@ -50,7 +50,7 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test1
-          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 10000, "fields" : {"field1" : {}}}}
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "number_of_fragments" : 100000, "fields" : {"field1" : {}}}}
   - match: { hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em>" }
 
 ---
@@ -65,4 +65,4 @@ setup:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "x_content_parse_exception" }
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [10000]" }
+  - match: { error.caused_by.reason: "[number_of_fragments] must be between [0] and [100000]" }

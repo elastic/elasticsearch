@@ -205,6 +205,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
         // during the value-encode pass — no extra cursor over the data.
         final NumericPipeline pipeline = pipelineSelector.select(field.name, type).build(blockSize);
+        assert pipeline.blockSize() == blockSize
+            : "template ignored blockSize argument: built " + pipeline.blockSize() + ", expected " + blockSize;
         NumericColumnMetadata metadata = NumericColumnWriter.write(
             maxDoc,
             numDocsWithField,

@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Random;

@@ -259,7 +259,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertEquals(0L, visitor.getEstimatedBytes());
     }
 
-    public void testResetRecapturesBreakerBaseline() {
+    public void testPostResetTripsReflectLiveBreakerUsage() {
         long limit = 1_000L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
@@ -272,7 +272,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         visitor.reset();
 
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
-        assertTrue("reset() must recapture the breaker baseline so post-reset trips reflect new used", breaker.tripped);
+        assertTrue("post-reset trips must reflect the live breaker usage read at check time", breaker.tripped);
     }
 
     public void testResetWithoutBreakerIsANoOpForBaseline() {
@@ -337,7 +337,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertTrue("second leaf should have tripped the breaker", breaker.tripped);
     }
 
-    public void testBreakerBaselineIsCapturedAtConstructionTime() {
+    public void testPreExistingBreakerUsageIsIncludedInProjection() {
         long limit = 1_000L;
         long preExisting = 900L;
         FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, preExisting);
@@ -345,6 +345,26 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
         assertTrue(breaker.tripped);
+    }
+
+    public void testPreChargedBytesCountTowardMidWalkTripViaLiveUsed() {
+        long limit = 1000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+        Query preChargedAutomaton = new AccountableTestQuery(10000L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount(),
+            breaker,
+            q -> q == preChargedAutomaton
+        );
+
+        breaker.setUsed(800L);
+        preChargedAutomaton.visit(visitor);
+        assertEquals("pre-charged bytes must never enter the committed estimate", 0L, visitor.getEstimatedBytes());
+        assertEquals("the pre-charged leaf must still be counted as a clause", 1, visitor.getNumClauses());
+        assertFalse("visiting the pre-charged leaf must not trip on its own", breaker.tripped);
+
+        expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(300L).visit(visitor));
+        assertTrue("mid-walk projection must include pre-charged bytes via live breaker.getUsed()", breaker.tripped);
     }
 
     public void testMergeRoutesThroughEarlyTripPeek() {

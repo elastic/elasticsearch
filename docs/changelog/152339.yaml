@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 152339
+summary: "[Inference API] Use new default 'regionless' EIS URL for CCM"
+type: enhancement

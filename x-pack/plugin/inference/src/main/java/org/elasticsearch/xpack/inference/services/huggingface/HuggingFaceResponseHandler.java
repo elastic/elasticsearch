@@ -22,7 +22,8 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Validates the status code and throws a RetryException if it is not in the range [200, 300).
+     * Handles failure status codes by throwing a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * The Hugging Face error codes are loosely defined <a href="https://huggingface.co/docs/api-inference/faq">here</a>.
      * @param outboundRequest the http request
@@ -30,11 +31,7 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 503 || statusCode == 502 || statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));

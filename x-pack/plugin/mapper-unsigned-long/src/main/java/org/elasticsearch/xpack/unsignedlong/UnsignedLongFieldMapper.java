@@ -17,6 +17,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -84,14 +85,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
     private static final BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        true,
-        true,
-        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
-    );
-
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
         return (UnsignedLongFieldMapper) in;
     }
@@ -121,7 +114,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                DEFAULT_DOC_VALUES_PARAMS,
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -624,6 +622,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             } else {
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+                Numbers.checkNumericStringLength(stringValue);
                 try {
                     return Long.parseUnsignedLong(stringValue);
                 } catch (NumberFormatException e) {
@@ -655,7 +654,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return longValue;
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
+            final BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);  // throws an exception if it is an improper number
             if (bigDecimalValue.compareTo(BigDecimal.ZERO) < 0) {
                 return 0L; // for values < 0, set lowerTerm to 0
             }
@@ -689,7 +688,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return longValue;
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
+            final BigDecimal bigDecimalValue = Numbers.newBigDecimal(stringValue);  // throws an exception if it is an improper number
             int c = bigDecimalValue.compareTo(BigDecimal.ZERO);
             if (c < 0 || (c == 0 && include == false)) {
                 return null; // upperTerm is below minimum
@@ -911,7 +910,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             } catch (NumberFormatException ignored) {
                 final BigInteger bigInteger;
                 try {
-                    final BigDecimal bigDecimal = new BigDecimal(stringValue);
+                    final BigDecimal bigDecimal = Numbers.newBigDecimal(stringValue);
                     bigInteger = bigDecimal.toBigIntegerExact();
                 } catch (ArithmeticException e) {
                     throw new IllegalArgumentException("Value \"" + stringValue + "\" has a decimal part");

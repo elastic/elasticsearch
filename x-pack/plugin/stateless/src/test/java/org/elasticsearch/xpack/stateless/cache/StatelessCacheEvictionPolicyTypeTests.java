@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -18,15 +19,14 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
+import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
 
@@ -79,23 +79,53 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
         assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
     }
 
-    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings) {
-        final var deterministicTaskQueue = new DeterministicTaskQueue();
-        final var clusterService = ClusterServiceUtils.createClusterService(
-            deterministicTaskQueue.getThreadPool(),
-            createClusterSettings(settings)
+    public void testEvictionPolicyCanBeChangedDynamicallyOnSearchNode() {
+        final var settings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .put(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(), StatelessCacheEvictionPolicyType.ALWAYS)
+            .build();
+        final var clusterService = createClusterService(settings);
+        final var switchingPolicy = new SwitchingEvictionPolicy(
+            settings,
+            clusterService,
+            TestUtils.mockIndicesService(clusterService),
+            clusterService.threadPool()
         );
+
+        assertThat(switchingPolicy.getDelegate(), instanceOf(DefaultEvictionPolicy.class));
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(
+                        STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
+                        StatelessCacheEvictionPolicyType.INDEX_AGE
+                    )
+                    .build()
+            );
+
+        assertThat(switchingPolicy.getDelegate(), instanceOf(IndexAgeEvictionPolicy.class));
+    }
+
+    private static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings) {
+        final var clusterService = createClusterService(settings);
         return StatelessCacheEvictionPolicyType.createEvictionPolicy(
             settings,
             clusterService,
             TestUtils.mockIndicesService(clusterService),
-            mock(ThreadPool.class)
+            clusterService.threadPool()
         );
+    }
+
+    private static ClusterService createClusterService(Settings settings) {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        return ClusterServiceUtils.createClusterService(deterministicTaskQueue.getThreadPool(), createClusterSettings(settings));
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {
         Set<Setting<?>> clusterSettings = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.add(PINNED_WINDOW_DURATION_SETTING);
+        clusterSettings.add(STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         return new ClusterSettings(settings, clusterSettings);
     }
 }

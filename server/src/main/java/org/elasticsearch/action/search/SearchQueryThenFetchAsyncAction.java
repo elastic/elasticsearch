@@ -717,7 +717,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         shardCount,
                         e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
-                                logger.warn("failed to merge on data node", e);
+                                logger.debug("failed to merge on data node", e);
                             } else {
                                 logger.error("failed to merge on data node", e);
                             }

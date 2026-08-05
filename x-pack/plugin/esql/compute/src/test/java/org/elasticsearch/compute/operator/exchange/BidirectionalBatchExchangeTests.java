@@ -389,10 +389,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
      * for: ERROR by default, or WARN for the warn-level sites.
      */
     public void testGenuineFailuresAreLoggedAtRequestedLevel() {
-        for (Exception failure : List.of(new IllegalStateException("boom"))) {
-            assertExchangeFailureLoggedAt(Level.ERROR, failure);
-            assertExchangeFailureLoggedAt(Level.WARN, failure);
-        }
+        Exception failure = new IllegalStateException("boom");
+        assertExchangeFailureLoggedAt(Level.ERROR, failure);
+        assertExchangeFailureLoggedAt(Level.WARN, failure);
     }
 
     /**

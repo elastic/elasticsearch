@@ -53,7 +53,7 @@ public class TsdbBoolMustNotReproductionTests extends ESSingleNodeTestCase {
             "dimension",
             "type=keyword,time_series_dimension=true",
             "label",
-            "type=keyword"
+            "type=keyword,index=false"
         );
 
         final long baseTs = 1704067200000L; // 2024-01-01T00:00:00Z

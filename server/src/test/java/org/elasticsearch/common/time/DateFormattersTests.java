@@ -76,7 +76,6 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertParses(String input, DateFormatter formatter) {
-
         TemporalAccessor javaTimeAccessor = formatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
         assertThat(zonedDateTime, notNullValue());

@@ -26,7 +26,7 @@ public class SigtermShutdownMetrics {
     public static final SigtermShutdownMetrics NOOP = new SigtermShutdownMetrics(MeterRegistry.NOOP);
 
     // Seconds rather than milliseconds: default histogram buckets top out at 131072 (see modules/apm/METERING.md).
-    // In milliseconds, that overflows above ~2.2 minutes but SIGTERM default timeout is 1 hour.
+    // In milliseconds, that's ~2.2 minutes but SIGTERM default timeout is 1 hour (StatelessSigtermPlugin#TIMEOUT_SETTING).
     private final DoubleHistogram shutdownDurationSeconds;
     private final DoubleHistogram shardMigrationDurationSeconds;
 

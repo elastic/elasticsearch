@@ -106,7 +106,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
-            .managed(randomOptionalBoolean())
+            .managed(randomBoolean())
             .createdDate(createdDate)
             .modifiedDate(modifiedDate)
             .build();
@@ -218,24 +218,18 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             case 8:
                 return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
             case 9:
-                return orig.toBuilder().managed(orig.isManaged() ? randomFrom(false, null) : true).build();
+                return orig.toBuilder().managed(orig.isManaged() == false).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
     }
 
     public void testIsManaged() {
-        // managed field absent -> not managed
-        ComposableIndexTemplate noManaged = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
-        assertThat(noManaged.isManaged(), equalTo(false));
+        ComposableIndexTemplate notManaged = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(notManaged.isManaged(), equalTo(false));
 
-        // managed = false -> not managed
-        ComposableIndexTemplate managedFalse = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(false).build();
-        assertThat(managedFalse.isManaged(), equalTo(false));
-
-        // managed = true -> managed
-        ComposableIndexTemplate managedTrue = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(true).build();
-        assertThat(managedTrue.isManaged(), equalTo(true));
+        ComposableIndexTemplate managed = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(true).build();
+        assertThat(managed.isManaged(), equalTo(true));
     }
 
     public void testComponentTemplatesEquals() {

@@ -116,6 +116,10 @@
         "process.thread.name": {
           "type": "alias",
           "path": "resource.attributes.thread.name"
+        },
+        "orchestrator.resource.name": {
+          "type": "alias",
+          "path": "resource.attributes.k8s.pod.name"
         }
       }
     }

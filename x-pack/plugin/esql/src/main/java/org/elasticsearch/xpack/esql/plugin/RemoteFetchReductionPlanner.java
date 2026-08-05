@@ -79,6 +79,18 @@ class RemoteFetchReductionPlanner {
         LocalPhysicalOptimizerContext optimizerContext
     ) {}
 
+    /**
+     * Rewrites the first coordinator TopN over the data exchange so that only its eager columns and an opaque fetch handle cross the
+     * exchange. Deferred columns are appended after the global TopN has selected its winners.
+     * <pre>
+     * coordinator: Project -> TopN -> ExchangeSource[all columns]
+     * data:        ExchangeSink[all columns] -> Fragment[Project -> TopN]
+     *
+     * coordinator: Project -> RemoteFetch -> TopN -> ExchangeSource[handle, eager columns]
+     *                                  \-> Fragment[RemoteFetchSource[deferred columns]]
+     * data:        ExchangeSink[handle, eager columns] -> Fragment[Project[doc, eager columns] -> TopN]
+     * </pre>
+     */
     static Optional<CoordinatorPlan> planCoordinatorTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalDataPlan,
@@ -151,6 +163,15 @@ class RemoteFetchReductionPlanner {
         return Optional.of(new CoordinatorPlan(updatedCoordinatorPlan, updatedDataPlan));
     }
 
+    /**
+     * Rewrites the node-reduce TopN to consume the shard plan's doc attribute and eager columns, then encodes each winning doc as the
+     * opaque handle expected by the coordinator exchange.
+     * <pre>
+     * shard data:  ExchangeSink[doc, eager columns] -> Fragment[Project -> TopN]
+     * node reduce: ExchangeSink[handle, eager columns]
+     *                  -> Project -> Eval[handle = remote_fetch_handle(doc)] -> TopN -> ExchangeSource[doc, eager columns]
+     * </pre>
+     */
     static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan,

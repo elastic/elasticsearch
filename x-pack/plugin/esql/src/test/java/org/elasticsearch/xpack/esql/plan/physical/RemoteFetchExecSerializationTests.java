@@ -51,6 +51,13 @@ public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSeria
         RemoteFetchExec exec = new RemoteFetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan);
 
         assertSame(fetchPlan, exec.fetchPlan());
+        assertSame(fetchPlan, exec.pushdownPlan());
+    }
+
+    public void testBareFetchSourceDoesNotRequirePushdown() {
+        RemoteFetchExec exec = randomRemoteFetchExec(0);
+
+        assertNull(exec.pushdownPlan());
     }
 
     public void testRejectsFetchPlanWithoutRemoteFetchSource() {

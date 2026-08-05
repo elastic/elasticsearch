@@ -158,7 +158,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -790,8 +789,7 @@ public class LocalExecutionPlanner {
             .stream()
             .map(attr -> new RemoteFetchService.FetchField(fieldName(attr), attr.dataType()))
             .toList();
-        // TopN remote fetch currently emits a bare RemoteFetchSource; this becomes non-null when future pushdown planning wraps it.
-        PhysicalPlan pushdownPlan = exec.fetchPlan().fragment() instanceof RemoteFetchSource ? null : exec.pushdownPlan();
+        PhysicalPlan pushdownPlan = exec.pushdownPlan();
         Layout layout = source.layout.builder().append(exec.fetchedOutputAttributes()).build();
         return source.with(
             new RemoteFetchOperator.Factory(

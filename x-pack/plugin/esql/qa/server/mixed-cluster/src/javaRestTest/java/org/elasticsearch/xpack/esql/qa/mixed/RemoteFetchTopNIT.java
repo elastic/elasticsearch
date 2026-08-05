@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,10 @@ import static org.hamcrest.Matchers.not;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteFetchTopNIT extends ESRestTestCase {
+    private static final TransportVersion REMOTE_FETCH_TOPN_TRANSPORT_VERSION = TransportVersion.fromName(
+        "esql_remote_fetch_topn_reduction"
+    );
+
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
@@ -40,6 +45,15 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     public void testRemoteFetchTopNFallsBackWhenAnyDataNodeIsOld() throws Exception {
+        assertTrue(
+            "the current version must support remote-fetch TopN",
+            TransportVersion.current().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)
+        );
+        assertFalse(
+            "the mixed cluster minimum transport version must not support remote-fetch TopN",
+            minimumTransportVersion().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)
+        );
+
         String index = "remote_fetch_topn_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         createTestIndex(index);
         indexDocs(index);
@@ -130,12 +144,10 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
             builder.field("profile", true);
             builder.field("accept_pragma_risks", true);
             builder.startObject("pragma");
-            builder.field("node_level_reduction", true);
             builder.field("remote_fetch_topn", true);
+            // Keep the data path deterministic and ensure the test exercises shard-level node reduction.
             builder.field("data_partitioning", "shard");
             builder.field("task_concurrency", 1);
-            builder.field("max_concurrent_nodes_per_cluster", 10);
-            builder.field("max_concurrent_shards_per_node", 10);
             builder.endObject();
             builder.endObject();
             request.setJsonEntity(Strings.toString(builder));

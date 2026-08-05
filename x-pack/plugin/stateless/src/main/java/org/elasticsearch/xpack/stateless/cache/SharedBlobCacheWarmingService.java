@@ -128,6 +128,7 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
     public static final String BLOB_CACHE_WARMING_RATIO_METRIC = "es.blob_cache_warming.ratio.histogram";
+    public static final String BLOB_CACHE_WARMING_BYTES_TOTAL_METRIC = "es.blob_cache_warming.bytes.total";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
 
     /**
@@ -384,6 +385,7 @@ public class SharedBlobCacheWarmingService {
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final DoubleHistogram warmingDurationMetric;
     private final DoubleHistogram warmingRatioMetric;
+    private final LongCounter warmingOfflineByteRangeBytesTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
@@ -482,6 +484,14 @@ public class SharedBlobCacheWarmingService {
                 "The warming ratio (between 0.0 and 1.0) of bcc blobs, broken down by the [" + BCC_SIZE_ATTRIBUTE_KEY + "] size bucket",
                 "1",
                 List.of(0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0)
+            );
+        this.warmingOfflineByteRangeBytesTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                BLOB_CACHE_WARMING_BYTES_TOTAL_METRIC,
+                "Total byte range length requested for offline blob cache warming, broken down by the ["
+                    + BCC_SIZE_ATTRIBUTE_KEY
+                    + "] size bucket",
+                "bytes"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -1609,6 +1619,10 @@ public class SharedBlobCacheWarmingService {
                 : "byte range warmer NOT used with prefix ranges, is the warming ratio metric still correct?";
             warmingRatioMetric.record(
                 (double) byteRangeToWarm.length() / blobSize,
+                Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
+            );
+            warmingOfflineByteRangeBytesTotalMetric.incrementBy(
+                byteRangeToWarm.length(),
                 Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );
             logger.log(

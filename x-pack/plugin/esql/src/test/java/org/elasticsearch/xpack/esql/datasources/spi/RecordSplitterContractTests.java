@@ -69,6 +69,22 @@ public abstract class RecordSplitterContractTests extends ESTestCase {
         );
     }
 
+    /**
+     * A splitter that is not proven-capable must reject the proven-probe surface rather than silently fall back to a
+     * quote-blind scan: both {@link RecordSplitter#findProvenRecordBoundary} and
+     * {@link RecordSplitter#findRecordStartAtOrAfter} throw {@link UnsupportedOperationException}. Proven-capable
+     * splitters implement them and are exercised by their own differential tests, so this only covers the default.
+     */
+    public void testProvenProbingRejectedWhenUnsupported() {
+        RecordSplitter splitter = newSplitter();
+        assumeFalse("proven-capable splitters have dedicated coverage", splitter.supportsProvenProbing());
+        expectThrows(UnsupportedOperationException.class, () -> splitter.findProvenRecordBoundary(new ByteArrayInputStream(bytes("x"))));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(bytes("x")), 1L, () -> false)
+        );
+    }
+
     public void testFindLastRecordBoundaryMatchesForwardScan() throws IOException {
         byte[] payload = concat(terminatedRecord("first"), terminatedRecord("second"), bytes("tail"));
         int expectedBoundary = driveForwardToLastBoundary(newSplitter(), payload);

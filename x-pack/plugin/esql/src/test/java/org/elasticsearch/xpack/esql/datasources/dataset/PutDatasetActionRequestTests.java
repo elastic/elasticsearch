@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction.Request;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,7 +35,8 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
             randomName(),
             "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(4) + "/*.parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20),
-            randomSettings()
+            randomSettings(),
+            randomMappingOrNull()
         );
     }
 
@@ -43,7 +47,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> new Request(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
@@ -90,9 +94,20 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     instance.dataSource(),
                     instance.resource(),
                     instance.description(),
-                    mutated
+                    mutated,
+                    instance.mapping()
                 );
             }
+            case 5 -> new Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                instance.name(),
+                instance.dataSource(),
+                instance.resource(),
+                instance.description(),
+                instance.rawSettings(),
+                randomValueOtherThan(instance.mapping(), PutDatasetActionRequestTests::randomMappingOrNull)
+            );
             default -> throw new AssertionError("unreachable");
         };
     }
@@ -160,6 +175,25 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
 
     private static String randomName() {
         return randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+    }
+
+    static DatasetMapping randomMappingOrNull() {
+        if (randomBoolean()) {
+            return null;
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        int n = between(0, 3);
+        for (int i = 0; i < n; i++) {
+            props.put(
+                "c" + i,
+                new DatasetFieldMapping(
+                    randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
+                    randomBoolean() ? null : randomAlphaOfLength(4).toLowerCase(Locale.ROOT)
+                )
+            );
+        }
+        String idPath = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        return DatasetMapping.assemble(new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props, idPath));
     }
 
     private static Map<String, Object> randomSettings() {

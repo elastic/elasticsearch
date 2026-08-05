@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153057
+summary: Upgrade Apache `HttpComponents` 5.x to fix CVEs
+type: upgrade

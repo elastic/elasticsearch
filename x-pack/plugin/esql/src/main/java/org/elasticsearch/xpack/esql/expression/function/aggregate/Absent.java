@@ -75,6 +75,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "flattened",
@@ -139,13 +140,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or date_range"
-        );
+        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

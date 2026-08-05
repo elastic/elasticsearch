@@ -11,8 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -140,18 +138,10 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         LinkedHashMap<String, String> result = Maps.newLinkedHashMapWithExpectedSize(expectedSegments);
         for (int i = 0; i < expectedSegments; i++) {
             String segment = nonEmpty.get(startIdx + i);
-            String decoded = urlDecode(segment);
+            String decoded = HivePartitionDetector.decodePartitionValue(segment);
             result.put(columnNames.get(i), decoded);
         }
         return result;
-    }
-
-    private static String urlDecode(String value) {
-        try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            return value;
-        }
     }
 
     public static List<String> parseTemplateColumns(String template) {

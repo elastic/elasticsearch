@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -121,22 +120,14 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
-    public void testDefaultsColumnarMode() throws IOException {
-        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-
-        assertEquals(1, fields.size());
-
-        IndexableFieldType fieldType = fields.get(0).fieldType();
-        assertFalse(fieldType.stored());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
-        assertThat(fieldType.storeTermVectors(), equalTo(false));
-        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertThat(fieldType.docValuesType(), equalTo(DocValuesType.BINARY));
+    public void testColumnarModeRejected() {
+        // icu_collation_keyword has no native synthetic source today, so its _source cannot be reconstructed from doc
+        // values and it is rejected in columnar for now (a fixable follow-up in the columnar contract issue).
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping))
+        );
+        assertThat(e.getMessage(), containsString("cannot reconstruct _source from doc values"));
     }
 
     public void testNullValue() throws IOException {
@@ -168,18 +159,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.size());
         assertTrue(fields.get(0).fieldType().stored());
-    }
-
-    public void testHighCardinality() throws IOException {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
-        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
-        assertEquals(IndexOptions.NONE, fields.get(1).fieldType().indexOptions());
-        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws IOException {

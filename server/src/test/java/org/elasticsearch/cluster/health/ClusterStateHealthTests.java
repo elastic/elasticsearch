@@ -91,10 +91,8 @@ public class ClusterStateHealthTests extends ESTestCase {
         threadPool = new TestThreadPool("ClusterStateHealthTests");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterAndTransport() throws Exception {
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
@@ -111,8 +109,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterAndTransport() throws Exception {
         clusterService.close();
         transportService.close();
     }

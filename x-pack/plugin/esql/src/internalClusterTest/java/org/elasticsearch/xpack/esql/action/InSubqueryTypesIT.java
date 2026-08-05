@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -58,6 +59,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -124,15 +126,15 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
+            TestEncryptionServicePlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
             SpatialPlugin.class,
             AnalyticsPlugin.class,
-            AggregateMetricMapperPlugin.class,
-            // EsqlPlugin's TransportPutDataSourceAction requires an EncryptionService at injection time.
-            TestEncryptionServicePlugin.class
+            AggregateMetricMapperPlugin.class
         );
     }
 
@@ -282,6 +284,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
      */
     private static final Set<DataType> SKIP_VALIDATION_AFTER_POPULATING_INDICES = Set.of(
         DATE_RANGE,
+        DOUBLE_RANGE,
         FLATTENED,
         DENSE_VECTOR,
         AGGREGATE_METRIC_DOUBLE,
@@ -292,9 +295,10 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
 
     /**
      * All types that get a column in both {@code main_index} and {@code sub_index}, including under-construction types
-     * ({@code DATE_RANGE}, {@code FLATTENED} as of writing): these are reported as {@code supportedOn(...) == true} on snapshot builds
-     * by {@link SupportedVersion#underConstruction}, and {@code internalClusterTest}s only run on snapshot builds, so the analyzer
-     * surfaces them with their proper {@code DataType}. Counter types are intentionally excluded — they live in {@link #TSDB_INDEX}
+     * ({@code DATE_RANGE}, {@code DOUBLE_RANGE}, {@code FLATTENED} as of writing): on snapshot builds these are reported as
+     * {@code supportedOn(...) == true} by {@link SupportedVersion#underConstruction}, so the analyzer surfaces them with their proper
+     * {@code DataType}. On release builds they surface as {@link DataType#UNSUPPORTED} instead, so the pairs that involve them are skipped
+     * at test time (see {@link #testableOnCurrentBuild}). Counter types are intentionally excluded — they live in {@link #TSDB_INDEX}
      * instead.
      */
     private static final List<DataType> ALL_TEST_TYPES;
@@ -498,8 +502,27 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     private void testInSubqueryTypes(String group) {
         TestConfigs configs = testConfigurations.get(group);
         for (TestConfig config : configs.values()) {
+            if (testableOnCurrentBuild(config) == false) {
+                continue;
+            }
             config.doTest();
         }
+    }
+
+    /**
+     * Under-construction data types ({@code DATE_RANGE}, {@code FLATTENED} as of writing) are only surfaced with their real
+     * {@link DataType} on snapshot builds; on release builds {@link DataType#fromEs} maps them to {@link DataType#UNSUPPORTED}, so the
+     * analyzer rejects the query with a generic {@code "Cannot use field [...] with unsupported type [...]"} error before the IN subquery
+     * verifier ever runs — which doesn't match the type-specific error these configs assert. Skip any pair that involves an
+     * under-construction type when not on a snapshot build so the suite still exercises every other combination on release builds. This
+     * mirrors {@code LookupJoinTypesIT}, which filters out {@link DataType#UNDER_CONSTRUCTION} types the same way.
+     */
+    private static boolean testableOnCurrentBuild(TestConfig config) {
+        if (Build.current().isSnapshot()) {
+            return true;
+        }
+        return DataType.UNDER_CONSTRUCTION.contains(config.mainType()) == false
+            && DataType.UNDER_CONSTRUCTION.contains(config.subType()) == false;
     }
 
     private void createIndex(String indexName, String fieldPrefix) {
@@ -556,6 +579,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     private static String sampleValueJsonFor(DataType type) {
         return switch (type) {
             case DATE_RANGE -> "{ \"gte\": \"2025-04-02T12:00:00.000Z\", \"lte\": \"2025-04-02T13:00:00.000Z\" }";
+            case DOUBLE_RANGE -> "{ \"gte\": 1.0, \"lte\": 2.0 }";
             case FLATTENED -> "{ \"k\": \"v\" }";
             case DENSE_VECTOR -> "[0.2672612, 0.5345224, 0.8017837]";
             case AGGREGATE_METRIC_DOUBLE -> "{ \"min\": 1, \"max\": 2, \"sum\": 3, \"value_count\": 1 }";

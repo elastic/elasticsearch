@@ -69,6 +69,15 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     }
 
     @Override
+    public SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
+            ? SortField.STRING_LAST
+            : SortField.STRING_FIRST;
+        boolean maxMode = sortMode == MultiValueMode.MAX;
+        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode, arrayOrder);
+    }
+
+    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         // Falls back to: FieldComparator.TermValComparator which works with binary doc values.
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);

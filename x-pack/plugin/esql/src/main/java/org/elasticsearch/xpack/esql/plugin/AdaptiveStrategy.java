@@ -56,7 +56,7 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
             return ExternalDistributionPlan.LOCAL;
         }
 
-        boolean hasPipelineBreaker = plan.anyMatch(n -> n instanceof AggregateExec || n instanceof TopNExec);
+        boolean hasPipelineBreaker = ExternalDistributionStrategy.needsGatherBoundary(plan);
         boolean manySplits = splits.size() > nodes.size();
 
         if (hasPipelineBreaker || manySplits) {

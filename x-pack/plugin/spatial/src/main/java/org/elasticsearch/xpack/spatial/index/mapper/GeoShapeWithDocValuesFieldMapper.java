@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -214,6 +215,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 scriptValues(),
                 geoFormatterFactory,
                 context.isSourceSynthetic(),
+                context.isStrictColumnar(),
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -234,6 +236,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
         private final boolean isSyntheticSource;
+        private final boolean isColumnar;
 
         public GeoShapeWithDocValuesFieldType(
             String name,
@@ -247,10 +250,44 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
+            this(
+                name,
+                indexed,
+                hasDocValues,
+                isStored,
+                orientation,
+                parser,
+                scriptValues,
+                geoFormatterFactory,
+                isSyntheticSource,
+                false,
+                meta
+            );
+        }
+
+        public GeoShapeWithDocValuesFieldType(
+            String name,
+            boolean indexed,
+            boolean hasDocValues,
+            boolean isStored,
+            Orientation orientation,
+            GeoShapeParser parser,
+            FieldValues<Geometry> scriptValues,
+            GeoFormatterFactory<Geometry> geoFormatterFactory,
+            boolean isSyntheticSource,
+            boolean isColumnar,
+            Map<String, String> meta
+        ) {
             super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
+            this.isColumnar = isColumnar;
+        }
+
+        /** True in strict columnar index modes, where the source geometries are kept in a field-owned doc value. */
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -334,6 +371,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID) {
                 return new GeoBoundsAndCentroidBlockLoader(name());
+            }
+            if (isColumnar && blContext.parentField(name()) == null) {
+                // Columnar: read the geometry value (WKB) straight from the field-owned doc value. Multi fields are
+                // excluded: they keep no doc value and load their value from the parent.
+                return new GeometrySourceBlockLoader(GeometrySourceDocValuesField.fieldName(name()));
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -460,6 +502,20 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
+
+            if (fieldType().isColumnar() && context.mappingLookup().isMultiField(name) == false) {
+                // Columnar rebuilds _source from doc values, so keep the original geometries verbatim in this field-owned
+                // doc value (the merged triangle tree above cannot recover them). Multi fields are excluded: they are not
+                // in _source and load their value from the parent.
+                final String sourceName = GeometrySourceDocValuesField.fieldName(name);
+                GeometrySourceDocValuesField sourceField = (GeometrySourceDocValuesField) context.doc().getByKey(sourceName);
+                if (sourceField == null) {
+                    sourceField = new GeometrySourceDocValuesField(sourceName);
+                    context.doc().addWithKey(sourceName, sourceField);
+                }
+                // Store the normalized geometry: that is what is indexed and what the value/_source reflect.
+                sourceField.add(normalizedGeometry);
+            }
         } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }
@@ -482,6 +538,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (fieldType().isColumnar() && fieldType().hasDocValues()) {
+            // Columnar keeps the source geometries in this field's own doc value, so rebuild _source from there.
+            return new SyntheticSourceSupport.Native(
+                () -> new CompositeSyntheticFieldLoader(
+                    leafName(),
+                    fullPath(),
+                    new GeometrySourceSyntheticFieldLoaderLayer(GeometrySourceDocValuesField.fieldName(fullPath()))
+                )
+            );
+        }
+        return super.syntheticSourceSupport();
     }
 
     @Override

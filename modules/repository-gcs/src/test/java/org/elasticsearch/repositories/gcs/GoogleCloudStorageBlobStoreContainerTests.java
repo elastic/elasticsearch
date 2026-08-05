@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalInt;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.instanceOf;
@@ -95,7 +94,6 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
-                OptionalInt.empty(),
                 BackoffPolicy.noBackoff(),
                 new GcsRepositoryStatsCollector(),
                 null,

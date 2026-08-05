@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 
@@ -16,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 /**
  * Wraps a {@link CloseableIterator} so the iterator's {@code close()} runs with an
@@ -30,7 +33,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * <h2>{@link ColumnExtractorProducer} forwarding</h2>
  * The wrapper unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
- * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate, mirroring
+ * {@link #createColumnExtractor(Consumer)} / {@link #setExtractorId(int)} to its delegate, mirroring
  * {@code SchemaAdaptingIterator}. A non-producer delegate makes the consumer's
  * {@code instanceof ColumnExtractorProducer} check a necessary-but-not-sufficient guard — the
  * dispatch into the delegate fails loud (see {@link #innerProducer()}). Without this forwarding the
@@ -65,6 +68,24 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
         return delegate.next();
     }
 
+    /**
+     * Forward the async-ready signal to the delegate. This wrapper is a thin pass-through for
+     * {@code hasNext}/{@code next}, so it must be one for readiness too: the producer-loop drain calls
+     * {@code waitForReady()} on the outermost iterator and parks the executor thread while it is not
+     * done. Without this override the default {@link CloseableIterator#waitForReady()} (immediately
+     * done) would swallow the delegate's real signal, and the drain would fall through to a blocking
+     * {@code hasNext()} on a parser-backed delegate — the multi-file text-read deadlock.
+     */
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page tryAdvance() {
+        return delegate.tryAdvance();
+    }
+
     @Override
     public void close() throws IOException {
         try (ExternalStatsCapture.Handle handle = ExternalStatsCapture.bind(sink)) {
@@ -73,8 +94,8 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     }
 
     @Override
-    public ColumnExtractor createColumnExtractor() throws IOException {
-        return innerProducer().createColumnExtractor();
+    public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) throws IOException {
+        return innerProducer().createColumnExtractor(driverThreadWarningSink);
     }
 
     @Override

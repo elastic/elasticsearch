@@ -21,9 +21,12 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -135,6 +138,20 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(scannedEntriesMeasurements, hasSize(1));
         assertThat(scannedEntriesMeasurements.getFirst().getLong(), is(scannedEntries));
         assertEvictionScanAttributes(scannedEntriesMeasurements.getFirst(), mode, outcome);
+    }
+
+    public void testRecordLockAcquire() {
+        final long elapsedNanos = randomNonNegativeLong();
+        final BlobCacheMetrics.LockAcquireSite site = randomFrom(BlobCacheMetrics.LockAcquireSite.values());
+
+        metrics.recordLockAcquire(elapsedNanos, site);
+
+        final var measurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_LOCK_ACQUIRE_TIME);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.getFirst().getDouble(), closeTo(elapsedNanos / 1000.0, 1e-9));
+        assertThat(measurements.getFirst().attributes().get(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY), is(site.name()));
+        assertThat(measurements.getFirst().attributes().keySet(), contains(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
     }
 
     private static void assertEvictionScanAttributes(

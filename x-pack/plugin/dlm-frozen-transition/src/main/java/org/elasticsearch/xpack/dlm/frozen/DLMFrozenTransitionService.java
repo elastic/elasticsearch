@@ -145,7 +145,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                 }
                 String indexName = indexMetadata.getIndex().getName();
                 logger.debug("Frozen index to process detected: {}", indexName);
-                if (transitionExecutor.transitionSubmitted(indexName)) {
+                if (transitionExecutor.transitionSubmitted(projectMetadata.id(), indexName)) {
                     logger.debug("Transition already running for index [{}], skipping", indexName);
                     continue;
                 } else if (transitionExecutor.hasCapacity() == false) {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
@@ -128,6 +129,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                     collectLabelsAndMetrics(within.child(), labels, counters, counters);
                 }
                 case AcrossSeriesAggregate across -> across.groupings().stream().map(Expression::sourceText).forEach(labels::add);
+                case AcrossSeriesReduction reduction -> reduction.groupings().stream().map(Expression::sourceText).forEach(labels::add);
                 case HistogramQuantile histogramQuantile -> {
                     skipBranch.set(Boolean.TRUE);
                     collectLabelsAndMetrics(histogramQuantile.child(), labels, counters, counters);

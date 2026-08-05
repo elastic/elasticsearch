@@ -86,6 +86,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(TestEncryptionServicePlugin.class);
         plugins.add(EsqlActionBreakerIT.EsqlTestPluginWithMockBlockFactory.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(LocalStateEnrich.class);
@@ -93,7 +94,6 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         plugins.add(ReindexPlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 

@@ -65,17 +65,15 @@ public class MultiSearchActionTookTests extends ESTestCase {
     public static void afterClass() {}
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("MultiSearchActionTookTests");
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         clusterService.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     // test unit conversion using a controller clock

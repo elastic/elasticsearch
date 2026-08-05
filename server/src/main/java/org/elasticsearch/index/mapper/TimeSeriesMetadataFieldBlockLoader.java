@@ -30,14 +30,46 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Load {@code _timeseries} into blocks.
+ * Loads {@code _timeseries} metadata into blocks.
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
-        this.metadataFields = timeSeriesMetadata(context, loadMetrics);
+        this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+    }
+
+    private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
+        assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+
+        if (context.indexSettings().getMode().isTsdb() == false) {
+            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
+        }
+
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
+        MappingLookup mappingLookup = context.mappingLookup();
+
+        var dimensionMappers = mappingLookup.dimensionFieldMappers();
+        var result = new LinkedHashSet<String>(dimensionMappers.size());
+        for (var m : dimensionMappers.values()) {
+            result.add(m.fieldType().name());
+        }
+
+        for (var skip : config.skipFieldNames()) {
+            // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
+            var f = mappingLookup.getFieldType(skip);
+            result.remove(f != null ? f.name() : skip);
+        }
+
+        if (loadMetrics) {
+            // Metrics are disjoint from dimensions by TSDB mapping validation and are never excluded.
+            for (var m : mappingLookup.metricFieldMappers().values()) {
+                result.add(m.fieldType().name());
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -52,7 +84,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeries(breaker);
+        return new TimeSeriesReader(breaker);
     }
 
     @Override
@@ -70,37 +102,40 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("_timeseries metadata does not support ordinals");
     }
 
-    private static class TimeSeries extends BlockStoredFieldsReader {
-        protected TimeSeries(CircuitBreaker breaker) {
+    @Override
+    public String toString() {
+        return "TimeSeriesMetadata";
+    }
+
+    private static final class TimeSeriesReader extends BlockStoredFieldsReader {
+        private TimeSeriesReader(CircuitBreaker breaker) {
             super(breaker);
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            // TODO support appending BytesReference
-            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
-        }
-
         /**
-         * The {@code _timeseries} keyword column is documented to contain a JSON-encoded object with the dimension
-         * key/value pairs identifying each group. {@link Source#internalSourceRef()} returns bytes in whatever XContent
-         * type the underlying {@code _source} happens to use: synthetic source always reconstructs as JSON, but stored
-         * source preserves the original encoding (e.g. CBOR for documents written via the Prometheus remote-write
-         * endpoint, which builds {@link org.elasticsearch.xcontent.XContentFactory#cborBuilder} requests). Normalize
-         * to JSON so the value is a valid keyword regardless of how {@code _source} is stored. When the underlying
-         * encoding is already JSON we return the bytes unchanged to avoid a parser/builder round-trip.
+         * Returns source bytes normalized to JSON.
+         *
+         * The {@code _timeseries} keyword column is documented as a JSON-encoded object containing
+         * the dimension key/value pairs that identify a time series. Synthetic source already
+         * reconstructs as JSON, but stored source preserves the original content type. For example,
+         * documents written through the Prometheus remote-write endpoint may be stored as CBOR.
+         *
+         * If the source is already JSON, this method returns the original bytes to avoid an
+         * unnecessary parser/builder round trip.
          */
         private static BytesReference toJson(Source source) throws IOException {
             BytesReference bytes = source.internalSourceRef();
-            XContentType type = source.sourceContentType();
-            if (type == XContentType.JSON) {
+            XContentType contentType = source.sourceContentType();
+
+            if (contentType == XContentType.JSON) {
                 return bytes;
             }
+
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, type);
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, contentType);
                 XContentBuilder json = XContentFactory.jsonBuilder()
             ) {
                 parser.nextToken();
@@ -110,45 +145,14 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
 
         @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            // TODO: support appending BytesReference directly.
+            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+        }
+
+        @Override
         public String toString() {
             return "BlockStoredFieldsReader.TimeSeries";
         }
-    }
-
-    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadMetrics) {
-        if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
-        }
-
-        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
-        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
-        MappingLookup mappingLookup = ctx.mappingLookup();
-
-        Set<FieldMapper> dimensionIndex = mappingLookup.indexDimensionFieldMappers();
-        Set<String> result = new LinkedHashSet<>(dimensionIndex.size());
-        for (FieldMapper mapper : dimensionIndex) {
-            result.add(mapper.fieldType().name());
-        }
-
-        for (String skip : config.withoutFields()) {
-            // Resolve each name to its concrete field name so that passthrough aliases
-            // like "cpu" -> "attributes.cpu" are matched correctly.
-            var ft = mappingLookup.getFieldType(skip);
-            result.remove(ft != null ? ft.name() : skip);
-        }
-
-        if (loadMetrics) {
-            // Metrics are disjoint from dimensions by TSDB mapping validation and are never excluded.
-            for (FieldMapper mapper : mappingLookup.indexMetricFieldMappers()) {
-                result.add(mapper.fieldType().name());
-            }
-        }
-
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return "TimeSeriesMetadata";
     }
 }

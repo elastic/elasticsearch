@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
@@ -722,7 +723,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                             }
                         };
                         masterClusterService.addListener(clusterStateListener);
-                        indexShard.failShard("broken", new Exception("boom local " + (searchShard ? "search" : "indexing") + " shard"));
+                        try {
+                            indexShard.failShard("broken", new Exception("boom local " + (searchShard ? "search" : "indexing") + " shard"));
+                        } catch (AlreadyClosedException e) {
+                            logger.info("--> shard is already closed due to concurrent node restart/replace/isolation");
+                        }
                         safeAwait(unassignedLatch);
                         masterClusterService.removeListener(clusterStateListener);
                         ensureGreenIgnoreNodeDisconnection(0, trackedIndex.index.getName());

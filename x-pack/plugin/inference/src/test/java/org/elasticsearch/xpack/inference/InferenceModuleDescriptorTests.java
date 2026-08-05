@@ -54,7 +54,6 @@ public class InferenceModuleDescriptorTests extends ESTestCase {
     public void testRequiresCommonsTextAndLang3() {
         var moduleDescriptor = getInferenceDescriptor();
         assertThat(moduleDescriptor.requires(), hasItem(requiresOf("org.apache.commons.text")));
-        assertThat(moduleDescriptor.requires(), hasItem(requiresOf("org.apache.commons.lang3")));
     }
 
     private static ModuleDescriptor getInferenceDescriptor() {

@@ -1,0 +1,46 @@
+# Phrase queries on graph token streams must preserve position holes left by
+# the part-of-speech stop filter, otherwise a phrase query containing a
+# document's exact text can fail to match it.
+#
+---
+"Phrase query with mixed decompound and part-of-speech filter":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              tokenizer:
+                nori_mixed:
+                  type: nori_tokenizer
+                  decompound_mode: mixed
+              analyzer:
+                nori_graph:
+                  type: custom
+                  tokenizer: nori_mixed
+                  filter: [nori_part_of_speech]
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: nori_graph
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "text": "보험계약대출이율" }
+  - do:
+      indices.refresh: {}
+
+  # tokens: 보험계약@0(len 2), 보험@0, 계약@1, 대출@2, 율@4
+  # (the particle 이 at position 3 is removed by nori_part_of_speech)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text: "보험계약대출이율"
+  - match: { hits.total: 1 }

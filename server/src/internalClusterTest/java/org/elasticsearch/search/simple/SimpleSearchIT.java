@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -180,11 +181,15 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testIpCidrHighCardinality() throws Exception {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // In strict-columnar mode an ip field defaults to HIGH-cardinality (binary) doc values, exercising the same path the explicit
         // cardinality option used to provide.
+        // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+        // — incompatible with the disable_sequence_numbers default that columnar mode enables.
         testIpCidr(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .build(),
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("_doc")

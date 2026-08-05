@@ -19,10 +19,10 @@ For an overview of all query options available for `semantic_text` fields, see [
 
 ## Inference endpoint selection
 
-The target field of `semantic` query must be mapped as `semantic_text` and associated with an inference endpoint. At query time, the inference endpoint is chosen as follows:
+The target field of a `semantic` query must be mapped as `semantic` or `semantic_text` and associated with an inference endpoint. At query time, the inference endpoint is chosen as follows:
 - If `search_inference_id` is defined, the semantic query uses that endpoint to embed the query.
 - If no `search_inference_id` is defined, `inference_id` is used for both indexing and search.
-- If no endpoint is specified at mapping, `inference_id` defaults to `.elser-2-elasticsearch`.￼
+- For `semantic_text` fields, if no endpoint is specified in the mapping, the field uses its [default endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-endpoints). The `semantic` field has no default endpoint and requires an explicit `inference_id`.
 
 The underlying vector type (dense or sparse) is determined by the endpoint automatically. No extra query parameters are required.
 
@@ -45,7 +45,7 @@ GET my-index-000001/_search
 ## Top-level parameters for `semantic` [semantic-query-params]
 
 `field`
-:   (Required, string) The `semantic_text` field to perform the query on.
+:   (Required, string) The `semantic` or `semantic_text` field to perform the query on.
 
 `query`
 :   (Required, string) The query text to be searched for on the field.
@@ -121,4 +121,3 @@ GET my-index/_search
 }
 ```
 % TEST[skip: Requires inference endpoints]
-

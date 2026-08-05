@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
@@ -54,8 +53,8 @@ class InternalTestEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
-        for (Index index : operations) {
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        for (Index index : batch.operations()) {
             if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 idToMaxSeqNo.compute(index.id(), (id, existing) -> {
                     if (existing == null) {
@@ -68,7 +67,7 @@ class InternalTestEngine extends InternalEngine {
                 });
             }
         }
-        return super.indexBatch(operations, batch);
+        return super.indexBatch(batch);
     }
 
     @Override

@@ -8,35 +8,14 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.generator.Column;
+
+import java.util.List;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
  */
 public class GenerativeRestTestTests extends ESTestCase {
-
-    public void testLimitByMvExpandBugMatchesDedup() {
-        String query = "ROW x = 1 | MV_EXPAND x | DEDUP";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:27: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertTrue(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
-
-    public void testLimitByMvExpandBugMatchesLimitBy() {
-        String query = "ROW x = 1 | MV_EXPAND x | LIMIT 1 BY x";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:40: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertTrue(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
-
-    public void testLimitByMvExpandBugRequiresMvExpand() {
-        String query = "ROW x = 1 | DEDUP";
-        String error = "illegal_state_exception: Found 1 problem\n"
-            + "line 1:17: Plan [LimitBy[1[INTEGER],[x{r}#3594],false]] optimized incorrectly due to missing references [x{r}#3594]";
-
-        assertFalse(GenerativeRestTest.isLimitByMvExpandBug(error, query));
-    }
 
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {
         String query = "FROM books, (FROM books | LIMIT 1) | WHERE match(title, \"quick\")";
@@ -101,6 +80,48 @@ public class GenerativeRestTestTests extends ESTestCase {
         String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testMatchOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchOptionsOnNonIndexMappedNonTextFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnNonIndexMappedFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnNonIndexMappedNonTextFieldIsAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), false));
+
+        assertTrue(GenerativeRestTest.isFieldFullTextError(error, schema));
+    }
+
+    public void testMatchPhraseOptionsOnIndexMappedFieldIsNotAllowed() {
+        String error = "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [message]";
+        List<Column> schema = List.of(new Column("message", "keyword", List.of(), true));
+
+        assertFalse(GenerativeRestTest.isFieldFullTextError(error, schema));
     }
 
 }

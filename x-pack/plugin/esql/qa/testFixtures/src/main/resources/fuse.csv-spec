@@ -742,8 +742,8 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | KEEP _id, my_score, my_fork
 ;
 
-warning:Line 6:3: evaluation of [FUSE LINEAR SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+warningRegex:Line 6:3: evaluation of \[FUSE LINEAR SCORE BY my_score GROUP BY my_fork\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]
@@ -794,8 +794,8 @@ ROW my_score = [0, 1, 2, 3, 4]::double, _index = "my_index", my_fork = "foo"
 | KEEP _id, my_score, my_fork
 ;
 
-warning:Line 6:3: evaluation of [FUSE RRF SCORE BY my_score GROUP BY my_fork] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
+warningRegex:Line 6:3: evaluation of \[FUSE RRF SCORE BY my_score GROUP BY my_fork\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 6:3: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores
 
 _id:keyword | my_score:double | my_fork:keyword
 id_0.0      | null            | [foo, bar]

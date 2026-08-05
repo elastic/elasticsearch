@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1328,8 +1327,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotNull(service.getMapper("time"));
     }
 
-    public void testSubobjectsFalseWithInnerNestedFromDynamicTemplate() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+    public void testSubobjectsFalseWithInnerNestedFromDynamicTemplate() throws IOException {
+        // A dynamic template may map a field to an object with subobjects:false that contains a nested field.
+        // Nested is now accepted under subobjects:false, so the template is valid and applies at index time.
+        MapperService mapperService = createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
                 b.startObject();
@@ -1355,18 +1356,20 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endArray();
-        })));
-        assertEquals(
-            "Failed to parse mapping: dynamic template [test] has invalid content [{\"match\":\"metric\",\"mapping\":"
-                + "{\"properties\":{\"time\":{\"type\":\"nested\"}},\"subobjects\":false,\"type\":\"object\"}}], "
-                + "attempted to validate it with the following match_mapping_type: [object, string, long, double, boolean, date, binary]",
-            exception.getMessage()
-        );
-        assertThat(exception.getRootCause(), instanceOf(MapperParsingException.class));
-        assertEquals(
-            "Tried to add nested object [time] to object [__dynamic__test] which does not support subobjects",
-            exception.getRootCause().getMessage()
-        );
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("metric");
+            {
+                b.startArray("time");
+                b.startObject().field("value", 1).endObject();
+                b.endArray();
+            }
+            b.endObject();
+        }));
+        // The template applied: metric.time is nested, so the nested value is indexed as a separate child document
+        // (root document + one nested child).
+        assertThat(doc.docs(), hasSize(2));
     }
 
     /**
@@ -2211,7 +2214,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
      * {@code index.mapping.dynamic_strings.auto_keyword} disabled so the concrete string ({@code one_xyz}) maps as {@code text} only.
      */
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFieldsWithoutAutoTextSubfield() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         String mapping = """
             {
               "_doc": {

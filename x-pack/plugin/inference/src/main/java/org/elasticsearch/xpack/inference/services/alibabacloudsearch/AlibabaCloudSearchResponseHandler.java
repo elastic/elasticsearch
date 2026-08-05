@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -25,18 +24,16 @@ public class AlibabaCloudSearchResponseHandler extends BaseResponseHandler {
     }
 
     /**
-     * Validates the status code throws an RetryException if not in the range [200, 300).
+     * Handles failure status codes by throwing a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
      *
      * @param outboundRequest The http request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
-        if (RestStatus.isSuccessful(statusCode)) {
-            return;
-        }
 
         // handle error codes
         if (statusCode >= 500) {

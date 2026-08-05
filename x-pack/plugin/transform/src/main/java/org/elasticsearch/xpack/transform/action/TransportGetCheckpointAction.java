@@ -384,7 +384,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 .filter(Objects::nonNull)
                 .toList();
             if (resolvedIndexExpressionList.isEmpty() == false) {
-                resolvedIndexExpressions = new ResolvedIndexExpressions(resolvedIndexExpressionList);
+                resolvedIndexExpressions = new ResolvedIndexExpressions(resolvedIndexExpressionList, null);
             }
         }
 

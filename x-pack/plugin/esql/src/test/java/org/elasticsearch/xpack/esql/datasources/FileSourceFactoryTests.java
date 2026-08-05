@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Regression tests for the wiring inside {@link FileSourceFactory#operatorFactory()}. The
@@ -116,6 +117,79 @@ public class FileSourceFactoryTests extends ESTestCase {
         assertNull(factory.lastModifiedMillis());
     }
 
+    /**
+     * The config-aware {@code canHandle} lets the file factory claim an extensionless resource when the
+     * query config names an explicit, registered format on a scheme we have a storage provider for. Without
+     * the override the path-only form rejects extensionless objects, which is why a dataset registered with
+     * an explicit {@code format} on an extensionless resource failed to read end to end.
+     */
+    public void testCanHandleWithConfigClaimsExtensionlessWhenFormatIsExplicit() {
+        FileSourceFactory fileSourceFactory = newFileSourceFactory();
+
+        // Extension still wins on its own, with or without config.
+        assertTrue(fileSourceFactory.canHandle("s3://bucket/data.parquet", Map.of()));
+
+        // Extensionless: only claimed when an explicit, registered format is supplied.
+        String extensionless = "s3://bucket/data";
+        assertFalse("no config -> nothing to infer the format from", fileSourceFactory.canHandle(extensionless, Map.of()));
+        assertTrue(
+            "explicit registered format claims the extensionless resource",
+            fileSourceFactory.canHandle(extensionless, Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
+        );
+        assertFalse(
+            "an unregistered format is not claimed",
+            fileSourceFactory.canHandle(extensionless, Map.of(FileSourceFactory.CONFIG_FORMAT, "not-a-real-format"))
+        );
+        assertFalse(
+            "no storage provider for the scheme -> not claimed even with an explicit format",
+            fileSourceFactory.canHandle("gs://bucket/data", Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet"))
+        );
+    }
+
+    /**
+     * An explicit `format` is authoritative: it names the reader directly, so the factory must claim the
+     * resource regardless of whether the location has an object name to infer an extension from. Detection
+     * (extension-based inference) is only for `auto`/absent, which still require an object name. This mirrors
+     * resolveReader, which honors an explicit format unconditionally; canHandle must not reject what
+     * resolveReader would resolve.
+     */
+    public void testCanHandleWithExplicitFormatIsAuthoritativeRegardlessOfObjectName() {
+        FileSourceFactory fileSourceFactory = newFileSourceFactory();
+        Map<String, Object> explicitFormat = Map.of(FileSourceFactory.CONFIG_FORMAT, "test-parquet");
+
+        // Empty-objectName resources: a bare prefix and a bare authority carry no extension, but an explicit
+        // format resolves the reader, so they are claimed.
+        assertTrue(
+            "trailing-slash prefix with an explicit format is claimed",
+            fileSourceFactory.canHandle("s3://bucket/logs/", explicitFormat)
+        );
+        assertTrue("bare authority with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket", explicitFormat));
+
+        // file:// has an empty authority but a real absolute path; with an explicit format it must be claimed.
+        // Regression: an over-eager host check rejected every file:// URI, breaking extensionless file datasets.
+        assertTrue(
+            "file:// with an empty authority but a real path is claimed",
+            fileSourceFactory.canHandle("file:///opt/data/employees_no_ext", explicitFormat)
+        );
+
+        // Regression: a glob already has a non-empty object name ("*") and stays claimed with an explicit format.
+        assertTrue("glob with an explicit format is claimed", fileSourceFactory.canHandle("s3://bucket/logs/*", explicitFormat));
+
+        // Without an authoritative format, empty-objectName resources stay on the detection path, which has no
+        // extension to work with -> not claimed. `auto` is equivalent to absent here.
+        assertFalse(
+            "trailing-slash prefix, no format -> detection has no extension",
+            fileSourceFactory.canHandle("s3://bucket/logs/", Map.of())
+        );
+        assertFalse(
+            "trailing-slash prefix, format=auto -> falls through to detection, not claimed",
+            fileSourceFactory.canHandle("s3://bucket/logs/", Map.of(FileSourceFactory.CONFIG_FORMAT, "auto"))
+        );
+
+        // A scheme-only location has no host and is never claimed, even with an explicit format.
+        assertFalse("scheme-only location is not claimed", fileSourceFactory.canHandle("s3://", explicitFormat));
+    }
+
     private static FileSourceFactory newFileSourceFactory() {
         FormatReader stubReader = new StubFormatReader();
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
@@ -125,6 +199,9 @@ public class FileSourceFactoryTests extends ESTestCase {
         StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
         StorageProvider stubProvider = new StubStorageProvider();
         storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> stubProvider));
+        // file:// has an empty authority; registering it lets the tests exercise that shape (a real path,
+        // no host) as well as the s3 host-bearing shape.
+        storageRegistry.registerFactory("file", StorageProviderFactory.noConfigKeys(() -> stubProvider));
 
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }

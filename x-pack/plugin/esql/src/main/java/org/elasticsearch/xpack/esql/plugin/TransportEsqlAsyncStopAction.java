@@ -114,11 +114,42 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
         }
+        // Fire per-task stop hooks before the exchange-close path so that any local driver that is not behind an
+        // {@link org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator} (today: coordinator-only EXTERNAL
+        // reads) winds down too. Hooks return {@code true} only when they transitioned a driver from running to
+        // finishing, so this gives us an honest signal of "STOP actually cut something" independent of the exchange
+        // path. Hooks for distributed plans are redundant with the exchange-close cascade but idempotent, so they
+        // never double-cut a driver.
+        final boolean stopHookCutSomething = esqlExecutionInfo != null && esqlExecutionInfo.runStopHooks();
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
-        exchangeService.finishSessionEarly(sessionId, ActionListener.running(() -> {
+        Runnable awaitAndGet = () -> {
             if (asyncTask.addCompletionListener(() -> ActionListener.running(getResults)) == false) {
                 getResults.run();
             }
+        };
+        exchangeService.finishSessionEarly(sessionId, ActionListener.wrap(interrupted -> {
+            // Mark the response partial when {@code STOP} provably interrupted execution: either {@code
+            // finishSessionEarly} closed an active exchange source (distributed plans, CCS, ES-index reads), or a
+            // task-local stop hook flipped a still-running driver into early-finishing (coordinator-only EXTERNAL
+            // reads). Either condition is a hard signal that we truncated live dataflow; without it the task can be
+            // in the async-store persistence window with a fully complete result, in which case flagging {@code
+            // is_partial=true} would be a lie.
+            final boolean cutLiveWork = Boolean.TRUE.equals(interrupted) || stopHookCutSomething;
+            if (cutLiveWork && esqlExecutionInfo != null) {
+                esqlExecutionInfo.markPartial();
+            }
+            awaitAndGet.run();
+        }, e -> {
+            // {@code finishSessionEarly} failing must not discard the user's buffered rows: the pre-refactor
+            // {@link ActionListener#running} continued to fetch the async result on both success and failure. Keep
+            // that behaviour — STOP already fired the local stop hooks a few lines above, so the pipeline is being
+            // cut regardless. Still surface partial when we know hooks cut a running driver, since the exchange-side
+            // signal is unknown.
+            logger.debug(() -> "Async stop for task [" + asyncIdStr + "] failed during finishSessionEarly", e);
+            if (stopHookCutSomething && esqlExecutionInfo != null) {
+                esqlExecutionInfo.markPartial();
+            }
+            awaitAndGet.run();
         }));
     }
 

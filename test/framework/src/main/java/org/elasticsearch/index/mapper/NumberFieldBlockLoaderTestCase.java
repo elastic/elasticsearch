@@ -183,6 +183,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     }
 
     public void testBlockLoaderNonLatinDigit_parseFromSource() throws IOException {
+        // This scenario relies on doc_values:false to force loading from source, which columnar modes don't allow.
+        assumeFalse("doc_values cannot be disabled in columnar modes", params.indexMode().isStrictColumnar());
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
 
         String value = "\u1a90";

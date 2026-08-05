@@ -62,7 +62,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
         @Override
         public RateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            var warnings = driverContext.createWarnings(source);
             return new RateLongGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 
@@ -84,6 +84,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
+    private ObjectArray<DeltaState> deltaStates;
+
     private final IntervalBuffer intervalBuffer;
     private final boolean isRateOverTime;
     private final double dateFactor;
@@ -111,6 +113,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             rawBuffer = new LongRawBuffer(driverContext.breaker());
             intervalBuffer = new IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
+            this.deltaStates = bigArrays.newObjectArray(1);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
             this.intervalBuffer = intervalBuffer;
@@ -206,7 +209,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     ) {
         int lastGroup = -1;
         Temporality temporality = null;
-        ReducedState currentDeltaState = null;
+        DeltaState deltaState = null;
         int positionCount = groups.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
             if (groups.isNull(p)) {
@@ -235,15 +238,15 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                         rawBuffer.prepareForAppend(groupId, 1, timestamp);
                         rawBuffer.appendWithoutResize(timestamp, value);
                     } else if (temporality == Temporality.DELTA) {
-                        currentDeltaState = getOrInitializeReducedState(groupId);
-                        currentDeltaState.appendDeltaValue(timestamp, value);
+                        deltaState = getOrInitializeDeltaState(groupId);
+                        deltaState.appendDeltaValue(timestamp, value);
                     }
                     lastGroup = groupId;
                 } else {
                     if (temporality == Temporality.CUMULATIVE) {
                         rawBuffer.maybeResizeAndAppend(timestamp, value);
                     } else if (temporality == Temporality.DELTA) {
-                        currentDeltaState.appendDeltaValue(timestamp, value);
+                        deltaState.appendDeltaValue(timestamp, value);
                     }
                 }
             }
@@ -349,7 +352,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
             rawBuffer.appendRange(from, to, valueVector, timestampVector);
         } else {
-            ReducedState state = getOrInitializeReducedState(group);
+            DeltaState state = getOrInitializeDeltaState(group);
             for (int pos = from; pos < to; pos++) {
                 state.appendDeltaValue(timestampVector.getLong(pos), valueVector.getLong(pos));
             }
@@ -375,7 +378,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
             rawBuffer.appendRange(from, to, valueBlock, timestampVector);
         } else {
-            ReducedState state = getOrInitializeReducedState(group);
+            DeltaState state = getOrInitializeDeltaState(group);
             for (int pos = from; pos < to; pos++) {
                 if (valueBlock.isNull(pos)) {
                     continue;
@@ -426,9 +429,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
+    private DeltaState getOrInitializeDeltaState(int groupId) {
+        deltaStates = bigArrays.grow(deltaStates, groupId + 1);
+        var state = deltaStates.get(groupId);
+        if (state == null) {
+            state = new DeltaState();
+            deltaStates.set(groupId, state);
+        }
+        return state;
+    }
+
     private ReducedState getOrInitializeReducedState(int groupId) {
         reducedStates = bigArrays.grow(reducedStates, groupId + 1);
-        ReducedState state = reducedStates.get(groupId);
+        var state = reducedStates.get(groupId);
         if (state == null) {
             state = new ReducedState();
             reducedStates.set(groupId, state);
@@ -509,10 +522,15 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
     @Override
     public void close() {
-        Releasables.close(reducedStates, rawBuffer, intervalBuffer);
+        Releasables.close(reducedStates, rawBuffer, intervalBuffer, deltaStates);
     }
 
     void flushRawBuffers() {
+        flushCumulativeRawBuffers();
+        flushDeltaStates();
+    }
+
+    void flushCumulativeRawBuffers() {
         if (rawBuffer.minGroupId > rawBuffer.maxGroupId) {
             return;
         }
@@ -526,10 +544,26 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                     state = new ReducedState();
                     reducedStates.set(groupId, state);
                 }
+                assert groupId >= deltaStates.size() || deltaStates.get(groupId) == null
+                    : "group cannot have both delta and cumulative state";
                 flushGroup(state, rawBuffer, flushQueue);
             }
         }
         rawBuffer.clearBuffers();
+    }
+
+    void flushDeltaStates() {
+        for (long groupId = 0; groupId < deltaStates.size(); groupId++) {
+            DeltaState delta = deltaStates.getAndSet(groupId, null);
+            if (delta == null || delta.samples == 0) {
+                continue;
+            }
+            ReducedState state = getOrInitializeReducedState(Math.toIntExact(groupId));
+            // lastValue 0 forces resets to drive the increase; resets already holds the summed deltas
+            state.appendInterval(delta.deltaLastTs, 0, delta.deltaFirstTs, delta.deltaFirstValue);
+            state.samples += delta.samples;
+            state.resets += delta.resets;
+        }
     }
 
     static final class LongRawBuffer extends RawBuffer {
@@ -689,6 +723,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
             if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
+                // https://github.com/elastic/elasticsearch/issues/152758
+                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
             }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
@@ -711,6 +747,27 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
             blocks[offset] = rates.build();
         }
+    }
+
+    /**
+     * Verifies that every non-empty group's raw timestamps fall within the group's time bucket range.
+     * Called before any {@link #computeRate} invocation so that a mis-bucketed point is detected
+     * before it poisons the adjacent-group interpolation.
+     */
+    private boolean assertTimestampsWithinBuckets(IntVector selected, TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state == null || state.samples == 0) {
+                continue;
+            }
+            long bucketStart = tsContext.rangeStartInMillis(group) * (long) (dateFactor / 1000.0);
+            long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
+            assert state.firstTs() >= bucketStart
+                : "firstTs " + state.firstTs() + " is before bucket start " + bucketStart + " for group " + group;
+            assert state.lastTs() <= bucketEnd : "lastTs " + state.lastTs() + " is after bucket end " + bucketEnd + " for group " + group;
+        }
+        return true;
     }
 
     @Override
@@ -807,31 +864,22 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         private static final int[] EMPTY_INTERVALS = new int[0];
         long samples;
         double resets;
-
         // Points to offsets into IntervalBuffer for the intervals belonging to this group
         // Once sorted (after calling combineIntervals()), the intervals will be stored in reverse chronological order (highest timestamp
         // first)
         int[] intervals = EMPTY_INTERVALS;
 
-        // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
-        // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
-        long deltaFirstTs = Long.MAX_VALUE;
-        long deltaFirstValue;
-        long deltaLastTs = Long.MIN_VALUE;
-
-        boolean hasDelta() {
-            return deltaLastTs >= deltaFirstTs;
-        }
-
         void appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
-            assert hasDelta() == false : "cannot append intervals while delta data is pending";
+            // growExact is deliberate: each shard contributes at most one interval per group, so this
+            // array almost never grows beyond one or two entries. growExact avoids over-allocating
+            // capacity that would be wasted per group. TODO: benchmark in isolation and switch to
+            // grow() if real-world interval counts turn out larger than expected.
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
         }
 
         void appendIntervalsFromBlocks(LongBlock ts, LongBlock vs, int position) {
-            assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int intervalCount = ts.getValueCount(position) / 2;
             int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
             int currentSize = intervals.length;
@@ -844,46 +892,24 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         void writeIntervalsToBlocks(LongBlock.Builder timestamps, LongBlock.Builder values) {
             timestamps.beginPositionEntry();
             values.beginPositionEntry();
-            if (hasDelta()) {
-                // delta data gets converted to a single, cumulative interval
-                timestamps.appendLong(lastTs());
-                timestamps.appendLong(firstTs());
-                values.appendLong(lastValue());
-                values.appendLong(firstValue());
-            } else {
-                for (int intervalId : intervals) {
-                    timestamps.appendLong(intervalBuffer.lastTs(intervalId));
-                    timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                    values.appendLong(intervalBuffer.lastValue(intervalId));
-                    values.appendLong(intervalBuffer.firstValue(intervalId));
-                }
+            for (int intervalId : intervals) {
+                timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                values.appendLong(intervalBuffer.lastValue(intervalId));
+                values.appendLong(intervalBuffer.firstValue(intervalId));
             }
             timestamps.endPositionEntry();
             values.endPositionEntry();
         }
 
-        public void appendDeltaValue(long timestamp, long value) {
-            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
-            samples++;
-            resets += value;
-            deltaLastTs = Math.max(deltaLastTs, timestamp);
-            if (timestamp < deltaFirstTs) {
-                deltaFirstTs = timestamp;
-                deltaFirstValue = value;
-            }
-        }
-
         void combineIntervals() {
-            // only applies to cumulative metrics, we don't need to do anything for delta
-            if (hasDelta() == false) {
-                // Sort the intervals by the lastTs (most recent first) for the final evaluation
-                sortIntervals();
-                for (int i = 1; i < intervals.length; i++) {
-                    int next = intervals[i - 1]; // reversed
-                    int prev = intervals[i];
-                    if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
-                        resets += intervalBuffer.lastValue(prev);
-                    }
+            // Sort the intervals by the lastTs (most recent first) for the final evaluation
+            sortIntervals();
+            for (int i = 1; i < intervals.length; i++) {
+                int next = intervals[i - 1]; // reversed
+                int prev = intervals[i];
+                if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
+                    resets += intervalBuffer.lastValue(prev);
                 }
             }
         }
@@ -920,34 +946,38 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }.sort(0, intervals.length);
         }
 
-        // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!
         long lastTs() {
-            if (hasDelta()) {
-                return deltaLastTs;
-            }
             return intervalBuffer.lastTs(intervals[0]);
         }
 
         long lastValue() {
-            if (hasDelta()) {
-                // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
-                return 0;
-            }
             return intervalBuffer.lastValue(intervals[0]);
         }
 
         long firstTs() {
-            if (hasDelta()) {
-                return deltaFirstTs;
-            }
             return intervalBuffer.firstTs(intervals[intervals.length - 1]);
         }
 
         long firstValue() {
-            if (hasDelta()) {
-                return deltaFirstValue;
-            }
             return intervalBuffer.firstValue(intervals[intervals.length - 1]);
+        }
+    }
+
+    final class DeltaState {
+        long samples;
+        double resets;
+        long deltaFirstTs = Long.MAX_VALUE;
+        long deltaFirstValue;
+        long deltaLastTs = Long.MIN_VALUE;
+
+        void appendDeltaValue(long timestamp, long value) {
+            samples++;
+            resets += value;
+            deltaLastTs = Math.max(deltaLastTs, timestamp);
+            if (timestamp < deltaFirstTs) {
+                deltaFirstTs = timestamp;
+                deltaFirstValue = value;
+            }
         }
     }
 

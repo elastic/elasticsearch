@@ -7,14 +7,21 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -25,17 +32,18 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-// TODO: add option-value verification (e.g. encoder must be default|html, order must be none|score).
-// TODO: carry an analyzer name here once the "analyzer" option is supported.
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight> {
+public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -45,22 +53,22 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
-    // Options honoured today by HighlightOptions and the operator.
     public static final String PRE_TAGS = "pre_tags";
     public static final String POST_TAGS = "post_tags";
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
+    public static final String ANALYZER = "analyzer";
     public static final String NO_MATCH_SIZE = "no_match_size";
-
-    // Options the parser accepts but that are not wired through yet. The feature is snapshot-only, so accepting them now
-    // keeps the grammar stable; each is honoured in a follow-up. TODO: wire these through HighlightOptions and the operator.
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
-    public static final String BOUNDARY_CHARS = "boundary_chars";
-    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
     public static final String ORDER = "order";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
+
+    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
+    // highlighter that HIGHLIGHT always uses.
+    public static final String BOUNDARY_CHARS = "boundary_chars";
+    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
     public static final String PHRASE_LIMIT = "phrase_limit";
 
     private static final List<String> VALID_OPTION_NAMES = List.of(
@@ -69,6 +77,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         NUMBER_OF_FRAGMENTS,
         FRAGMENT_SIZE,
         ENCODER,
+        ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
         BOUNDARY_CHARS,
@@ -157,8 +166,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     }
 
     /**
-     * Builds the {@code <prefix><field>} keyword output attributes for the given highlight fields.
-     * The attributes are nullable because a field that the query does not match yields {@code null}.
+     * Builds nullable {@code <prefix><field>} keyword attributes for the given highlight fields.
+     * A generated name that collides with existing output shadows the earlier column.
      */
     public static List<Attribute> generatedAttributesFor(Source source, String prefix, List<NamedExpression> fields) {
         return fields.stream()
@@ -207,7 +216,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     protected AttributeSet computeReferences() {
-        // Only the ON fields are inputs; the generated highlight_<field> columns are outputs, not references.
+        // Only the ON fields are inputs; the generated <prefix><field> columns are outputs, not references.
         return Expressions.references(fields);
     }
 
@@ -222,6 +231,106 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             }
         }
         return options == null || options.resolved();
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        verifyFieldTypes(failures);
+        if (options == null) {
+            return;
+        }
+        verifyEnum(failures, HighlightOptions.ENCODER_OPTION);
+        verifyEnum(failures, HighlightOptions.BOUNDARY_SCANNER_OPTION);
+        verifyEnum(failures, HighlightOptions.ORDER_OPTION);
+        for (String name : VALID_OPTION_NAMES) {
+            verifyValue(failures, name);
+        }
+    }
+
+    @Override
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        postAnalysisVerification(failures);
+        Analyzer analyzer;
+        try {
+            analyzer = resolveAnalyzer(analysisRegistry);
+        } catch (InvalidArgumentException e) {
+            // The analyzer name is a valid string but doesn't resolve.
+            failures.add(fail(this, "{}", e.getMessage()));
+            return;
+        } catch (IllegalArgumentException e) {
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
+            verifyQuery(null, failures);
+            return;
+        }
+        verifyQuery(analyzer, failures);
+    }
+
+    private Analyzer resolveAnalyzer(AnalysisRegistry analysisRegistry) {
+        Expression value = options == null ? null : foldableOption(ANALYZER);
+        if (value == null) {
+            return null;
+        }
+        String name = HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
+        return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+    }
+
+    private void verifyQuery(Analyzer analyzer, Failures failures) {
+        if (query == null || query.resolved() == false) {
+            return;
+        }
+        List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+        try {
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+        }
+    }
+
+    private void verifyFieldTypes(Failures failures) {
+        for (NamedExpression field : fields) {
+            if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "HIGHLIGHT ON field [{}] must be [text] or [keyword], found [{}]",
+                        field.name(),
+                        field.dataType().typeName()
+                    )
+                );
+            }
+        }
+    }
+
+    // Non-foldable values (WITH { ... } allows constants, nested maps and parameters) are skipped here and fail later at
+    // fold time.
+    private Expression foldableOption(String name) {
+        Expression value = options.get(name);
+        return value != null && value.foldable() ? value : null;
+    }
+
+    private void verifyEnum(Failures failures, HighlightOptions.EnumOption option) {
+        Expression value = foldableOption(option.name());
+        if (value == null) {
+            return;
+        }
+        String actual = BytesRefs.toString(value.fold(FoldContext.small()));
+        if (option.isValid(actual) == false) {
+            failures.add(
+                fail(this, "Invalid value [{}] for option [{}] in HIGHLIGHT, expected one of {}", actual, option.name(), option.allowed())
+            );
+        }
+    }
+
+    private void verifyValue(Failures failures, String name) {
+        Expression value = foldableOption(name);
+        if (value == null) {
+            return;
+        }
+        try {
+            HighlightOptions.validate(name, value, FoldContext.small());
+        } catch (RuntimeException e) {
+            failures.add(fail(this, "Invalid value for option [{}] in HIGHLIGHT: {}", name, e.getMessage()));
+        }
     }
 
     @Override

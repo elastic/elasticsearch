@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -69,6 +71,12 @@ public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<T
             );
         } else {
             newAggregateFunction = af.withFilter(new WindowFilter(af.source(), af.window(), bucket, timestamp));
+        }
+        // Do not clear the function's window.
+        // rate()/increase() rely on group start/end timestamps (by default, bucket) for extrapolation;
+        // for windows different from bucket, clearing it leads to incorrect results.
+        if (newAggregateFunction instanceof Rate || newAggregateFunction instanceof Increase) {
+            return newAggregateFunction;
         }
         return newAggregateFunction.withWindow(AggregateFunction.NO_WINDOW);
     }

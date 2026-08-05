@@ -50,8 +50,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
                 }
             })
             .setting("xpack.security.enabled", "false")
-            .feature(FeatureFlag.TIME_SERIES_MODE)
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
+            .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
         // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and

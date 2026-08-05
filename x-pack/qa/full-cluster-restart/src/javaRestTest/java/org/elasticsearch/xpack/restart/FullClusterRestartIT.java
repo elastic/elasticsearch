@@ -266,28 +266,38 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
                 final AtomicBoolean versionIncreased = new AtomicBoolean();
                 final AtomicBoolean executed = new AtomicBoolean();
-                assertBusy(() -> {
-                    final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
-                    final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
-                    if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
-                        versionIncreased.set(true);
-                    }
-                    if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
-                        executed.set(true);
-                    }
-                    logger.debug("new watch status: {}", newStatus);
-                    assertThat(
-                        "version increased: ["
-                            + versionIncreased.get()
-                            + "], executed: ["
-                            + executed.get()
-                            + "], execution state: ["
-                            + newStatus.get("execution_state")
-                            + "]",
-                        versionIncreased.get() && executed.get(),
-                        is(true)
-                    );
-                }, 30, TimeUnit.SECONDS);
+                // A healthy watch reaches execution_state "executed" within a firing or two and stays there: with a 1s
+                // schedule and a 500ms throttle period a single trigger engine can never throttle it. A status stuck at
+                // "throttled" while the version keeps increasing therefore indicates a scheduling anomaly, e.g. the watch
+                // firing on more than one node at once, or being dropped from the trigger engine after a throttled firing
+                // (see #152355). Dump the recent watcher history on failure so those cases can be told apart.
+                try {
+                    assertBusy(() -> {
+                        final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                        final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                        if (false == versionIncreased.get() && version < (int) newStatus.get("version")) {
+                            versionIncreased.set(true);
+                        }
+                        if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
+                            executed.set(true);
+                        }
+                        logger.debug("new watch status: {}", newStatus);
+                        assertThat(
+                            "version increased: ["
+                                + versionIncreased.get()
+                                + "], executed: ["
+                                + executed.get()
+                                + "], execution state: ["
+                                + newStatus.get("execution_state")
+                                + "]",
+                            versionIncreased.get() && executed.get(),
+                            is(true)
+                        );
+                    }, 30, TimeUnit.SECONDS);
+                } catch (AssertionError e) {
+                    logRecentWatchHistory("watch_with_api_key");
+                    throw e;
+                }
             } finally {
                 stopWatcher();
             }
@@ -753,6 +763,28 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                 .collect(Collectors.toList());
             assertThat(states, everyItem(is("stopped")));
         });
+    }
+
+    /**
+     * Logs the most recent watcher history records for {@code watchId}, newest first. Used to diagnose failures:
+     * the mix of {@code state} values and their {@code trigger_event.triggered_time} spacing distinguishes a watch
+     * firing on multiple nodes (interleaved executed/throttled records) from one dropped from the trigger engine
+     * (records stop entirely). Never throws — this runs on a failure path where the original error must propagate.
+     */
+    private void logRecentWatchHistory(String watchId) {
+        try {
+            final Request dumpRequest = new Request("GET", ".watcher-history*/_search");
+            dumpRequest.addParameter("ignore_unavailable", "true");
+            dumpRequest.setJsonEntity(Strings.format("""
+                {
+                  "query": { "term": { "watch_id": "%s" } },
+                  "sort": [ { "trigger_event.triggered_time": "desc" } ],
+                  "size": 20
+                }""", watchId));
+            logger.warn("recent watcher history for [{}]:\n{}", watchId, toStr(client().performRequest(dumpRequest)));
+        } catch (Exception dumpException) {
+            logger.warn("failed to dump watcher history for [{}]", watchId, dumpException);
+        }
     }
 
     static String toStr(Response response) throws IOException {

@@ -40,6 +40,28 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/production/api/v1/write");
     }
 
+    public void testRemoteWriteEndpointWithAuditRequestBodyLogging() throws Exception {
+        enableAuditRequestBodyLogging();
+        sendAndAssertSuccess(simpleWriteRequest("audit_logged_metric"));
+    }
+
+    public void testRemoteWriteEndpointWithAuditRequestBodyLoggingRejectsOversizedSnappyBody() throws Exception {
+        enableAuditRequestBodyLogging();
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        // Snappy preamble declaring Integer.MAX_VALUE bytes, exceeding the configured request limit.
+        request.setEntity(
+            new ByteArrayEntity(
+                new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x07 },
+                ContentType.create("application/x-protobuf")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(413));
+    }
+
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "test_gauge_metric";
@@ -283,6 +305,19 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
             builder.addSamples(s);
         }
         return builder.build();
+    }
+
+    private void enableAuditRequestBodyLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.security.audit.enabled": true,
+                "xpack.security.audit.logfile.events.emit_request_body": true
+              }
+            }
+            """);
+        client().performRequest(request);
     }
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {

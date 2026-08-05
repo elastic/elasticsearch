@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -92,6 +93,15 @@ public final class DatasetRegistry {
             putDataset(client, name, dataSource, resource, parseSettings(withJson));
             datasets.put(name, signature);
         }
+    }
+
+    /**
+     * Derives a valid (lowercase, index-name-safe) dataset name from an arbitrary resource path/URL by
+     * lowercasing it and collapsing every run of non-alphanumeric characters to a single underscore, then
+     * prepending {@code prefix} to guarantee a letter-led, collision-free name across callers.
+     */
+    public static String sanitizeDatasetName(String prefix, String resourcePath) {
+        return prefix + resourcePath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
     }
 
     /** Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty). */

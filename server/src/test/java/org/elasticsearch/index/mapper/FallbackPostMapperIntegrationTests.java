@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.FieldStorageVerifier.forField;
+
 public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
 
     public void testCopyToDestinationWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
@@ -49,4 +51,41 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
 
         assertEquals("{\"field\":\"not-a-number\"}", syntheticSource);
     }
+
+    /**
+     * Regression test: a {@code geo_point} field with a {@code keyword} multi-field that has
+     * {@code multi_value: false, on_failure: ignore} must store the violating (second) value in
+     * {@code field.kw._on_failure} when the document supplies two geo_point values.
+     */
+    public void testGeoPointMultiFieldMultiValueViolationStoredInOnFailure() throws IOException {
+        // multi_value: false is only supported in columnar mode
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "geo_point");
+                b.startObject("fields");
+                {
+                    b.startObject("kw");
+                    {
+                        b.field("type", "keyword");
+                        b.startObject("doc_values");
+                        {
+                            b.field("multi_value", false);
+                            b.field("on_failure", "ignore");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }), true).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "40,30", "50,40")));
+
+        // first value is indexed normally into doc values; second value must land in ._on_failure
+        forField("field.kw", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
+    }
+
 }

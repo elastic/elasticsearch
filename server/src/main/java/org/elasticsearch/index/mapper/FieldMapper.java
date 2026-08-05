@@ -885,7 +885,11 @@ public abstract class FieldMapper extends Mapper {
             }
             context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
-                mapper.parse(multiFieldContextSupplier.get());
+                ParseResult result = mapper.parse(multiFieldContextSupplier.get());
+                if (result instanceof ParseResult.MultiValueViolation mvv
+                    && (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored())) {
+                    OnFailureStoredValues.storeEncoded(context, mapper.fullPath(), mvv.capturedValue());
+                }
             }
             context.path().remove();
         }

@@ -140,7 +140,7 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
                 // wraps a TwoPhaseIterator (recovered by fromIterator via TwoPhaseIterator.unwrap) whose
                 // intoBitSet is bounded by upTo, so ESQL DataPartitioning.DOC slices scan only their own
                 // [min, max) window instead of over-scanning past it as a plain DocIdSetIterator did.
-                if (singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
+                if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled() && singleton instanceof BlockLoader.OptionalNumericRangeReader rangeReader) {
                     var rangeIterator = rangeReader.tryRangeIterator(lowerValue, upperValue);
                     if (rangeIterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(rangeIterator, score(), scoreMode, maxDoc);

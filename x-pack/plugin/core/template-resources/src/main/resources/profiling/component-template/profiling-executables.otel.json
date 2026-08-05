@@ -20,7 +20,7 @@
       },
       "dynamic": false,
       "properties": {
-        "process.executable.build_id": {
+        "process.executable.build_id.htlhash": {
           "type": "keyword",
           "index": true
         },

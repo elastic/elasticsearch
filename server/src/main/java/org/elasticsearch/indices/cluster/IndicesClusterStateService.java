@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -58,7 +57,6 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -1305,37 +1303,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // todo(burqen) possibly scheduleUnlessShuttingDown
                 logger.trace("--> handleRecoveryFailure -> forkToApplier START");
                 clusterService.getClusterApplierService()
-                    .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
-                        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                        // Before we create shard, we need to make sure that index still exist and that current cluster state
-                        // still agrees that this shard should exist. If not, we just drop the recovery.
+                    .runOnApplierThread(
+                        "retry recovery " + shardRouting.shardId(),
+                        Priority.NORMAL,
+                        currentState -> validateCreateShardRetry(shardRouting, currentState, new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean success) {
+                                if (Boolean.TRUE.equals(success)) {
+                                    createShard(shardRouting, currentState);
+                                }
+                            }
 
-                        try {
-                            logger.trace("--> applier check routing START");
-                            // Make sure our shardRouting is still up to date before retrying
-                            ProjectMetadata projectMetadata = currentState.metadata().projectFor(shardRouting.index());
-                            RoutingTable routingTable = currentState.routingTable(projectMetadata.id());
-                            IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
-                            assert indexRoutingTable != null;
-                            IndexShardRoutingTable shardIndexRoutingTable = indexRoutingTable.shard(shardRouting.id());
-                            assert shardIndexRoutingTable != null;
-                            ShardRouting currentShardRouting = shardIndexRoutingTable.getByAllocationId(
-                                shardRouting.allocationId().getId()
-                            );
-                            assert currentShardRouting != null;
-                            // Do something more here probably?
-                            logger.trace("--> applier check routing END");
-                            logger.trace("--> retry createShard START");
-                            createShard(shardRouting, currentState);
-                            logger.trace("--> retry createShard END");
-                        } catch (IndexNotFoundException e) {
-                            logger.debug(
-                                "ignoring recovery retry for shard [{}] because index [{}] no longer exist",
-                                shardRouting.shardId(),
-                                shardRouting.index()
-                            );
-                        }
-                    }, ActionListener.noop());
+                            @Override
+                            public void onFailure(Exception e) {
+                                failAndRemoveShard(
+                                    shardRouting,
+                                    primaryTerm,
+                                    true,
+                                    "failed to retry create shard",
+                                    e,
+                                    state,
+                                    shardCloseExecutor,
+                                    ActionListener.noop() // did not create the shard, so don't need to wait for it to close
+                                );
+                            }
+                        }),
+                        ActionListener.noop()
+                    );
                 logger.trace("--> handleRecoveryFailure -> forkToApplier END");
             }
         } catch (Exception e) {
@@ -1343,6 +1337,83 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
+        }
+    }
+
+    private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<Boolean> listener) {
+        try {
+            logger.trace("--> retryCreateShard START");
+            // Running on cluster state applier thread
+            logger.trace("--> retryCreateShard check cluster state applier thread");
+            assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+            RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+            ShardId shardId = retryRouting.shardId();
+            Index index = retryRouting.index();
+
+            logger.trace("--> retryCreateShard check routing is same");
+            // Ignore retry if shard is no longer allocated to this node or the allocation id has changed
+            ShardRouting currentRouting = localNode.getByShardId(shardId);
+            if (currentRouting == null
+                || currentRouting.isSameAllocation(retryRouting) == false
+                || currentRouting.initializing() == false) {
+                logger.info(
+                    "{} gave up while retrying shard creation because the old routing [{}] is not same as new routing [{}]",
+                    shardId,
+                    retryRouting,
+                    currentRouting
+                );
+                listener.onResponse(false);
+                return;
+            }
+
+            logger.trace("--> retryCreateShard check shard not in failed cache");
+            // Ignore retry if shard has been marked as failed
+            if (failedShardsCache.containsKey(shardId)) {
+                logger.info("{} gave up while retrying shard creation because shard has already been failed", shardId);
+                listener.onResponse(false);
+                return;
+            }
+
+            logger.trace("--> retryCreateShard check index metadata exist");
+            // Expect index metadata to be present
+            IndexMetadata indexMetadata = state.metadata().projectFor(index).index(index);
+            if (indexMetadata == null) {
+                final var message = "index metadata unexpectedly not found for " + retryRouting;
+                assert false : message;
+                listener.onFailure(new ElasticsearchException(message));
+                return;
+            }
+
+            logger.trace("--> retryCreateShard check index service exist");
+            // Expect index service to exist
+            final var indexService = indicesService.indexService(index);
+            if (indexService == null) {
+                final var message = "index service unexpectedly not found for " + retryRouting;
+                assert false : message;
+                listener.onFailure(new ElasticsearchException(message));
+                return;
+            }
+
+            logger.trace("--> retryCreateShard check index shard does not exist");
+            // Expect shard to not exist
+            if (indexService.getShardOrNull(shardId.id()) != null) {
+                final var message = "index shard unexpectedly found for " + retryRouting;
+                assert false : message;
+                listener.onFailure(new ElasticsearchException(message));
+                return;
+            }
+
+            logger.trace("--> retry call createShard START");
+            // Retry with current routing instead of retryRouting to be on the safe side
+            listener.onResponse(true);
+            logger.trace("--> retry call createShard END");
+            logger.trace("--> retryCreateShard END");
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in validateCreateShardRetry on " + retryRouting, e);
+            assert false : e;
+            logger.error(wrappedException.getMessage(), e);
+            listener.onFailure(e);
         }
     }
 

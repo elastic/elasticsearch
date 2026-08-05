@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
  * A fun Easter egg function that wraps text in ASCII art of a chicken saying something,
  * similar to the classic "cowsay" command.
  */
-public class Chicken extends EsqlScalarFunction implements OptionalArgument {
+public class Chicken extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final String CHICKEN_EMOJI = "\uD83D\uDC14";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chicken", Chicken::new);

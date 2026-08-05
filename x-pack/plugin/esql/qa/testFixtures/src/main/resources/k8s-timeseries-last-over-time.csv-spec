@@ -87,6 +87,24 @@ clients:double | cluster:keyword | time_bucket:datetime
 357.0          | staging         | 2024-05-10T00:03:00.000Z
 ;
 
+override_timestamp_field
+required_capability: ts_command_v0
+required_capability: fix_ts_time_bucket_named_after_timestamp
+TS k8s | STATS clients = avg(network.eth0.currently_connected_clients) BY cluster, @timestamp = bucket(@timestamp,1minute) | SORT @timestamp, cluster | LIMIT 10;
+
+clients:double | cluster:keyword | @timestamp:datetime
+429.0          | prod            | 2024-05-10T00:00:00.000Z
+615.5          | staging         | 2024-05-10T00:00:00.000Z
+396.5          | prod            | 2024-05-10T00:01:00.000Z
+440.0          | qa              | 2024-05-10T00:01:00.000Z
+632.5          | prod            | 2024-05-10T00:02:00.000Z
+565.0          | qa              | 2024-05-10T00:02:00.000Z
+205.0          | staging         | 2024-05-10T00:02:00.000Z
+742.0          | prod            | 2024-05-10T00:03:00.000Z
+454.0          | qa              | 2024-05-10T00:03:00.000Z
+357.0          | staging         | 2024-05-10T00:03:00.000Z
+;
+
 implicit_last_over_time_of_integer_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

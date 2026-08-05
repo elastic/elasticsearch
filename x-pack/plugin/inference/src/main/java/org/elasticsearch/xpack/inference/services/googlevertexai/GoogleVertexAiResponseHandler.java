@@ -40,11 +40,7 @@ public class GoogleVertexAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {

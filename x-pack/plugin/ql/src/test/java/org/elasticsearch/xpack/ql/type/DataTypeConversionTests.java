@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -37,6 +38,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
+
+    public void testSafeToUnsignedLongRejectsOversizedString() {
+        // A numeric string long enough to be costly to parse is rejected before BigDecimal construction.
+        String oversized = "9".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
+        expectThrows(InvalidArgumentException.class, () -> DataTypeConverter.safeToUnsignedLong(oversized));
+    }
 
     public void testConversionToString() {
         DataType to = KEYWORD;

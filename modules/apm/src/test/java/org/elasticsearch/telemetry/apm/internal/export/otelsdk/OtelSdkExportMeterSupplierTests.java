@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -28,28 +29,22 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
-    public void testGetWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).get()
-        );
-        assertThat(e.getMessage(), containsString(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+    public void testMissingEndpointReturnsNoopInsteadOfThrowing() {
+        assertThat(new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider(), is(MeterProvider.noop()));
     }
 
-    public void testGetWithEmptyEndpointThrows() {
+    public void testEmptyEndpointReturnsNoopInsteadOfThrowing() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build();
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(settings, null).get());
+        assertThat(new OtelSdkExportMeterSupplier(settings, null).getMeterProvider(), is(MeterProvider.noop()));
     }
 
     public void testBuildOtlpAuthorizationHeaderWithNeitherCredential() {
@@ -76,10 +71,6 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         secureSettings.setString("telemetry.api_key", "xyz");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         assertThat(OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey xyz"));
-    }
-
-    public void testGetMeterProviderWithoutEndpointThrows() {
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider());
     }
 
     public void testGetMeterProviderAfterGetReturnsSdkProvider() {

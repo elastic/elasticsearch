@@ -60,15 +60,19 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+        return super.nodeSettings().put(
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(),
+            true
+        )
             // Tests are checking the regions populated in the cache, so we disable the features that increase regions content or prefetch
             // regions in the background. Tests also expect specific BCCs so we disable background flushes too.
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
-            // Cache boost preference requires per-CC timestamps built when replicated content is enabled
-            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            // used to be required by `STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING`, now that force-evicting obsolete segments
+            // setting is decoupled, it doesn't depend on this, so randomize.
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1) // each refresh creates a new BCC
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
@@ -150,6 +154,101 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
                 equalTo(0L)
             );
         });
+    }
+
+    /// Verifies the [StatelessSharedBlobCacheService#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] escape hatch
+    /// is a live no-op when flipped off. With the setting enabled (the default from [nodeSettings()]) a force-merge
+    /// evicts the obsolete pre-merge regions; once the setting is disabled dynamically, a subsequent force-merge leaves the
+    /// now-obsolete regions cached.
+    public void testObsoleteSegmentRegionEvictionCanBeDisabledDynamically() throws Exception {
+        startMasterAndIndexNode();
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final var searchShard = findSearchShard(indexName);
+        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
+        final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
+        final var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+
+        // Phase 1: with eviction enabled (the class default), a force-merge evicts the obsolete pre-merge regions.
+        indexBatchesAndRefresh(indexName);
+        var regionsBeforeFirstMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
+        assertThat(
+            "all regions from pre-merge segments should be cached",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> regionsBeforeFirstMerge.containsKey(key.fileName())
+            ),
+            equalTo(regionsBeforeFirstMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
+
+        forceMerge(true);
+        refresh(indexName);
+        var regionsAfterFirstMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
+        assertThat(
+            "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
+            regionsAfterFirstMerge.keySet().stream().noneMatch(regionsBeforeFirstMerge::containsKey),
+            equalTo(true)
+        );
+        assertBusy(
+            () -> assertThat(
+                "obsolete pre-merge regions should be evicted while the setting is enabled",
+                searchCacheService.countCachedRegions(
+                    searchShard.shardId(),
+                    (key, region) -> regionsBeforeFirstMerge.containsKey(key.fileName())
+                ),
+                equalTo(0L)
+            )
+        );
+
+        // Flip the escape hatch off. updateClusterSettings blocks until the update is acknowledged by all nodes, so the search
+        // node's cache service has observed the new value before we continue.
+        updateClusterSettings(
+            Settings.builder().put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false)
+        );
+
+        // Phase 2: with eviction disabled, index a fresh set of segments, cache them, then force-merge again. The now-obsolete
+        // pre-merge regions must be retained.
+        indexBatchesAndRefresh(indexName);
+        var regionsBeforeSecondMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
+        long cachedRegionsBeforeSecondMerge = searchCacheService.countCachedRegions(
+            searchShard.shardId(),
+            (key, region) -> regionsBeforeSecondMerge.containsKey(key.fileName())
+        );
+        assertThat(
+            "all regions should be cached before the second merge",
+            cachedRegionsBeforeSecondMerge,
+            equalTo(regionsBeforeSecondMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+        );
+
+        forceMerge(true);
+        refresh(indexName);
+        // SearchEngine calls retainFiles (where obsolete-region eviction is scheduled) before it fires the segment-generation
+        // listener, so waiting for the search shard to process a later commit guarantees retainFiles has run - and therefore has
+        // already incremented the eviction-task counter if the (now-disabled) gate had let it schedule anything.
+        flushAndWaitForSearchShard(indexName, searchEngine);
+        // Draining the counter to zero then guarantees any scheduled eviction has fully completed. With the setting disabled it is
+        // already zero (nothing scheduled) so this returns immediately; were the escape hatch broken, this would wait for the async
+        // force-evict to run and the retention assertion below would then fail deterministically, instead of racing the async task.
+        assertBusy(() -> assertThat(BlobStoreCacheDirectoryTestUtils.pendingObsoleteRegionsEvictionTasks(searchDirectory), equalTo(0L)));
+
+        var regionsAfterSecondMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
+        assertThat(
+            "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
+            regionsAfterSecondMerge.keySet().stream().noneMatch(regionsBeforeSecondMerge::containsKey),
+            equalTo(true)
+        );
+        assertThat(
+            "obsolete pre-merge regions must be retained while the setting is disabled",
+            searchCacheService.countCachedRegions(
+                searchShard.shardId(),
+                (key, region) -> regionsBeforeSecondMerge.containsKey(key.fileName())
+            ),
+            equalTo(cachedRegionsBeforeSecondMerge)
+        );
     }
 
     /**
@@ -619,6 +718,18 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
                 }
             }
             return regionsByBlob;
+        }
+    }
+
+    private void indexBatchesAndRefresh(final String indexName) {
+        final int batches = randomIntBetween(2, 6);
+        for (int batch = 0; batch < batches; batch++) {
+            var bulkRequest = client().prepareBulk(indexName);
+            range(0, randomIntBetween(10, 50)).mapToObj(
+                n -> client().prepareIndex(indexName).setSource("value", n, "bytes", randomUnicodeOfLength(10))
+            ).forEach(bulkRequest::add);
+            assertNoFailures(bulkRequest.get());
+            refresh(indexName);
         }
     }
 

@@ -53,22 +53,25 @@ tasks.named("bwcTest").configure {
   }
 }
 
-// The federation kill-switch remote-dataset gate is a current-to-current CCS test (it registers a dataset while
-// enabled, then bounces the remote with the switch off). The base javaRestTest task is disabled by the bwc-test
-// plugin and every other javaRestTest class here is bwc-only, so this class gets its own current-to-current runner
-// wired into `check`.
-def federationKillSwitchTest = tasks.register("v${currentVersion}#federationKillSwitchTest", StandaloneRestIntegTestTask) {
+// The federation remote-dataset gates drive the federation setting on one of the two clusters: one registers a dataset
+// on the remote while federation is enabled there and then bounces the remote with federation off, the other keeps the
+// remote enabled and runs against a local cluster that has federation off. Both skip on a cluster whose version does
+// not report the federation setting capability, so the BWC tasks below cover the directions that can run. The base
+// javaRestTest task is disabled by the bwc-test plugin, so they get their own current-to-current runner wired into
+// `check` for the configuration that always applies.
+def federationGateTestPattern = "org.elasticsearch.xpack.esql.ccq.Federation*GateRestIT"
+def federationRemoteDatasetGateTest = tasks.register("v${currentVersion}#federationRemoteDatasetGateTest", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
   filter {
-    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT"
+    includeTestsMatching federationGateTestPattern
   }
 }
 tasks.named("check").configure {
-  dependsOn federationKillSwitchTest
+  dependsOn federationRemoteDatasetGateTest
 }
 
 def supportedVersion = bwcVersion -> {

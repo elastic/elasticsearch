@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -95,6 +96,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -257,13 +260,46 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
+    @Override
+    public PhysicalOperation readDimsPhysicalOperation(
+        ReadDimsExec readDimsExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        var fields = extractFields(readDimsExec, readDimsExec.dims(), f -> readDimsExec.fieldExtractPreference());
+        IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
+            s -> new ValuesSourceReaderOperator.ShardContext(
+                s.searcher().getIndexReader(),
+                s::newSourceLoader,
+                s.storedFieldsSequentialProportion()
+            )
+        );
+        ValuesSourceReaderOperator.Factory valuesSourceReader = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofBytes(Long.MAX_VALUE), // aggs are chunked already
+            fields,
+            readers,
+            readDimsExec.dims().size() <= plannerSettings.reuseColumnLoadersThreshold(),
+            0, // delegate a single doc-block to the reader
+            plannerSettings.sourceReservationFactor(),
+            context.queryPragmas().docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold()),
+            directoryBytesRead
+        );
+        int docChannel = source.layout.get(readDimsExec.docAttribute().id()).channel();
+        int tsidChannel = source.layout.get(readDimsExec.tsidAttribute().id()).channel();
+        Layout.Builder layout = source.layout.builder();
+        for (Attribute attr : readDimsExec.dims()) {
+            layout.append(attr);
+        }
+        return source.with(new ReadDimsOperator.Factory(valuesSourceReader, docChannel, tsidChannel), layout.build());
+    }
+
     private static String getFieldName(Attribute attr) {
         // Do not use the field attribute name, this can deviate from the field name for union types.
         return attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
-        DriverContext.WarningsMode warningsMode,
+        DriverContext driverContext,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
@@ -276,7 +312,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Apply any block loader function if present
 
         BlockLoaderFunctionConfig functionConfig = null;
-        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(driverContext, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
@@ -594,10 +630,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {
-        List<Attribute> attributes = fieldExtractExec.attributesToExtract();
+        return extractFields(fieldExtractExec, fieldExtractExec.attributesToExtract(), fieldExtractExec::fieldExtractPreference);
+    }
+
+    List<ValuesSourceReaderOperator.FieldInfo> extractFields(
+        PhysicalPlan planForNullsFilter,
+        List<Attribute> attributes,
+        Function<Attribute, MappedFieldType.FieldExtractPreference> fieldExtractPreference
+    ) {
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
-        fieldExtractExec.forEachDown(EsQueryExec.class, queryExec -> {
+        planForNullsFilter.forEachDown(EsQueryExec.class, queryExec -> {
             QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
             if (q != null) {
                 nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
@@ -605,13 +648,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         });
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
-            var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
-            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
-                warningsMode,
+            var preference = fieldExtractPreference.apply(attr);
+            ElementType elementType = PlannerUtils.toElementType(dataType, preference);
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (driverContext, s) -> blockLoaderAndConverter(
+                driverContext,
                 s,
                 attr,
-                fieldExtractPreference
+                preference
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
@@ -824,6 +867,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 )
             );
             if (loader == null) {
+                // Compute-time warning: queued for the later warnings-sink fix. Not routed through the in-scope
+                // blockloader `warnings` object because its only method, registerException(Class, String), would
+                // reframe this plain message as a located exception-style warning, changing the emitted content.
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
                 return ConstantNull.INSTANCE;
             }

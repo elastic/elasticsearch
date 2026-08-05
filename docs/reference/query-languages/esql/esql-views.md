@@ -229,8 +229,8 @@ Compaction does **not** apply if the view definition contains any commands after
 
 ## Related pages
 
-* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
-* [Combine result sets with subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
+* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md): overview of subqueries, views, and `FORK`.
+* [Combine result sets with FROM subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the branching limits described above.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

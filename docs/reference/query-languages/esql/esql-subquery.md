@@ -276,7 +276,8 @@ For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine an
 
 ## Related pages
 
-* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
+* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md): overview of subqueries, views, and `FORK`.
+* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): query across multiple indices, clusters, and projects.
 * [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to `FROM` subqueries, with a persisted, named definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where `FROM` subqueries are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.

@@ -271,7 +271,7 @@ outer query.
 
 ## Related pages
 
-* [Combine result sets with subqueries](/reference/query-languages/esql/esql-subquery.md): use a subquery as a source in the `FROM` command.
+* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md): overview of subqueries, views, and `FORK`.
+* [Combine result sets with FROM subqueries](/reference/query-languages/esql/esql-subquery.md): use a `FROM` subquery as a source in the `FROM` command.
 * [`WHERE` command](/reference/query-languages/esql/commands/where.md): full reference for the `WHERE` command.
 * [`IN` operator](/reference/query-languages/esql/functions-operators/operators.md): the operator used to match against a list of literal values or a subquery.
-* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.

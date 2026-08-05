@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -51,8 +50,10 @@ public final class BatchMappingContext {
 
     private boolean routingsInitialized;
     private boolean frozen;
-    /** Per-document {@code _field_names} entries; lazily allocated on first write via {@link #fieldNames()}. */
-    private BytesRef[] fieldNames;
+    /** Accumulates {@code (doc, name)} pairs for {@code _field_names}. */
+    private DeduplicatingStringColumnAccumulator fieldNames;
+    /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
+    private DeduplicatingStringColumnAccumulator ignoredFields;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -82,12 +83,11 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the {@code _field_names} backing array, or {@code null} if no field names have been
-     * registered for any document in the batch. Called only by {@link FieldNamesFieldMapper} during
+     * Returns the {@code _field_names} accumulator, or {@code null} if no entry has been recorded
+     * yet. Called only by {@link FieldNamesFieldMapper} during
      * {@link FieldNamesFieldMapper#postColumnarParse}.
      */
-    @Nullable
-    BytesRef[] fieldNamesIfPresent() {
+    DeduplicatingStringColumnAccumulator fieldNamesAccumulator() {
         return fieldNames;
     }
 
@@ -185,15 +185,40 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Lazily allocates and returns the {@code _field_names} backing array (length {@code docCount}).
-     * Called only by {@link FieldNamesFieldMapper} when registering a field name.
+     * Records a {@code (doc, value)} pair in the {@code _field_names} accumulator. Called only by
+     * {@link FieldNamesFieldMapper#addFieldNamesColumnar}; drained by
+     * {@link FieldNamesFieldMapper#postColumnarParse}.
      */
-    BytesRef[] fieldNames() {
+    void recordFieldName(int doc, BytesRef value) {
         if (fieldNames == null) {
-            // TODO: Single value only currently. Will replace this with a multi-value Escf array column.
-            fieldNames = new BytesRef[docCount];
+            fieldNames = new DeduplicatingStringColumnAccumulator(docCount);
         }
-        return fieldNames;
+        fieldNames.record(doc, value);
+    }
+
+    /**
+     * Returns the {@code _ignored} accumulator, or {@code null} if no entry has been recorded yet.
+     * Called only by {@link IgnoredFieldMapper} during
+     * {@link IgnoredFieldMapper#postColumnarParse}.
+     */
+    DeduplicatingStringColumnAccumulator ignoredFieldsAccumulator() {
+        return ignoredFields;
+    }
+
+    /**
+     * Records that {@code field} was ignored for document {@code doc} (e.g. a keyword value that
+     * tripped {@code ignore_above}), to be emitted in {@code _ignored}. Unlike the row-major path —
+     * where {@link DocumentParserContext#addIgnoredField} is called once per value and de-duplicated
+     * through a {@link java.util.Set} — a columnar field mapper is invoked once per batch and records
+     * a single per-document decision, so each {@code (doc, field)} pair is unique. The accumulator is
+     * drained by {@link IgnoredFieldMapper#postColumnarParse}.
+     */
+    public void addIgnoredFieldColumnar(int doc, String field) {
+        assert frozen == false;
+        if (ignoredFields == null) {
+            ignoredFields = new DeduplicatingStringColumnAccumulator(docCount);
+        }
+        ignoredFields.record(doc, new BytesRef(field));
     }
 
     /** The number of documents in this chunk. */

@@ -98,6 +98,14 @@ public class IntegrationTestUtils {
         return mapping;
     }
 
+    public static XContentBuilder generateSemanticMapping(Map<String, String> semanticFields) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        addSemanticFieldsToMapping(semanticFields);
+        mapping.endObject().endObject();
+
+        return mapping;
+    }
+
     public static void addSemanticTextFieldsToMapping(XContentBuilder mappingBuilder, Map<String, String> semanticTextFields)
         throws IOException {
         for (var entry : semanticTextFields.entrySet()) {

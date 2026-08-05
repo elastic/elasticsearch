@@ -31,5 +31,14 @@ public final class LinkerAdapter {
         return rawHandle;
     }
 
+    /**
+     * JDK 22+ identity adapter for a {@code @Critical} binding declared with the
+     * {@code Critical.UnsupportedFallback} sentinel: on JDK 22+ the binding operates as a normal critical
+     * call and needs no fallback. Mirrors the JDK 21 signature so the generated {@code $Impl} resolves on both releases.
+     */
+    public static MethodHandle unsupportedFallback(MethodHandle rawHandle, String name) {
+        return rawHandle;
+    }
+
     private LinkerAdapter() {}
 }

@@ -545,7 +545,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
+            random().nextInt(100, 1000),
             sliceField
         );
         IndexWriterConfig iwc = newIndexWriterConfig();
@@ -569,7 +569,9 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 }
                 assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
                 try (
-                    IVFVectorsReader.CentroidData centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(vectorField)
+                    IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                        vectorField
+                    )
                 ) {
                     assertNotNull(centroidData);
                     assertThat(centroidData.numCentroids(), equalTo(1));

@@ -124,7 +124,7 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     /**
-     * Applies {@code routing} / {@code _slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
+     * Applies {@code routing} / {@code slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
      * package private for testing
      */
     static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {

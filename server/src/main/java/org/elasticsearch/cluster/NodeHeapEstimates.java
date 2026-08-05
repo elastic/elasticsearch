@@ -26,12 +26,6 @@ public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage)
     public NodeHeapEstimates {
         assert totalHeapUsage >= 0;
         assert hostedShardsHeapUsage >= 0;
-        assert totalHeapUsage >= hostedShardsHeapUsage
-            : "totalHeapUsage must be greater than or equal to hostedShardsHeapUsage (totalHeapUsage: "
-                + totalHeapUsage
-                + ", hostedShardsHeapUsage: "
-                + hostedShardsHeapUsage
-                + ")";
     }
 
     public NodeHeapEstimates(StreamInput in) throws IOException {

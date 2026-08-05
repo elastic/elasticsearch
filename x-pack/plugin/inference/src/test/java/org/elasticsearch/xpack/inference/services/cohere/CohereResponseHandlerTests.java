@@ -30,12 +30,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CohereResponseHandlerTests extends ESTestCase {
-    public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor503() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor503() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -44,8 +40,8 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -54,8 +50,8 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor429() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor429() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -64,8 +60,8 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor400() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(400, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -74,10 +70,10 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400_TextsTooLarge() {
+    public void testHandleFailureStatusCode_ThrowsFor400_TextsTooLarge() {
         var exception = expectThrows(
             RetryException.class,
-            () -> callCheckForFailureStatusCode(400, "invalid request: total number of texts must be at most 96 - received 100", "id")
+            () -> callHandleFailureStatusCode(400, "invalid request: total number of texts must be at most 96 - received 100", "id")
         );
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
@@ -87,8 +83,8 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor401() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
+    public void testHandleFailureStatusCode_ThrowsFor401() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(401, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -99,8 +95,8 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor300() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor300() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(300, "id"));
         assertFalse(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
@@ -109,11 +105,11 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, String modelId) {
-        callCheckForFailureStatusCode(statusCode, null, modelId);
+    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
+        callHandleFailureStatusCode(statusCode, null, modelId);
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
+    private static void callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -134,6 +130,6 @@ public class CohereResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new CohereResponseHandler("", (request, result) -> null, false);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        handler.handleFailureStatusCode(mockRequest, httpResult);
     }
 }

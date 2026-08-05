@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -210,18 +211,25 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return postAnalysisPlanVerification(null);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, analysisRegistry, failures);
         };
     }
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        // check plan again after predicates are pushed down into subqueries
+        // Check plan again after predicates are pushed down into subqueries. No analysis registry is available at
+        // this point, so registry-backed checks (e.g. analyzer-name validation) only run in the post-analysis pass;
+        // registry inputs cannot change during optimization, so skipping them here is safe.
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, null, failures);
         };
     }
 

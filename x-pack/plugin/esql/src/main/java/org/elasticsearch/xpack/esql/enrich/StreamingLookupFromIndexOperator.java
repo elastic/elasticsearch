@@ -598,8 +598,23 @@ public class StreamingLookupFromIndexOperator implements Operator {
             logger.debug("isFinished: false (client not finished, waiting for server response)");
             return false;
         }
+        // The client is finished: replay warnings accumulated by the (remote) lookup drivers into this driver's
+        // per-driver sink so they reach the response chokepoint. Done once, before the driver context is finished.
+        drainClientWarnings();
         logger.debug("isFinished: true");
         return true;
+    }
+
+    private boolean clientWarningsDrained = false;
+
+    private void drainClientWarnings() {
+        if (clientWarningsDrained || client == null) {
+            return;
+        }
+        clientWarningsDrained = true;
+        for (String warning : client.warnings()) {
+            driverContext.addWarning(warning);
+        }
     }
 
     @Override

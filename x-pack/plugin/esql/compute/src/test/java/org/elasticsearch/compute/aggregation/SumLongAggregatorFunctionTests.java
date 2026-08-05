@@ -86,7 +86,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         // Warnings are accumulated in the per-driver sink and snapshotted at DriverContext#finish() (done by the
         // driver run above), rather than the ambient response-header ThreadContext.
         assertThat(
-            driverContext.warnings(),
+            collectWarnings(driverContext),
             contains(
                 containsString("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."),
                 containsString("Line 1:1: java.lang.ArithmeticException:")

@@ -126,6 +126,6 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
         // Warnings are accumulated in the per-driver sink and snapshotted at DriverContext#finish() (done by the
         // driver run above), rather than the ambient response-header ThreadContext.
-        assertThat(driverContext.warnings(), hasItem(containsString("long overflow")));
+        assertThat(collectWarnings(driverContext), hasItem(containsString("long overflow")));
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -131,11 +132,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead) {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead, List<String> warnings) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead);
+        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead, warnings);
     }
 
     @Override
@@ -266,13 +267,18 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        // Gated behind the same transport version as the per-driver warnings feature (DriverCompletionInfo#warnings).
+        private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
+
         private Page page;
         private final long bytesRead;
+        private final List<String> warnings;
 
-        private LookupResponse(Page page, BlockFactory blockFactory, long bytesRead) {
+        private LookupResponse(Page page, BlockFactory blockFactory, long bytesRead, List<String> warnings) {
             super(blockFactory);
             this.page = page;
             this.bytesRead = bytesRead;
+            this.warnings = warnings == null ? List.of() : warnings;
         }
 
         private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -283,11 +289,17 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
                 ? in.readVLong()
                 : 0L;
+            this.warnings = in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS) ? in.readStringCollectionAsList() : List.of();
         }
 
         @Override
         public long bytesRead() {
             return bytesRead;
+        }
+
+        @Override
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override
@@ -298,6 +310,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             page.writeTo(out);
             if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
                 out.writeVLong(bytesRead);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                out.writeStringCollection(warnings);
             }
         }
 

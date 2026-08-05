@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,9 +34,12 @@ import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -59,6 +61,24 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ReplaceOrdinalTests extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
+     * sink (the raw, fully-formatted strings) rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning}
+     * ThreadContext. Identical strings are collapsed into a set to match the de-duplication that
+     * {@code HeaderWarning#addWarning} performs at the production response chokepoint.
+     */
+    private void assertDriverWarnings(String... expected) {
+        Set<String> collected = new LinkedHashSet<>();
+        for (DriverContext ctx : driverContexts) {
+            if (ctx.isFinished() == false) {
+                ctx.finish();
+            }
+            collected.addAll(ctx.warnings());
+        }
+        assertThat(collected, containsInAnyOrder(expected));
+    }
 
     public void testDictionaryFastPathProducesOrdinalBlock() {
         String[] dictionary = { "http://a.example.com/x", "https://b.example.com/y", "ftp://c.example.org/z" };
@@ -120,7 +140,7 @@ public class ReplaceOrdinalTests extends ESTestCase {
                     assertFalse("position " + p + " (small entry) must not be null", result.isNull(p));
                 }
             }
-            assertWarnings(
+            assertDriverWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: "
                     + "Creating strings with more than ["
@@ -208,15 +228,9 @@ public class ReplaceOrdinalTests extends ESTestCase {
     private DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        // Mirror the per-driver warnings sink to HeaderWarning so this direct-evaluation test can keep asserting
-        // warning content via assertWarnings (production consumes the sink at the response chokepoint instead).
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null) {
-            @Override
-            public void addWarning(String warning) {
-                super.addWarning(warning);
-                HeaderWarning.addWarning(warning);
-            }
-        };
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        driverContexts.add(driverContext);
+        return driverContext;
     }
 
     @After

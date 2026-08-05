@@ -584,8 +584,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
      * are actually propagated (into the {@link DriverContext} sink) rather than the ambient response headers.
      */
     private void assertCollectedWarnings(DriverContext ctx, String... expected) {
-        ctx.finish();
-        assertThat(ctx.warnings(), containsInAnyOrder(expected));
+        assertThat(collectWarnings(ctx), containsInAnyOrder(expected));
     }
 
     private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int... groupingChannels) {

@@ -26,6 +26,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +92,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     // Accumulated directory bytes read across all worker BatchExchangeStatusResponses (set on transport threads).
     private final AtomicLong totalBytesRead = new AtomicLong();
+    // Warnings accumulated from server-side lookup drivers across all worker BatchExchangeStatusResponses (added on
+    // transport threads). Replayed into the client driver's per-driver sink so they reach the response chokepoint.
+    private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private int startedBatchCount = 0;
@@ -386,6 +390,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     );
                     if (response.isSuccess()) {
                         totalBytesRead.addAndGet(response.bytesRead());
+                        warnings.addAll(response.warnings());
                         worker.statusRef.onResponse(null);
                     } else {
                         Exception failure = response.getFailure();
@@ -664,6 +669,16 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     public long bytesRead() {
         return totalBytesRead.get();
+    }
+
+    /**
+     * Returns a snapshot of the warnings accumulated from server-side lookup drivers via
+     * {@link BatchExchangeStatusResponse}s.
+     */
+    public List<String> warnings() {
+        synchronized (warnings) {
+            return List.copyOf(warnings);
+        }
     }
 
     /**

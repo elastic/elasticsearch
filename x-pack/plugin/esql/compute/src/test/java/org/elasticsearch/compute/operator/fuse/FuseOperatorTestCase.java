@@ -238,9 +238,8 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
             assertThat(scores.isNull(0), equalTo(true));   // multivalued group -> null score
             assertThat(scores.isNull(1), equalTo(false));  // ordinary rows keep a score
             assertThat(scores.isNull(2), equalTo(false));
-            ctx.finish();
             assertThat(
-                ctx.warnings(),
+                collectWarnings(ctx),
                 containsInAnyOrder(
                     "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
                     "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"

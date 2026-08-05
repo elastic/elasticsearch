@@ -365,17 +365,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
         String[] filter = explicitPathsSuiteFilter(scoped, System.getProperty(REST_TESTS_SUITE));
         Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
-        if (filter != null) {
+        if (filter.length > 0) {
             yamlSuites = intersectSuites(yamlSuites, loadSuites(filter));
         }
         return buildParameters(executeableSectionRegistry, yamlParameters, yamlSuites);
     }
 
     /**
-     * The requested suite paths to intersect an explicit-paths suite's declared paths with, or
-     * {@code null} when no scoping applies. The per-task scoped {@code tests.rest.suite.<task>} is honored
-     * (returned, split on {@link #PATHS_SEPARATOR}); a bare, unscoped {@code tests.rest.suite} is rejected
-     * because an explicit-paths suite cannot honor it (the requested value would be silently dropped).
+     * The requested suite paths to intersect an explicit-paths suite's declared paths with, or an empty
+     * array when no scoping applies (run the declared paths as-is). The per-task scoped
+     * {@code tests.rest.suite.<task>} is honored (returned, split on {@link #PATHS_SEPARATOR}); a bare,
+     * unscoped {@code tests.rest.suite} is rejected because an explicit-paths suite cannot honor it (the
+     * requested value would be silently dropped).
      */
     // pkg private for tests
     static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {
@@ -385,7 +386,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (globalValue != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
-        return null;
+        return Strings.EMPTY_ARRAY;
     }
 
     /**

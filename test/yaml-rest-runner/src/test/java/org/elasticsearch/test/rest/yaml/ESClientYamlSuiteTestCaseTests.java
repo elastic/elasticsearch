@@ -182,8 +182,8 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
         assertArrayEquals(new String[] { "a", "b" }, ESClientYamlSuiteTestCase.explicitPathsSuiteFilter("a,b", null));
         // scoped wins over a global value
         assertArrayEquals(new String[] { "painless" }, ESClientYamlSuiteTestCase.explicitPathsSuiteFilter("painless", "watcher"));
-        // neither set -> no filtering
-        assertNull(ESClientYamlSuiteTestCase.explicitPathsSuiteFilter(null, null));
+        // neither set -> no filtering (empty array, not null)
+        assertArrayEquals(new String[0], ESClientYamlSuiteTestCase.explicitPathsSuiteFilter(null, null));
     }
 
     /**

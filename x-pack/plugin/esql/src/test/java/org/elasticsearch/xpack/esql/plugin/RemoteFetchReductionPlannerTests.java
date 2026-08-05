@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -34,16 +37,45 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteFetchReductionPlannerTests extends ESTestCase {
+    public void testPlansCoordinatorTopNFromQueryText() {
+        RemoteFetchReductionPlanner.CoordinatorPlan planned = planQuery(
+            "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no"
+        ).orElseThrow();
+
+        RemoteFetchExec remoteFetch = planned.coordinatorPlan()
+            .collect(RemoteFetchExec.class::isInstance)
+            .stream()
+            .map(RemoteFetchExec.class::cast)
+            .findFirst()
+            .orElseThrow();
+        assertThat(remoteFetch.attributesToFetch().stream().map(Attribute::name).toList(), containsInAnyOrder("salary", "emp_no"));
+        assertThat(
+            planned.dataNodePlan().output().stream().map(Attribute::name).toList(),
+            equalTo(List.of(RemoteFetchReductionPlanner.HANDLE_ATTRIBUTE_NAME, "hire_date"))
+        );
+    }
+
+    public void testDoesNotPlanAggregationFromQueryText() {
+        assertTrue(planQuery("FROM employees | STATS total = SUM(salary) | SORT total DESC | LIMIT 5").isEmpty());
+    }
+
+    public void testDoesNotPlanExpressionBeforeTopNFromQueryText() {
+        assertTrue(planQuery("FROM employees | EVAL x = salary + 1 | SORT hire_date | LIMIT 20 | KEEP hire_date, x").isEmpty());
+    }
+
     public void testCoordinatorAndReducePlansUseRemoteFetchHandleSchema() {
         Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
         Attribute hireDate = field("hire_date", DataType.DATETIME);
@@ -150,6 +182,27 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Optional<RemoteFetchReductionPlanner.CoordinatorPlan> planQuery(String query) {
+        Map<String, EsField> mapping = Map.of(
+            "hire_date",
+            new EsField("hire_date", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "salary",
+            new EsField("salary", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "emp_no",
+            new EsField("emp_no", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Analyzer analyzer = EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
+            .buildAnalyzer();
+        PhysicalPlan distributedPlan = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, analyzer).distributedPlan(query);
+        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(distributedPlan, EsqlTestUtils.TEST_CFG);
+        return RemoteFetchReductionPlanner.planCoordinatorTopN(
+            contextFactory(),
+            as(coordinatorAndDataNode.v2(), ExchangeSinkExec.class),
+            coordinatorAndDataNode.v1()
+        );
     }
 
     private static Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory() {

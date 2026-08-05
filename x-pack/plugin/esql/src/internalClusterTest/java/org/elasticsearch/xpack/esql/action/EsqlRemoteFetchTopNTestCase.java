@@ -58,6 +58,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                 "type=long",
                 "payload",
                 "type=keyword",
+                "source_payload",
+                "type=keyword,doc_values=false",
                 "category",
                 "type=keyword",
                 "metric",
@@ -81,6 +83,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
                             i % 4,
                             "payload",
                             "payload-" + i,
+                            "source_payload",
+                            "source-payload-" + i,
                             "category",
                             "cat-" + (i % 5),
                             "metric",
@@ -281,6 +285,196 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             );
             assertThat(remoteFetchStatuses(response), empty());
             assertFieldLoadedBeforeFetch(response, "unique_sort");
+        }
+    }
+
+    public void testRemoteFetchSourceOnlyField() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP unique_sort, source_payload",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(63L, "source-payload-63"), List.of(62L, "source-payload-62"), List.of(61L, "source-payload-61")))
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "source_payload");
+        }
+    }
+
+    public void testExpressionAfterTopNUsesRemoteFetchedField() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM "
+                    + indexName
+                    + " | SORT unique_sort + 1 DESC"
+                    + " | LIMIT 3"
+                    + " | EVAL derived = CONCAT(payload, \"-derived\")"
+                    + " | KEEP unique_sort, derived",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(63L, "payload-63-derived"), List.of(62L, "payload-62-derived"), List.of(61L, "payload-61-derived")))
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
+    public void testExpressionBeforeTopNIsNotRemoteFetched() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM "
+                    + indexName
+                    + " | EVAL derived = CONCAT(payload, \"-derived\")"
+                    + " | SORT unique_sort + 1 DESC"
+                    + " | LIMIT 3"
+                    + " | KEEP unique_sort, derived",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(63L, "payload-63-derived"), List.of(62L, "payload-62-derived"), List.of(61L, "payload-61-derived")))
+            );
+            assertThat(remoteFetchStatuses(response), empty());
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldLoadedBeforeFetch(response, "payload");
+        }
+    }
+
+    public void testMetadataSortKeys() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " METADATA _id, _index | SORT _index DESC, _id DESC | LIMIT 3 | KEEP _index, _id, payload",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(indexName, "9", "payload-9"),
+                        List.of(indexName, "8", "payload-8"),
+                        List.of(indexName, "7", "payload-7")
+                    )
+                )
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "_index");
+            assertFieldLoadedBeforeFetch(response, "_id");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
+    public void testNoRemoteFetchAfterAggregation() {
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + indexName + " | STATS total = SUM(metric) BY category | SORT total DESC | LIMIT 2",
+                true
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), hasSize(2));
+            assertThat(remoteFetchStatuses(response), empty());
+        }
+    }
+
+    public void testTimeSeriesIndex() {
+        String timeSeriesIndex = indexName + "_ts";
+        client().admin()
+            .indices()
+            .prepareCreate(timeSeriesIndex)
+            .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")))
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "metric",
+                "type=long,time_series_metric=gauge",
+                "payload",
+                "type=keyword"
+            )
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 8; i++) {
+            bulk.add(
+                prepareIndex(timeSeriesIndex).setSource(
+                    "@timestamp",
+                    "2026-01-01T00:00:0" + i + "Z",
+                    "host",
+                    "host-a",
+                    "metric",
+                    i,
+                    "payload",
+                    "ts-payload-" + i
+                )
+            );
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + timeSeriesIndex + " | SORT @timestamp DESC | LIMIT 3 | KEEP @timestamp, payload",
+                true
+            )
+        ) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(response);
+            assertThat(values, hasSize(3));
+            assertThat(values.stream().map(row -> row.get(1)).toList(), equalTo(List.of("ts-payload-7", "ts-payload-6", "ts-payload-5")));
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "@timestamp");
+            assertFieldNotLoadedBeforeFetch(response, "payload");
+        }
+    }
+
+    public void testUnionTypedField() {
+        String dateIndex = indexName + "_date";
+        String dateNanosIndex = indexName + "_date_nanos";
+        client().admin()
+            .indices()
+            .prepareCreate(dateIndex)
+            .setSettings(indexSettings(1, 0))
+            .setMapping("unique_sort", "type=long", "union_value", "type=date")
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate(dateNanosIndex)
+            .setSettings(indexSettings(1, 0))
+            .setMapping("unique_sort", "type=long", "union_value", "type=date_nanos")
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 4; i++) {
+            bulk.add(prepareIndex(dateIndex).setSource("unique_sort", i, "union_value", "2026-01-01T00:00:0" + i + ".000Z"));
+            bulk.add(
+                prepareIndex(dateNanosIndex).setSource("unique_sort", i + 4, "union_value", "2026-01-01T00:00:0" + (i + 4) + ".123456789Z")
+            );
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "FROM " + dateIndex + "," + dateNanosIndex + " | SORT unique_sort DESC | LIMIT 3 | KEEP unique_sort, union_value",
+                true
+            )
+        ) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(response);
+            assertThat(values.stream().map(List::getFirst).toList(), equalTo(List.of(7L, 6L, 5L)));
+            assertThat(
+                values.stream().map(row -> row.get(1).toString()).toList(),
+                equalTo(List.of("2026-01-01T00:00:07.123456789Z", "2026-01-01T00:00:06.123456789Z", "2026-01-01T00:00:05.123456789Z"))
+            );
+            assertRemoteFetchRows(response, 3);
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldNotLoadedBeforeFetch(response, "union_value");
         }
     }
 

@@ -108,7 +108,7 @@ final class ModelUtil {
 
     /**
      * Extracts the platform names from an annotation's {@code platforms} array attribute. Returns an
-     * empty set when the attribute is absent or empty, meaning the annotation applies universally.
+     * empty set when the attribute is absent or empty, meaning the annotation applies to all platforms.
      */
     static Set<String> extractPlatforms(AnnotationMirror mirror) {
         for (var entry : mirror.getElementValues().entrySet()) {

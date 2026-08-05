@@ -20,9 +20,10 @@ import java.lang.annotation.Target;
  * the struct. Required on every field in sparse mode ({@link StructSpecification#sparse()} = true).
  *
  * <p>When multiple {@code @Offset} annotations appear on the same element, each one specifies the
- * offset for particular platforms. A bare {@code @Offset(N)} (empty {@code platforms}) is a
- * universal fallback for any platform without a specific entry. Every supported platform must
- * resolve to exactly one value; overlapping coverage and duplicate universals are compile errors.
+ * offset for particular platforms. A bare {@code @Offset(N)} (empty {@code platforms}) is the
+ * fallback for any platform without a specific entry. Every supported platform must resolve to
+ * exactly one value; overlapping coverage and more than one platform-independent {@code @Offset} are
+ * compile errors.
  *
  * <p>When a field has both a getter and a setter, {@code @Offset} must be placed on the
  * first-declared accessor; placing it on the second accessor is a compile error.
@@ -35,8 +36,8 @@ public @interface Offset {
     int value();
 
     /**
-     * Platforms this offset applies to. Empty means "all platforms" — treated as the universal
-     * fallback for any platform not covered by another per-platform variant.
+     * Platforms this offset applies to. Empty means "all platforms" — the fallback for any platform
+     * not covered by another per-platform variant.
      */
     Platform[] platforms() default {};
 

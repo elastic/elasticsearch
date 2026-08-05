@@ -22,8 +22,9 @@ import java.lang.annotation.Target;
  *
  * <p>When multiple {@code @StructSize} annotations appear on the same type, each one specifies the
  * struct size for particular platforms. A bare {@code @StructSize(N)} (empty {@code platforms}) is
- * a universal fallback for any platform without a specific entry. Every supported platform must
- * resolve to exactly one value; overlapping coverage and duplicate universals are compile errors.
+ * the fallback for any platform without a specific entry. Every supported platform must resolve to
+ * exactly one value; overlapping coverage and more than one platform-independent {@code @StructSize}
+ * are compile errors.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)

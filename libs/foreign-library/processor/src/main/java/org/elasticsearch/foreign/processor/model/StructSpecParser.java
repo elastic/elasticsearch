@@ -192,7 +192,7 @@ class StructSpecParser {
             if (second != null && ModelUtil.collectRepeatableAnnotations(second, OFFSET_FQN, OFFSET_LIST_FQN).isEmpty() == false) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@Offset on '" + name + "' in '" + typeSimpleName + "' must be on the first-declared accessor of the field",
+                    "@Offset on '" + name + "' in '" + typeSimpleName + "' must be only on the first-declared accessor of the field",
                     second
                 );
                 error = true;
@@ -489,9 +489,9 @@ class StructSpecParser {
 
     /**
      * Resolves a list of repeated layout annotation mirrors (e.g. {@code @Offset}/{@code @StructSize})
-     * to a value per supported platform. A bare annotation (empty
-     * {@code platforms}) is the universal fallback; per-platform entries override it. Validates that
-     * at most one universal is present, no platform is covered twice, and every supported platform
+     * to a value per supported platform. A bare annotation (empty {@code platforms}) is the fallback
+     * for any platform without a specific entry; per-platform entries override it. Validates that at
+     * most one such fallback is present, no platform is covered twice, and every supported platform
      * resolves. Returns {@code null} on any error (already emitted).
      */
     private static Map<String, Integer> resolvePerPlatform(
@@ -501,7 +501,7 @@ class StructSpecParser {
         Element reportElement,
         Messager messager
     ) {
-        Integer universal = null;
+        Integer fallback = null;
         Map<String, Integer> perPlatform = new LinkedHashMap<>();
         boolean error = false;
 
@@ -509,15 +509,15 @@ class StructSpecParser {
             Integer value = ModelUtil.annotationIntValue(mirror, "value");
             Set<String> platforms = ModelUtil.extractPlatforms(mirror);
             if (platforms.isEmpty()) {
-                if (universal != null) {
+                if (fallback != null) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Duplicate universal @" + annotationName + " on '" + reportElement.getSimpleName() + "'",
+                        "More than one platform-independent @" + annotationName + " on '" + reportElement.getSimpleName() + "'",
                         reportElement
                     );
                     error = true;
                 } else {
-                    universal = value;
+                    fallback = value;
                 }
             } else {
                 for (String platform : platforms) {
@@ -548,8 +548,8 @@ class StructSpecParser {
         for (String platform : supportedPlatforms) {
             if (perPlatform.containsKey(platform)) {
                 resolved.put(platform, perPlatform.get(platform));
-            } else if (universal != null) {
-                resolved.put(platform, universal);
+            } else if (fallback != null) {
+                resolved.put(platform, fallback);
             } else {
                 messager.printMessage(
                     Kind.ERROR,

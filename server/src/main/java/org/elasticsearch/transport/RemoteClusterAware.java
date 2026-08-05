@@ -181,7 +181,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     deprecationLogger.critical(
                         DeprecationCategory.QUERIES,
                         "double_cluster_prefixes",
-                            CCS_CHAINING_DEPRECATION_WARNING,
+                        CCS_CHAINING_DEPRECATION_WARNING,
                         index
                     );
                 }

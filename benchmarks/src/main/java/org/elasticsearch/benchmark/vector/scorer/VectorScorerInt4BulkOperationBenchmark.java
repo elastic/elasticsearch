@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -40,7 +40,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 /**
  * Bare-bones bulk operation benchmark for int4 packed-nibble vector dot product.
  * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
- * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer / corrective-terms
+ * via {@link SimdVecLibrary}, bypassing the Lucene scorer / corrective-terms
  * infrastructure so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
@@ -159,7 +159,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ids[v] * packedLen, packedLen);
-                scores[i] = vectorSimilarityFunctions.dotProductI4(query, vec, packedLen);
+                scores[i] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
             }
         }
         return scores;
@@ -172,7 +172,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ordinals[v] * packedLen, packedLen);
-                scores[i] = vectorSimilarityFunctions.dotProductI4(query, vec, packedLen);
+                scores[i] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
             }
         }
         return scores;
@@ -184,7 +184,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment slice = dataset.asSlice((long) i * packedLen, (long) count * packedLen);
-            vectorSimilarityFunctions.dotProductI4Bulk(slice, query, packedLen, count, resultsSeg);
+            VEC_LIBRARY.dotProductI4Bulk(slice, query, packedLen, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -196,7 +196,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            vectorSimilarityFunctions.dotProductI4BulkWithOffsets(dataset, query, packedLen, packedLen, ordinalsSeg, count, resultsSeg);
+            VEC_LIBRARY.dotProductI4BulkWithOffsets(dataset, query, packedLen, packedLen, ordinalsSeg, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -211,13 +211,11 @@ public class VectorScorerInt4BulkOperationBenchmark {
                 long addr = datasetAddress + (long) ordinals[i + j] * packedLen;
                 addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
             }
-            vectorSimilarityFunctions.dotProductI4BulkSparse(addressesSeg, query, packedLen, count, resultsSeg);
+            VEC_LIBRARY.dotProductI4BulkSparse(addressesSeg, query, packedLen, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

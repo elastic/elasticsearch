@@ -1502,7 +1502,7 @@ public class SharedBlobCacheWarmingService {
 
             locations.forEach(
                 (blobFile, length) -> scheduleWarmingTask(
-                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), listeners.acquire())
+                    new WarmBlobLocationTask(warmingRun.type, new BlobLocation(blobFile, 0, length), this::isCancelled, listeners.acquire())
                 )
             );
         }
@@ -1603,6 +1603,7 @@ public class SharedBlobCacheWarmingService {
                         // just to compute the ending region. With this we avoid having to know the blob length
                         // upfront and we can just let the cache to fetch the entire region 0.
                         new BlobLocation(blobFile, 0, 1),
+                        this::isCancelled,
                         listeners.acquire()
                     )
                 );
@@ -1695,12 +1696,14 @@ public class SharedBlobCacheWarmingService {
 
             private final BlobLocation blobLocation;
             private final BlobFile blobFile;
+            private final BooleanSupplier isCancelled;
             private final ActionListener<Void> listener;
 
-            WarmBlobLocationTask(Type type, BlobLocation blobLocation, ActionListener<Void> listener) {
+            WarmBlobLocationTask(Type type, BlobLocation blobLocation, BooleanSupplier isCancelled, ActionListener<Void> listener) {
                 super(type, warmingTaskNumber.getAndIncrement());
                 this.blobLocation = Objects.requireNonNull(blobLocation);
                 this.blobFile = blobLocation.blobFile();
+                this.isCancelled = isCancelled;
                 this.listener = listener;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobLocation);
             }
@@ -1713,6 +1716,11 @@ public class SharedBlobCacheWarmingService {
                 // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
                 try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
                     for (int i = 0; i <= endingRegion; i++) {
+                        if (isCancelled()) {
+                            // Haven't acquired a listener yet so nothing to release either.
+                            break;
+                        }
+
                         long offset = (long) i * cacheService.getRegionSize();
                         cacheService.maybeFetchRegion(
                             cacheKey,

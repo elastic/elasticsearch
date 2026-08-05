@@ -93,10 +93,14 @@ The overflow bucket uses the last real boundary, and the lowest bucket uses half
 For example, with boundaries `[1, 5, 10]` in seconds: a 4s sample falls in the `(1, 5]` bucket and is stored as
 `3`, and a 20s sample falls in the overflow bucket and is stored as `10`.
 
-To deal with this:
-
-- Use a `DoubleHistogram` with a larger unit. The default boundaries go down to fractions, so a larger unit (for example `s` instead of `ms`) extends the top of the range while keeping
- resolution at the bottom. This is a workaround for a current limitation: bucket boundaries are not yet configurable per metric, so a byte-unit histogram cannot cover a realistic range. Once per-metric boundaries are supported, prefer setting explicit boundaries over rescaling the unit.
+To deal with this, i.e. small upper boundary value or impractical boundaries, prefer setting explicit boundaries per-metric:
+```java
+MeterRegistry meterRegistry ;
+LongHistogram longHistogram = meterRegistry.registerLongHistogram(metricName, descriptionString, unitString, List.of(0, 5, 10, 15, 20));
+DoubleHistogram doubleHistogram = meterRegistry.registerDoubleHistogram(metricName, descriptionString, unitString, List.of(1.0, 50.0, 100.0));
+```
+As an alternative, you can rescale the unit (for example, use `s` instead of `ms`).
+This works because the default boundaries go down to fractions, with good resolution at the lower end.
 
 ## Development
 

@@ -40,6 +40,15 @@ final class EscfArrayColumn extends EscfColumn {
         return EscfColumnKind.ARRAY;
     }
 
+    /**
+     * Returns the element (child) column kind, so callers can decide whether the array values are
+     * directly usable as byte-strings (kind == {@link EscfColumnKind#STRING}) without iterating.
+     */
+    @Override
+    public byte leafValueKind() {
+        return child.kind();
+    }
+
     @Override
     byte typeByteForPresent(int row) {
         return SourceValueType.FIXED_ARRAY;

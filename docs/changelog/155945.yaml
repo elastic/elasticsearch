@@ -1,4 +1,4 @@
-area: Templates
+area: Store
 issues: []
 pr: 155945
 summary: Add a managed marker for templates installed by the internal registries

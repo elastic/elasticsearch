@@ -399,14 +399,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
         Set<Path> declaredFiles = declared.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
-        Map<String, Set<Path>> result = new HashMap<>();
-        requested.forEach((group, files) -> {
-            Set<Path> kept = files.stream().filter(declaredFiles::contains).collect(Collectors.toSet());
-            if (kept.isEmpty() == false) {
-                result.put(group, kept);
-            }
-        });
-        return result;
+        return requested.entrySet()
+            .stream()
+            .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(declaredFiles::contains).collect(Collectors.toSet())))
+            .filter(e -> e.getValue().isEmpty() == false)
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */

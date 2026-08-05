@@ -303,20 +303,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            try {
-                enableMonitoring();
-            } catch (AssertionError e) {
-                // Added to debug https://github.com/elastic/elasticsearch/issues/29880
-                // Remove when fixed
-                StringBuilder b = new StringBuilder();
-                b.append("\n==== jstack at monitoring enablement failure time ====\n");
-                for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
-                    append(b, ti);
-                }
-                b.append("^^==============================================\n");
-                logger.info(b.toString());
-                throw e;
-            }
+            enableMonitoring();
             runnable.run();
         } finally {
             disableMonitoring();

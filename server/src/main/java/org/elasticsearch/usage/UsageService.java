@@ -11,6 +11,9 @@ package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
+import org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.HashMap;
@@ -27,12 +30,15 @@ public class UsageService {
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
     private final CCSUsageTelemetry esqlUsageHolder;
+    private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
+    private volatile ClusterStatsTagsProvider tagsProvider = null;
 
     public UsageService() {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
         this.esqlUsageHolder = new CCSUsageTelemetry(false);
+        this.projectRoutingUsageHolder = new ProjectRoutingUsageHolder();
     }
 
     /**
@@ -94,5 +100,18 @@ public class UsageService {
 
     public CCSUsageTelemetry getEsqlUsageHolder() {
         return esqlUsageHolder;
+    }
+
+    public ProjectRoutingUsageHolder getProjectRoutingUsageHolder() {
+        return projectRoutingUsageHolder;
+    }
+
+    public void registerTagsProvider(ClusterStatsTagsProvider provider) {
+        this.tagsProvider = Objects.requireNonNull(provider);
+    }
+
+    @Nullable
+    public ClusterStatsTagsProvider getTagsProvider() {
+        return tagsProvider;
     }
 }

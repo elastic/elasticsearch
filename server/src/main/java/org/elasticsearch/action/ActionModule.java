@@ -540,6 +540,13 @@ public class ActionModule extends AbstractModule {
         );
         this.restExtension = restExtension;
         this.clusterService = clusterService;
+
+        actionPlugins.stream()
+            .map(ActionPlugin::getClusterStatsTagsProvider)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .findFirst()
+            .ifPresent(usageService::registerTagsProvider);
     }
 
     private static <T> T getRestServerComponent(

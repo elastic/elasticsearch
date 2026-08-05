@@ -568,9 +568,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/155754
-- class: org.elasticsearch.xpack.esql.optimizer.BucketGoldenTests
-  method: testIncludeEmptyBuckets_timeSeriesAndDimension
-  issue: https://github.com/elastic/elasticsearch/issues/155779
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783
@@ -595,6 +592,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
   method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
   issue: https://github.com/elastic/elasticsearch/issues/155887
-- class: org.elasticsearch.xpack.esql.optimizer.PushdownGoldenTests
-  method: testFromUnionOfIndexTimeSeriesRateAndExternalDatasetSubqueries {historical}
-  issue: https://github.com/elastic/elasticsearch/issues/155894
+- class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
+  method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
+  issue: https://github.com/elastic/elasticsearch/issues/155916
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
+  issue: https://github.com/elastic/elasticsearch/issues/153406
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
+  issue: https://github.com/elastic/elasticsearch/issues/155921

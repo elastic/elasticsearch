@@ -46,7 +46,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,6 +108,40 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
         indexReader.close();
         directory.close();
+    }
+
+    public void testCrankyBreakerNeverLeaksOnCompletion() throws IOException {
+        try (Directory dir = buildIndex(5, 5); IndexReader reader = DirectoryReader.open(dir)) {
+            IndexSearcher searcher = newSearcher(reader);
+            AtomicLong used = new AtomicLong();
+            LongConsumer cranky = bytes -> {
+                if (bytes > 0 && random().nextInt(20) == 0) {
+                    throw new CircuitBreakingException("cranky breaker", CircuitBreaker.Durability.TRANSIENT);
+                }
+                used.addAndGet(bytes);
+            };
+            BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(
+                Queries.ALL_DOCS_INSTANCE,
+                searcher,
+                false,
+                cranky
+            );
+            dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
+            try {
+                dc.preCollection();
+                searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> new LeafBucketCollector() {
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        delegate.collect(doc, 0);
+                    }
+                }));
+                dc.postCollection();
+                dc.prepareSelectedBuckets(toLongArray(0));
+                assertThat("completed lifecycle must have zero net balance", used.get(), equalTo(0L));
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo("cranky breaker"));
+            }
+        }
     }
 
     public void testCircuitBreakerChargesOneEventPerSegmentAndReleasesSymmetrically() throws IOException {

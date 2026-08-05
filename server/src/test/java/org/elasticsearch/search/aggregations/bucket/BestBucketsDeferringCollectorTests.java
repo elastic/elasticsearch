@@ -111,14 +111,14 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCrankyBreakerNeverLeaksOnCompletion() throws IOException {
-        AtomicLong used = new AtomicLong();
-        LongConsumer cranky = bytes -> {
-            if (bytes > 0 && random().nextInt(20) == 0) {
-                throw new CircuitBreakingException("cranky breaker", CircuitBreaker.Durability.TRANSIENT);
-            }
-            used.addAndGet(bytes);
-        };
         withSearcher(searcher -> {
+            AtomicLong used = new AtomicLong();
+            LongConsumer cranky = bytes -> {
+                if (bytes > 0 && random().nextInt(20) == 0) {
+                    throw new CircuitBreakingException("cranky breaker", CircuitBreaker.Durability.TRANSIENT);
+                }
+                used.addAndGet(bytes);
+            };
             BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, cranky);
             dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
             try {
@@ -597,7 +597,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
     }
 
-    private class CollectingBucketCollector extends BucketCollector {
+    private static class CollectingBucketCollector extends BucketCollector {
         final Map<Long, List<Integer>> collection = new HashMap<>();
 
         @Override

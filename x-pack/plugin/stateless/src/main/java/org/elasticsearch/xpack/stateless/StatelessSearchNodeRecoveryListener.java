@@ -203,9 +203,13 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
         assert blobContainer != null : indexShard.routingEntry();
 
         final var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+        final boolean timestampBackfillEnabled = useInternalFilesReplicatedContentForSearchShards
+            && searchDirectory.timestampBackfillEnabled();
+        final var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(timestampBackfillEnabled);
         final var batchedCompoundCommit = objectStoreService.readSearchShardState(
             blobContainer,
             searchDirectory,
+            metadataReadDirectory,
             indexShard.getOperationPrimaryTerm()
         );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
@@ -260,7 +264,7 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
-                            searchDirectory,
+                            metadataReadDirectory,
                             IOContext.DEFAULT,
                             bccHeaderReadExecutor,
                             referencedCompoundCommit -> {
@@ -297,8 +301,10 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
                                         entry.getValue().timestampMillis()
                                     );
                                 }
-                                // This backfill also handles the initial BCC read in readSearchShardState.
-                                searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                if (timestampBackfillEnabled) {
+                                    // This backfill also handles the initial BCC read in readSearchShardState.
+                                    searchDirectory.backfillMetadataReadTimestamps(Collections.unmodifiableMap(timestampByCacheKey), true);
+                                }
                                 return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
                             })
                         );

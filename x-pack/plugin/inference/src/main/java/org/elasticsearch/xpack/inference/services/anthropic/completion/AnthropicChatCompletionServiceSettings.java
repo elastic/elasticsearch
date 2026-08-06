@@ -21,10 +21,14 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
@@ -37,6 +41,10 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
     public static final String NAME = "anthropic_completion_service_settings";
 
+    static final TransportVersion ANTHROPIC_COMPLETION_URL_ADDED = TransportVersion.fromName(
+        "inference_api_anthropic_completion_url_added"
+    );
+
     // The rate limit for build tier 1 is 50 request per minute
     // Details are here https://docs.anthropic.com/en/api/rate-limits
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(50);
@@ -45,25 +53,32 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
         var validationException = new ValidationException();
 
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
+        var url = extractOptionalUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
+        return new AnthropicChatCompletionServiceSettings(modelId, url, rateLimitSettings);
     }
 
     private final String modelId;
-
+    @Nullable
+    private final URI url;
     private final RateLimitSettings rateLimitSettings;
 
-    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
+    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable URI url, @Nullable RateLimitSettings ratelimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
+        this.url = url;
         this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+    }
+
+    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
+        this(modelId, null, ratelimitSettings);
     }
 
     public AnthropicChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
+        this.url = in.getTransportVersion().supports(ANTHROPIC_COMPLETION_URL_ADDED) ? createOptionalUri(in.readOptionalString()) : null;
         rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -75,6 +90,11 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Nullable
+    public URI url() {
+        return url;
     }
 
     @Override
@@ -90,7 +110,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AnthropicChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
+        return new AnthropicChatCompletionServiceSettings(this.modelId, this.url, extractedRateLimitSettings);
     }
 
     @Override
@@ -106,7 +126,9 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-
+        if (url != null) {
+            builder.field(URL, url.toString());
+        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -125,6 +147,9 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
+        if (out.getTransportVersion().supports(ANTHROPIC_COMPLETION_URL_ADDED)) {
+            out.writeOptionalString(url != null ? url.toString() : null);
+        }
         rateLimitSettings.writeTo(out);
     }
 
@@ -133,11 +158,13 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AnthropicChatCompletionServiceSettings that = (AnthropicChatCompletionServiceSettings) object;
-        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(url, that.url)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings);
+        return Objects.hash(modelId, url, rateLimitSettings);
     }
 }

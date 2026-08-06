@@ -140,6 +140,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
                         s.buckets(),
                         s.from(),
                         s.to(),
+                        null,
                         ConfigurationAware.CONFIGURATION_MARKER
                     );
                     if (dateBucket == null) {

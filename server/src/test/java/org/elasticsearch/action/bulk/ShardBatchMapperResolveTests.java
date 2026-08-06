@@ -149,7 +149,7 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
     }
 
     public void testTextMapperHappyPath() throws IOException {
-        MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").endObject(); }));
+        MapperService ms = mapper(mapping(b -> b.startObject("t").field("type", "text").endObject()));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup());
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof TextFieldMapper);

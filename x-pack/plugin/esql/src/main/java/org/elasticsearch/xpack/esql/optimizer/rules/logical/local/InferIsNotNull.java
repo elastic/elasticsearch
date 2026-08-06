@@ -45,52 +45,48 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // the alias map is shared across the whole plan
         AttributeMap.Builder<Expression> aliasesBuilder = AttributeMap.builder();
-        // traverse bottom-up to pick up the aliases as we go
-        plan = plan.transformUp(p -> inspectPlan(p, aliasesBuilder));
-        return plan;
+        return plan.transformUp(p -> inspectPlan(p, aliasesBuilder));
     }
 
     private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap.Builder<Expression> aliasesBuilder) {
-        // inspect just this plan properties
         plan.forEachExpression(Alias.class, a -> aliasesBuilder.put(a.toAttribute(), a.child()));
-        // now go about finding isNull/isNotNull
-        LogicalPlan newPlan = plan.transformExpressionsOnlyUp(
-            IsNotNull.class,
-            inn -> inferNotNullable(inn, aliasesBuilder.build(), plan.inputSet())
-        );
-        return newPlan;
+        return plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliasesBuilder.build(), plan.inputSet()));
     }
 
-    private Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases, AttributeSet inputSet) {
-        Expression result = inn;
-        Set<Expression> refs = resolveExpressionAsRootAttributes(inn.field(), aliases, inputSet);
-        // no refs found or could not detect - return the original function
-        if (refs.size() > 0) {
-            // add IsNotNull for the filters along with the initial inn
-            var innList = CollectionUtils.combine(refs.stream().map(r -> (Expression) new IsNotNull(inn.source(), r)).toList(), inn);
-            result = Predicates.combineAnd(innList);
+    private static Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases, AttributeSet inputSet) {
+        Set<Expression> attributes = resolveExpressionAsRootAttributes(inn.field(), aliases, inputSet);
+        if (attributes.isEmpty() || attributes.contains(inn.field())) {  // Note: .contains(inn.field()) => .equals(Set.of(inn.field()))
+            return inn;
+        } else {
+            var innAttributesList = attributes.stream().map(a -> (Expression) new IsNotNull(inn.source(), a)).toList();
+            return Predicates.combineAnd(CollectionUtils.combine(innAttributesList, inn));
         }
-        return result;
     }
 
-    private Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases, AttributeSet inputSet) {
+    /**
+     * Returns a set of attributes for the expression with the property that
+     * if any of these attributes is null, the expression is null.
+     *
+     * @param exp      the expression to resolve
+     * @param aliases  mapping from attributes to other expressions
+     * @param inputSet set of input attributes visible for the expression
+     */
+    static Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases, AttributeSet inputSet) {
         Set<Expression> resolvedExpressions = new LinkedHashSet<>();
-        resolve(exp, exp, aliases, inputSet, resolvedExpressions);
+        resolve(exp, aliases, inputSet, resolvedExpressions);
         return resolvedExpressions;
     }
 
-    private void resolve(
+    private static void resolve(
         Expression exp,
-        Expression originalExp,
         AttributeMap<Expression> aliases,
         AttributeSet inputSet,
         Set<Expression> resolvedExpressions
     ) {
         Expression resolved = aliases.resolve(exp, exp);
         if (resolved instanceof Attribute a) {
-            if (inputSet.contains(resolved) && resolved != originalExp) {
+            if (inputSet.contains(resolved)) {
                 resolvedExpressions.add(a);
             }
             return;
@@ -98,9 +94,8 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
         if (resolved instanceof AnyNullIsNull == false) {
             return;
         }
-
         for (Expression child : resolved.children()) {
-            resolve(child, originalExp, aliases, inputSet, resolvedExpressions);
+            resolve(child, aliases, inputSet, resolvedExpressions);
         }
     }
 }

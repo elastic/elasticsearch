@@ -15,7 +15,9 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -448,7 +450,17 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+    /**
+     * The {@code analysisRegistry} is only available in the post-analysis pass; the post-optimization re-run passes
+     * {@code null}, so registry-backed checks must be skipped when it is absent.
+     */
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
         // Field can be null when the field does not exist in the mapping
@@ -615,8 +627,15 @@ public abstract class FullTextFunction extends Function
      * @return the query builder to be used in the {@link LuceneQueryEvaluator}
      */
     protected QueryBuilder evaluatorQueryBuilder() {
-        // Use the same query builder as for the translation by default
-        return queryBuilder();
+        QueryBuilder builder = queryBuilder();
+        if (builder != null) {
+            return builder;
+        }
+        // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
+        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
+        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
+        return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
 
     @Override

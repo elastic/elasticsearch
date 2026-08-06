@@ -70,7 +70,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        // Federation is opt-in for users; the data source and dataset authorization tests here need it on.
+        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
@@ -1056,6 +1056,61 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
                 .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: no unmapped field is
+     * referenced, so every unmapped {@code _source} key becomes a column of its own. An FLS-denied field must not become one of
+     * them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither may show
+     * up as a column, while the admin running the same query sees both.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD_ALL support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+        );
+        // Sorting on the unmapped salary keeps the row order stable for both users; the only mapped field is denied below.
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
+                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
 

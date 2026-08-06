@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -299,7 +300,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
-        DriverContext.WarningsMode warningsMode,
+        DriverContext driverContext,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
@@ -308,11 +309,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
+        if (attr instanceof UnmappedFieldsAttribute ufa) {
+            // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
+            // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
+            // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
+            // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
+            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor()));
+        }
 
         // Apply any block loader function if present
 
         BlockLoaderFunctionConfig functionConfig = null;
-        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(driverContext, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
             functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
@@ -650,8 +658,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var preference = fieldExtractPreference.apply(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, preference);
-            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
-                warningsMode,
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (driverContext, s) -> blockLoaderAndConverter(
+                driverContext,
                 s,
                 attr,
                 preference
@@ -867,6 +875,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 )
             );
             if (loader == null) {
+                // Compute-time warning: queued for the later warnings-sink fix. Not routed through the in-scope
+                // blockloader `warnings` object because its only method, registerException(Class, String), would
+                // reframe this plain message as a located exception-style warning, changing the emitted content.
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
                 return ConstantNull.INSTANCE;
             }

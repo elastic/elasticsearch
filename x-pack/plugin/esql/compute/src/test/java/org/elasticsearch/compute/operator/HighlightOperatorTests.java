@@ -8,15 +8,24 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -28,6 +37,7 @@ import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOp
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -320,12 +330,134 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testReusedIndexDoesNotLeakTermsBetweenRows() {
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 0),
+            bytesRefs(List.of(List.of("the quick fox"), List.of("lorem ipsum dolor sit amet"), List.of("a fox in the barn")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+            assertThat(value(result, 2), equalTo("a <em>fox</em> in the barn"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testNullValueHighlightsOnlyThePresentField() {
+        Query query = new BooleanQuery.Builder().add(termQuery("title", "fox"), BooleanClause.Occur.SHOULD)
+            .add(termQuery("body", "fox"), BooleanClause.Occur.SHOULD)
+            .build();
+        BytesRefBlock title = bytesRefsOrNull(Arrays.asList("the fox", null));
+        BytesRefBlock body = bytesRefsOrNull(Arrays.asList(null, "a fox in the barn"));
+        Page result = highlightFields(config("fox", 5, 0, 0), query, TITLE_BODY, title, body);
+        try {
+            BytesRefBlock highlightTitle = result.getBlock(2);
+            BytesRefBlock highlightBody = result.getBlock(3);
+            assertThat(value(highlightTitle, 0), equalTo("the <em>fox</em>"));
+            assertThat(highlightBody.isNull(0), equalTo(true));
+            assertThat(highlightTitle.isNull(1), equalTo(true));
+            assertThat(value(highlightBody, 1), equalTo("a <em>fox</em> in the barn"));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    public void testFilteredIndexPreservesPositionsForPhrases() {
+        Query phraseQuery = new PhraseQuery(CONTENT_FIELD, "fox", "jumps");
+        BytesRefBlock result = highlight(
+            config("\"fox jumps\"", 5, 0, 0),
+            phraseQuery,
+            bytesRefs(List.of(List.of("fox jumps high"), List.of("fox quickly jumps")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>fox jumps</em> high"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    // FieldExistsQuery (QSTR "_exists_:content", KQL "content:*") matches through FieldInfos, so the
+    // per-row reader must expose fields indexed for that row.
+    public void testFieldExistsQueryHighlightsMatchingRow() {
+        Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.MUST)
+            .add(new FieldExistsQuery(CONTENT_FIELD), BooleanClause.Occur.MUST)
+            .build();
+        BytesRefBlock result = highlightSingle(config("fox AND _exists_:content", 5, 0, 0), query, "the quick fox");
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiTermQueryDisablesFiltering() {
+        Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
+        BytesRefBlock result = highlight(
+            config("fo*", 5, 0, 0),
+            prefixQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMustNotTermExcludesRow() {
+        Query query = new BooleanQuery.Builder().add(termQuery(CONTENT_FIELD, "fox"), BooleanClause.Occur.MUST)
+            .add(termQuery(CONTENT_FIELD, "dog"), BooleanClause.Occur.MUST_NOT)
+            .build();
+        BytesRefBlock result = highlight(
+            config("+fox -dog", 5, 0, 0),
+            query,
+            bytesRefs(List.of(List.of("the fox and the dog"), List.of("the fox in the barn")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+            assertThat(value(result, 1), equalTo("the <em>fox</em> in the barn"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testCustomAnalyzerMatchesThroughSynonyms() throws IOException {
+        SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
+        synonyms.add(new CharsRef("car"), new CharsRef("automobile"), true);
+        BytesRefBlock result = highlight(
+            config("automobile", 5, 0, 0),
+            contentTerm("automobile"),
+            synonymAnalyzer(synonyms.build()),
+            bytesRefs(List.of(List.of("the red car drives"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the red <em>car</em> drives"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
     private static Query contentTerm(String term) {
         return termQuery(CONTENT_FIELD, term);
     }
 
     private static Query termQuery(String field, String term) {
         return new TermQuery(new Term(field, term));
+    }
+
+    private static Analyzer synonymAnalyzer(SynonymMap synonyms) {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                TokenStream lowerCased = new LowerCaseFilter(tokenizer);
+                return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(lowerCased, synonyms, true));
+            }
+        };
     }
 
     private BytesRefBlock highlightSingle(HighlightConfig config, String text) {
@@ -341,10 +473,14 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     private BytesRefBlock highlight(HighlightConfig config, Query query, BytesRefBlock input) {
+        return highlight(config, query, new StandardAnalyzer(), input);
+    }
+
+    private BytesRefBlock highlight(HighlightConfig config, Query query, Analyzer analyzer, BytesRefBlock input) {
         try (
             HighlightOperator operator = new HighlightOperator(
                 blockFactory(),
-                config.withExecutionContext(new StandardAnalyzer(), query, CONTENT),
+                config.withExecutionContext(analyzer, query, CONTENT),
                 new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }
             )
         ) {
@@ -387,6 +523,19 @@ public class HighlightOperatorTests extends OperatorTestCase {
                         builder.appendBytesRef(new BytesRef(value));
                     }
                     builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private BytesRefBlock bytesRefsOrNull(List<String> values) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(values.size())) {
+            for (String value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(value));
                 }
             }
             return builder.build();

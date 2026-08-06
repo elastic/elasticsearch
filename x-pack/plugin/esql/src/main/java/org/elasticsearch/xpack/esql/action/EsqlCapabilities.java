@@ -2142,7 +2142,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2377,6 +2377,12 @@ public class EsqlCapabilities {
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * Support constant expressions on the RHS of LIKE/RLIKE, e.g. {@code WHERE x LIKE CONCAT("prefix", "*")}.
+         * https://github.com/elastic/elasticsearch/issues/147671
+         */
+        LIKE_RLIKE_CONSTANT_EXPRESSION,
 
         /**
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
@@ -3298,6 +3304,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3381,6 +3393,11 @@ public class EsqlCapabilities {
          * Support for equality (==, !=) and IN with date_range type.
          */
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
+         */
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.
@@ -3560,6 +3577,16 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
+
+        /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
+         * Support for the PromQL {@code limitk()} arbitrary-selection function.
+         */
+        PROMQL_LIMITK,
 
         /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).

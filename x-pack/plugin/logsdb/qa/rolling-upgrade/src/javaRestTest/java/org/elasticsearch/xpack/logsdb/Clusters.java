@@ -27,19 +27,16 @@ public class Clusters {
      * the {@code columnar} supplier. The supplier is evaluated lazily when the cluster starts, so
      * callers can resolve the value (e.g. via {@code randomBoolean()}) after this method returns.
      * <p>
-     * Callers must ensure the supplier never returns {@code true} for old cluster versions that
-     * predate {@code logsdb_columnar} support (≥ 9.5.0); passing {@code true} for an unsupported
-     * version will trigger an assertion
+     * The {@code logsdb_columnar} setting is only applied when the old cluster version already
+     * supports it (≥ 9.5.0). For older versions the supplier is ignored and the setting is not
+     * applied.
      */
     public static ElasticsearchCluster oldVersionCluster(String user, String pass, Supplier<Boolean> columnar) {
         var cluster = clusterBuilder(user, pass);
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-        cluster.setting("cluster.logsdb_columnar.enabled", () -> {
-            boolean use_columnar = columnar.get();
-            assert use_columnar == false || oldVersion.onOrAfter(Version.fromString("9.5.0"))
-                : "columnar=true for old cluster " + oldVersion + " which does not support logsdb_columnar (requires >= 9.5.0)";
-            return Boolean.toString(use_columnar);
-        });
+        if (oldVersion.onOrAfter(Version.fromString("9.5.0"))) {
+            cluster.setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnar.get()));
+        }
         return cluster.build();
     }
 

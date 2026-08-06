@@ -12,18 +12,19 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * A {@link AggregatorFunctionSupplier} that wraps another, and apply a window function on the final aggregation.
  * <p>
  *     When the window is not an exact multiple of the time bucket ({@code W = k * B + r} with {@code r > 0}), a
- *     second <em>partial</em> aggregation channel carries, per bucket, the state of only the trailing {@code r} of
- *     that bucket. The final evaluation then merges the {@code k} full buckets covered by the window plus the
- *     boundary bucket's partial state. The partial channel doubles the intermediate state; the planner passes
- *     {@code partialSupplier} filtered to the trailing {@code r} rows in the raw-input phases and unfiltered in the
- *     partial-input phases, where it merely forwards the already-filtered per-bucket states.
+ *     second <em>partial</em> side carries, per bucket, the state of only the trailing {@code r} of that bucket.
+ *     The final evaluation then merges the {@code k} full buckets covered by the window plus the boundary bucket's
+ *     partial state. The partial state is produced by a separate, ordinary aggregate that filters its input to the
+ *     trailing {@code r} rows of each bucket; this wrapper only consumes it. In the partial-input phase the planner
+ *     passes the full state channels followed by that aggregate's state channels, and {@code partialSupplier} merely
+ *     reads the already-filtered per-bucket states. With raw input (single-phase execution and tests) both sides read
+ *     the same value columns and {@code partialSupplier} filters its rows itself.
  * </p>
  */
 public record WindowAggregatorFunctionSupplier(
@@ -49,16 +50,7 @@ public record WindowAggregatorFunctionSupplier(
 
     @Override
     public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-        List<IntermediateStateDesc> base = supplier.groupingIntermediateStateDesc();
-        if (partialSupplier == null) {
-            return base;
-        }
-        List<IntermediateStateDesc> combined = new ArrayList<>(base.size() * 2);
-        combined.addAll(base);
-        for (IntermediateStateDesc desc : base) {
-            combined.add(new IntermediateStateDesc(desc.name() + "$partial", desc.type(), desc.dataType()));
-        }
-        return combined;
+        return supplier.groupingIntermediateStateDesc();
     }
 
     @Override
@@ -90,7 +82,7 @@ public record WindowAggregatorFunctionSupplier(
                 final List<Integer> fullChannels;
                 final List<Integer> partialChannels;
                 if (mode.isInputPartial()) {
-                    // the intermediate page carries the full state channels followed by the partial state channels
+                    // the planner passes the full state channels followed by the partial sibling aggregate's state channels
                     int stateSize = supplier.groupingIntermediateStateDesc().size();
                     assert channels.size() == stateSize * 2 : "expected " + (stateSize * 2) + " channels, got " + channels;
                     fullChannels = channels.subList(0, stateSize);

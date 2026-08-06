@@ -52,7 +52,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
             ),
             mode,
-            List.of(aggregatorFunction(mode).groupingAggregatorFactory(mode, channels(mode))),
+            List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))),
             Integer.MAX_VALUE  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
         );
     }
@@ -150,14 +150,6 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
-    }
-
-    /**
-     * The supplier used to build the aggregator for the given phase. Windows with a partial channel need a
-     * mode-specific supplier because the partial channel is filtered only in the raw-input phases.
-     */
-    protected AggregatorFunctionSupplier aggregatorFunction(AggregatorMode mode) {
-        return aggregatorFunction();
     }
 
     protected String expectedToStringOfSimpleAggregator() {

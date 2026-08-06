@@ -3639,9 +3639,9 @@ public class EsqlCapabilities {
         /**
          * Time-series windows are dispatched per aggregate: the time bucket is pure emission cadence and each
          * aggregate independently decomposes its window as {@code W = k * B + r}, aggregating {@code k} full buckets
-         * plus a partial channel over the trailing remainder. Replaces the GCD sub-bucketing of
-         * {@link #TIME_SERIES_WINDOW_NON_MULTIPLE}, lifts its 128 sub-bucket limit, and supports combining windows
-         * smaller than the time bucket with non-multiple windows in the same aggregation.
+         * plus the state of a partial sibling aggregate over the trailing remainder. Replaces the GCD sub-bucketing
+         * of {@link #TIME_SERIES_WINDOW_NON_MULTIPLE}, lifts its 128 sub-bucket limit, and supports combining
+         * windows smaller than the time bucket with non-multiple windows in the same aggregation.
          */
         PER_AGGREGATE_WINDOWS,
 

@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.simdvec;
+package org.elasticsearch.lucene.store;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
@@ -15,10 +15,9 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
+import org.elasticsearch.foreign.adapter.MemorySegmentUtils;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.ref.Reference;
@@ -157,7 +156,13 @@ public final class IndexInputUtils {
         };
     }
 
-    private static boolean resolveFromMmap(
+    /**
+     * Writes the addresses of {@code count} mmap'd ranges into {@code addrs} and invokes
+     * {@code action} while they are valid, returning {@code true}. Returns {@code false} without
+     * invoking the action if any range is not available as a single contiguous segment, which
+     * happens e.g. when it straddles an mmap chunk boundary.
+     */
+    public static boolean resolveFromMmap(
         MemorySegmentAccessInput msai,
         long[] offsets,
         int length,
@@ -254,16 +259,17 @@ public final class IndexInputUtils {
                 "IndexInput is a FilterIndexInput ("
                     + in.getClass().getName()
                     + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
-                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
+                    + "Ensure the wrapper implements DirectAccessInput, or unwrap it before requesting direct memory access."
             );
         }
     }
 
     /**
      * Reads bytes from the index input and applies the action to a memory
-     * segment containing the data. On Java 22+ a heap-backed segment is
-     * used directly. On Java 21, where heap segments cannot be passed to
-     * native downcalls, the data is copied into a confined arena.
+     * segment containing the data. The segment is obtained from
+     * {@link MemorySegmentUtils#withDowncallSegment}, which encapsulates the
+     * difference between JDK 21, where heap segments cannot be passed to
+     * native downcalls, and JDK 22+, where they can.
      */
     private static <R> R copyAndApply(
         IndexInput in,
@@ -273,13 +279,6 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        if (JdkFeatures.SUPPORTS_HEAP_SEGMENTS) {
-            return action.apply(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
-        }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeSegment = arena.allocate(bytesToRead);
-            MemorySegment.copy(buf, 0, nativeSegment, ValueLayout.JAVA_BYTE, 0, bytesToRead);
-            return action.apply(nativeSegment);
-        }
+        return MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, action);
     }
 }

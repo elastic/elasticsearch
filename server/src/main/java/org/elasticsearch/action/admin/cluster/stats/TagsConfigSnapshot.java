@@ -21,22 +21,16 @@ import java.util.List;
  * ({@code total}, {@code total_custom}, {@code names}, {@code named_routing_expressions}) inside
  * the top-level {@code tags} object.
  */
-public record TagsConfigSnapshot(
-    int total,
-    int totalCustom,
-    List<String> names,
-    int namedRoutingExpressionsTotal,
-    List<String> namedRoutingExpressionNames
-) implements ToXContentFragment {
+public record TagsConfigSnapshot(List<String> names, List<String> namedRoutingExpressionNames) implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("total", total);
-        builder.field("total_custom", totalCustom);
-        builder.array("names", names.toArray(new String[0]));
+        builder.field("total", names.size());
+        builder.field("total_custom", names.stream().filter(n -> n.startsWith("_") == false).count());
+        builder.stringListField("names", names);
         builder.startObject("named_routing_expressions");
-        builder.field("total", namedRoutingExpressionsTotal);
-        builder.array("names", namedRoutingExpressionNames.toArray(new String[0]));
+        builder.field("total", namedRoutingExpressionNames.size());
+        builder.stringListField("names", namedRoutingExpressionNames);
         builder.endObject();
         return builder;
     }

@@ -569,15 +569,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (collectSearchTelemetry) {
                 TargetProjects targetProjects = rewritten.getResolvedTargetProjects();
                 boolean hasLinkedProjects = targetProjects != null && targetProjects.hasLinkedProjects();
-                // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
-                // triggering queries_project_routing and its sub-counters in addition to queries.
-                String projectRouting = rewritten.getProjectRouting();
-                ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
-                    ? (targetProjects != null && targetProjects.projectRoutingRequestInfo() != null
-                        ? targetProjects.projectRoutingRequestInfo()
-                        : ProjectRoutingRequestInfo.NONE)
-                    : null;
-                usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                if (hasLinkedProjects) {
+                    // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
+                    // triggering queries_project_routing and its sub-counters in addition to queries.
+                    String projectRouting = rewritten.getProjectRouting();
+                    ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
+                        ? (targetProjects.projectRoutingRequestInfo() != null
+                            ? targetProjects.projectRoutingRequestInfo()
+                            : ProjectRoutingRequestInfo.NONE)
+                        : null;
+                    usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                }
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {

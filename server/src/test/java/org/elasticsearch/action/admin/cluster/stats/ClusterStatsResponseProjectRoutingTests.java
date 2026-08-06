@@ -64,7 +64,7 @@ public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
     public void testTagsBlock_present_and_independent_of_project_routing() throws Exception {
         // zero-query snapshot — project_routing block must be absent
         ProjectRoutingUsageSnapshot snapshot = new ProjectRoutingUsageSnapshot();
-        TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(2, 1, List.of("_alias", "mytag"), 0, List.of());
+        TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(List.of("_alias", "mytag"), List.of());
         ClusterStatsResponse response = buildResponse(snapshot, tagsConfig);
         String json = Strings.toString(response);
         assertThat(json, containsString("\"tags\""));
@@ -74,7 +74,7 @@ public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
 
     public void testBothBlocks_present_when_both_non_empty() throws Exception {
         ProjectRoutingUsageSnapshot snapshot = new ProjectRoutingUsageSnapshot(10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
-        TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(1, 0, List.of("_alias"), 0, List.of());
+        TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(List.of("_alias"), List.of());
         ClusterStatsResponse response = buildResponse(snapshot, tagsConfig);
         String json = Strings.toString(response);
         assertThat(json, containsString("\"tags\""));

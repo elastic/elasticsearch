@@ -431,18 +431,11 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     public int hashCode() {
         // The object representation of `query` may use Lucene's ByteRef to represent values. This class' hashCode implementation
         // uses StringUtils.GOOD_FAST_HASH_SEED which is reinitialized for each JVM. This means that hashcode is consistent *within*
-        // a JVM but will not be consistent across the cluster. To avoid this, we produce the hashCode based on the string
-        // representation instead, which will produce consistent results for the entire cluster and across node restarts.
-        // Note: schema is included here to satisfy the equals/hashCode contract. For the random-sampler seed and shard
-        // preference routing use samplingKey(), which intentionally excludes schema.
-        return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField, schema);
-    }
-
-    /**
-     * Returns a stable key used to seed random samplers and shard preference routing. Intentionally excludes {@code schema}
-     * so that the same query produces identical sampling behaviour regardless of which schema is being searched.
-     */
-    public int samplingKey() {
+        // a JVM but will not be consistent across the cluster. As we use hashCode to initialize random number generators
+        // to produce consistent downsampling results, relying on the default hashCode implementation of `query` will
+        // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
+        // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
+        // Note: schema is intentionally excluded so that the same query produces the same sampling seed regardless of schema.
         return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);
     }
 

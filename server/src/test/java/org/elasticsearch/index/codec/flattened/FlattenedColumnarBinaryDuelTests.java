@@ -278,8 +278,9 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
                         assertNotNull("keyColumnReader must return non-null for ordinal " + ord, batchReader);
 
                         final int[] docArray = new int[maxDoc];
-                        for (int d = 0; d < maxDoc; d++)
+                        for (int d = 0; d < maxDoc; d++) {
                             docArray[d] = d;
+                        }
                         final TestBlock block = (TestBlock) batchReader.tryRead(
                             TestBlock.factory(),
                             sequentialDocs(docArray),

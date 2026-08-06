@@ -164,12 +164,12 @@ const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 // main build - so it never introduces a false failure on an otherwise-green PR.
 const PRECOMPILE_KEY = "flakiness-detection:precompile";
 const PRECOMPILE_TIMEOUT_MINUTES = 30;
-// Fire the inner compile timeout a couple of minutes before the step timeout, so
-// the script has time to capture the exit code, write the marker, and exit before
-// Buildkite SIGKILLs the step (see precompileCommand).
-const PRECOMPILE_INNER_TIMEOUT_MINUTES = PRECOMPILE_TIMEOUT_MINUTES - 2;
 
 function precompileCommand(compileTasks: string[]): string {
+  // Fire the inner compile timeout a grace period before the step timeout, so the
+  // script can capture the exit code, write the marker, and exit before Buildkite
+  // SIGKILLs the step. Reuses the same grace as the never-fail wrapper.
+  const innerTimeoutMin = Math.max(1, PRECOMPILE_TIMEOUT_MINUTES - NEVER_FAIL_GRACE_MINUTES);
   return [
     "set +e",
     // Run under an inner `timeout` so a hang (e.g. a develocity build-scan upload
@@ -178,7 +178,7 @@ function precompileCommand(compileTasks: string[]): string {
     // timeout. An outer SIGKILL would skip the marker write below and leave the
     // analyze step to render a misleading green summary. `--foreground` keeps the
     // gradle CLI in the parent process group so its scan plugin does not hang.
-    `timeout --foreground --signal=TERM --kill-after=30s ${PRECOMPILE_INNER_TIMEOUT_MINUTES}m .ci/scripts/run-gradle.sh ${compileTasks.join(" ")}`,
+    `timeout --foreground --signal=TERM --kill-after=30s ${innerTimeoutMin}m .ci/scripts/run-gradle.sh ${compileTasks.join(" ")}`,
     "rc=$?",
     // On any non-zero exit - a compile error, or a timeout (rc 124/137) - leave a
     // marker the analyze step folds into the flakiness summary annotation as

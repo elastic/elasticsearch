@@ -11,8 +11,6 @@ package org.elasticsearch.test.apmintegration;
 
 import io.opentelemetry.proto.common.v1.ArrayValue;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.logging.activity.QueryLogging;
@@ -44,7 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
  * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
-@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public class OtelLoggingIT extends AbstractTelemetryIT {
 
     private static final Logger logger = LogManager.getLogger(OtelLoggingIT.class);

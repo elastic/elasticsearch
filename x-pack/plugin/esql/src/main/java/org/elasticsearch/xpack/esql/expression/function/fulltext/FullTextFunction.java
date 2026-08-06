@@ -627,8 +627,15 @@ public abstract class FullTextFunction extends Function
      * @return the query builder to be used in the {@link LuceneQueryEvaluator}
      */
     protected QueryBuilder evaluatorQueryBuilder() {
-        // Use the same query builder as for the translation by default
-        return queryBuilder();
+        QueryBuilder builder = queryBuilder();
+        if (builder != null) {
+            return builder;
+        }
+        // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
+        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
+        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
+        return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
 
     @Override

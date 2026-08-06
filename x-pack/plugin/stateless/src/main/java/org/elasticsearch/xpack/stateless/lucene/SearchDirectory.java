@@ -459,9 +459,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * so the reverse read order guarantees that metadata contains at least all files referenced by
      * the snapshotted commit. A concurrent {@link #retainFiles} call could still remove files
      * belonging to the snapshotted commit from metadata if a newer commit has been processed and no
-     * reader holds the old files, causing some entries to be missing from the result. In practice
-     * we expect this to be benign because only obsolete files should be affected. Callers use this
-     * for best-effort cache sizing, not correctness-critical decisions.
+     * reader holds the old files, causing some entries to be missing from the result. The effect is
+     * a transiently smaller cache-size estimation. In practice this is benign: only obsolete files
+     * are affected, the estimation is per-shard, and the autoscaler applies a stabilization window
+     * of 30 minutes or more before acting on scale-down signals. Callers use this for best-effort
+     * cache sizing, not correctness-critical decisions.
      *
      * @return the file ranges for the current commit, or an empty collection if no commit has been received yet
      */

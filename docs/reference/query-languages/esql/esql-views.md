@@ -9,12 +9,12 @@ products:
 
 # Define reusable queries with {{esql}} views [esql-views]
 
-A view is a virtual index with fields that are produced from the output of an ES|QL query.
-Each view has a name and a definition. The definition is a complete ES|QL query, with source commands and processing commands.
-The view name can be used within an index pattern in the [`FROM`](/reference/query-languages/esql/commands/from.md) command of any normal ES|QL query, as well as within another view definition.
-When the main query is executed, all referenced views are also executed independently.
-This ensures up-to-date results from all source indexes referenced by both the main query and the view definitions themselves.
-The final output combines all these results into a single list, including any duplicate rows.
+A view is a virtual index defined by an ES|QL query. You reference a view by name in the [`FROM`](/reference/query-languages/esql/commands/from.md) command, just like an ordinary index. The query runs each time the view is referenced, so results always reflect the current state of the data.
+
+A view has two components:
+
+* **Name**: unique within the index namespace, used anywhere an index name is accepted in `FROM`.
+* **Definition**: a complete ES|QL query that runs each time the view is referenced.
 
 ## When to use views
 

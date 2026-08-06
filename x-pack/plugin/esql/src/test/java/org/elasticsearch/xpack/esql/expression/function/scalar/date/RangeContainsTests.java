@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -35,8 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
  * channel 0 — that's why the matchers below show channel 1 first.
  */
 public class RangeContainsTests extends AbstractScalarFunctionTestCase {
-    private static final FunctionAppliesTo DOUBLE_RANGE_APPLIES_TO = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-
     public RangeContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -132,7 +129,9 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     typedDoubleRange(from, to),
-                    new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point").withAppliesTo(DOUBLE_RANGE_APPLIES_TO)
+                    new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point").withAppliesTo(
+                        appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false)
+                    )
                 ),
                 "RangeWithinDoublePointEvaluator[point=Attribute[channel=1], range=Attribute[channel=0]]",
                 DataType.BOOLEAN,
@@ -143,7 +142,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
 
     private static TestCaseSupplier.TypedData typedDoubleRange(double from, double to) {
         return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range")
-            .withAppliesTo(DOUBLE_RANGE_APPLIES_TO);
+            .withAppliesTo(appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false));
     }
 
     @Override

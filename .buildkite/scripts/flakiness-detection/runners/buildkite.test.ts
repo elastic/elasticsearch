@@ -309,6 +309,13 @@ describe("toBuildkitePipeline compile gate", () => {
     expect(precompile.command).toContain(
       ".ci/scripts/run-gradle.sh :server:compileTestJava :x-pack:plugin:ml:compileJavaRestTestJava"
     );
+    // The compile runs under an inner timeout (a few minutes below the step
+    // timeout) so a hang is captured as a non-zero rc and still writes the marker,
+    // rather than an outer Buildkite SIGKILL that would leave a false-green summary.
+    expect(precompile.command).toMatch(
+      /timeout --foreground --signal=TERM --kill-after=30s \d+m \.ci\/scripts\/run-gradle\.sh/
+    );
+    expect(precompile.timeout_in_minutes).toBe(30);
     expect(precompile.command).toContain('> "flakiness-precompile.json"');
     expect(precompile.command).toContain("exit $$rc");
     // The gate no longer posts its own annotation; the analyze step folds the

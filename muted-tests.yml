@@ -391,9 +391,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testUpgradeDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/154593
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.sort/30_multi_value/Index Sort with doc_values multi_value false - integer}
   issue: https://github.com/elastic/elasticsearch/issues/154602

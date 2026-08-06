@@ -25,7 +25,7 @@ public class ConcurrentMultipartHelper {
     @FunctionalInterface
     public interface PartConsumer {
         /**
-         * @param partNum   1-based part number
+         * @param partNum   0-based part index
          * @param offset    byte offset of this part within the blob
          * @param partSize  size in bytes of this part
          * @param lastPart  whether this is the final part
@@ -52,17 +52,17 @@ public class ConcurrentMultipartHelper {
     public static void runConcurrentParts(long blobSize, long partSize, Executor executor, PartConsumer partConsumer) throws IOException {
         final int nbParts = numberOfParts(blobSize, partSize);
         final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
-        final AtomicInteger nextPartNum = new AtomicInteger(1);
+        final AtomicInteger nextPartNum = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(nbParts);
         final AtomicReference<Throwable> firstError = new AtomicReference<>();
 
         final Runnable worker = () -> {
             int partNum;
-            while ((partNum = nextPartNum.getAndIncrement()) <= nbParts) {
+            while ((partNum = nextPartNum.getAndIncrement()) < nbParts) {
                 if (firstError.get() == null) {
-                    final boolean lastPart = partNum == nbParts;
+                    final boolean lastPart = partNum == nbParts - 1;
                     final long curPartSize = lastPart ? lastPartSize : partSize;
-                    final long offset = (long) (partNum - 1) * partSize;
+                    final long offset = (long) partNum * partSize;
                     try {
                         partConsumer.accept(partNum, offset, curPartSize, lastPart);
                     } catch (Throwable t) {

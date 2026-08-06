@@ -379,7 +379,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 final UploadPartRequest uploadRequest = createPartUploadRequest(
                     purpose,
                     uploadId,
-                    partNum,
+                    partNum + 1,
                     absoluteBlobKey,
                     partSize,
                     lastPart
@@ -388,7 +388,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 try (stream; var clientReference = blobStore.clientReference()) {
                     final UploadPartResponse uploadResponse = clientReference.client()
                         .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, partSize));
-                    completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
+                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(uploadResponse.eTag()).build();
                 }
             });
 

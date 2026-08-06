@@ -680,12 +680,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     .bucket(bucketName)
                     .key(blobName)
                     .uploadId(uploadId)
-                    .partNumber(partNum)
+                    .partNumber(partNum + 1)
                     .build();
                 try (var stream = provider.apply(offset, partSize)) {
                     final byte[] partBytes = stream.readNBytes(Math.toIntExact(partSize));
                     final var partResponse = client().meteredUploadPart(purpose, partRequest, RequestBody.of(ByteBuffer.wrap(partBytes)));
-                    completedParts[partNum - 1] = CompletedPart.builder().partNumber(partNum).eTag(partResponse.eTag()).build();
+                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(partResponse.eTag()).build();
                 }
             });
 

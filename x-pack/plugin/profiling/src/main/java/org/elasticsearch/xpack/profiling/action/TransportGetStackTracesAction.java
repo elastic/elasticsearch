@@ -628,7 +628,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
         ClusterState clusterState = clusterService.state();
         List<Index> indices = otelSchema
-            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-default")
+            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-*")
             : resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;

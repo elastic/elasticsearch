@@ -41,6 +41,9 @@
         },
         "version_str": {
             "type": "keyword"
+        },
+        "base64_str": {
+            "type": "keyword"
         }
     }
 }

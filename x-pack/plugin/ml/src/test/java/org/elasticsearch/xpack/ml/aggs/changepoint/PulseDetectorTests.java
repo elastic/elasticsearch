@@ -174,8 +174,7 @@ public class PulseDetectorTests extends ESTestCase {
         for (int s : starts) {
             int center = s + 2;
             assertTrue(
-                "each wide spike must be detected even though the excursion buckets exceed the anomaly fraction, got "
-                    + events,
+                "each wide spike must be detected even though the excursion buckets exceed the anomaly fraction, got " + events,
                 events.stream().anyMatch(e -> e instanceof ChangeType.Spike && Math.abs(e.changePoint() - center) <= 3)
             );
         }

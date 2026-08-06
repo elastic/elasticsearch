@@ -132,14 +132,14 @@ public class PulseDetector {
         }
 
         // Order by peak z (most extreme first), then take two decoupled prefixes of that order:
-        //  - excludedFromNull: the top ceil(BACKGROUND_ANOMALY_FRACTION * n) excursions, cut from the gate's null
-        //    so a genuine anomaly is judged against a quiet background. Any excursion beyond this stays in the
-        //    null, so once the anomalies exceed this fraction they see their own neighbours there and are rejected
-        //    as a population -- this prefix, not the output cap, is the anomaly/population boundary.
-        //  - tested: the top max(MAX_REPORTED_PULSES_FLOOR, MAX_REPORTED_PULSES_FRACTION * n) excursions, the only
-        //    ones we gate and can surface. Both are views of the same peak-z order; a cluster is one excursion in
-        //    either, and it is removed from the null as a whole span (see backgroundExcluding), so a wide spike
-        //    counts once.
+        // - excludedFromNull: the top ceil(BACKGROUND_ANOMALY_FRACTION * n) excursions, cut from the gate's null
+        // so a genuine anomaly is judged against a quiet background. Any excursion beyond this stays in the
+        // null, so once the anomalies exceed this fraction they see their own neighbours there and are rejected
+        // as a population -- this prefix, not the output cap, is the anomaly/population boundary.
+        // - tested: the top max(MAX_REPORTED_PULSES_FLOOR, MAX_REPORTED_PULSES_FRACTION * n) excursions, the only
+        // ones we gate and can surface. Both are views of the same peak-z order; a cluster is one excursion in
+        // either, and it is removed from the null as a whole span (see backgroundExcluding), so a wide spike
+        // counts once.
         excursions.sort(Comparator.comparingDouble((Excursion e) -> e.peakZ()).reversed());
         int reportLimit = Math.max(MAX_REPORTED_PULSES_FLOOR, (int) Math.ceil(MAX_REPORTED_PULSES_FRACTION * n));
         int backgroundExclusion = (int) Math.ceil(BACKGROUND_ANOMALY_FRACTION * n);

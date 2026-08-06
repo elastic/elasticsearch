@@ -537,8 +537,22 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             .build();
 
         final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
-        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", RoutingChangesObserver.NOOP);
-        routingNodes.relocateShard(routingNodes.node("node-2").getByShardId(shardId), "node-4", 0L, "test", RoutingChangesObserver.NOOP);
+        routingNodes.relocateShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+        routingNodes.relocateShard(
+            routingNodes.node("node-2").getByShardId(shardId),
+            "node-4",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         final var primaryTarget = routingNodes.node("node-3").getByShardId(shardId);
         routingNodes.startShard(primaryTarget, RoutingChangesObserver.NOOP, primaryTarget.getExpectedShardSize());
@@ -586,11 +600,21 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", RoutingChangesObserver.NOOP);
+        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+        routingNodes.relocateShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            recoveryPriority
+        );
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
         assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertThat(routingNodes.node("node-1").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
+        assertThat(routingNodes.node("node-3").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
         assertThat(routingNodes.unassigned().ignored(), empty());
     }
 

@@ -911,7 +911,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return true;
             }
 
-            // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
+            // Attempt to move one of the best not-preferred shards if any were identified.
             for (var storedShardMovement : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
                 final var shardRouting = storedShardMovement.shardRouting();
                 final var index = projectIndex(shardRouting);

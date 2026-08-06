@@ -411,7 +411,9 @@ toc:
       - file: esql/esql-combine-reuse-queries.md
         children:
           - file: esql/esql-subquery.md
-          - file: esql/esql-in-subquery.md
+            children:
+              - file: esql/esql-from-subquery.md
+              - file: esql/esql-in-subquery.md
           - file: esql/esql-views.md
       - file: esql/esql-data-federation.md
         children:

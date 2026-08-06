@@ -13,8 +13,7 @@ products:
 
 | Mechanism | What it does | When to use |
 |---|---|---|
-| [`FROM` subquery](/reference/query-languages/esql/esql-subquery.md) | Runs independent queries and combines their rows into one table | You need to union results from different sources, each with its own processing |
-| [`IN` subquery](/reference/query-languages/esql/esql-in-subquery.md) | Runs a subquery that returns exactly one column and uses those values to filter the outer query | You need to keep or exclude rows based on the results of another query |
+| [Subquery](/reference/query-languages/esql/esql-subquery.md) | Nests a query inside another query, either to [combine result sets](/reference/query-languages/esql/esql-from-subquery.md) or to [filter rows](/reference/query-languages/esql/esql-in-subquery.md) | You need to use the results of one query inside another |
 | [ES\|QL view](/reference/query-languages/esql/esql-views.md) | Saves a query as a virtual index you can reference by name in any `FROM` | You want to reuse the same query across multiple requests without repeating it |
 | [`FORK`](/reference/query-languages/esql/commands/fork.md) | Sends the same incoming rows through multiple independent branches | You want to run different processing on the same data in one query |
 

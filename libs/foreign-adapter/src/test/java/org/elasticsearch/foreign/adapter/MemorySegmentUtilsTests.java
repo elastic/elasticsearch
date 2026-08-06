@@ -16,17 +16,17 @@ import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 
 /**
- * Tests the contract of {@link MemorySegmentUtil#withDowncallSegment} that holds on every JDK.
+ * Tests the contract of {@link MemorySegmentUtils#withDowncallSegment} that holds on every JDK.
  *
  * <p>This task runs on the runtime JDK, so it exercises whichever implementation the JVM selects
  * from the multi-release jar. Expectations specific to the JDK 22+ variant live in
  * {@code src/test22}, which runs on JDK 22.
  */
-public class MemorySegmentUtilTests extends ESTestCase {
+public class MemorySegmentUtilsTests extends ESTestCase {
 
     public void testSegmentHoldsRequestedBytes() throws Exception {
         byte[] data = randomByteArrayOfLength(256);
-        byte[] copied = MemorySegmentUtil.withDowncallSegment(data, data.length, segment -> {
+        byte[] copied = MemorySegmentUtils.withDowncallSegment(data, data.length, segment -> {
             assertEquals(data.length, segment.byteSize());
             return toByteArray(segment);
         });
@@ -36,7 +36,7 @@ public class MemorySegmentUtilTests extends ESTestCase {
     public void testExposesOnlyLeadingBytesOfOversizedArray() throws Exception {
         byte[] scratch = randomByteArrayOfLength(256);
         int length = randomIntBetween(1, scratch.length - 1);
-        byte[] copied = MemorySegmentUtil.withDowncallSegment(scratch, length, segment -> {
+        byte[] copied = MemorySegmentUtils.withDowncallSegment(scratch, length, segment -> {
             assertEquals(length, segment.byteSize());
             return toByteArray(segment);
         });
@@ -52,7 +52,7 @@ public class MemorySegmentUtilTests extends ESTestCase {
     public void testSegmentIsOffHeapOnJdk21() throws Exception {
         assumeTrue("only the JDK 21 variant must avoid heap segments", Runtime.version().feature() < 22);
         byte[] data = randomByteArrayOfLength(64);
-        MemorySegmentUtil.withDowncallSegment(data, data.length, segment -> {
+        MemorySegmentUtils.withDowncallSegment(data, data.length, segment -> {
             assertTrue("JDK 21 cannot pass heap segments to a downcall", segment.isNative());
             assertTrue("The segment must have a real address", segment.address() > 0);
             return null;
@@ -62,13 +62,13 @@ public class MemorySegmentUtilTests extends ESTestCase {
     public void testResultIsPropagated() throws Exception {
         byte[] data = randomByteArrayOfLength(32);
         String expected = randomAlphaOfLength(8);
-        assertEquals(expected, MemorySegmentUtil.withDowncallSegment(data, data.length, segment -> expected));
+        assertEquals(expected, MemorySegmentUtils.withDowncallSegment(data, data.length, segment -> expected));
     }
 
     public void testCheckedExceptionIsPropagated() {
         byte[] data = randomByteArrayOfLength(32);
         IOException thrown = new IOException("boom");
-        IOException caught = expectThrows(IOException.class, () -> MemorySegmentUtil.withDowncallSegment(data, data.length, segment -> {
+        IOException caught = expectThrows(IOException.class, () -> MemorySegmentUtils.withDowncallSegment(data, data.length, segment -> {
             throw thrown;
         }));
         assertSame(thrown, caught);
@@ -76,7 +76,7 @@ public class MemorySegmentUtilTests extends ESTestCase {
 
     public void testLengthBeyondArrayIsRejected() {
         byte[] data = randomByteArrayOfLength(16);
-        expectThrows(IndexOutOfBoundsException.class, () -> MemorySegmentUtil.withDowncallSegment(data, data.length + 1, segment -> null));
+        expectThrows(IndexOutOfBoundsException.class, () -> MemorySegmentUtils.withDowncallSegment(data, data.length + 1, segment -> null));
     }
 
     private static byte[] toByteArray(MemorySegment segment) {

@@ -15,7 +15,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.foreign.adapter.MemorySegmentUtil;
+import org.elasticsearch.foreign.adapter.MemorySegmentUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -272,7 +272,7 @@ public final class IndexInputUtils {
     /**
      * Reads bytes from the index input and applies the action to a memory
      * segment containing the data. The segment is obtained from
-     * {@link MemorySegmentUtil#withDowncallSegment}, which encapsulates the
+     * {@link MemorySegmentUtils#withDowncallSegment}, which encapsulates the
      * difference between JDK 21, where heap segments cannot be passed to
      * native downcalls, and JDK 22+, where they can.
      */
@@ -284,6 +284,6 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        return MemorySegmentUtil.withDowncallSegment(buf, bytesToRead, action::apply);
+        return MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, action::apply);
     }
 }

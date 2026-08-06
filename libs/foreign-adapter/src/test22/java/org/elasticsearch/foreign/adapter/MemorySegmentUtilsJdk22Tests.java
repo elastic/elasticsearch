@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 /**
  * Expectations specific to the JDK 22+ variant of {@link MemorySegmentUtil} in {@code src/main22}.
  */
-public class MemorySegmentUtilJdk22Tests extends ESTestCase {
+public class MemorySegmentUtilsJdk22Tests extends ESTestCase {
 
     /**
      * From JDK 22 a heap segment is a legal downcall argument, so
@@ -22,7 +22,7 @@ public class MemorySegmentUtilJdk22Tests extends ESTestCase {
      */
     public void testArrayIsWrappedWithoutCopying() throws Exception {
         byte[] data = randomByteArrayOfLength(64);
-        MemorySegmentUtil.withDowncallSegment(data, data.length, segment -> {
+        MemorySegmentUtils.withDowncallSegment(data, data.length, segment -> {
             assertFalse("JDK 22+ should not allocate off-heap", segment.isNative());
             assertSame("the caller's array should back the segment", data, segment.heapBase().orElseThrow());
             return null;

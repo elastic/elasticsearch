@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -220,6 +221,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.histogram";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final ClusterService clusterService;
@@ -244,6 +246,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final TimeValue gcpListenerTranslogSyncTimeout;
+    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
@@ -256,6 +259,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final DoubleHistogram commitUploadThroughputHistogram;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -324,6 +328,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             threadPool.generic(),
             STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
         );
+        /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
+        /// to the latest data point.
+        /// We use a slight recency biased value to react to burst of load while still having smoothing.
+        /// We also use an optimistic initial value of 1 GiB/sec to run unrestricted on a fresh node.
+        /// An average node provides at least 15 Gigabit of network throughput (which is about ~1.7 GiB)
+        /// so this is somewhat realistic and it saves us from trying to calculate this in some smart way.
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getBytes());
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
@@ -368,6 +379,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_MISSING_TIMESTAMP_METRIC,
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
+            );
+        this.commitUploadThroughputHistogram = telemetryProvider.getMeterRegistry()
+            .registerDoubleHistogram(
+                BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
+                "moving average of batch compound commit upload throughput",
+                "MiB/s"
             );
     }
 
@@ -886,6 +903,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
+                commitUploadThroughputHistogram.record(commitUploadThroughputMiBSec.getAverage());
+
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.

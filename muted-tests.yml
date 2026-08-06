@@ -128,6 +128,9 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  method: testRemoteFailureInlinestats
+  issue: https://github.com/elastic/elasticsearch/issues/153576
 
 # Examples:
 #

@@ -257,6 +257,22 @@ eth1           |beta           |127.0.0.1                |127.0.0.2
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
+// Exercises CIDR_MATCH:blockX with a keyword field reference (ip1 from hosts_ip_is_kwd)
+// so that field_extract coverage is recorded for the blockX parameter slot.
+cidrMatchWithKeywordBlock
+
+FROM hosts_ip_is_kwd
+| WHERE host == "alpha"
+| EVAL r = CIDR_MATCH(ip0::IP, ip1)
+| SORT card
+| KEEP host, card, ip0, ip1, r
+;
+
+host:keyword | card:keyword | ip0:keyword | ip1:keyword | r:boolean
+alpha        | eth0         | 127.0.0.1   | 127.0.0.1   | true
+alpha        | eth1         | ::1         | ::1         | true
+;
+
 convertFromIP
 from hosts | keep ip0 | eval ip0ip = to_ip(ip0) | sort ip0ip desc | limit 2;
 
@@ -928,6 +944,24 @@ warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not 
 
 ip0:ip      |ip1:ip    |direction:keyword
 127.0.0.1   |8.8.8.8   |null
+;
+
+// Exercises NETWORK_DIRECTION:internal_networks with a keyword field reference (card from
+// hosts) so that field_extract coverage is recorded for the internal_networks parameter slot.
+// card values are not valid network names, so the function returns null with a warning.
+networkDirectionWithKeywordNetworksField
+required_capability: network_direction
+
+FROM hosts
+| WHERE card == "lo0" AND MV_COUNT(ip0) == 1 AND MV_COUNT(ip1) == 1
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, card)
+| SORT host
+| KEEP host, card, direction;
+warningRegex: evaluation of \[NETWORK_DIRECTION\(ip0, ip1, .*\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex: java\.lang\.IllegalArgumentException: 'lo0' is not an IP string literal\.
+
+host:keyword | card:keyword | direction:keyword
+gamma        | lo0          | null
 ;
 
 mvMinRow

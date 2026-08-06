@@ -1305,21 +1305,24 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
-        "CIDR_MATCH:blockX is missing",
-        "CLAMP:field is missing",
-        "CLAMP:max is missing",
-        "CLAMP:min is missing",
-        "CLAMP_MAX:field is missing",
-        "CLAMP_MAX:max is missing",
-        "CLAMP_MIN:field is missing",
-        "CLAMP_MIN:min is missing",
+        // EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
-        "JSON_EXTRACT:string is missing",
+        // KNN requires a dense_vector field; no keyword csv-spec index exercises it.
         "KNN:field is missing",
+        // KQL's query argument is a string literal by grammar; it cannot be a field reference.
         "KQL:query is missing",
+        // MATCH:query requires a foldable (constant) query value. field_extract(kw, "v") is
+        // per-row and therefore not foldable; Foldables.queryAsObject throws when it is not
+        // a Literal. There is no way to pass a keyword field reference in the query slot.
         "MATCH:query is missing",
+        // MATCH_OPERATOR:field — the AstKeywordFieldRewriter explicitly records the LHS of ":" as a
+        // MATCH_OPERATOR_LHS skip-site and never wraps it with field_extract. This position
+        // accepts only a bare attribute, so field_extract coverage cannot be exercised there.
         "MATCH_OPERATOR:field is missing",
+        // MATCH_OPERATOR:query — the grammar constrains matchQuery to a constant literal
+        // (matchBooleanExpression: fieldExp COLON matchQuery=constant), so a field reference
+        // is not grammatically permitted in the query slot.
         "MATCH_OPERATOR:query is missing",
         // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
         // keyword/text parameters are not exercised via flattened-keyword field extraction.
@@ -1329,10 +1332,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
-        "NETWORK_DIRECTION:internal_networks is missing",
+        // QSTR:query requires a foldable (constant) query value. field_extract(kw, "v") is
+        // per-row and therefore not foldable; Foldables.queryAsString throws when it is not
+        // a Literal. There is no way to pass a keyword field reference in the query slot.
         "QSTR:query is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
+        // TEXT_EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "TEXT_EMBEDDING:text is missing",
         // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
         // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its

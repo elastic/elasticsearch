@@ -207,6 +207,7 @@ abstract class AbstractVarColumn extends EscfColumn {
         void skip(int n) {
             pos += n;
             nextOffsetIndex += n;
+            // end offset of the last skipped row = start of the next row to read
             int newOffset = offsets[nextOffsetIndex - 1];
             int byteDelta = newOffset - valueOffset; // 0 when every skipped row is absent (zero-width offsets)
             valueOffset = newOffset;

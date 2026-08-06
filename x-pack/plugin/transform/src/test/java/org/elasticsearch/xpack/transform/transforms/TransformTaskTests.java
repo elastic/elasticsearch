@@ -319,6 +319,43 @@ public class TransformTaskTests extends ESTestCase {
         assertEquals(state.getReason(), null);
     }
 
+    public void testTransformNodeRegistryEntryRemovedOnTeardown() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformNode transformNode = new TransformNode(Optional::empty);
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            null,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap(),
+            transformNode
+        );
+        transformTask.init(mock(PersistentTasksService.class), mock(TaskManager.class), "task-id", 42);
+
+        // the executor registered the task when it started successfully
+        transformNode.registerTransform(transformTask);
+        assertThat(transformNode.getTransformTasks(), contains(transformTask));
+
+        // terminal failure deregisters alongside the scheduler deregistration
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> {}));
+        assertThat(transformNode.getTransformTasks(), empty());
+
+        // transform registered again (restart), then force-stop routes through shutdown() and deregisters
+        transformNode.registerTransform(transformTask);
+        transformTask.stop(true, false);
+        assertThat(transformNode.getTransformTasks(), empty());
+    }
+
     public void testFailWhenNodeIsShuttingDown() {
         var threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));

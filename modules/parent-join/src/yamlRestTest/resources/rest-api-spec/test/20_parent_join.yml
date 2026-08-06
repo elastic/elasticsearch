@@ -164,6 +164,10 @@ teardown:
 
 ---
 "join field named _type is not returned as root metadata":
+  - requires:
+      cluster_features: ["search.fetch_fields.excludes_non_metadata_type"]
+      reason: "fix for user-mapped _type field appearing in hit root metadata"
+
   - do:
       indices.create:
         index: type-join
@@ -234,3 +238,51 @@ teardown:
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.1.fields._type.0.name: "answer" }
   - match: { hits.hits.1.fields._type.0.parent: "1" }
+
+---
+"keyword field named _type is not returned as root metadata":
+  - requires:
+      cluster_features: ["search.fetch_fields.excludes_non_metadata_type"]
+      reason: "fix applies to any mapper type named _type, not only join"
+
+  - do:
+      indices.create:
+        index: type-keyword
+        body:
+          mappings:
+            properties:
+              _type: { "type": "keyword" }
+
+  - do:
+      bulk:
+        index: type-keyword
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "_type": "question" }'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "_type": "answer" }'
+
+  - do:
+      search:
+        index: type-keyword
+        body:
+          sort: [ "_type" ]
+          query: { match_all: { } }
+
+  - match: { hits.total.value: 2 }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0._source._type: "answer" }
+  - is_false: hits.hits.1._type
+  - match: { hits.hits.1._source._type: "question" }
+
+  - do:
+      search:
+        index: type-keyword
+        body:
+          query: { term: { _type: "question" } }
+          fields: [ "_type" ]
+
+  - match: { hits.total.value: 1 }
+  - is_false: hits.hits.0._type
+  - match: { hits.hits.0.fields._type.0: "question" }

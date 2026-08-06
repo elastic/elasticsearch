@@ -74,7 +74,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
+    public float l2Normalize(float[] v, int offset, int length) {
         double normSq = 0;
         int end = offset + length;
         for (int j = offset; j < end; j++) {
@@ -82,12 +82,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             normSq += t * t;
         }
         if (normSq == 0) {
-            return;
+            return 0;
         }
         double invNorm = 1.0 / Math.sqrt(normSq);
         for (int j = offset; j < end; j++) {
             v[j] = (float) (v[j] * invNorm);
         }
+        return (float) normSq;
     }
 
     @Override

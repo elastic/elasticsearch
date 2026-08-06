@@ -1,0 +1,201 @@
+# Code coverage for the ES|QL surface, on demand.
+#
+# ONE AREA PER FILE. This file declares everything about measuring ES|QL: which label triggers it,
+# and what that measurement covers. Adding another area is another file like this one - a different
+# label, a different scope - sharing the same scripts. Nothing about ES|QL lives in the scripts.
+#
+# Never runs by default. Apply the `test-coverage` label, or comment
+# `@elasticmachine run elasticsearch-ci/test-coverage`.
+#
+# Reports coverage per test layer and merged. It never gates: no thresholds, no failure on a
+# number. A leg fails only if the instrument is broken, or if its tests fail - in which case the
+# coverage still uploads and is a lower bound.
+#
+# Layers are never averaged. A line covered by two layers is one covered line, so the merged step
+# computes the union from the execution data itself. Measured on esql-datasource-s3: unit 69.1%,
+# cluster 47.0%, merged 78.7% - adding gives 116%, averaging gives 58%, both wrong.
+#
+# Optional build environment overrides:
+#   COVERAGE_LAYERS        subset of unit,internal-cluster,cluster (default: all three)
+#   COVERAGE_PROJECTS overrides the scope below
+#   COVERAGE_INCLUDES overrides the class filter below
+config:
+  auto-retry: false
+  # TRIGGER: the label. Nothing runs without it.
+  allow-labels: test-coverage
+  # ...and only on PRs that go near this area. `touched-regions` matches if ANY changed file
+  # matches, unlike `included-regions` which requires every one to (a docs-only-PR detector).
+  # Includes the coverage tooling itself, so a change to it can be measured by it.
+  touched-regions:
+    - ^x-pack/plugin/esql
+    - ^libs/arrow/
+    - ^\.buildkite/scripts/coverage/
+    - ^\.buildkite/pipelines/pull-request/test-coverage\.yml
+    - ^gradle/coverage
+  trigger-phrase: '.*run\W+elasticsearch-ci/test-coverage.*'
+env:
+  # The scope of this area. Gradle project-path pattern and JaCoCo class-include pattern, each in
+  # its own tool's native syntax. These two must agree: measuring data-source projects against an
+  # ES|QL-wide class filter would put engine classes in the denominator that those tests never
+  # touch, and read as a coverage problem that is really a scoping mistake.
+  COVERAGE_PROJECTS: ":x-pack:plugin:esql*"
+  COVERAGE_INCLUDES: "org.elasticsearch.xpack.esql.*:org.elasticsearch.compute.*:org.elasticsearch.arrow.*"
+
+steps:
+  - group: test-coverage
+    steps:
+      - label: "test-coverage / unit"
+        key: "test-coverage-unit"
+        command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh unit pending "measuring unit coverage"
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-unit" || true
+            SUMMARY_LINE=$$(grep -m1 '^unit' build/coverage/summary.txt || echo "unit measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh unit success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh unit failure "$$SUMMARY_LINE"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "unit"
+        timeout_in_minutes: 240
+        artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      - label: "test-coverage / internal-cluster"
+        key: "test-coverage-internal-cluster"
+        command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh internal-cluster pending "measuring internal-cluster coverage"
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-internal-cluster" || true
+            SUMMARY_LINE=$$(grep -m1 '^internal-cluster' build/coverage/summary.txt || echo "internal-cluster measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh internal-cluster success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh internal-cluster failure "$$SUMMARY_LINE"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "internal-cluster"
+        timeout_in_minutes: 240
+        artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      - label: "test-coverage / cluster"
+        key: "test-coverage-cluster"
+        command: |
+          # Publish our own commit status so the step is visible on the PR while it runs, not only
+          # after it finishes. See status.sh for why this is not left to the CI integration.
+          .buildkite/scripts/coverage/status.sh cluster pending "measuring cluster coverage"
+          .buildkite/scripts/coverage/run-coverage.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context "coverage-cluster" || true
+            SUMMARY_LINE=$$(grep -m1 '^cluster' build/coverage/summary.txt || echo "cluster measured")
+          else
+            SUMMARY_LINE="no coverage produced"
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh cluster success "$$SUMMARY_LINE"
+          else
+            .buildkite/scripts/coverage/status.sh cluster failure "$$SUMMARY_LINE"
+          fi
+          exit $$rc
+        env:
+          COVERAGE_LAYERS: "cluster"
+        timeout_in_minutes: 240
+        artifact_paths:
+          # Execution data and the summary only. A layer's own HTML report is not uploaded: the
+          # merged step rebuilds every layer's report from this same exec data, so it is pure
+          # duplication - and it is thousands of files, enough to bury the couple of dozen exec
+          # files beside it. Measured on the unit leg: 25 exec files behind 4,000+ report files.
+          - "build/coverage/exec/**/*.exec"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+
+      # Reconciliation. The legs above measure one layer each; this merges their execution data into
+  # the union, which is the only honest total. Layers overlap, so percentages cannot be added or
+  # averaged - a line covered by two layers is one covered line. Runs even if a leg failed, so a
+  # partial result is still reported, clearly as a lower bound.
+      - label: "test-coverage / merged"
+        key: "test-coverage-merged"
+        depends_on:
+          - "test-coverage-unit"
+          - "test-coverage-internal-cluster"
+          - "test-coverage-cluster"
+        allow_dependency_failure: true
+        command: |
+          .buildkite/scripts/coverage/status.sh merged pending "merging layers"
+          .buildkite/scripts/coverage/publish.sh && rc=0 || rc=$$?
+          if [[ -f build/coverage/summary.txt ]]; then
+            { echo '```'; cat build/coverage/summary.txt; echo '```'; } \
+              | buildkite-agent annotate --style info --context coverage-merged || true
+          fi
+          if [[ $$rc -eq 0 ]]; then
+            .buildkite/scripts/coverage/status.sh merged success "$$(grep -m1 '^merged' build/coverage/summary.txt || echo merged)"
+          else
+            .buildkite/scripts/coverage/status.sh merged failure "merge failed"
+          fi
+          exit $$rc
+        env:
+          # Makes the pre-command hook fetch the metrics-cluster credentials from Vault, which is
+          # how the microbenchmarks ship their numbers too. Only this step needs them: the per-layer
+          # legs report a layer, and a layer on its own is not a coverage figure.
+          USE_PERF_CREDENTIALS: "true"
+          # Publishing to the coverage repo is normally main-only, because `latest/` reads as a
+          # trend only if every commit measured the same line of development. This forces it on so
+          # the push is exercised before a main run exists. A PR writes its own pr/<n>/ directory,
+          # so it cannot overwrite what main measured.
+          COVERAGE_PUBLISH_TO_REPO: "1"
+        timeout_in_minutes: 60
+        artifact_paths:
+          - "build/coverage/report/**/*"
+          - "build/coverage/summary.txt"
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk

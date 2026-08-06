@@ -3,6 +3,7 @@ export type EsPipelineConfig = {
     "allow-labels"?: string | string[];
     "skip-labels"?: string | string[];
     "included-regions"?: string | string[];
+    "touched-regions"?: string | string[];
     "excluded-regions"?: string | string[];
     "trigger-phrase"?: string;
     "skip-target-branches"?: string | string[];

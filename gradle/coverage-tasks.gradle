@@ -1,0 +1,46 @@
+/*
+ * Enumerate the real test tasks, from the build itself.
+ *
+ *   ./gradlew -I gradle/coverage-tasks.gradle -Dcoverage.projects=':x-pack:plugin:esql*' \
+ *             -Dcoverage.tasklist=/tmp/tasks.tsv coverageTaskList
+ *
+ * Writes one task path per line.
+ *
+ * Why this exists rather than a list of known task names: task names do not reliably follow their
+ * source set. `src/csvSpecTest` registers a task called `csvSpecTests`, plural — unguessable, and
+ * a hardcoded list that omitted it silently dropped six suites from an earlier version of this
+ * tooling. The build knows the answer; asking it is the only way to be right.
+ *
+ * One configuration pass over the matched projects, not one per project.
+ */
+
+def projectPattern = System.getProperty('coverage.projects', ':x-pack:plugin:esql*')
+def outFile = System.getProperty('coverage.tasklist')
+
+if (outFile == null) {
+    throw new GradleException('coverage.tasklist is required: -Dcoverage.tasklist=/path/to/tasks.tsv')
+}
+
+// '*' matches any run of characters, including ':'. Keep in sync with coverage_pattern_regex
+// in .buildkite/scripts/coverage/lib.sh.
+def projectRegex = ~('^' + java.util.regex.Pattern.quote(projectPattern).replace('*', '\\E.*\\Q') + '$')
+
+gradle.rootProject { root ->
+    root.tasks.register('coverageTaskList') {
+        doLast {
+            def lines = []
+            root.allprojects.each { proj ->
+                if (!projectRegex.matcher(proj.path).matches()) {
+                    return
+                }
+                // Iterating the live TaskCollection realises lazily-registered tasks, so this
+                // sees every Test task, not just the ones something else already realised.
+                proj.tasks.withType(Test).each { t ->
+                    lines << "${proj.path}:${t.name}".toString()
+                }
+            }
+            new File(outFile).text = lines.sort().join('\n') + (lines ? '\n' : '')
+            logger.lifecycle("coverage: ${lines.size()} test tasks written to ${outFile}")
+        }
+    }
+}

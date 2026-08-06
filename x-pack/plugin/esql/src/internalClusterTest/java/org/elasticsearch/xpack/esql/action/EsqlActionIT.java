@@ -167,6 +167,30 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLoadStoredLongWithSourceAndDocValuesDisabled() {
+        String indexName = "stored-long-no-source";
+        long value = 1L << 40;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("""
+            {
+              "_source": { "enabled": false },
+              "properties": {
+                "field": {
+                  "type": "long",
+                  "store": true,
+                  "doc_values": false,
+                  "index": false
+                }
+              }
+            }
+            """));
+        prepareIndex(indexName).setSource("field", value).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (EsqlQueryResponse response = run("FROM " + indexName + " | KEEP field")) {
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("field", "long", null))));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(value))));
+        }
+    }
+
     public void testInvalidRowWithFilter() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         expectThrows(

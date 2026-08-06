@@ -161,7 +161,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
             listener.onResponse(new EnrichResolution());
             return null;
-        }).when(enrichResolver).resolvePolicies(any(), any(), any(), any());
+        }).when(enrichResolver).resolvePolicies(any(), any(), any(), any(), any());
         return enrichResolver;
     }
 
@@ -651,7 +651,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
      * executor, or the cross-project remote leg — nulls are never dereferenced.
      */
     private static DatasetResolver noDatasetsResolver() {
-        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP);
+        return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

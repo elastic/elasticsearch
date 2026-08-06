@@ -102,13 +102,24 @@ function wrapNeverFail(
     "fi",
     // Best-effort per-job status file for the analyze step to pick up. `|| true`
     // and the trailing `exit 0` ensure observability can never fail a batch.
-    // `stepKey`/`kind` are build-time constants; `rc`/duration are runtime, so
+    // `stepKey`/`kind` are build-time constants; `rc`/duration/oom are runtime, so
     // they are `$$`-escaped to defer past Buildkite's pipeline-upload pass.
+    //
+    // OOM detection: every ES test JVM runs with `-XX:+HeapDumpOnOutOfMemoryError`
+    // and `-XX:HeapDumpPath=<buildDir>/heapdump` (ElasticsearchTestBasePlugin), so
+    // a `*/build/heapdump/*.hprof` file after the run means a JVM-heap
+    // OutOfMemoryError occurred - which exits via Gradle with rc=1, not the
+    // SIGKILL rc=137 the kernel OOM-killer produces. We detect it from the file
+    // (not the log) to avoid touching the wrapped command's stdout/`--foreground`
+    // plumbing; `-quit` stops at the first match. analyze.ts turns this into the
+    // `oom` infraSubtype.
     ...(emitOutcome
       ? [
           "_fd_end=$(date +%s)",
           "mkdir -p flakiness-status",
-          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true`,
+          "_fd_oom=\"\"",
+          "if [ -n \"$(find . -type f -path '*/build/heapdump/*.hprof' -print -quit 2>/dev/null)\" ]; then _fd_oom=\"oom\"; fi",
+          `printf '{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}' "$$BUILDKITE_JOB_ID" "${contextKey}" "${emitOutcome.kind}" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true`,
         ]
       : []),
     "exit 0",
@@ -132,6 +143,12 @@ const FLAKINESS_STATUS_ARTIFACTS = "flakiness-status/*.json";
 // Keep this filename in sync with entrypoints/analyze.ts.
 const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
 
+// Written by the bootstrap step (entrypoints/pr.ts) listing tests that could not
+// be re-run (BWC projects). Downloaded by the analyze step, which folds them into
+// the outcomes artifact as `not_applicable`. Keep in sync with entrypoints/pr.ts
+// and the bootstrap step's `artifact_paths` in pipelines/pull-request/flakiness-detection.yml.
+const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
+
 interface PipelineGroup {
   group: string;
   steps: PipelineStep[];
@@ -147,7 +164,11 @@ interface Pipeline {
  */
 export function toBuildkitePipeline(
   commands: RunnableCommand[],
-  cfg: AgentConfig
+  cfg: AgentConfig,
+  // When there are BWC (`not_applicable`) tests to report, the analyze step is
+  // emitted even with zero batch steps so those records still reach the outcomes
+  // artifact.
+  opts: { hasNotApplicable?: boolean } = {}
 ): Pipeline {
   const byKey = new Map<string, RunnableCommand[]>();
   for (const c of commands) {
@@ -188,21 +209,23 @@ export function toBuildkitePipeline(
     steps.push(step);
   }
 
-  if (steps.length > 0) {
+  if (steps.length > 0 || opts.hasNotApplicable) {
     const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      // Download the per-job status files, then run the analyzer. The analyzer
-      // reads each status file and downloads that job's JUnit XML per job
-      // (`--step <jobId>`) so it can attribute results to a job before
-      // classifying. It writes the structured per-job outcomes to
+      // Download the per-job status files and the skipped-tests list, then run
+      // the analyzer. The analyzer reads each status file and downloads that
+      // job's JUnit XML per job (`--step <jobId>`) so it can attribute results
+      // to a job before classifying, and folds the skipped list in as
+      // `not_applicable`. It writes the structured per-job outcomes to
       // FLAKINESS_OUTCOMES_ARTIFACT, which `artifact_paths` below uploads for the
       // observability pipeline to read. `|| true` tolerates a build with no
-      // status artifacts.
+      // status/skipped artifacts.
       command: wrapNeverFail(
         [
           `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,
+          `buildkite-agent artifact download "${FLAKINESS_SKIPPED_ARTIFACT}" . || true`,
           "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
         ].join("\n"),
         "flakiness-detection:analyze",
@@ -230,9 +253,10 @@ export function toBuildkitePipeline(
 export function uploadBuildkitePipeline(
   commands: RunnableCommand[],
   cfg: AgentConfig,
-  cwd: string = PROJECT_ROOT
+  opts: { hasNotApplicable?: boolean; cwd?: string } = {}
 ): void {
-  const yaml = stringify(toBuildkitePipeline(commands, cfg));
+  const cwd = opts.cwd ?? PROJECT_ROOT;
+  const yaml = stringify(toBuildkitePipeline(commands, cfg, { hasNotApplicable: opts.hasNotApplicable }));
   console.log("--- Generated pipeline");
   console.log(yaml);
 

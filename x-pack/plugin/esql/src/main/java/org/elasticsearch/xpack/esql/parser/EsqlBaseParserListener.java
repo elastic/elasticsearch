@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -1243,6 +1244,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#functionParam}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionParam(EsqlBaseParser.FunctionParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#functionParam}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionParam(EsqlBaseParser.FunctionParamContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lambda}.
+   * @param ctx the parse tree
+   */
+  void enterLambda(EsqlBaseParser.LambdaContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lambda}.
+   * @param ctx the parse tree
+   */
+  void exitLambda(EsqlBaseParser.LambdaContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#mapExpression}.
    * @param ctx the parse tree

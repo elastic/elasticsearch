@@ -108,6 +108,13 @@ str1:keyword |str2:keyword |str3:keyword |long1:unsigned_long  |long2:unsigned_l
 // end::to_unsigned_long-str-result[]
 ;
 
+convertFromKeywordField
+FROM conv_from_keyword | EVAL ul = TO_UNSIGNED_LONG(unsigned_long_str) | KEEP unsigned_long_str, ul;
+
+unsigned_long_str:keyword | ul:unsigned_long
+9223372036854775808       | 9223372036854775808
+;
+
 // conversions to LONG
 
 convertLongToLong

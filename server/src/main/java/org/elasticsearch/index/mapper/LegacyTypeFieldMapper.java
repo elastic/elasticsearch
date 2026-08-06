@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -64,7 +65,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
         }
 
         @Override
@@ -81,7 +82,7 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return SortedSetDocValuesField.newSlowRangeQuery(
+            return SortedSetDocValuesRangeQuery.newSlowRangeQuery(
                 name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),

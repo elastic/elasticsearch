@@ -957,7 +957,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardMoved,
                 allocation.routingNodes().nodeInterleavedShardIterator(),
                 bestNonPreferredShardMovementsTracker,
-                MovesToExecute.TO_YES_ONLY
+                CanAllocateDecisions.YES_ONLY
             );
             if (shardMoved.get() && completeEarlyOnShardAssignmentChange) {
                 return;
@@ -969,22 +969,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardMoved,
                     allocation.routingNodes().nodeInterleavedShardIterator(nodeIdsWithDeferredMoves::contains),
                     bestNonPreferredShardMovementsTracker,
-                    MovesToExecute.TO_YES_OR_NOT_PREFERRED
+                    CanAllocateDecisions.YES_OR_NOT_PREFERRED
                 );
                 assert secondPassNodesWithDeferredMoves.isEmpty() : "We shouldn't be deferring any moves on this pass";
             }
         }
 
-        /// Indication of which moves to execute
-        private enum MovesToExecute {
+        /// Moves will be performed if they have a `canAllocate` decision that matches the specified [CanAllocateDecisions].
+        private enum CanAllocateDecisions {
             /// Execute only moves where the canAllocate decision is `YES`
-            TO_YES_ONLY,
+            YES_ONLY,
             /// Execute moves where the canAllocate decision is `YES` or `NOT_PREFERRED`
-            TO_YES_OR_NOT_PREFERRED
+            YES_OR_NOT_PREFERRED
         }
 
-        /// Iterate through the shard Iterator looking for shards where `canRemain` is `NO`, acting on any
-        /// whose `canAllocate` decision passes the `executeMovePredicate`.
+        /// Iterate through the shard Iterator looking for shards where `canRemain` is `NO`, acting only on
+        /// those with a canAllocate decision matching [CanAllocateDecisions].
         ///
         /// Use the [BestShardMovementsTracker#shardIsBetterThanCurrent(ShardRouting)] to filter any shards
         /// where `canRemain` is NOT_PREFERRED, and update the [BestShardMovementsTracker] accordingly.
@@ -992,13 +992,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// @param shardMoved An atomic boolean that is set to true if a move was made
         /// @param shardsToCheck The iterator of shards to check
         /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
-        /// @param movesToExecute The type of moves to execute
-        /// @return The IDs of any nodes for which we deferred moves due to the `executeMovePredicate`
+        /// @param canAllocateDecisions The canAllocate decisions a move must have to be executed
+        /// @return The IDs of any nodes with moves that were skipped due to not matching the `canAllocateDecisions`
         private Set<String> findAndExecuteMoves(
             AtomicBoolean shardMoved,
             Iterator<ShardRouting> shardsToCheck,
             BestShardMovementsTracker bestNonPreferredShardMovementsTracker,
-            MovesToExecute movesToExecute
+            CanAllocateDecisions canAllocateDecisions
         ) {
             final var nodeIdsWithDeferredMoves = new HashSet<String>();
             while (shardsToCheck.hasNext()) {
@@ -1028,7 +1028,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
-                        || movesToExecute == MovesToExecute.TO_YES_OR_NOT_PREFERRED) {
+                        || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
                             shardMoved.set(true);
                         } else {

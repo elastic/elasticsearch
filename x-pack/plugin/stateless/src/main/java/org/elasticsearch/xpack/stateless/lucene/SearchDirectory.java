@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -478,7 +479,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 result.add(blobFileRanges);
             }
         }
-        return result;
+        return Collections.unmodifiableList(result);
     }
 
     @Override

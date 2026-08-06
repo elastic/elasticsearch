@@ -102,11 +102,8 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
             .setting("telemetry.metrics.enabled", "false");
     }
 
-    private ReceivedTelemetry.ReceivedSpan awaitRootSpan(
-        String traceIdValue,
-        String remoteParentSpanId,
-        Map<String, String> extraHeaders
-    ) throws Exception {
+    private ReceivedTelemetry.ReceivedSpan awaitRootSpan(String traceIdValue, String remoteParentSpanId, Map<String, String> extraHeaders)
+        throws Exception {
         final String traceParentValue = "00-" + traceIdValue + "-" + remoteParentSpanId + "-01";
         return apmServer().await(
             ReceivedTelemetry.ReceivedSpan.class,
@@ -151,11 +148,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         final String traceIdValue = "0af7651916cd43dd8448eb211c80319d";
         final String remoteParentSpanId = "b7ad6b7169203332";
 
-        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(
-            traceIdValue,
-            remoteParentSpanId,
-            Map.of(Task.TRACE_STATE, "es=s:0.125")
-        );
+        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(traceIdValue, remoteParentSpanId, Map.of(Task.TRACE_STATE, "es=s:0.125"));
         assertEquals(8.0, ((Number) rootSpan.attributes().get("representative_count")).doubleValue(), 0.0001);
     }
 

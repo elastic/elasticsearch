@@ -18,7 +18,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -60,7 +59,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
         for (int i = 0; i < numSearchFrom; i++) {
-            int branch = randomInt(9);
+            int branch = randomInt(10);
             switch (branch) {
                 case 0 -> values[i] = randomInt();
                 case 1 -> values[i] = randomFloat();
@@ -72,6 +71,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 case 7 -> values[i] = randomShort();
                 case 8 -> values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
                 case 9 -> values[i] = randomBigInteger();
+                case 10 -> values[i] = null;
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -91,7 +91,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         jsonBuilder.startObject();
         jsonBuilder.startArray("search_after");
         for (int i = 0; i < numSearchAfter; i++) {
-            int branch = randomInt(8);
+            int branch = randomInt(9);
             switch (branch) {
                 case 0 -> jsonBuilder.value(randomInt());
                 case 1 -> jsonBuilder.value(randomFloat());
@@ -102,6 +102,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                 case 6 -> jsonBuilder.value(randomByte());
                 case 7 -> jsonBuilder.value(randomShort());
                 case 8 -> jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
+                case 9 -> jsonBuilder.nullValue();
             }
         }
         jsonBuilder.endArray();
@@ -284,15 +285,22 @@ public class SearchAfterBuilderTests extends ESTestCase {
      * Test that buildFieldDoc rejects null values
      */
     public void testBuildFieldDocRejectsNull() {
-        SortField longSortField = new SortField("timestamp", SortField.Type.LONG, true);
-        Sort sort = new Sort(longSortField);
-        DocValueFormat[] formats = { DocValueFormat.RAW };
-        SortAndFormats sortAndFormats = new SortAndFormats(sort, formats);
+        for (SortField.Type type : new SortField.Type[] {
+            SortField.Type.LONG,
+            SortField.Type.INT,
+            SortField.Type.DOUBLE,
+            SortField.Type.FLOAT,
+            SortField.Type.DOC }) {
+            SortField sortField = new SortField("field", type, true);
+            Sort sort = new Sort(sortField);
+            DocValueFormat[] formats = { DocValueFormat.RAW };
+            SortAndFormats sortAndFormats = new SortAndFormats(sort, formats);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
-        });
-        assertThat(e.getMessage(), containsString("cannot be null"));
-        assertThat(e.getMessage(), containsString("LONG"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
+            });
+            assertThat(e.getMessage(), containsString("cannot be null"));
+            assertThat(e.getMessage(), containsString(type.name()));
+        }
     }
 }

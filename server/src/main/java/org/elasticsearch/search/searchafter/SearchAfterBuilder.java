@@ -122,7 +122,13 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     fieldValues[i] = null;
                 } else {
                     throw new IllegalArgumentException(
-                        "[search_after] value at position " + i + " cannot be null for sort field [" + sortField.getField() + "] of type [" + sortType + "]."
+                        "[search_after] value at position "
+                            + i
+                            + " cannot be null for sort field ["
+                            + sortField.getField()
+                            + "] of type ["
+                            + sortType
+                            + "]."
                     );
                 }
             }
@@ -267,6 +273,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             + XContentParser.Token.VALUE_NUMBER
                             + "] or ["
                             + XContentParser.Token.VALUE_BOOLEAN
+                            + "] or ["
+                            + XContentParser.Token.VALUE_NULL
                             + "] but found ["
                             + token
                             + "] inside search_after."

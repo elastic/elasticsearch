@@ -46,3 +46,8 @@ The source command can be followed by zero or more piped processing commands:
 - [`SORT`](/reference/query-languages/esql/commands/sort.md)
 - [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 - [`WHERE`](/reference/query-languages/esql/commands/where.md)
+
+## Learn more
+
+* [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
+* [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows with `IN` or `NOT IN`.

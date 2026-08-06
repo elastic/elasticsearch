@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
@@ -61,6 +62,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             when(state.getTimer()).thenReturn(timer);
             when(state.getRecoverySource()).thenReturn(TestShardRouting.buildRecoverySource());
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
+            when(state.getRecoveryPriority()).thenReturn(randomFrom(ShardRouting.RecoveryPriority.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
                 when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
@@ -126,6 +128,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "time",
             "type",
             "stage",
+            "priority",
             "source_host",
             "source_node",
             "target_host",
@@ -163,6 +166,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 new TimeValue(state.getTimer().time()),
                 state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
                 state.getStage().name().toLowerCase(Locale.ROOT),
+                state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
                 state.getTargetNode().getHostName(),

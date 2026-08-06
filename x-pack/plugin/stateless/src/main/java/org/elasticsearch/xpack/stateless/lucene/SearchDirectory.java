@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
@@ -132,6 +133,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         if (clearOrphans == false && timestampByCacheKey.isEmpty()) {
             return;
         }
+        final long startTime = System.nanoTime();
         cacheService.backfillRegionTimestamps(shardId, key -> {
             assert key.shardId().equals(shardId) : key.shardId() + " != " + shardId;
             Long timestampMillis = timestampByCacheKey.get(key);
@@ -144,6 +146,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
             return clearOrphans ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : null;
         });
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "{} backfilled [{}] timestamps (clearOrphans=[{}]) in [{}]",
+                shardId,
+                timestampByCacheKey.size(),
+                clearOrphans,
+                TimeValue.timeValueNanos(System.nanoTime() - startTime)
+            );
+        }
     }
 
     /**

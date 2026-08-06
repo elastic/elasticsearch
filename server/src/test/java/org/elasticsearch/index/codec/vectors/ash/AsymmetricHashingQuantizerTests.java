@@ -324,20 +324,29 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float projectedDimsFraction = 0.5f;
         long seed = 42L;
         // Thresholds chosen so a correct implementation passes comfortably but a
-        // broken one (missing offset, wrong sign, untrained W) drops near zero.
-        // Random unit vectors in 128-dim have very compressed dot-product range
-        // (concentration of measure), so absolute correlation tops out around 0.8.
+        // broken one (missing offset, wrong sign, double-subtracted cross-term) fails.
         double pearsonThreshold = 0.6;
         double recallThreshold = 0.2;
         int k = 10;
 
         Random rng = new Random(seed);
 
-        // Random unit-norm vectors
-        float[][] vectors = randomUnit(nVectors, dim, rng);
-        float[][] queries = randomUnit(nQueries, dim, rng);
+        // Use non-unit vectors with meaningful magnitude to stress the offset formula.
+        // Unit vectors make centroids near-zero which can mask offset bugs.
+        float[][] vectors = new float[nVectors][dim];
+        for (int i = 0; i < nVectors; i++) {
+            for (int d = 0; d < dim; d++) {
+                vectors[i][d] = (float) rng.nextGaussian();
+            }
+        }
+        float[][] queries = new float[nQueries][dim];
+        for (int i = 0; i < nQueries; i++) {
+            for (int d = 0; d < dim; d++) {
+                queries[i][d] = (float) rng.nextGaussian();
+            }
+        }
 
-        // Simple centroids: average of a random partition
+        // Non-trivial centroids with significant magnitude (shifted clusters)
         int[] assignments = new int[nVectors];
         float[][] centroids = new float[nClusters][dim];
         int[] counts = new int[nClusters];

@@ -193,7 +193,9 @@ public final class AsymmetricHashingQuantizer {
         // Scale: norm / codeNorm
         float scale = codeNorm > 0 ? norm / codeNorm : 0;
 
-        // Offset = dot(vector, centroid) - dot(centroid, centroid) - scale * sum_j (centroid @ W)[j] * xEnc[j]
+        // Offset = dot(vector, centroid) - dot(centroid, centroid)
+        // The cross-term -scale * <Wμ, code> is NOT included here because the scorer
+        // already projects the centered query (q - μ) @ W, which implicitly subtracts it.
         double dotVecCent = 0;
         double dotCentCent = 0;
         for (int d = 0; d < originalDim; d++) {
@@ -201,13 +203,6 @@ public final class AsymmetricHashingQuantizer {
             dotCentCent += (double) centroid[d] * centroid[d];
         }
         float offset = (float) (dotVecCent - dotCentCent);
-        for (int j = 0; j < nDims; j++) {
-            double transformedCent = 0;
-            for (int d = 0; d < originalDim; d++) {
-                transformedCent += (double) centroid[d] * w[d][j];
-            }
-            offset -= (float) (scale * transformedCent * xEnc[j]);
-        }
 
         return new EncodedVector(xEnc, scale, offset);
     }
@@ -282,16 +277,9 @@ public final class AsymmetricHashingQuantizer {
         // Scale: norm / codeNorm
         float scale = codeNorm > 0 ? norm / codeNorm : 0;
 
-        // Offset = dot(vector, centroid) - ||centroid||^2 - scale * dot(centroidProjected, xEnc)
+        // Offset = dot(vector, centroid) - ||centroid||^2
         float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
         float offset = dotVecCent - precomputed.centroidNormSq();
-        // Use precomputed centroidProjected instead of recomputing centroid @ W for each dim
-        float[] centroidProjected = precomputed.centroidProjected();
-        double correction = 0;
-        for (int j = 0; j < nDims; j++) {
-            correction += (double) centroidProjected[j] * xEnc[j];
-        }
-        offset -= (float) (scale * correction);
 
         return new EncodedVector(xEnc, scale, offset);
     }
@@ -388,14 +376,6 @@ public final class AsymmetricHashingQuantizer {
                 dotCentCent += (double) centroid[d] * centroid[d];
             }
             offsets[i] += (float) (dotVecCent - dotCentCent);
-
-            for (int j = 0; j < nDims; j++) {
-                double transformedCent = 0;
-                for (int d = 0; d < originalDim; d++) {
-                    transformedCent += (double) centroid[d] * w[d][j];
-                }
-                offsets[i] -= (float) (scales[i] * transformedCent * xEnc[i][j]);
-            }
         }
 
         nClusters++; // we have the max cluster ID so far, add one to get the size

@@ -147,7 +147,17 @@ public class CsvTestsDataLoader {
             "partial_message_types_lookup.csv",
             "lookup-settings.json"
         ),
+        new TestDataset(
+            "message_language_code_lookup",
+            "mapping-message_language_code_lookup.json",
+            "message_language_code_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
+        new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
+        new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
             .withDynamic("false"),
         new TestDataset(
@@ -159,6 +169,12 @@ public class CsvTestsDataLoader {
             "partial_mapping_excluded_source_sample_data",
             "mapping-partial_mapping_excluded_source_sample_data.json",
             "partial_mapping_sample_data.csv"
+        ),
+        new TestDataset(
+            "synthetic_source_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "synthetic-source-settings.json"
         ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
@@ -407,7 +423,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
-        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("view_partial_mapping_sample_data"),
+        new ViewConfig("view_sample_data")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

@@ -160,12 +160,7 @@ public final class IndexInputUtils {
      * Writes the addresses of {@code count} mmap'd ranges into {@code addrs} and invokes
      * {@code action} while they are valid, returning {@code true}. Returns {@code false} without
      * invoking the action if any range is not available as a single contiguous segment, which
-     * happens when it straddles an mmap chunk boundary.
-     *
-     * <p>Public so that {@link IndexInput} wrappers implementing
-     * {@link DirectAccessInput#withSliceAddresses} over an mmap delegate can reuse this rather
-     * than duplicating the pointer loop and its {@link Reference#reachabilityFence} insurance.
-     * See the memory-safety note on {@link #withSliceAddresses}.
+     * happens e.g. when it straddles an mmap chunk boundary.
      */
     public static boolean resolveFromMmap(
         MemorySegmentAccessInput msai,

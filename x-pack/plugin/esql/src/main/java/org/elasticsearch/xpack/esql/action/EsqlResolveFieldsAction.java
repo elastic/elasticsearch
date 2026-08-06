@@ -88,6 +88,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             listener.onFailure(failure);
             return;
         }
+
         fieldCapsAction.executeRequest(task, request.fieldCapsRequest(), new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
             public void executeRemoteRequest(

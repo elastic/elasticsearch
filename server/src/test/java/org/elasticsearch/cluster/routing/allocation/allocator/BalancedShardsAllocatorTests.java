@@ -65,6 +65,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -101,6 +102,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -1315,8 +1317,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
      * <p>
      * Runs in two randomly chosen configurations:
      * <ul>
-     *   <li>Partial drain: moving the YES shard reduces load enough that the deferred shard can remain — no NOT_PREFERRED move needed</li>
-     *   <li>Full drain: the node must be fully evacuated, so the deferred shard is eventually moved to a NOT_PREFERRED target</li>
+     *   <li>Partial drain: moving the YES shards reduces load enough that the deferred shard can remain — no NOT_PREFERRED move needed</li>
+     *   <li>Full drain: the node must be fully evacuated, so the deferred shards are eventually moved to a NOT_PREFERRED target</li>
      * </ul>
      */
     public void testCanRemainNoShardsWithOnlyNotPreferredTargetsAreDeferredUntilAfterYesMoves() {
@@ -1324,17 +1326,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final String yesTargetNode = randomIdentifier("yes-target");
         final String notPreferredTargetNode = randomIdentifier("not-preferred-target");
 
-        // drainCompletely=false: canRemain:NO while startedCount > 1 (moving one shard resolves pressure)
+        // drainCompletely=false: canRemain:NO while startedCount > `nonPreferredShardCount` (moving `shardCount` shards resolves pressure)
         // drainCompletely=true: canRemain:NO while startedCount > 0 (source must be fully evacuated)
         final boolean drainCompletely = randomBoolean();
+        final int preferredShardCount = 5;
+        final int nonPreferredShardCount = 100;
 
-        // Simulates a heap-pressure scenario:
-        // - pressure-index shard: has a YES target; moving it reduces the started shard count on source
-        // - canstay-index shard: only NOT_PREFERRED targets; canRemain resolves once the threshold is met
-        // Both shards return canRemain:NO while the started count on source exceeds the threshold, modelling
-        // a decider (e.g. EstimatedHeapUsageAllocationDecider) that relaxes once load drops.
-        final var pressureIndexName = randomIdentifier("pressure-index");
-        final var canStayIndexName = randomIdentifier("canstay-index");
         final var decider = new AllocationDecider() {
             @Override
             public Decision canRemain(
@@ -1350,7 +1347,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 final long startedCount = StreamSupport.stream(sourceRoutingNode.spliterator(), false)
                     .filter(ShardRouting::started)
                     .count();
-                return startedCount > (drainCompletely ? 0 : 1) ? Decision.NO : Decision.YES;
+                return startedCount > (drainCompletely ? 0 : nonPreferredShardCount) ? Decision.NO : Decision.YES;
             }
 
             @Override
@@ -1358,7 +1355,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 if (node.nodeId().equals(sourceNode)) {
                     return Decision.NO;
                 }
-                if (shardRouting.index().getName().equals(pressureIndexName)) {
+                if (shardRouting.index().getName().startsWith("preferred-")) {
                     return node.nodeId().equals(yesTargetNode) ? Decision.YES : Decision.NOT_PREFERRED;
                 }
                 return Decision.NOT_PREFERRED;
@@ -1374,76 +1371,107 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        final var pressureIndex = anIndex(pressureIndexName).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
-        final var canstayIndex = anIndex(canStayIndexName).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
+        // Simulate a node under pressure, all shards on `source` return canRemain: NO, 100 shards
+        // return canAllocate: NOT_PREFERRED and 5 shards returns canAllocate: YES.
+        // We can't control the order the BalancedShardsAllocator considers shards for movement
+        // but with 105 shards the chance of it picking the 5 preferred shards first from the 105
+        // on the node is 1 in 96,560,646, assuming iteration orders are random.
+        final var preferredIndices = IntStream.range(0, preferredShardCount).mapToObj(i -> randomIdentifier("preferred-" + i + "-"));
+        final var nonPreferredIndices = IntStream.range(0, nonPreferredShardCount)
+            .mapToObj(i -> randomIdentifier("non_preferred-" + i + "-"));
+        var clusterState = generateClusterStateForSingleShardIndices(
+            Stream.concat(preferredIndices, nonPreferredIndices).toList(),
+            sourceNode,
+            yesTargetNode,
+            notPreferredTargetNode
+        );
 
-        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT).put(pressureIndex, false).put(canstayIndex, false);
-        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .add(
-                IndexRoutingTable.builder(pressureIndex.getIndex())
+        // The preferred shards should be moved to the `yesTargetNode` first
+        for (int i = 0; i < preferredShardCount; i++) {
+            clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        }
+        // The last shard moved will need to be started
+        clusterState = startInitializingShards(allocationService, clusterState);
+        {
+            final var routingNodes = clusterState.getRoutingNodes();
+            final var shardsOnYesTargetNode = routingNodes.node(yesTargetNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            // The `preferredShardCount` preferred shards should have moved to `yesTargetNode`
+            assertThat(shardsOnYesTargetNode.size(), equalTo(preferredShardCount));
+            assertThat(shardsOnYesTargetNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("preferred-")));
+            // No shards should have moved to `notPreferredTargetNode`
+            assertThat(routingNodes.node(notPreferredTargetNode).shardsWithState(ShardRoutingState.STARTED).count(), equalTo(0L));
+        }
+
+        // Only then are the non-preferred shards moved
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+        {
+            final var routingNodes = clusterState.getRoutingNodes();
+            final var shardsOnYesTargetNode = routingNodes.node(yesTargetNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            final var shardsOnNotPreferredTargetNode = routingNodes.node(notPreferredTargetNode)
+                .shardsWithState(ShardRoutingState.STARTED)
+                .toList();
+            final var shardsOnSourceNode = routingNodes.node(sourceNode).shardsWithState(ShardRoutingState.STARTED).toList();
+            if (drainCompletely) {
+                // All shards should have moved to `yesTargetNode` or `notPreferredTargetNode`
+                assertThat(
+                    shardsOnYesTargetNode.size() + shardsOnNotPreferredTargetNode.size(),
+                    equalTo(preferredShardCount + nonPreferredShardCount)
+                );
+                // Only non_preferred shards have moved to the notPreferredTargetNode (they are NOT_PREFERRED anywhere)
+                assertThat(
+                    shardsOnNotPreferredTargetNode.stream().map(ShardRouting::getIndexName).toList(),
+                    everyItem(startsWith("non_preferred-"))
+                );
+                // No shards remain on `source`
+                assertThat(shardsOnSourceNode.size(), equalTo(0));
+            } else {
+                // The preferred shards remain on `yesTargetNode`
+                assertThat(shardsOnYesTargetNode.size(), equalTo(preferredShardCount));
+                assertThat(shardsOnYesTargetNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("preferred-")));
+                // The non-preferred shards remain on `source`
+                assertThat(shardsOnSourceNode.size(), equalTo(nonPreferredShardCount));
+                assertThat(shardsOnSourceNode.stream().map(ShardRouting::getIndexName).toList(), everyItem(startsWith("non_preferred-")));
+            }
+        }
+    }
+
+    private ClusterState generateClusterStateForSingleShardIndices(
+        Collection<String> indexNames,
+        String sourceNode,
+        String yesTargetNode,
+        String notPreferredTargetNode
+    ) {
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var indexMetadatas = new HashMap<String, IndexMetadata>(indexNames.size());
+        for (String indexName : indexNames) {
+            final var metadata = anIndex(indexName).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
+            indexMetadatas.put(indexName, metadata);
+            projectMetadataBuilder.put(metadata, false);
+        }
+
+        // Put all the shards on the `source` node
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        for (var indexName : indexNames) {
+            final var metadata = indexMetadatas.get(indexName);
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(metadata.getIndex())
                     .addShard(
-                        shardRoutingBuilder(pressureIndex.getIndex().getName(), 0, sourceNode, true, ShardRoutingState.STARTED)
-                            .withAllocationId(AllocationId.newInitializing(pressureIndex.inSyncAllocationIds(0).iterator().next()))
-                            .build()
-                    )
-            )
-            .add(
-                IndexRoutingTable.builder(canstayIndex.getIndex())
-                    .addShard(
-                        shardRoutingBuilder(canstayIndex.getIndex().getName(), 0, sourceNode, true, ShardRoutingState.STARTED)
-                            .withAllocationId(AllocationId.newInitializing(canstayIndex.inSyncAllocationIds(0).iterator().next()))
-                            .build()
+                        shardRoutingBuilder(indexName, 0, sourceNode, true, ShardRoutingState.STARTED).withAllocationId(
+                            AllocationId.newInitializing(metadata.inSyncAllocationIds(0).iterator().next())
+                        ).build()
                     )
             );
+        }
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (var nodeName : shuffledList(sourceNode, yesTargetNode, notPreferredTargetNode)) {
             discoveryNodesBuilder.add(newNode(nodeName));
         }
 
-        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
             .putProjectMetadata(projectMetadataBuilder)
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
-
-        // Round 1: the pressure shard (YES target) moves first; the canstay shard is deferred and not yet moved
-        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        {
-            final var routingTable = clusterState.routingTable(ProjectId.DEFAULT);
-
-            final var pressureShard = routingTable.shardRoutingTable(pressureIndexName, 0).primaryShard();
-            assertTrue("pressure shard should be relocating after round 1: " + routingTable, pressureShard.relocating());
-            assertThat(
-                "pressure shard should be relocating to yes node: " + routingTable,
-                pressureShard.relocatingNodeId(),
-                equalTo(yesTargetNode)
-            );
-
-            // Regardless of drain mode, the canstay shard is still on source after round 1:
-            // it was deferred (only NOT_PREFERRED targets available) while the YES move was pending
-            final var canstayShard = routingTable.shardRoutingTable(canStayIndexName, 0).primaryShard();
-            assertTrue("canstay shard should still be started after round 1: " + routingTable, canstayShard.started());
-            assertThat(canstayShard.currentNodeId(), equalTo(sourceNode));
-        }
-
-        // Round 2: pressure shard completes its move; canstay is re-evaluated
-        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        {
-            final var routingTable = clusterState.routingTable(ProjectId.DEFAULT);
-
-            final var pressureShard = routingTable.shardRoutingTable(pressureIndexName, 0).primaryShard();
-            assertTrue("pressure shard should be started after round 2: " + routingTable, pressureShard.started());
-
-            final var canstayShard = routingTable.shardRoutingTable(canStayIndexName, 0).primaryShard();
-            if (drainCompletely) {
-                // Source must be fully evacuated: canstay still can't remain and is moved to a NOT_PREFERRED target
-                assertTrue("canstay shard should be relocating in drain-completely mode: " + routingTable, canstayShard.relocating());
-            } else {
-                // Pressure resolved: canstay finds canRemain:YES on source and stays put
-                assertTrue("canstay shard should be started in partial-drain mode: " + routingTable, canstayShard.started());
-                assertThat("canstay shard should remain on source", canstayShard.currentNodeId(), equalTo(sourceNode));
-            }
-        }
     }
 
     private void assertUnassigned(

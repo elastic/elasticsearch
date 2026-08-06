@@ -14,7 +14,7 @@ products:
 | Mechanism | What it does | When to use |
 |---|---|---|
 | [Subquery](/reference/query-languages/esql/esql-subquery.md) | Nests a query inside another query, either to [combine result sets](/reference/query-languages/esql/esql-from-subquery.md) or to [filter rows](/reference/query-languages/esql/esql-in-subquery.md) | You need to use the results of one query inside another |
-| [ES\|QL view](/reference/query-languages/esql/esql-views.md) | Saves a named query as a virtual index that any `FROM` can reference | You want to define a query once and reuse it across multiple requests |
+| [View](/reference/query-languages/esql/esql-views.md) | Saves a named query as a virtual index that any `FROM` can reference | You want to define a query once and reuse it across multiple requests |
 | [`FORK`](/reference/query-languages/esql/commands/fork.md) | Sends the same incoming rows through multiple independent branches | You want to run different processing on the same data in one query |
 
 ## Comparing views, subqueries, and FORK

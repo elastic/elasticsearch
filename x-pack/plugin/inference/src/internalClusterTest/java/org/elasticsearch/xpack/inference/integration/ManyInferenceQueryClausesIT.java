@@ -178,8 +178,7 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
     private static Map<String, Object> getServiceSettings(TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> SPARSE_EMBEDDING_SERVICE_SETTINGS;
-            case TEXT_EMBEDDING -> EMBEDDING_SERVICE_SETTINGS;
-            case EMBEDDING -> EMBEDDING_SERVICE_SETTINGS;
+            case TEXT_EMBEDDING, EMBEDDING -> EMBEDDING_SERVICE_SETTINGS;
             default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
         };
     }

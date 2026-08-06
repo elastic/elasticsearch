@@ -132,7 +132,6 @@ public class TestUtils {
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
-        statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
     }
 

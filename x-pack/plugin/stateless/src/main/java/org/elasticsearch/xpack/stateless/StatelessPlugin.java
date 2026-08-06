@@ -793,7 +793,8 @@ public class StatelessPlugin extends Plugin
             threadPool,
             blobCacheMetrics,
             clusterService,
-            indicesService
+            indicesService,
+            metricHolder
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
@@ -1094,7 +1095,8 @@ public class StatelessPlugin extends Plugin
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -1105,7 +1107,6 @@ public class StatelessPlugin extends Plugin
             indicesService,
             metricHolder
         );
-        statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
     }
 

@@ -124,7 +124,7 @@ public class NumericColumnTests extends ESTestCase {
                     numDocsWithField,
                     numValues,
                     () -> cursor(docValues),
-                    NumericPipeline.defaultPipeline(NumericColumnWriter.BLOCK_SIZE),
+                    NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
@@ -210,5 +210,9 @@ public class NumericColumnTests extends ESTestCase {
                 return docValues.length;
             }
         };
+    }
+
+    private static int randomValidBlockSize() {
+        return 128 << randomIntBetween(0, 6);
     }
 }

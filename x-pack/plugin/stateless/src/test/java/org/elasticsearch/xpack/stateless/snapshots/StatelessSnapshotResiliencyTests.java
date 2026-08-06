@@ -107,7 +107,6 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -153,6 +152,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -394,6 +394,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
@@ -506,7 +507,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
@@ -544,7 +545,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         clusterService(),
                         mock(GetVirtualBatchedCompoundCommitChunksPressure.class),
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         projectResolver
                     ),
                     TransportGetShardSnapshotCommitInfoAction.TYPE,
@@ -982,25 +983,37 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 });
             }
 
-            indexModule.addIndexEventListener(
-                TestUtils.newStatelessIndexEventListener(
-                    threadPool,
-                    statelessCommitService,
-                    objectStoreService,
-                    translogReplicator,
-                    new RecoveryCommitRegistrationHandler(client, clusterService),
-                    cacheWarmingService,
-                    hollowShardsService,
-                    mock(SplitTargetService.class),
-                    mock(SplitSourceService.class),
-                    projectResolver,
-                    bccHeaderReadExecutor,
-                    clusterService.getClusterSettings(),
-                    cacheService,
-                    snapshotsCommitService,
-                    clusterService
-                )
-            );
+            if (hasIndexRole) {
+                indexModule.addIndexEventListener(
+                    TestUtils.newStatelessIndexNodeRecoveryListener(
+                        threadPool,
+                        statelessCommitService,
+                        objectStoreService,
+                        translogReplicator,
+                        cacheWarmingService,
+                        hollowShardsService,
+                        mock(SplitTargetService.class),
+                        mock(SplitSourceService.class),
+                        projectResolver,
+                        bccHeaderReadExecutor,
+                        cacheService,
+                        snapshotsCommitService,
+                        StatelessRecoveryMetricsCollector.NOOP
+                    )
+                );
+            }
+            if (hasSearchRole) {
+                indexModule.addIndexEventListener(
+                    TestUtils.newStatelessSearchNodeRecoveryListener(
+                        objectStoreService,
+                        new RecoveryCommitRegistrationHandler(client, clusterService),
+                        cacheWarmingService,
+                        projectResolver,
+                        bccHeaderReadExecutor,
+                        clusterService
+                    )
+                );
+            }
         }
 
         private Engine.IndexCommitListener createIndexCommitListener() {

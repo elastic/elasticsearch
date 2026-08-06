@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
@@ -50,8 +49,7 @@ public class TencentCloudEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     private static TencentCloudEmbeddingsModel createEmbeddingsModel(String modelId) {
-        var commonSettings = new TencentCloudCommonServiceSettings(modelId, null, new RateLimitSettings(20));
-        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(commonSettings, null, null, null);
+        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(modelId, null, new RateLimitSettings(20), null, null, null);
         return new TencentCloudEmbeddingsModel(
             "test-inference-id",
             serviceSettings,

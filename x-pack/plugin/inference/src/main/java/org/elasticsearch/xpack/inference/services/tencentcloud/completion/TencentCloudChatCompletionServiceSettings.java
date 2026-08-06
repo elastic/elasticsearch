@@ -7,29 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.completion;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
-public class TencentCloudChatCompletionServiceSettings extends FilteredXContentObject
-    implements
-        ServiceSettings,
-        TencentCloudRateLimitServiceSettings {
+/**
+ * Settings for the TencentCloud chat completion / completion service. Holds only the fields common to every TencentCloud
+ * task (model id, region, rate limit). The chat completion default rate limit (5 rpm) differs from the general default.
+ */
+public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommonServiceSettings {
 
     public static final String NAME = "tencentcloud_chat_completion_service_settings";
     // Chat completion default rate limit is 5 rpm per the AI Gateway docs.
@@ -51,42 +46,17 @@ public class TencentCloudChatCompletionServiceSettings extends FilteredXContentO
     public static TencentCloudChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         var validationException = new ValidationException();
-        var commonSettings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
+        var settings = TencentCloudCommonServiceSettings.fromMap(map, context, parser, validationException);
         validationException.throwIfValidationErrorsExist();
-
-        return new TencentCloudChatCompletionServiceSettings(commonSettings);
+        return settings;
     }
 
-    private final TencentCloudCommonServiceSettings commonSettings;
-
-    public TencentCloudChatCompletionServiceSettings(TencentCloudCommonServiceSettings commonSettings) {
-        this.commonSettings = Objects.requireNonNull(commonSettings);
+    public TencentCloudChatCompletionServiceSettings(String modelId, String region, @Nullable RateLimitSettings rateLimitSettings) {
+        super(modelId, region, rateLimitSettings);
     }
 
     public TencentCloudChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new TencentCloudCommonServiceSettings(in);
-    }
-
-    public TencentCloudCommonServiceSettings getCommonSettings() {
-        return commonSettings;
-    }
-
-    @Override
-    public String modelId() {
-        return commonSettings.modelId();
-    }
-
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return commonSettings.rateLimitSettings();
-    }
-
-    @Override
-    public TencentCloudChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var updatedCommonServiceSettings = commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return new TencentCloudChatCompletionServiceSettings(updatedCommonServiceSettings);
+        super(in);
     }
 
     @Override
@@ -95,69 +65,32 @@ public class TencentCloudChatCompletionServiceSettings extends FilteredXContentO
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        commonSettings.toXContentFragment(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        return commonSettings.toXContentFragmentOfExposedFields(builder, params);
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
+    public TencentCloudChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings(),
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+        return new TencentCloudChatCompletionServiceSettings(this.modelId(), this.region(), extractedRateLimitSettings);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        commonSettings.writeTo(out);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TencentCloudChatCompletionServiceSettings that = (TencentCloudChatCompletionServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(commonSettings);
+        super.writeTo(out);
     }
 
     // ---- ObjectParser Builder ----
 
-    private static class Builder implements TencentCloudCommonServiceSettings.CommonSettingsBuilder {
-        private String modelId;
-        private String region;
-        private RateLimitSettings rateLimitSettings;
-
+    public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudChatCompletionServiceSettings> {
         @Override
-        public void setModelId(String modelId) {
-            this.modelId = modelId;
-        }
-
-        @Override
-        public void setRegion(String region) {
-            this.region = region;
-        }
-
-        @Override
-        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
-            this.rateLimitSettings = rateLimitSettings;
-        }
-
-        @Override
-        public TencentCloudCommonServiceSettings buildCommon() {
-            // When the rate_limit field is absent, the builder's rateLimitSettings stays null and the common constructor
-            // would apply the general default (20 rpm). Override here so that the chat-completion-specific default (5 rpm) is used.
+        protected TencentCloudChatCompletionServiceSettings build() {
+            // When the rate_limit field is absent, the builder's rateLimitSettings stays null. Apply the chat-completion-specific
+            // default (5 rpm) here rather than the general default applied by the base constructor.
             var rateLimit = rateLimitSettings != null ? rateLimitSettings : DEFAULT_CHAT_COMPLETION_RATE_LIMIT;
-            return new TencentCloudCommonServiceSettings(modelId, region, rateLimit);
+            return new TencentCloudChatCompletionServiceSettings(modelId, region, rateLimit);
         }
     }
 }

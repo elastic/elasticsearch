@@ -11,7 +11,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
 import static org.hamcrest.Matchers.is;
 
@@ -19,7 +18,9 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
 
     public void testUri_UsesDefaultWhenNoOverride() {
         var settings = new TencentCloudEmbeddingsServiceSettings(
-            new TencentCloudCommonServiceSettings("bge-m3", null, new RateLimitSettings(20)),
+            "bge-m3",
+            null,
+            new RateLimitSettings(20),
             SimilarityMeasure.DOT_PRODUCT,
             1024,
             8192
@@ -31,25 +32,13 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testUri_UsesRegion() {
-        var settings = new TencentCloudEmbeddingsServiceSettings(
-            new TencentCloudCommonServiceSettings("bge-m3", "sh", new RateLimitSettings(20)),
-            null,
-            null,
-            null
-        );
+        var settings = new TencentCloudEmbeddingsServiceSettings("bge-m3", "sh", new RateLimitSettings(20), null, null, null);
         var model = createModel(settings);
         assertThat(model.uri().toString(), is("https://sh.aisearch.tencentelasticsearch.com/v1/embeddings"));
     }
 
     public void testCopyConstructor_UpdatesServiceSettings() {
-        var original = createModel(
-            new TencentCloudEmbeddingsServiceSettings(
-                new TencentCloudCommonServiceSettings("bge-m3", null, new RateLimitSettings(20)),
-                null,
-                null,
-                null
-            )
-        );
+        var original = createModel(new TencentCloudEmbeddingsServiceSettings("bge-m3", null, new RateLimitSettings(20), null, null, null));
         var updated = new TencentCloudEmbeddingsModel(
             original,
             original.getServiceSettings().updateEmbeddingDetails(1024, SimilarityMeasure.COSINE)

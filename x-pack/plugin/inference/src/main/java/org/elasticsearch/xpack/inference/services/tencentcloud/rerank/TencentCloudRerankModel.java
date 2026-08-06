@@ -57,7 +57,7 @@ public class TencentCloudRerankModel extends TencentCloudModel {
             new ModelConfigurations(inferenceId, TaskType.RERANK, TencentCloudService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings(),
+            serviceSettings,
             resolveUri(serviceSettings)
         );
     }
@@ -67,7 +67,7 @@ public class TencentCloudRerankModel extends TencentCloudModel {
             config,
             secrets,
             (DefaultSecretSettings) secrets.getSecretSettings(),
-            ((TencentCloudRerankServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            (TencentCloudRerankServiceSettings) config.getServiceSettings(),
             resolveUri((TencentCloudRerankServiceSettings) config.getServiceSettings())
         );
     }
@@ -101,10 +101,6 @@ public class TencentCloudRerankModel extends TencentCloudModel {
     }
 
     private static URI resolveUri(TencentCloudRerankServiceSettings serviceSettings) {
-        return TencentCloudUtils.buildUri(
-            serviceSettings.getCommonSettings().region(),
-            TencentCloudUtils.VERSION_1,
-            TencentCloudUtils.RERANK_PATH
-        );
+        return TencentCloudUtils.buildUri(serviceSettings.region(), TencentCloudUtils.VERSION_1, TencentCloudUtils.RERANK_PATH);
     }
 }

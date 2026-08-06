@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.AbstractTencentCloudServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,11 +21,20 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TencentCloudChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+public class TencentCloudChatCompletionServiceSettingsTests extends AbstractTencentCloudServiceSettingsTests<
     TencentCloudChatCompletionServiceSettings> {
 
     public static TencentCloudChatCompletionServiceSettings createRandom() {
-        return new TencentCloudChatCompletionServiceSettings(TencentCloudCommonServiceSettingsTests.createRandom());
+        return new TencentCloudChatCompletionServiceSettings(
+            randomAlphaOfLength(8),
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            new RateLimitSettings(randomIntBetween(1, 1000))
+        );
+    }
+
+    @Override
+    protected TencentCloudCommonServiceSettings createInstance(String modelId, String region, RateLimitSettings rateLimitSettings) {
+        return new TencentCloudChatCompletionServiceSettings(modelId, region, rateLimitSettings);
     }
 
     public void testFromMap_MinimalConfig_UsesChatCompletionDefaultRateLimit() {
@@ -69,11 +77,17 @@ public class TencentCloudChatCompletionServiceSettingsTests extends AbstractBWCW
     @Override
     protected TencentCloudChatCompletionServiceSettings mutateInstance(TencentCloudChatCompletionServiceSettings instance)
         throws IOException {
-        TencentCloudCommonServiceSettings mutated = randomValueOtherThan(
-            instance.getCommonSettings(),
-            TencentCloudCommonServiceSettingsTests::createRandom
-        );
-        return new TencentCloudChatCompletionServiceSettings(mutated);
+        var modelId = instance.modelId();
+        var region = instance.region();
+        var rateLimitSettings = instance.rateLimitSettings();
+
+        switch (between(0, 2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(5));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, () -> new RateLimitSettings(randomIntBetween(1, 1000)));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TencentCloudChatCompletionServiceSettings(modelId, region, rateLimitSettings);
     }
 
     @Override

@@ -9,14 +9,10 @@ package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkInferenceInput;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -44,7 +40,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -57,7 +52,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TencentCloudServiceTests extends InferenceServiceTestCase {
 
@@ -222,12 +216,14 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
 
     @Override
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
-        var commonSettings = new TencentCloudCommonServiceSettings(
+        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(
             "bge-m3",
             "bj",
-            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20)
+            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20),
+            similarity,
+            null,
+            null
         );
-        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(commonSettings, similarity, null, null);
         return new TencentCloudEmbeddingsModel(
             "inference-id",
             serviceSettings,
@@ -251,28 +247,26 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     }
 
     private TencentCloudChatCompletionModel createChatCompletionModel(TaskType taskType) throws URISyntaxException {
-        var commonSettings = new TencentCloudCommonServiceSettings(
-            "deepseek-v3",
-            "bj",
-            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(5)
-        );
         return new TencentCloudChatCompletionModel(
             "inference-id",
             taskType,
-            new TencentCloudChatCompletionServiceSettings(commonSettings),
+            new TencentCloudChatCompletionServiceSettings(
+                "deepseek-v3",
+                "bj",
+                new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(5)
+            ),
             new DefaultSecretSettings(new SecureString("sk-12345"))
         );
     }
 
     private TencentCloudRerankModel createRerankModel(String modelId) throws URISyntaxException {
-        var commonSettings = new TencentCloudCommonServiceSettings(
-            modelId,
-            "bj",
-            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20)
-        );
         return new TencentCloudRerankModel(
             "inference-id",
-            new TencentCloudRerankServiceSettings(commonSettings),
+            new TencentCloudRerankServiceSettings(
+                modelId,
+                "bj",
+                new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20)
+            ),
             TencentCloudRerankTaskSettings.EMPTY_SETTINGS,
             new DefaultSecretSettings(new SecureString("sk-12345"))
         );

@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
@@ -61,8 +60,7 @@ public class TencentCloudRerankRequestEntityTests extends ESTestCase {
     }
 
     private static TencentCloudRerankModel createRerankModel(String modelId, TencentCloudRerankTaskSettings taskSettings) {
-        var commonSettings = new TencentCloudCommonServiceSettings(modelId, null, new RateLimitSettings(20));
-        var serviceSettings = new TencentCloudRerankServiceSettings(commonSettings);
+        var serviceSettings = new TencentCloudRerankServiceSettings(modelId, null, new RateLimitSettings(20));
         return new TencentCloudRerankModel(
             "test-inference-id",
             serviceSettings,

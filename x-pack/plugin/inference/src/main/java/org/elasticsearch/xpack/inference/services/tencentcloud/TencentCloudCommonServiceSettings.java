@@ -34,13 +34,14 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Common service settings shared by all TencentCloud task types.
- * Contains the required {@code model_id}, an optional {@code region} (defaults to {@code bj}), and rate limit settings.
+ * Abstract base for all TencentCloud task-specific service settings. Holds the fields shared across every TencentCloud task
+ * (model identity, region, and rate limiting) together with the parsing, serialization, and update machinery that would
+ * otherwise be duplicated. Task-specific subclasses contribute only their own additional fields.
  * <p>
  * The endpoint URL is not user-configurable; it is always constructed from the region and the task-specific path
  * ({@code https://{region}.aisearch.tencentelasticsearch.com/v1/<task-path>}).
  */
-public class TencentCloudCommonServiceSettings extends FilteredXContentObject
+public abstract class TencentCloudCommonServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
         TencentCloudRateLimitServiceSettings {
@@ -53,20 +54,20 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
 
     /**
      * Declares the common TencentCloud service-settings fields ({@code model_id}, {@code region}, {@code rate_limit},
-     * and a no-op {@code api_key}) onto the given parser so that every task-specific settings parser can reuse the
+     * and a no-op {@code url}) onto the given parser so that every task-specific settings parser can reuse the
      * same declaration. The {@code url} field (if present) is silently consumed for backward compatibility with
      * persisted configurations.
      */
-    public static <B extends CommonSettingsBuilder> void declareCommonFields(
+    public static <B extends Builder<? extends TencentCloudCommonServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser,
         RateLimitSettings defaultRateLimit
     ) {
-        parser.declareString((b, v) -> b.setModelId(v), new ParseField(ServiceFields.MODEL_ID));
-        parser.declareString((b, v) -> b.setRegion(v), new ParseField(REGION));
+        parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
+        parser.declareString(Builder::setRegion, new ParseField(REGION));
         // Consume the legacy url field silently so that persisted configurations from older versions don't fail to parse.
         parser.declareString((b, v) -> {}, new ParseField(ServiceFields.URL));
         parser.declareObject(
-            (b, v) -> b.setRateLimitSettings(v),
+            Builder::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultRateLimit).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
@@ -76,27 +77,33 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Parses common settings from a map using an ObjectParser.
+     * Parses common settings from a map using the given parser, returning the fully constructed task-specific settings.
+     *
+     * @param map                  the map to parse
+     * @param context              the context in which the parsing is done
+     * @param parser               the parser to use for parsing the settings
+     * @param validationException  the validation exception to populate in case of errors
+     * @param <T>                  the concrete settings type produced by the parser's builder
+     * @return the created settings, or {@code null} if a validation error occurred
      */
-    public static <T extends CommonSettingsBuilder> TencentCloudCommonServiceSettings fromMap(
+    public static <T extends TencentCloudCommonServiceSettings> T fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context,
-        ObjectParser<T, ConfigurationParseContext> parser,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser,
         ValidationException validationException
     ) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            T builder = parser.apply(xParser, context);
-            var commonSettings = builder.buildCommon();
+            T settings = parser.apply(xParser, context).build();
             // Validate region in REQUEST context.
             if (context == ConfigurationParseContext.REQUEST) {
-                if (commonSettings.region().isBlank()) {
+                if (settings.region().isBlank()) {
                     validationException.addValidationError(
                         String.format(Locale.ROOT, "[%s] in [%s] must not be empty", REGION, ModelConfigurations.SERVICE_SETTINGS)
                     );
                     return null;
                 }
             }
-            return commonSettings;
+            return settings;
         } catch (ElasticsearchParseException e) {
             validationException.addValidationError(e.getMessage());
             return null;
@@ -107,16 +114,29 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Builder interface for classes that accumulate common TencentCloud settings fields.
+     * Accumulates the parsed common fields on behalf of a concrete settings builder. Each task-specific builder extends this and
+     * contributes its own fields, implementing {@link #build()} to assemble the final settings object.
+     *
+     * @param <T> the task-specific settings type produced by {@link #build()}
      */
-    public interface CommonSettingsBuilder {
-        void setModelId(String modelId);
+    public abstract static class Builder<T extends TencentCloudCommonServiceSettings> {
+        protected String modelId;
+        protected String region;
+        protected RateLimitSettings rateLimitSettings;
 
-        void setRegion(String region);
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
 
-        void setRateLimitSettings(RateLimitSettings rateLimitSettings);
+        public void setRegion(String region) {
+            this.region = region;
+        }
 
-        TencentCloudCommonServiceSettings buildCommon();
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        protected abstract T build();
     }
 
     // ---- instance fields and methods ----
@@ -125,36 +145,16 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
     private final String region;
     private final RateLimitSettings rateLimitSettings;
 
-    public TencentCloudCommonServiceSettings(String modelId, @Nullable String region, @Nullable RateLimitSettings rateLimitSettings) {
+    protected TencentCloudCommonServiceSettings(String modelId, String region, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.region = region != null && region.isBlank() == false ? region : TencentCloudUtils.DEFAULT_REGION;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public TencentCloudCommonServiceSettings(StreamInput in) throws IOException {
+    protected TencentCloudCommonServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.region = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
-    }
-
-    @Nullable
-    public TencentCloudCommonServiceSettings updateCommonServiceSettings(
-        Map<String, Object> serviceSettings,
-        ValidationException validationException
-    ) {
-        int initialValidationErrorCount = validationException.validationErrors().size();
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
-            return null;
-        }
-
-        return new TencentCloudCommonServiceSettings(this.modelId, this.region, extractedRateLimitSettings);
     }
 
     @Override
@@ -171,34 +171,33 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
         return rateLimitSettings;
     }
 
+    /**
+     * Applies an update to the mutable fields of these settings, returning a copy. Only the rate limit is mutable; the model id and
+     * region are immutable and are carried over unchanged. Concrete subclasses override this to also preserve their task-specific
+     * fields.
+     */
     @Override
-    public String getWriteableName() {
-        return NAME;
+    public abstract TencentCloudCommonServiceSettings updateServiceSettings(Map<String, Object> serviceSettings);
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        toXContentFragment(builder, params);
+        toXContentFragmentOfExposedFields(builder, params);
         builder.endObject();
         return builder;
     }
 
-    public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        return toXContentFragmentOfExposedFields(builder, params);
-    }
-
     @Override
-    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(ServiceFields.MODEL_ID, modelId);
         builder.field(REGION, region);
         rateLimitSettings.toXContent(builder, params);
         return builder;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TencentCloudService.TENCENT_CLOUD_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

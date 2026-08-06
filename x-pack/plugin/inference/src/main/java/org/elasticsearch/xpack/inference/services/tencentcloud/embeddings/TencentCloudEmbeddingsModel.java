@@ -59,7 +59,7 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
             ),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings(),
+            serviceSettings,
             resolveUri(serviceSettings)
         );
     }
@@ -69,7 +69,7 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
             config,
             secrets,
             (DefaultSecretSettings) secrets.getSecretSettings(),
-            ((TencentCloudEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            (TencentCloudEmbeddingsServiceSettings) config.getServiceSettings(),
             resolveUri((TencentCloudEmbeddingsServiceSettings) config.getServiceSettings())
         );
     }
@@ -99,10 +99,6 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
     }
 
     private static java.net.URI resolveUri(TencentCloudEmbeddingsServiceSettings serviceSettings) {
-        return TencentCloudUtils.buildUri(
-            serviceSettings.getCommonSettings().region(),
-            TencentCloudUtils.VERSION_1,
-            TencentCloudUtils.EMBEDDINGS_PATH
-        );
+        return TencentCloudUtils.buildUri(serviceSettings.region(), TencentCloudUtils.VERSION_1, TencentCloudUtils.EMBEDDINGS_PATH);
     }
 }

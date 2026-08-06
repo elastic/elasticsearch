@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.tencentcloud.AbstractTencentCloudServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudCommonServiceSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,10 +21,19 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TencentCloudRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<TencentCloudRerankServiceSettings> {
+public class TencentCloudRerankServiceSettingsTests extends AbstractTencentCloudServiceSettingsTests<TencentCloudRerankServiceSettings> {
 
     public static TencentCloudRerankServiceSettings createRandom() {
-        return new TencentCloudRerankServiceSettings(TencentCloudCommonServiceSettingsTests.createRandom());
+        return new TencentCloudRerankServiceSettings(
+            randomAlphaOfLength(8),
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            new RateLimitSettings(randomIntBetween(1, 1000))
+        );
+    }
+
+    @Override
+    protected TencentCloudCommonServiceSettings createInstance(String modelId, String region, RateLimitSettings rateLimitSettings) {
+        return new TencentCloudRerankServiceSettings(modelId, region, rateLimitSettings);
     }
 
     public void testFromMap_MinimalConfig() {
@@ -64,9 +73,17 @@ public class TencentCloudRerankServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected TencentCloudRerankServiceSettings mutateInstance(TencentCloudRerankServiceSettings instance) throws IOException {
-        return new TencentCloudRerankServiceSettings(
-            randomValueOtherThan(instance.getCommonSettings(), TencentCloudCommonServiceSettingsTests::createRandom)
-        );
+        var modelId = instance.modelId();
+        var region = instance.region();
+        var rateLimitSettings = instance.rateLimitSettings();
+
+        switch (between(0, 2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(5));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, () -> new RateLimitSettings(randomIntBetween(1, 1000)));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TencentCloudRerankServiceSettings(modelId, region, rateLimitSettings);
     }
 
     @Override

@@ -273,7 +273,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
-
         for (Entry sourceEntry : entries) {
             bytesAccounter.accept(-sourceEntry.ramBytesUsed);
         }

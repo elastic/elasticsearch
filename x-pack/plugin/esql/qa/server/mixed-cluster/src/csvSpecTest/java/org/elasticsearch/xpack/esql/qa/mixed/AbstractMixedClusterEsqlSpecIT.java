@@ -131,12 +131,6 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         failIfQueryUsesFunctionMissingOnOldNode(testName);
     }
 
-    /**
-     * Turns the flaky failure fixed in #156026/#156027 into a deterministic, actionable one: rather than let a query
-     * that calls a function the older node lacks flake with {@code Unknown function [X]}, fail with the
-     * {@code fn_<name>} capability the author must add. Skipped whenever that cannot be determined confidently, so it
-     * never adds a new source of flakiness.
-     */
     private void failIfQueryUsesFunctionMissingOnOldNode(String testName) {
         Set<String> functionCapabilities = EsqlTestUtils.functionCapabilitiesUsedBy(testCase.query);
         if (functionCapabilities.isEmpty()) {

@@ -16,6 +16,8 @@ A view has two components:
 * **Name**: unique within the index namespace, used anywhere an index name is accepted in `FROM`.
 * **Definition**: a complete ES|QL query that runs each time the view is referenced.
 
+Views must be defined using the REST API before they can be used in queries. Refer to [Defining views](#defining-views) for details.
+
 ## When to use views
 
 Views are a good fit when you want to:

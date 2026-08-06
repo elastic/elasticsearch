@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 152920
-pr: 152921
-summary: Fix no-op `Attribute#withQualifier`
-type: bug

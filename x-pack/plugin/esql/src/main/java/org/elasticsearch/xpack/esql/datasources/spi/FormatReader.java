@@ -234,17 +234,23 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a format reader configured with the schema attributes.
+     * Returns a format reader configured with the schema attributes, letting the reader skip
+     * re-reading/inferring the schema from the file header on every read — especially important for
+     * split-based reads where the split may start mid-file (no header available).
      * <p>
-     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
-     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
-     * re-reading/inferring the schema from the file header on every read, which is especially
-     * important for split-based reads where the split may start mid-file (no header available).
+     * <b>This carries no authority.</b> Callers use it for two different things: the planning-phase
+     * schema, constant for the query ({@code FileSourceFactory}), and a schema just inferred from one
+     * file or even one chunk ({@code AsyncExternalSourceOperatorFactory},
+     * {@code ParallelParsingCoordinator}, {@code StreamingParallelParsingCoordinator}). A reader cannot
+     * tell the two apart from this call. So where a reader also receives
+     * {@link FormatReadContext#readSchema()} — the planner's per-file read contract — <b>that is the
+     * authority and must win on type</b>; whatever arrives here may be a guess. Letting the guess win
+     * is what produced the compressed-read type-cast crashes.
      * <p>
      * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
      * the schema from the file metadata.
      *
-     * @param schema the planning-phase schema attributes, or null to clear
+     * @param schema the schema attributes, or null to clear. NOT necessarily planning-phase — see above.
      * @return a new reader with the schema set, or {@code this} if the schema is not needed
      */
     default FormatReader withSchema(List<Attribute> schema) {
@@ -285,6 +291,42 @@ public interface FormatReader extends Closeable {
      */
     default FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
         return this;
+    }
+
+    /**
+     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
+     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
+     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
+     * all, must still bind by name.
+     * <p>
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
+     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
+     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
+     * positionally would never look at the physical names it was handed, so the same mapping could read a different
+     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * <p>
+     * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
+     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
+     * A declared name the file does not supply reads null with a warning, never a silent positional fallback.
+     *
+     * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @return a new reader honoring the binding mode, or {@code this} when it does not apply
+     */
+    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+        return this;
+    }
+
+    /**
+     * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
+     * unsplittable: every split past the first would have no way to resolve the binding.
+     *
+     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * throughput-sensitive reads actually use.
+     */
+    default boolean declaredNameBindingNeedsFileStart() {
+        return false;
     }
 
     /**

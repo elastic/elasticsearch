@@ -13,6 +13,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -232,6 +233,23 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             context.indexSettings().getIndexVersionCreated(),
             context.mappingLookup().nestedLookup().getNestedMappers().isEmpty() == false
         );
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Per-field ignored source is produced only by field (non-metadata) mappers, none of which
+        // support columnar parsing yet. postColumnarParse is therefore a no-op for the current
+        // empty-doc-only columnar batch scope. When field mappers gain columnar support they will
+        // need an equivalent of DocumentParserContext#addIgnoredFieldValue, and postColumnarParse
+        // will need to write the resulting _ignored_source column.
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // No-op this pass: per-field ignored source is only ever produced by field (non-metadata)
+        // mappers recording an ignored value, and none support columnar parsing yet — there is
+        // nothing to write. See IgnoredFieldMapper#postColumnarParse for the analogous gap.
     }
 
     // In rare cases decoding values stored in this field can fail leading to entire source
@@ -611,7 +629,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexSettings indexSettings) {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
-        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES) && indexSettings.useTimeSeriesDocValuesFormat()) {
+
+        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
+            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
+            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+
+        if (indexCreatedVersion.onOrAfter(switchToDocValuesFormatVersion) && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

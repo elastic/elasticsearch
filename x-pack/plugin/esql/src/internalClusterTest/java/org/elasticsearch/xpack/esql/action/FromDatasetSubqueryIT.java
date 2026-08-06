@@ -917,14 +917,20 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testMatchPhraseOnDatasetFieldRejected() {
+    /**
+     * MATCH_PHRASE on a dataset (keyword) field works via runtime search, matching the exact value like the term
+     * query a pushed-down match_phrase on a keyword field rewrites to.
+     */
+    public void testMatchPhraseOnDatasetField() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE MATCH_PHRASE(first_name, \"Alice\"))"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM (FROM employees | WHERE MATCH_PHRASE(first_name, "Alice"))
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     public void testKQLOnDatasetRejected() {
@@ -934,7 +940,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[KQL] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[KQL] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
     public void testQSTROnDatasetRejected() {
@@ -944,17 +954,28 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE QSTR(\"first_name: Alice\"))"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "[QSTR] function cannot be used after [FROM employees]");
+        assertCauseMessageContains(
+            ex,
+            "[QSTR] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
+        );
     }
 
-    public void testMatchPhraseAfterSubqueryRejected() {
+    /**
+     * MATCH_PHRASE after a subquery union of datasets works via runtime search, mirroring
+     * {@link #testMatchAfterSubquery}.
+     */
+    public void testMatchPhraseAfterSubquery() {
         registerEmployees();
         registerEmployeesAlt();
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("""
+        try (var response = run(syncEsqlQueryRequest("""
             FROM (FROM employees), (FROM employees_alt) | WHERE MATCH_PHRASE(first_name, "Alice")
-            """), TIMEOUT));
-        assertCauseMessageContains(ex, "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping");
+            | KEEP first_name, last_name
+            """), TIMEOUT)) {
+            assertColumnNames(response.columns(), List.of("first_name", "last_name"));
+            assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
+        }
     }
 
     // Mixed data types across subquery branches

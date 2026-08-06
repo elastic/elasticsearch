@@ -84,6 +84,28 @@ describe("deriveOutcome", () => {
     });
   });
 
+  test("rc != 0 with a heap dump is an infra fail subtyped oom", () => {
+    expect(deriveOutcome({ rc: 1, durationSec: 30, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "infra_fail",
+      timedOut: false,
+      infraSubtype: "oom",
+    });
+  });
+
+  test("a real failure still wins over an oom heap dump (flakiness proven)", () => {
+    expect(deriveOutcome({ rc: 1, durationSec: 30, realFailures: 1, totalCases: 5, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "flaky_detected",
+      timedOut: false,
+    });
+  });
+
+  test("oomDetected does not override a clean rc 0 run", () => {
+    expect(deriveOutcome({ rc: 0, durationSec: 30, realFailures: 0, totalCases: 2, timeoutThresholdSec: THRESHOLD, oomDetected: true })).toEqual({
+      outcome: "clean_pass",
+      timedOut: false,
+    });
+  });
+
   test("rc 0 with no recorded cases is a hang", () => {
     expect(deriveOutcome({ rc: 0, durationSec: 30, realFailures: 0, totalCases: 0, timeoutThresholdSec: THRESHOLD })).toEqual({
       outcome: "hang",

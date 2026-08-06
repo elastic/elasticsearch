@@ -71,6 +71,18 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     public static final TransportVersion TRANSFORM_CLOUD_TOKEN = TransportVersion.fromName("transform_cloud_token");
 
+    /**
+     * Gates the {@code cloudCredential} field carried on {@code PutTransformAction.Request},
+     * {@code UpdateTransformAction.Request}, {@code StartTransformAction.Request},
+     * {@code PreviewTransformAction.Request}, {@code ResetTransformAction.Request}, and
+     * {@code UpgradeTransformsAction.Request}. Extracted on the coordinating node so it survives
+     * forwarding to the master node, where the {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT}
+     * transient is no longer present.
+     */
+    public static final TransportVersion TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST = TransportVersion.fromName(
+        "transform_cloud_credential_on_request"
+    );
+
     /** Specifies all the possible transform functions. */
     public enum Function {
         PIVOT,

@@ -94,14 +94,6 @@ public abstract class VectorScorerBulkBenchmark {
         }
 
         abstract void writeVectorData(Directory directory) throws IOException;
-
-        static float[] randomFloatArray(Random random, int dims) {
-            float[] vec = new float[dims];
-            for (int i = 0; i < vec.length; i++) {
-                vec[i] = random.nextFloat();
-            }
-            return vec;
-        }
     }
 
     void setup(VectorData vectorData, int numVectors) throws IOException {

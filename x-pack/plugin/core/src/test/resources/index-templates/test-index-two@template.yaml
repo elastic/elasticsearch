@@ -1,0 +1,14 @@
+version: ${test.template.version}
+index_patterns: ["test-index-two-*"]
+priority: 100
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Test index template two
+  managed: true
+composed_of:
+  - test-two@component-template
+template:
+  settings:
+    index:
+      number_of_shards: 2

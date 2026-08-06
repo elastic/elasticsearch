@@ -17,6 +17,36 @@ final class TestRecordSplitters {
 
     private TestRecordSplitters() {}
 
+    /**
+     * A splitter that finds boundaries like {@link #newlineSplitter} but reports
+     * {@link RecordSplitter#supportsStridedProbing()} as {@code false}, mirroring a quoting-on CSV/TSV
+     * reader. Used to drive the factory onto the sequential (whole-file, quote-aware) dispatch branch.
+     */
+    static RecordSplitter nonStridedSplitter(int maxRecordBytes) {
+        RecordSplitter delegate = newlineSplitter(maxRecordBytes);
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) throws IOException {
+                return delegate.findNextRecordBoundary(stream);
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
+                return delegate.findLastRecordBoundary(buf, offset, length);
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return delegate.maxRecordBytes();
+            }
+
+            @Override
+            public boolean supportsStridedProbing() {
+                return false;
+            }
+        };
+    }
+
     static RecordSplitter newlineSplitter(int maxRecordBytes) {
         return new RecordSplitter() {
             @Override

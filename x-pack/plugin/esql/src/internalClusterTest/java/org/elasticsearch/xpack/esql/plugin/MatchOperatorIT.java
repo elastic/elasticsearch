@@ -26,7 +26,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        MatchFunctionIT.createAndPopulateIndex(this::ensureYellow);
+        MatchFunctionIT.createAndPopulateIndices(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {

@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -48,7 +50,11 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
     private final Expression histogram;
     private final Expression temporality;
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, briefSummary = "Filters histograms with unsupported temporality.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "exponential_histogram", "tdigest" },
+        briefSummary = "Filters histograms with unsupported temporality."
+    )
     public FilterUnsupportedTemporality(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression histogram,

@@ -148,6 +148,17 @@ public class ESVectorUtil {
         return IMPL.squareDistance(a, b);
     }
 
+    /**
+     * Computes the squared Euclidean distance between a byte vector and a float vector.
+     * Each byte element is implicitly widened to float for the computation.
+     */
+    public static float squareDistance(byte[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
     public static float squareDistance(float[] a, float[] b, int offset, int length) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
@@ -415,6 +426,14 @@ public class ESVectorUtil {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
     }
 
     /** AND bit count striding over 4 bytes at a time. */

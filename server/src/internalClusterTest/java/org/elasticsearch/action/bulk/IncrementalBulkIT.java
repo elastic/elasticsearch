@@ -584,6 +584,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
 
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            assertThat(handler.getBulkSessionTask().getAction(), is("internal:bulk"));
+            assertThat(handler.getBulkSessionTask().getType(), is("bulk"));
             handler.cancel("before-first-addItems()", () -> {});
 
             int numberOfChunks = randomIntBetween(5, 10);
@@ -669,6 +671,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                     fail(e, "did not reach shard");
                 }
 
+                assertThat(handler2.getBulkSessionTask().getAction(), is("internal:bulk"));
+                assertThat(handler2.getBulkSessionTask().getType(), is("bulk"));
                 handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
             });
 
@@ -723,6 +727,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 refCounted.incRef();
                 handler3.addItems(List.of(duringTerminationRequest), refCounted::decRef, () -> {});
 
+                assertThat(handler3.getBulkSessionTask().getAction(), is("internal:bulk"));
+                assertThat(handler3.getBulkSessionTask().getType(), is("bulk"));
                 // Close handler prematurely.
                 handler3.close();
             });

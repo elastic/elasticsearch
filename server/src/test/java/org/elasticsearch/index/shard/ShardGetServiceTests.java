@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+        return indexShard.getService().getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -367,6 +367,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         var getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -394,6 +395,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 indexResult.getId(),
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -430,6 +432,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "1",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -444,6 +447,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -472,6 +476,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,

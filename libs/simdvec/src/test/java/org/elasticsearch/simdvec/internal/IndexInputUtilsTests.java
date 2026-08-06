@@ -18,8 +18,8 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.simdvec.AbstractVectorTestCase;
 import org.elasticsearch.simdvec.IndexInputUtils;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
  * {@link DirectAccessInput} (byte-buffer), and plain {@link IndexInput}
  * (heap-copy fallback).
  */
-public class IndexInputUtilsTests extends ESTestCase {
+public class IndexInputUtilsTests extends AbstractVectorTestCase {
 
     private static final String FILE_NAME = "test.bin";
 

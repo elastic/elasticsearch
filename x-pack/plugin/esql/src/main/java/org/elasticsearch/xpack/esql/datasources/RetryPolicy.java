@@ -348,9 +348,10 @@ class RetryPolicy {
     }
 
     private static boolean isTransientSingleCause(Throwable t) {
-        // Typed signal from a storage provider: it classified this fault by type/status (no message sniffing).
-        // Every retryable remote-store status (5xx/429/timeout) is mapped to ExternalUnavailableException at the
-        // provider boundary, so the retry layer keys on the type, not the HTTP status or the message.
+        // Typed signal: a fault was classified by type/status (no message sniffing). Every retryable remote-store
+        // status (5xx/429/timeout) is mapped to ExternalUnavailableException at the provider boundary, and node-local
+        // admission back-pressure (permit exhaustion) is mapped to it at the concurrency-limiter boundary, so the retry
+        // layer keys on the type, not the HTTP status or the message.
         if (t instanceof ExternalUnavailableException) {
             return true;
         }

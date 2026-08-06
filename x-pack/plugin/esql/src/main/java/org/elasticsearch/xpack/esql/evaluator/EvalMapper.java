@@ -14,7 +14,6 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,8 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
-
-import java.io.IOException;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 public final class EvalMapper {
     private EvalMapper() {}
@@ -97,19 +95,7 @@ public final class EvalMapper {
 
                 @Override
                 public Analyzer getAnalyzer(String name) {
-                    if (analysisRegistry == null) {
-                        throw new InvalidArgumentException("'analyzer' option cannot be resolved without an analysis registry");
-                    }
-                    Analyzer analyzer;
-                    try {
-                        analyzer = analysisRegistry.getAnalyzer(name);
-                    } catch (IOException e) {
-                        throw new InvalidArgumentException("failed to load analyzer [{}]", e, name);
-                    }
-                    if (analyzer == null) {
-                        throw new InvalidArgumentException("'analyzer' must be a registered analyzer, found [{}]", name);
-                    }
-                    return analyzer;
+                    return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
                 }
             });
         }

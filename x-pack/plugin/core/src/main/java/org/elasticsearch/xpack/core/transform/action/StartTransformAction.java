@@ -122,6 +122,13 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             }
             if (out.getTransportVersion().supports(TRANSFORM_START_INITIAL_DELAY)) {
                 out.writeOptionalTimeValue(initialDelay);
+            } else if (initialDelay != null) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a _start request with "
+                        + TransformTaskParams.INITIAL_DELAY.getPreferredName()
+                        + " to an outdated node. Please upgrade the node to 9.6.0+ and try again.",
+                    RestStatus.BAD_REQUEST
+                );
             }
         }
 

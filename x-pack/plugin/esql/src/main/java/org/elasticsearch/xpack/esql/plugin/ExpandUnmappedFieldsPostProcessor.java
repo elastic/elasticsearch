@@ -235,7 +235,7 @@ class ExpandUnmappedFieldsPostProcessor {
             for (int i = 0; i < builders.length; i++) {
                 allBlocks[retainedBlockCount + i] = builders[i].build();
             }
-            var result = new Page(allBlocks);
+            var result = new Page(page.getPositionCount(), allBlocks);
             // Release _unmapped_fields block from the circuit breaker; the surviving blocks were protected by incRef above.
             page.releaseBlocks();
             success = true;

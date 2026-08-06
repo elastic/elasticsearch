@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterStateCleanupService;
@@ -790,9 +791,10 @@ public class StatelessPlugin extends Plugin
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        var fillCacheMemoryPressure = new FillCacheMemoryPressure(settings, services.telemetryProvider().getMeterRegistry(), threadPool);
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
-            new CacheBlobReaderService(settings, cacheService, client, threadPool)
+            new CacheBlobReaderService(settings, cacheService, client, threadPool, fillCacheMemoryPressure)
         );
         components.add(cacheBlobReaderService);
         var statelessElectionStrategy = setAndGet(
@@ -1319,6 +1321,8 @@ public class StatelessPlugin extends Plugin
             TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
+            FillCacheMemoryPressure.FILL_BYTES_LIMIT,
+            FillCacheMemoryPressure.STALL_WARN_THRESHOLD,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,

@@ -10,10 +10,11 @@
 package org.elasticsearch.common.blobstore;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class ConcurrentMultipartHelper {
 
@@ -54,19 +55,19 @@ public class ConcurrentMultipartHelper {
         final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
         final AtomicInteger nextPartNum = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(nbParts);
-        final AtomicReference<Throwable> firstError = new AtomicReference<>();
+        final ConcurrentLinkedQueue<Throwable> errors = new ConcurrentLinkedQueue<>();
 
         final Runnable worker = () -> {
             int partNum;
             while ((partNum = nextPartNum.getAndIncrement()) < nbParts) {
-                if (firstError.get() == null) {
+                if (errors.isEmpty()) {
                     final boolean lastPart = partNum == nbParts - 1;
                     final long curPartSize = lastPart ? lastPartSize : partSize;
                     final long offset = (long) partNum * partSize;
                     try {
                         partConsumer.accept(partNum, offset, curPartSize, lastPart);
                     } catch (Throwable t) {
-                        firstError.compareAndSet(null, t);
+                        errors.add(t);
                     }
                 }
                 latch.countDown();
@@ -87,12 +88,16 @@ public class ConcurrentMultipartHelper {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            firstError.compareAndSet(null, e);
+            errors.add(e);
         }
 
-        final Throwable error = firstError.get();
-        if (error != null) {
-            throw new IOException("Failed to upload parts", error);
+        if (errors.isEmpty() == false) {
+            final Iterator<Throwable> it = errors.iterator();
+            final IOException error = new IOException("Failed to upload parts", it.next());
+            while (it.hasNext()) {
+                error.addSuppressed(it.next());
+            }
+            throw error;
         }
     }
 }

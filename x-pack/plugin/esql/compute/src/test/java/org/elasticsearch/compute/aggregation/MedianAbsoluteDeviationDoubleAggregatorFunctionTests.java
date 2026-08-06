@@ -13,10 +13,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,7 +34,7 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier();
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
     }
 
     @Override
@@ -42,5 +45,15 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(0.8));
+    }
+
+    public void testNonFiniteInputReturnsNull() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceDoubleBlockSourceOperator(runner.blockFactory(), DoubleStream.of(Double.NaN)));
+
+        List<Page> results = runner.run(simple());
+
+        assertThat(results.size(), equalTo(1));
+        assertThat(results.get(0).getBlock(0).isNull(0), equalTo(true));
     }
 }

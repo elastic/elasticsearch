@@ -224,7 +224,7 @@ class StatelessIndexNodeRecoveryListener implements IndexEventListener {
 
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        assert indexShard.routingEntry().isPromotableToPrimary() : "index shard is not promotable to primary";
+        assert indexShard.routingEntry().isPromotableToPrimary();
         IndexSettings indexSettings = indexShard.indexSettings();
         IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
         if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {

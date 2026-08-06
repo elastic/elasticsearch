@@ -15,4 +15,4 @@ import java.util.List;
  * A {@link StructModel} whose Java surface is a record. Instances are Java-side values that get
  * copied into native memory by a generated {@code $Pack} helper.
  */
-public record StructRecordModel(String simpleName, List<StructFieldModel> fields) implements StructModel {}
+public record StructRecordModel(String simpleName, List<StructFieldModel> fields, List<StructLayoutModel> layouts) implements StructModel {}

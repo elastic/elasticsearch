@@ -135,6 +135,18 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Rate-limits how often {@link SharedCacheCapacityMonitor} retries a reroute for nodes still over the high watermark. A newly
+     * observed watermark transition always reroutes immediately and is never subject to this interval.
+     */
+    public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.shared_cache_capacity.reroute_interval",
+        TimeValue.timeValueSeconds(15),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Decision YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED = Decision.single(
         Decision.Type.YES,
         NAME,

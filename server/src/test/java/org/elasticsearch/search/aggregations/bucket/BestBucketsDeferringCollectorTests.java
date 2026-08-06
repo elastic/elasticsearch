@@ -160,7 +160,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.size(), equalTo(4));
             assertThat(events.get(2), equalTo(-events.get(0)));
             assertThat(events.get(3), equalTo(-events.get(1)));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         });
     }
 
@@ -196,7 +195,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.size(), equalTo(6));
             assertThat(events.get(4), equalTo(-chargeAPrime));
             assertThat(events.get(5), equalTo(-chargeB));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         });
     }
 
@@ -276,7 +274,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(events.size(), equalTo(4));
             assertThat(events.get(2), equalTo(-events.get(0)));
             assertThat(events.get(3), equalTo(-events.get(1)));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         });
     }
 
@@ -302,7 +299,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             dc.prepareSelectedBuckets(toLongArray(0));
 
             assertThat(events.size(), equalTo(2));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         }, 5);
     }
 
@@ -334,7 +330,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
             assertThat(events.size(), equalTo(4));
             assertThat(events.get(3), equalTo(-events.get(2)));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         });
     }
 
@@ -371,7 +366,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
             assertThat(events.size(), equalTo(6));
             assertThat(events.get(5), equalTo(-chargeB));
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         });
     }
 
@@ -391,8 +385,6 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(heartbeats, equalTo(2L));
 
             dc.prepareSelectedBuckets(toLongArray(0));
-
-            assertThat(events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         }, 2048);
     }
 
@@ -487,24 +479,25 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         void run(IndexSearcher searcher) throws IOException;
     }
 
-    private void withSearcher(SearcherTest body, int... docsPerSegment) throws IOException {
+    private static void withSearcher(SearcherTest body, int... docsPerSegment) throws IOException {
         try (Directory dir = buildIndex(docsPerSegment); IndexReader reader = DirectoryReader.open(dir)) {
             body.run(newSearcher(reader));
         }
     }
 
     /** Runs {@code body} with a two-segment index (5 docs each) and a fresh event-recording collector. */
-    private void runBreakerTest(BreakerTest body, int... docsPerSegment) throws IOException {
+    private static void runBreakerTest(BreakerTest body, int... docsPerSegment) throws IOException {
         int[] segments = docsPerSegment.length == 0 ? new int[] { 5, 5 } : docsPerSegment;
         try (Directory dir = buildIndex(segments); IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = newSearcher(reader);
             List<Long> events = new ArrayList<>();
             body.run(searcher, setupCollector(searcher, Queries.ALL_DOCS_INSTANCE, events), events);
+            assertThat("net byte balance must be zero", events.stream().mapToLong(Long::longValue).sum(), equalTo(0L));
         }
     }
 
     /** Builds a Lucene directory with documents distributed across segments as specified. */
-    private Directory buildIndex(int... docsPerSegment) throws IOException {
+    private static Directory buildIndex(int... docsPerSegment) throws IOException {
         Directory directory = newDirectory();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
             for (int s = 0; s < docsPerSegment.length; s++) {
@@ -520,7 +513,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     /** Creates a {@link BestBucketsDeferringCollector} wired to {@code events} with a NO_OP deferred collector. */
-    private BestBucketsDeferringCollector setupCollector(IndexSearcher searcher, Query query, List<Long> events) {
+    private static BestBucketsDeferringCollector setupCollector(IndexSearcher searcher, Query query, List<Long> events) {
         BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(query, searcher, false, events::add);
         dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
         return dc;
@@ -532,7 +525,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     /** Wraps {@code dc} in a {@link Collector} that creates a leaf per segment using {@code factory}. */
-    private Collector delegatingCollector(BestBucketsDeferringCollector dc, LeafFactory factory) {
+    private static Collector delegatingCollector(BestBucketsDeferringCollector dc, LeafFactory factory) {
         return new Collector() {
             @Override
             public ScoreMode scoreMode() {
@@ -547,7 +540,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         };
     }
 
-    private LongArray toLongArray(long... lons) {
+    private static LongArray toLongArray(long... lons) {
         LongArray longArray = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(lons.length);
         for (int i = 0; i < lons.length; i++) {
             longArray.set(i, lons[i]);

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 151382
+pr: 155050
+summary: Deduplicate repeated ES|QL exception warnings
+type: bug

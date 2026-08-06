@@ -553,9 +553,9 @@ public class GetStackTracesRequestTests extends ESTestCase {
             request.parseXContent(content);
             String[] indices = request.indices();
             assertEquals(EventsIndex.otelIndexNames().size() + 3, indices.length);
-            assertTrue("OTel stacktraces index must be present", Set.of(indices).contains("profiling-stacktraces.otel-default"));
-            assertTrue("OTel stackframes index must be present", Set.of(indices).contains("profiling-stackframes.otel-default"));
-            assertTrue("OTel executables index must be present", Set.of(indices).contains("profiling-executables.otel-default"));
+            assertTrue("OTel stacktraces index must be present", Set.of(indices).contains("profiling-stacktraces.otel-*"));
+            assertTrue("OTel stackframes index must be present", Set.of(indices).contains("profiling-stackframes.otel-*"));
+            assertTrue("OTel executables index must be present", Set.of(indices).contains("profiling-executables.otel-*"));
         }
     }
 

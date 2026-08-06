@@ -16,11 +16,13 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.lang.management.ManagementFactory;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -54,7 +56,7 @@ public class RejectionActionIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfAsyncOps; i++) {
             prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field", "1"))
-                .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
+                .execute(new LatchedActionListener<>(new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         responses.add(searchResponse);
@@ -68,7 +70,20 @@ public class RejectionActionIT extends ESIntegTestCase {
         }
         // Bounded wait: some search requests can be stuck indefinitely (see #146022), in which case we'd
         // rather fail fast with a clear timeout than have the whole suite hang until it hits its own timeout.
-        safeAwait(latch, TimeValue.ONE_MINUTE);
+        try {
+            safeAwait(latch, TimeValue.ONE_MINUTE);
+        } catch (AssertionError e) {
+            // Temporary measures to help us debug https://github.com/elastic/elasticsearch/issues/153848
+            logger.error(
+                "Search requests stuck: numAsyncOps: {}, responses: {}, count: {}",
+                numberOfAsyncOps,
+                responses.size(),
+                latch.getCount(),
+                e
+            );
+            dumpStuckSearchDiagnostics();
+            throw e;
+        }
 
         // validate all responses
         for (Object response : responses) {
@@ -96,4 +111,26 @@ public class RejectionActionIT extends ESIntegTestCase {
         }
         assertThat(responses.size(), equalTo(numberOfAsyncOps));
     }
+
+    private void dumpStuckSearchDiagnostics() {
+        StringBuilder sb = new StringBuilder();
+        var threadBean = ManagementFactory.getThreadMXBean();
+        sb.append("thread dump:\n");
+        for (var info : threadBean.dumpAllThreads(true, true)) {
+            sb.append(Strings.format("[%s]: %s\n", info.getThreadName(), info.getThreadState()));
+            if (info.getLockInfo() != null) {
+                sb.append(Strings.format(" waiting on %s", info.getLockInfo()));
+                if (info.getLockOwnerName() != null) {
+                    sb.append(Strings.format(" held by [%s]", info.getLockOwnerName()));
+                }
+            }
+            sb.append('\n');
+            for (var frame : info.getStackTrace()) {
+                sb.append("\tat ").append(frame).append('\n');
+            }
+            sb.append('\n');
+        }
+        logger.error("Thread dump: {}", sb);
+    }
+
 }

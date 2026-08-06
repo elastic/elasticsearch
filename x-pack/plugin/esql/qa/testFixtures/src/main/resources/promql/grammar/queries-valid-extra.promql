@@ -9,6 +9,8 @@
 sum without (foo) (some_metric);
 sum (some_metric) without (foo);
 topk(5, some_metric);
+bottomk(5, some_metric);
+limitk(5, some_metric);
 count_values("value", some_metric);
 sum without(and, by, avg, count, alert, annotations)(some_metric);
 

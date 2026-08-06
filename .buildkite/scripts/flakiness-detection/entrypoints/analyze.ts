@@ -289,7 +289,8 @@ async function run(): Promise<void> {
   // If the pre-flight compile gate failed, the batches were skipped and produced
   // no statuses; record a single `build_failed` so a non-compiling PR does not
   // read as zero problems.
-  if (await precompileFailed()) {
+  const buildFailed = await precompileFailed();
+  if (buildFailed) {
     payloads.push(buildFailedPayload());
     console.log("Recorded build_failed (PR did not compile; re-runs were skipped).");
   }
@@ -306,10 +307,10 @@ async function run(): Promise<void> {
 
   // Human-readable report aggregated across every downloaded job.
   const report = await analyzeReports([JOBS_DIR]);
-  const md = renderMarkdown(report);
+  const md = renderMarkdown(report, buildFailed);
   console.log(md);
   if (process.env.CI) {
-    annotate("flakiness-detection-report", severity(report), md);
+    annotate("flakiness-detection-report", severity(report, buildFailed), md);
   }
 }
 

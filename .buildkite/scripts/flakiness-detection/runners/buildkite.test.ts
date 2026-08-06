@@ -311,6 +311,9 @@ describe("toBuildkitePipeline compile gate", () => {
     );
     expect(precompile.command).toContain('> "flakiness-precompile.json"');
     expect(precompile.command).toContain("exit $$rc");
+    // The gate no longer posts its own annotation; the analyze step folds the
+    // failure into the single flakiness summary annotation instead.
+    expect(precompile.command).not.toContain("buildkite-agent annotate");
 
     // Constraint: Gradle's exit code is captured immediately, before the
     // marker/annotate side-effects, and is what the step finally exits with - so

@@ -152,8 +152,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             oldAgg.getMode(),
             newIntermediates,
             oldAgg.estimatedRowSize(),
-            oldAgg.timeBucket(),
-            oldAgg.outputTimeBucket()
+            oldAgg.timeBucket()
         );
         if (readDims.isEmpty() == false) {
             plan = new ReadDimsExec(

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -26,7 +24,19 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
+/**
+ * Rewrites an aggregate whose window is smaller than the time bucket into a row-level {@link WindowFilter} keeping
+ * only the trailing {@code W} of each bucket. The window itself is dropped, except for {@code rate()} and
+ * {@code increase()}, which keep it so the final phase extrapolates over the window's range rather than the
+ * bucket's.
+ * <p>
+ * Windows of at least one bucket are left untouched here: the final aggregation phase merges the buckets the window
+ * covers, and a window that is not an exact multiple of the bucket is decomposed into a full and a partial aggregate
+ * by {@code InsertPartialWindowAggregates} during physical planning. Windows or buckets that do not fold to a fixed
+ * duration (for example calendar intervals) are also left untouched and handled by the range-driven merge at the
+ * final phase.
+ */
+public class ApplyWindowFilter extends AnalyzerRules.AnalyzerRule<TimeSeriesAggregate> {
 
     @Override
     protected boolean skipResolved() {
@@ -34,28 +44,20 @@ public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<T
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
-        List<NamedExpression> aggs = new ArrayList<>();
+    protected LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        Duration bucketDuration = aggregate.timeBucket() == null ? null : foldToPositiveDuration(aggregate.timeBucket().buckets());
+        if (bucketDuration == null) {
+            return aggregate;
+        }
+        List<NamedExpression> aggs = new ArrayList<>(aggregate.aggregates().size());
         boolean modified = false;
         for (var agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af && af.hasWindow()) {
-                if (af.window().foldable() && af.window().fold(FoldContext.small()) instanceof Duration windowDuration) {
-                    Expression bucket = aggregate.timeBucket().buckets();
-                    if (bucket != null
-                        && bucket.foldable()
-                        && bucket.fold(FoldContext.small()) instanceof Duration bucketDuration
-                        && bucketDuration.compareTo(windowDuration) > 0) {
-                        aggs.add(
-                            new Alias(
-                                alias.source(),
-                                alias.name(),
-                                replaceWindowWithFilter(af, aggregate.timeBucket(), aggregate.timestamp()),
-                                agg.id()
-                            )
-                        );
-                        modified = true;
-                        continue;
-                    }
+                Duration windowDuration = foldToPositiveDuration(af.window());
+                if (windowDuration != null && windowDuration.compareTo(bucketDuration) < 0) {
+                    aggs.add(new Alias(alias.source(), alias.name(), replaceWindowWithFilter(af, aggregate), agg.id()));
+                    modified = true;
+                    continue;
                 }
             }
             aggs.add(agg);
@@ -63,21 +65,27 @@ public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<T
         return modified ? aggregate.with(aggregate.child(), aggregate.groupings(), aggs) : aggregate;
     }
 
-    private static AggregateFunction replaceWindowWithFilter(AggregateFunction af, Bucket bucket, Expression timestamp) {
-        AggregateFunction newAggregateFunction;
-        if (af.hasFilter()) {
-            newAggregateFunction = af.withFilter(
-                Predicates.combineAnd(List.of(af.filter(), new WindowFilter(af.source(), af.window(), bucket, timestamp)))
-            );
-        } else {
-            newAggregateFunction = af.withFilter(new WindowFilter(af.source(), af.window(), bucket, timestamp));
-        }
+    private static AggregateFunction replaceWindowWithFilter(AggregateFunction af, TimeSeriesAggregate aggregate) {
+        WindowFilter filter = new WindowFilter(af.source(), af.window(), aggregate.timeBucket(), aggregate.timestamp());
+        AggregateFunction filtered = af.hasFilter()
+            ? af.withFilter(Predicates.combineAnd(List.of(af.filter(), filter)))
+            : af.withFilter(filter);
         // Do not clear the function's window.
         // rate()/increase() rely on group start/end timestamps (by default, bucket) for extrapolation;
         // for windows different from bucket, clearing it leads to incorrect results.
-        if (newAggregateFunction instanceof Rate || newAggregateFunction instanceof Increase) {
-            return newAggregateFunction;
+        if (filtered instanceof Rate || filtered instanceof Increase) {
+            return filtered;
         }
-        return newAggregateFunction.withWindow(AggregateFunction.NO_WINDOW);
+        return filtered.withWindow(AggregateFunction.NO_WINDOW);
+    }
+
+    private static Duration foldToPositiveDuration(Expression expression) {
+        if (expression != null
+            && expression.foldable()
+            && expression.fold(FoldContext.small()) instanceof Duration duration
+            && duration.isPositive()) {
+            return duration;
+        }
+        return null;
     }
 }

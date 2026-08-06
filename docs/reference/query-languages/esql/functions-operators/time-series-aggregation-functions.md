@@ -31,13 +31,19 @@ Accepted window values are currently limited to multiples of the time bucket
 interval in the BY clause. If no window is specified, the time bucket interval
 is implicitly used as a window.
 :::
-:::{applies-item} stack: ga 9.4+
+:::{applies-item} stack: ga 9.4-9.5
 All window values are accepted, though there are performance optimizations for
 the cases where the window is a multiple of the time bucket interval.
 
 It's currently not allowed to mix windows that are smaller than the time bucket
 for one metrics and larger than the time bucket for another metrics, in the same
 query.
+:::
+:::{applies-item} stack: ga 9.6+
+All window values are accepted, though there are performance optimizations for
+the cases where the window is a multiple of the time bucket interval. Each
+aggregation function applies its own window independently, so windows of
+different sizes can be combined in the same query.
 :::
 ::::
 

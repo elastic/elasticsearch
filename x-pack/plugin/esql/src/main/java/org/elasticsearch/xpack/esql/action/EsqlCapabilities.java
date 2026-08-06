@@ -3647,6 +3647,15 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
+        /**
+         * Time-series windows are dispatched per aggregate: the time bucket is pure emission cadence and each
+         * aggregate independently decomposes its window as {@code W = k * B + r}, aggregating {@code k} full buckets
+         * plus the state of a partial sibling aggregate over the trailing remainder. Replaces the GCD sub-bucketing
+         * of {@link #TIME_SERIES_WINDOW_NON_MULTIPLE}, lifts its 128 sub-bucket limit, and supports combining
+         * windows smaller than the time bucket with non-multiple windows in the same aggregation.
+         */
+        PER_AGGREGATE_WINDOWS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

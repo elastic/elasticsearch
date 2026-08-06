@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -227,6 +228,7 @@ import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotCommitInfoAction;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMInfoTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMUsageTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -341,13 +343,6 @@ public class StatelessPlugin extends Plugin
      * The set of {@link ShardRouting.Role}s that we expect to see in a stateless deployment
      */
     public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
-
-    /** Temporary feature flag setting for creating indices with a refresh block, TODO: remove once verified **/
-    public static final Setting<Boolean> USE_INDEX_REFRESH_BLOCK_SETTING = Setting.boolSetting(
-        MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME,
-        true,
-        Setting.Property.NodeScope
-    );
 
     public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
         // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
@@ -835,24 +830,32 @@ public class StatelessPlugin extends Plugin
             warmingRatioProvider
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
-        var commitService = createStatelessCommitService(
-            settings,
-            objectStoreService,
-            clusterService,
-            indicesService,
-            client,
-            commitCleaner,
-            cacheService,
-            cacheWarmingService,
-            services.telemetryProvider()
-        );
-        components.add(commitService);
+
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
-        // Allow wrapping non-Guiced version for testing
-        commitService = wrapStatelessCommitService(commitService);
-        clusterService.addListener(commitService);
-        setAndGet(this.commitService, commitService);
+        StatelessCommitService commitService = null;
+        if (hasIndexRole) {
+            commitService = createStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                services.telemetryProvider()
+            );
+            // createStatelessCommitService may return a subclass, so we bind the component explicitly
+            components.add(new PluginComponentBinding<>(StatelessCommitService.class, commitService));
+        }
+        components.add(new StatelessCommitServiceProvider(commitService));
+        if (commitService != null) {
+            // Allow wrapping non-Guiced version for testing
+            commitService = wrapStatelessCommitService(commitService);
+            setAndGet(this.commitService, commitService);
+            clusterService.addListener(commitService);
+        }
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -898,7 +901,7 @@ public class StatelessPlugin extends Plugin
             objectStoreService,
             cacheWarmingService,
             threadPool,
-            commitService.useReplicatedRanges(),
+            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings),
             bccHeaderReadExecutor.get()
         );
         components.add(indexShardCacheWarmer);
@@ -992,7 +995,7 @@ public class StatelessPlugin extends Plugin
         );
         components.add(setAndGet(recoveryMetricsCollector, new StatelessRecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
-        if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
+        if (hasMasterRole) {
             components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
         }
 
@@ -1221,7 +1224,7 @@ public class StatelessPlugin extends Plugin
         ClusterService clusterService,
         IndicesService indicesService,
         ObjectStoreService objectStoreService,
-        StatelessCommitService commitService,
+        @Nullable StatelessCommitService commitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         ThreadPool threadPool,
         HollowShardsMetrics metrics,
@@ -1336,7 +1339,6 @@ public class StatelessPlugin extends Plugin
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
-            USE_INDEX_REFRESH_BLOCK_SETTING,
             RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING,
             SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
             SplitTargetService.RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT,

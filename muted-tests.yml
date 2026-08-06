@@ -541,9 +541,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155670
-- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
-  method: testUploadIndicesDataWithRetries
-  issue: https://github.com/elastic/elasticsearch/issues/155680
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
@@ -604,18 +601,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=SNAP p1=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/156009
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=SNAP p1=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/156010
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=MMAP p1=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/156011
-- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
-  method: testBulkScore {p0=MMAP p1=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/156012
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
   issue: https://github.com/elastic/elasticsearch/issues/155593

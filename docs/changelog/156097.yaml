@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 156097
-summary: "Support scoring on runtime match{_phrase}"
+summary: "`MATCH` and `MATCH_PHRASE` on runtime expressions now contribute to the relevance score when using `METADATA _score`"
 type: enhancement

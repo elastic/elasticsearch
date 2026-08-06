@@ -721,7 +721,7 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 ## GPU vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
 {{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.

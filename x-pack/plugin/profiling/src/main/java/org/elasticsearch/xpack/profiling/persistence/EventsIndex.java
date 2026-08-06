@@ -103,6 +103,6 @@ public final class EventsIndex {
     }
 
     public static Collection<String> otelIndexNames() {
-        return indexNames().stream().map(n -> n + ".otel-default").toList();
+        return indexNames().stream().map(n -> n + ".otel-*").toList();
     }
 }

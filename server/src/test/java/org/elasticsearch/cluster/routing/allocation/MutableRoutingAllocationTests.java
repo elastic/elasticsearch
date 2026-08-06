@@ -68,7 +68,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         clusterInfo.nodeMaxShardWriteLoadProportion(targetNodeId, () -> targetValue);
 
         ShardRouting started = TestShardRouting.newShardRouting(randomAlphaOfLength(8), 0, sourceNodeId, true, ShardRoutingState.STARTED);
-        ShardRouting source = started.relocate(targetNodeId, 0L);
+        ShardRouting source = started.relocate(targetNodeId, 0L, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         ShardRouting target = source.getTargetRelocatingShard();
 
         allocation.changes().relocationStarted(started, target, randomAlphaOfLength(10));

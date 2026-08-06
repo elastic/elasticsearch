@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -867,7 +866,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return null;
             }).when(reshardIndexService).maybeAwaitSplit(any(ShardId.class), anyActionListener());
 
-            if (hasMasterRole && MetadataCreateIndexService.useRefreshBlock(settings)) {
+            if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
             return List.of();

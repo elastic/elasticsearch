@@ -8,10 +8,17 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
@@ -20,6 +27,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -88,6 +96,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final int highlighterNumberOfFragments;
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
+    private final MemoryIndex memoryIndex;
+    private LeafReader memoryIndexReader;
+    private final CustomUnifiedHighlighter[] highlighters;
+    private final CharArraySet termsToKeep;
 
     public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
         this.blockFactory = blockFactory;
@@ -116,6 +128,76 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             config.wordBoundary(),
             config.locale()
         );
+        this.memoryIndex = new MemoryIndex(true); // true == store offsets, required by OffsetSource.POSTINGS
+        // Term extraction for the highlighters only.
+        IndexSearcher searcher = memoryIndex.createSearcher();
+        this.highlighters = new CustomUnifiedHighlighter[fieldNames.size()];
+        for (int i = 0; i < fieldNames.size(); i++) {
+            UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+            builder.withFormatter(formatter);
+            builder.withBreakIterator(breakIteratorSupplier);
+            highlighters[i] = new CustomUnifiedHighlighter(
+                builder,
+                UnifiedHighlighter.OffsetSource.POSTINGS,
+                null,
+                "",
+                fieldNames.get(i),
+                query,
+                config.noMatchSize(),
+                highlighterNumberOfFragments,
+                indexMaxAnalyzedOffset,
+                queryMaxAnalyzedOffset,
+                true,
+                true
+            );
+        }
+        this.termsToKeep = termsToKeep(query);
+    }
+
+    /**
+     * Collects the terms the query needs, either to highlight or to decide whether a row matches. Returns {@code null}
+     * when a clause's terms cannot be enumerated (wildcards, regexps, or any leaf that reports no terms), which turns
+     * filtering off. Keeping too many tokens only costs time. Keeping too few would drop real highlights.
+     * <p>
+     * One set covers every ON field, so a field can keep tokens that only another field's query mentions. Those never
+     * become a highlight, because the highlighter looks up postings per {@code field:term}.
+     * <p>
+     * {@code MUST_NOT} terms are kept as well. The query still runs against the memory index to decide whether the row
+     * matches, so dropping them would turn an excluded row into a match.
+     */
+    private static CharArraySet termsToKeep(Query query) {
+        TermCollector collector = new TermCollector();
+        query.visit(collector);
+        return collector.unfilterable || collector.terms.isEmpty() ? null : collector.terms;
+    }
+
+    private static final class TermCollector extends QueryVisitor {
+        // Create terms set with an initial capacity.
+        private final CharArraySet terms = new CharArraySet(8, false);
+        private boolean unfilterable;
+
+        @Override
+        public void consumeTerms(Query query, Term... queryTerms) {
+            for (Term term : queryTerms) {
+                terms.add(term.text());
+            }
+        }
+
+        @Override
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            unfilterable = true; // wildcard/prefix/regexp, whose terms cannot be enumerated
+        }
+
+        @Override
+        public void visitLeaf(Query query) {
+            unfilterable = true; // leaf that reported no terms, we don't know what it matches
+        }
+
+        @Override
+        public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+            // QueryVisitor's default returns EMPTY_VISITOR for MUST_NOT, which would skip its terms.
+            return this;
+        }
     }
 
     // Mirrors DefaultHighlighter#getBreakIterator: the word scanner ignores fragment_size, the sentence scanner honours it.
@@ -200,28 +282,78 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        IndexSearcher searcher = createRowSearcher(fields);
-        for (HighlightField field : fields) {
+        if (indexRow(fields) == false) {
+            appendNulls(fields);
+            return;
+        }
+        for (int fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+            HighlightField field = fields[fieldIndex];
             if (field.rowText == null) {
                 field.builder.appendNull();
                 continue;
             }
             try {
-                appendSnippets(field.builder, highlight(searcher, field.name, field.rowText));
+                appendSnippets(field.builder, highlight(fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
         }
     }
 
-    private IndexSearcher createRowSearcher(HighlightField[] fields) {
-        MemoryIndex memoryIndex = new MemoryIndex(true);
+    /**
+     * Analyzes this row's values into the shared memory index. Returns {@code false} when filtering kept nothing the
+     * query could match and {@code no_match_size} is 0, so every field of the row is {@code null} and the caller can
+     * skip the highlighters.
+     */
+    private boolean indexRow(HighlightField[] fields) {
+        memoryIndex.reset();
+        boolean keptToken = false;
         for (HighlightField field : fields) {
-            if (field.rowText != null) {
+            if (field.rowText == null) {
+                continue;
+            }
+            if (termsToKeep == null) {
                 memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
+            } else {
+                TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
+                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, termsToKeep);
+                memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
+                keptToken |= filtered.keptToken;
             }
         }
-        return memoryIndex.createSearcher();
+        // With filtering off keptToken stays false, so it says nothing about the row.
+        if (termsToKeep != null && keptToken == false && config.noMatchSize() == 0) {
+            return false;
+        }
+        // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
+        memoryIndexReader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
+        return true;
+    }
+
+    /**
+     * Drops tokens the query cannot match, so the memory index only hashes and sorts the terms the query asks for.
+     * {@link FilteringTokenFilter} accumulates the position increments of dropped tokens, so kept tokens keep their
+     * original positions and phrase queries match as they would against an unfiltered index.
+     * <p>
+     * Query DSL highlighting gets the same filtering for free from Lucene's {@code MemoryIndexOffsetStrategy}, but that
+     * strategy indexes one field at a time, and cross-field queries here need every ON field in one index.
+     */
+    private static final class KeepQueryTermsFilter extends FilteringTokenFilter {
+        private final CharArraySet terms;
+        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+        private boolean keptToken;
+
+        KeepQueryTermsFilter(TokenStream in, CharArraySet terms) {
+            super(in);
+            this.terms = terms;
+        }
+
+        @Override
+        protected boolean accept() {
+            boolean keep = terms.contains(termAtt.buffer(), 0, termAtt.length());
+            keptToken |= keep;
+            return keep;
+        }
     }
 
     private static void appendNulls(HighlightField[] fields) {
@@ -275,28 +407,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         return sb.toString();
     }
 
-    // TODO(perf): reuse a per-field CustomUnifiedHighlighter across rows; the Query is constant and the searcher
-    // argument is unused under POSTINGS + WEIGHT_MATCHES today (Lucene internal — guard with a multi-row test).
-    private Snippet[] highlight(IndexSearcher searcher, String field, String text) throws IOException {
-        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
-        builder.withFormatter(formatter);
-        builder.withBreakIterator(breakIteratorSupplier);
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-            builder,
-            UnifiedHighlighter.OffsetSource.POSTINGS,
-            null,
-            "",
-            field,
-            query,
-            config.noMatchSize(),
-            highlighterNumberOfFragments,
-            indexMaxAnalyzedOffset,
-            queryMaxAnalyzedOffset,
-            true,
-            true
-        );
-        LeafReaderContext leaf = searcher.getIndexReader().leaves().getFirst();
-        return highlighter.highlightField(leaf.reader(), 0, () -> text);
+    // CustomUnifiedHighlighter derives its FieldHighlighter from the query at build time and caches nothing from the
+    // reader, so the constructor's per-field instances can be reused for every row and page.
+    private Snippet[] highlight(int fieldIndex, String text) throws IOException {
+        return highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
     }
 
     /**

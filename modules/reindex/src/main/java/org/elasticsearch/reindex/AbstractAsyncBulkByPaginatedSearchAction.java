@@ -555,8 +555,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             @Override
             protected void doRun() throws Exception {
                 /*
-                 * It is important that the batch start time be calculated from here, scroll response to scroll response. That way the time
-                 * waiting on the scroll doesn't count against this batch in the throttle.
+                 * It is important that the batch start time be calculated from here, paginated search response to paginated search
+                 * response. That way the time waiting on the search doesn't count against this batch in the throttle.
                  */
                 prepareBulkRequest(System.nanoTime(), asyncResponse);
             }
@@ -742,7 +742,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             }
 
             if (paginatedHitSource.hasMoreBatches() == false) {
-                // Index contains fewer matching docs than max_docs (found < max_docs <= scroll size)
+                // Index contains fewer matching docs than max_docs (found < max_docs <= batch size)
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
             }

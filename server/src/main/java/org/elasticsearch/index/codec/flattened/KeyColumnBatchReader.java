@@ -16,9 +16,11 @@ import org.elasticsearch.index.mapper.BlockLoader.Block;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Docs;
+import org.elasticsearch.index.mapper.BlockLoader.SingletonBytesRefBuilder;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Batch reader for a single column of the columnar flattened doc-values format.
@@ -50,6 +52,15 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
     private int[] slotOffsets = new int[8];
     private int[] slotLengths = new int[8];
 
+    /**
+     * Scratch arrays for the singleton fast path. {@code singletonBytes} holds packed value
+     * bytes; {@code singletonOffsets[i]} is the start byte of position {@code i}'s value, with
+     * {@code singletonOffsets[count]} the total packed length.  Both arrays are grown lazily and
+     * reused across pages, so content is only valid up to the positions set by {@link #tryRead}.
+     */
+    private byte[] singletonBytes = new byte[256];
+    private int[] singletonOffsets = new int[33];
+
     KeyColumnBatchReader(SequentialColumnReader cursor) {
         this.cursor = cursor;
     }
@@ -64,11 +75,91 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
         boolean toInt,
         boolean binaryMultiValuedFormat
     ) throws IOException {
-        try (BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
-            for (int i = offset; i < docs.count(); i++) {
-                final int doc = docs.get(i);
+        final int count = docs.count() - offset;
+        if (singletonOffsets.length < count + 1) {
+            singletonOffsets = new int[count + 1];
+        }
+        singletonOffsets[0] = 0;
+        int bytePos = 0;
+
+        for (int i = offset; i < docs.count(); i++) {
+            final int doc = docs.get(i);
+            final int idx = i - offset;
+
+            if (cursor.advance(doc) != doc) {
+                // Missing doc — cursor has moved past this position; append null.
+                return finishWithBytesRefs(factory, docs, i, offset, count, idx, true);
+            }
+            if (cursor.slotCount() != 1) {
+                // Multi-slot doc — cursor is at this doc; emitDoc handles sort+dedup.
+                return finishWithBytesRefs(factory, docs, i, offset, count, idx, false);
+            }
+
+            // Single slot: read the vint prefix inline to avoid an intermediate BytesRef.
+            final byte[] payload = cursor.payload();
+            int pos = cursor.docSlotsOffset();
+            int prefix = 0, shift = 0;
+            while (true) {
+                final int b = payload[pos++] & 0xFF;
+                prefix |= (b & 0x7F) << shift;
+                if ((b & 0x80) == 0) break;
+                shift += 7;
+            }
+            if (prefix == 0) {
+                // Null slot — cursor is at this doc; emitDoc re-reads and appends null.
+                return finishWithBytesRefs(factory, docs, i, offset, count, idx, false);
+            }
+
+            // Copy this doc's single non-null value into the growing scratch buffer.
+            final int valLen = prefix - 1;
+            if (bytePos + valLen > singletonBytes.length) {
+                singletonBytes = Arrays.copyOf(singletonBytes, Math.max(singletonBytes.length * 2, bytePos + valLen));
+            }
+            System.arraycopy(payload, pos, singletonBytes, bytePos, valLen);
+            bytePos += valLen;
+            singletonOffsets[idx + 1] = bytePos;
+        }
+
+        // Every doc had exactly one non-null value: produce a dense null-free BytesRefVector.
+        final byte[] bytes = Arrays.copyOf(singletonBytes, bytePos);
+        final int[] offsets = Arrays.copyOf(singletonOffsets, count + 1);
+        try (SingletonBytesRefBuilder builder = factory.singletonBytesRefs(count)) {
+            return builder.appendBytesRefs(bytes, offsets).build();
+        }
+    }
+
+    /**
+     * Finishes loading after the singleton fast path hit a bail-out condition at doc index {@code i}.
+     * Replays the {@code singletonCount} values already collected in {@code singletonBytes} /
+     * {@code singletonOffsets} into a general {@link BytesRefBuilder}, handles the current
+     * document, then continues with {@link #emitDoc} for the remaining documents.
+     *
+     * @param cursorMissed {@code true} when {@code cursor.advance(docs.get(i))} skipped past the
+     *                     current doc (it has no column entry and the cursor is already beyond it).
+     *                     {@code false} when the cursor is still positioned at {@code docs.get(i)},
+     *                     so {@link #emitDoc} can read it directly.
+     */
+    private Block finishWithBytesRefs(
+        BlockFactory factory,
+        Docs docs,
+        int i,
+        int offset,
+        int count,
+        int singletonCount,
+        boolean cursorMissed
+    ) throws IOException {
+        try (BytesRefBuilder builder = factory.bytesRefs(count)) {
+            for (int j = 0; j < singletonCount; j++) {
+                builder.appendBytesRef(new BytesRef(singletonBytes, singletonOffsets[j], singletonOffsets[j + 1] - singletonOffsets[j]));
+            }
+            if (cursorMissed) {
+                builder.appendNull();
+            } else {
+                emitDoc(builder);
+            }
+            for (int k = i + 1; k < docs.count(); k++) {
+                final int doc = docs.get(k);
                 if (cursor.advance(doc) != doc) {
-                    // This document has no entry for this key in the column.
                     builder.appendNull();
                 } else {
                     emitDoc(builder);

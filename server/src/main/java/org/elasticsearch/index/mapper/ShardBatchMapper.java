@@ -287,10 +287,18 @@ public final class ShardBatchMapper {
         );
     }
 
-    private static void handleParseResult(BatchDocumentParserContext ctx, FieldMapper mapper, FieldMapper.ParseResult result) {
-        if (result instanceof FieldMapper.ParseResult.MultiValueViolation(BytesRef capturedValue)
-            && (ctx.mappingLookup().isSourceSynthetic() || ctx.mappingLookup().isSourceColumnarStored())) {
-            OnFailureStoredValues.storeEncoded(ctx, mapper.fullPath(), capturedValue);
+    private static void handleParseResult(BatchDocumentParserContext ctx, FieldMapper mapper, FieldMapper.ParseResult result)
+        throws IOException {
+        if (result instanceof FieldMapper.ParseResult.MultiValueViolation(BytesRef capturedValue)) {
+            if (ctx.mappingLookup().isSourceSynthetic() || ctx.mappingLookup().isSourceColumnarStored()) {
+                OnFailureStoredValues.storeEncoded(ctx, mapper.fullPath(), capturedValue);
+            } else {
+                throw new IOException(
+                    "batch indexing: unhandled multi_value=false violation on field ["
+                        + mapper.fullPath()
+                        + "] in non-synthetic/columnar source index"
+                );
+            }
         }
     }
 

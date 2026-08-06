@@ -529,8 +529,8 @@ public abstract class DocumentParserContext {
     /**
      * Return the collection of fields that have been ignored so far.
      */
-    public final Collection<String> getIgnoredFields() {
-        return Collections.unmodifiableCollection(ignoredFields);
+    public final Set<String> getIgnoredFields() {
+        return ignoredFields;
     }
 
     /**

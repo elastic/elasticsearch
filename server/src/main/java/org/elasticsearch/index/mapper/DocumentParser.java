@@ -734,8 +734,8 @@ public final class DocumentParser {
         String fullPath = context.path().pathAsText(arrayFieldName);
         var fc = FallbackPostMapper.FieldContext.forArrayElements(context, mapper, fullPath);
         var preCapReason = FallbackPostMapper.resolvePrecaptureReason(fc);
-        if (preCapReason.isPresent()) {
-            context = FallbackPostMapper.captureScope(context, fullPath, preCapReason.get());
+        if (preCapReason != null) {
+            context = FallbackPostMapper.captureScope(context, fullPath, preCapReason);
         } else if (fc.canAddIgnoredField()
             && fc.storesArraysNatively() == false
             && mapper instanceof ObjectMapper objectMapper

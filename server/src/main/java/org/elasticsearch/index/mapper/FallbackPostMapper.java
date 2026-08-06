@@ -10,10 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * Central fallback routing for field values that cannot be indexed normally.
@@ -149,25 +149,26 @@ public final class FallbackPostMapper {
 
     /**
      * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
-     * before the mapper runs, or {@link Optional#empty()} if no pre-capture is needed.
+     * before the mapper runs, or {@code null} if no pre-capture is needed.
      */
-    static Optional<Reason> resolvePrecaptureReason(FieldContext fc) {
+    @Nullable
+    static Reason resolvePrecaptureReason(FieldContext fc) {
         if (fc.canAddIgnoredField() == false || fc.storesArraysNatively()) {
-            return Optional.empty();
+            return null;
         }
         if (fc.isCopyToDestinationField() && fc.isWithinCopyTo() == false) {
-            return Optional.of(Reason.COPY_TO_DESTINATION);
+            return Reason.COPY_TO_DESTINATION;
         }
         if (fc.syntheticFallback()) {
-            return Optional.of(Reason.SYNTHETIC_FALLBACK);
+            return Reason.SYNTHETIC_FALLBACK;
         }
         if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ALL) {
-            return Optional.of(Reason.SOURCE_KEEP_ALL);
+            return Reason.SOURCE_KEEP_ALL;
         }
         if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ARRAYS && fc.inArrayScope() && fc.parsesArrayValue() == false) {
-            return Optional.of(Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY);
+            return Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;
         }
-        return Optional.empty();
+        return null;
     }
 
     /**
@@ -183,7 +184,7 @@ public final class FallbackPostMapper {
 
     private static DocumentParserContext preCaptureIfNeeded(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         FieldContext fc = FieldContext.forField(context, fieldMapper);
-        if (resolvePrecaptureReason(fc).isPresent()) {
+        if (resolvePrecaptureReason(fc) != null) {
             return context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
         }
         return context;
@@ -202,7 +203,7 @@ public final class FallbackPostMapper {
             }
             case FieldMapper.ParseResult.Ignored() -> {
                 if (precaptured) {
-                    Reason precaptureReason = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)).orElse(null);
+                    Reason precaptureReason = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper));
                     if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || precaptureReason == Reason.SOURCE_KEEP_ALL
                         || precaptureReason == Reason.COPY_TO_DESTINATION) {

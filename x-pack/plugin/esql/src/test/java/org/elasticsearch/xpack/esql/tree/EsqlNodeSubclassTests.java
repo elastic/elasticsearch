@@ -649,7 +649,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomEsIndex();
         }
         if (argClass == IndexProperties.class) {
-            return new IndexProperties(randomFrom(IndexMode.availableModes()));
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            int shards = mode == IndexMode.LOOKUP ? 1 : between(0, 10);
+            return new IndexProperties(mode, shards);
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(

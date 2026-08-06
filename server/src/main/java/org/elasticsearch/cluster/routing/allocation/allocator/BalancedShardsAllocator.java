@@ -1024,6 +1024,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         + "]";
 
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
+                    // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES

@@ -619,9 +619,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                         the region to write is already available in cache, if the region is pending fetching via another thread or if
-     *                         there is not enough free pages to fetch the region.
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the region.
      */
     public void maybeFetchRegion(
         final KeyType cacheKey,
@@ -657,9 +657,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      *                         region when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                         the region to write is already available in cache, if the region is pending fetching via another thread or if
-     *                         there is not enough free pages to fetch the region.
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the region to write is already available in cache, if the region is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the region.
      */
     public void fetchRegion(
         final KeyType cacheKey,

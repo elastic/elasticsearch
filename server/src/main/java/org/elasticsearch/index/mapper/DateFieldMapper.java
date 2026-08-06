@@ -1311,7 +1311,8 @@ public final class DateFieldMapper extends FieldMapper {
     private EscfColumnData datesFromStrings(EscfColumn source) {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
-        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor();
+        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             final BytesRef value = cursor.value();
             if (value == null) {

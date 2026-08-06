@@ -477,9 +477,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     groupings.add(resolved);
                 }
             }
-            var order = List.of((Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext));
-            Expression k = new ToInteger(reduction.source(), reduction.parameters().getFirst());
-            return new TopNBy(reduction.source(), resultPlan, order, k, groupings);
+            var order = (Order) reduction.buildEsqlFunction(collectValueAttribute(resultPlan), promqlContext);
+            return new TopNBy(
+                reduction.source(),
+                resultPlan,
+                order != null ? List.of(order) : List.<Order>of(),
+                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
+                groupings
+            );
         }
 
         /** The doTranslateAgg combinator: regroups a grouped table, or emits the innermost `_timeseries` doTranslateAgg over a raw one. */

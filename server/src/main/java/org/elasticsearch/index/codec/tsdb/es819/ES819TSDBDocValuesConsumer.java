@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer;
+import org.elasticsearch.index.codec.tsdb.DefaultSortedCodec;
+import org.elasticsearch.index.codec.tsdb.DefaultSortedSetCodec;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
@@ -50,7 +52,8 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             docOffsetsEncoder,
             sortedFieldObserverFactory,
             new TSDBNumericBlockCodec(),
-            new TSDBOrdinalBlockCodec()
+            new DefaultSortedCodec(new TSDBOrdinalBlockCodec()),
+            new DefaultSortedSetCodec(new TSDBOrdinalBlockCodec())
         );
     }
 }

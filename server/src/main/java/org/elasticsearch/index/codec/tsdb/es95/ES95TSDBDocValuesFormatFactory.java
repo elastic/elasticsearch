@@ -68,7 +68,9 @@ public final class ES95TSDBDocValuesFormatFactory {
             blockCountThreshold,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            fieldContextResolver
+            fieldContextResolver,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
     }
 }

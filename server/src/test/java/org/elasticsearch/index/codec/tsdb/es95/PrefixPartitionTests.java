@@ -32,7 +32,9 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                 NumericCodecFactory.DEFAULT,
                 ES95NumericFieldReader::defaultFallbackDecoder,
-                null
+                null,
+                new RunTableSortedCodec(new ES95SortedCodec()),
+                new RunTableSortedSetCodec(new ES95SortedSetCodec())
             )
         );
     }

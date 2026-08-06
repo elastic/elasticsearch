@@ -67,6 +67,7 @@ public enum FunctionType {
      * <ul>
      * <li>Top-k: topk()</li>
      * <li>Bottom-k: bottomk()</li>
+     * <li>Limit-k: limitk()</li>
      * </ul>
      */
     ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),

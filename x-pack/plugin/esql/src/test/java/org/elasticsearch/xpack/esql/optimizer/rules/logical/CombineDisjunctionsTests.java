@@ -300,12 +300,15 @@ public class CombineDisjunctionsTests extends ESTestCase {
         Literal ipLiteral = new Literal(EMPTY, encodedIp, DataType.IP);
         Equals ipEquals = new Equals(EMPTY, ipField, ipLiteral, null);
 
+        // CIDRMatch(ipField, "10.0.0.0/8") OR ipField == 127.0.0.1::ip
         CIDRMatch cidrMatch = new CIDRMatch(EMPTY, ipField, cidrPatterns);
         Or or = new Or(EMPTY, cidrMatch, ipEquals);
 
         Expression result = combineDisjunctions(or);
         assertEquals(CIDRMatch.class, result.getClass());
         CIDRMatch combined = (CIDRMatch) result;
+        // CIDRMatch(ipField, "10.0.0.0/8", "127.0.0.1")
+        assertTrue(result.resolved());
         assertEquals(ipField, combined.ipField());
         assertEquals(2, combined.matches().size());
 

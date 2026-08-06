@@ -1076,37 +1076,63 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
      * disappearing from the plan in the logical optimizations
      */
-    public void testMissingReferencesInCidrMatch() {
-        var testAnalyzer = analyzer().addIndex("network_logs", "mapping-network.json");
-        var analyzed = testAnalyzer.query("""
-            FROM network_logs
-            | EVAL src_ip_local = CASE(
-                    CIDR_MATCH(src_ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR src_ip == "127.0.0.1"::ip,
-                    TO_STRING(src_ip), null),
-                dst_domain_local = CASE(
-                    dst_domain == "localhost",
-                    dst_domain, null),
-                field_name = CASE(
-                    src_ip_local IS NOT NULL, "src_ip",
-                    dst_domain_local IS NOT NULL, "dst_domain",
-                    "unknown")
-            | STATS count = COUNT(*) BY field_name
-            """);
-        optimize(analyzed);
+    public void testOrCidrMatchOrNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                   CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1"::ip,
+                   TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testOrCidrMatchOrNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                   CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1",
+                   TO_STRING(ip0), null)
+            """));
     }
 
     /**
      * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
      * disappearing from the plan in the logical optimizations
      */
-    public void testMissingReferencesInCidrMatch2() {
-        var testAnalyzer = analyzer().addIndex("network_logs", "mapping-network.json");
+    public void testOrCidrMatchOrNotPruned3() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                      CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1"::ip,
+                      TO_STRING(ip0), null),
+                   host_local = CASE(
+                       host == "localhost",
+                       host, null),
+                   field = CASE(
+                       ip IS NOT NULL, "a",
+                       host_local IS NOT NULL, "b",
+                       "unknown")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchOrNotPruned4() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
         var analyzed = testAnalyzer.query("""
-            FROM network_logs
-            | EVAL src_ip_local = CASE(
-                    CIDR_MATCH(src_ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR src_ip == "127.0.0.1"::ip,
-                    TO_STRING(src_ip), null)
+            FROM hosts
+            | EVAL ip = CASE(
+                      CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1",
+                      TO_STRING(ip0), null),
+                   host_local = CASE(
+                       host == "localhost",
+                       host, null),
+                   field = CASE(
+                       ip IS NOT NULL, "a",
+                       host_local IS NOT NULL, "b",
+                       "unknown")
+            | STATS count = COUNT(*) BY field
             """);
-        optimize(analyzed);
     }
 }

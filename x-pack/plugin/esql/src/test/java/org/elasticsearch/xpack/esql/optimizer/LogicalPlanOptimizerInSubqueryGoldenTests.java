@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -373,6 +374,156 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                 "FROM employees | KEEP emp_no",
                 "in_view_b",
                 "FROM employees | WHERE salary > 60000 | KEEP emp_no"
+            )
+        );
+    }
+
+    // -- IN subquery in STATS WHERE (per-aggregate) filters --
+
+    public void testInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInStatsWhereWithGrouping() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
+            """, STAGES);
+    }
+
+    public void testInSubqueryInStatsWhereMultipleAggs() {
+        // Pinned to the current TransportVersion: the AVG surrogate rewrite forks the optimized plan inside the version window.
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no),
+                    avg_salary = AVG(salary) WHERE languages IN (FROM employees | KEEP languages)
+              BY gender
+            """, STAGES, TransportVersion.current());
+    }
+
+    /**
+     * Two aggregates filtered by the textually identical IN subquery: each still gets its own MarkJoin and mark attribute — the marks
+     * share a name but have distinct ids and each aggregate filter references its own.
+     */
+    public void testInSubqueryInStatsWhereTwoAggsSameSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no),
+                    mx = MAX(salary) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testConstantInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE 10001 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInStatsWhereAndPredicate() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) AND salary > 50000
+            """, STAGES);
+    }
+
+    public void testInSubqueryInStatsWhereOrPredicate() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testCoalesceInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testIsNullInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testIsNotNullInSubqueryInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testStatsWhereInSubqueryInsideSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE salary IN (FROM employees | STATS s = MAX(salary) WHERE languages IN (FROM employees | KEEP languages))
+            """, STAGES);
+    }
+
+    public void testInSubqueryInWhereAndStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+            | STATS cnt = COUNT(*) WHERE languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInStatsWhereWithLimitInSubquery() {
+        // Test TimeSeriesAggregate.postAnalysisVerification: a LIMIT (or SORT etc.) inside an IN subquery Before A TimeSeriesAggregate
+        // should not fail the commands-before-aggregation check.
+        builder("""
+            TS k8s
+            | STATS mx = MAX(network.bytes_in)
+              WHERE cluster IN (FROM employees | EVAL env = "qa" | KEEP env | LIMIT 1)
+              BY cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testInSubqueryInStatsWhereReferencingView() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM emps_view | KEEP emp_no)
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testViewContainingInSubqueryInStatsWhere() {
+        runGoldenTest(
+            """
+                FROM stats_view
+                | WHERE cnt IN (FROM where_counts | KEEP cnt)
+                | EVAL doubled_cnt = cnt * 2
+                | STATS view_rows = COUNT(*) WHERE cnt IN (FROM stats_counts | KEEP cnt),
+                        max_doubled = MAX(doubled_cnt)
+                """,
+            STAGES,
+            Map.of(
+                "emps_view",
+                "FROM employees | KEEP emp_no",
+                "stats_view",
+                "FROM employees | STATS cnt = COUNT(*) WHERE emp_no IN (FROM emps_view | KEEP emp_no)",
+                "where_counts",
+                "FROM employees | STATS cnt = COUNT(*)",
+                "stats_counts",
+                "FROM employees | STATS cnt = COUNT(*)"
             )
         );
     }

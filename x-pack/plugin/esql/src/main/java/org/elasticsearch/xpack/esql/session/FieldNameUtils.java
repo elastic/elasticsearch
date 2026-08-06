@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
@@ -249,6 +250,11 @@ public class FieldNameUtils {
                     joinRefs.addAll(keepRefs);
                 }
             } else if (p instanceof AbstractSubqueryJoin sj) {
+                if (sj instanceof MarkJoin markJoin) {
+                    // The aggregate filter references this resolver-generated attribute, but it is produced by the join rather than
+                    // loaded from an index.
+                    referencesBuilder.get().remove(markJoin.markAttribute());
+                }
                 // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
                 // the regular builder where outer aliases can shadow it.
                 referencesBuilder.get().addAll(sj.leftReferences());

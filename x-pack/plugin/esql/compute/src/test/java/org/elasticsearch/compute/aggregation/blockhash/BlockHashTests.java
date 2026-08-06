@@ -297,6 +297,45 @@ public class BlockHashTests extends BlockHashTestCase {
         }, blockFactory.newDoubleArrayVector(values, values.length).asBlock());
     }
 
+    public void testDoubleHashTreatsSignedZeroAsOneGroup() {
+        double[] values = new double[] { 0.0, -0.0 };
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=1, size="));
+                assertOrds(ordsAndKeys.ords(), 0, 0);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 1)));
+            } else {
+                assertThat(ordsAndKeys.description(), equalTo("DoubleBlockHash{channel=0, entries=1, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 1);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 2)));
+            }
+            assertKeys(ordsAndKeys.keys(), 0.0);
+        }, blockFactory.newDoubleArrayVector(values, values.length).asBlock());
+    }
+
+    public void testMultiValuedDoubleHashTreatsSignedZeroAsOneGroup() {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendDouble(0.0);
+            builder.appendDouble(-0.0);
+            builder.endPositionEntry();
+            builder.appendDouble(-0.0);
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=1, size="));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 0 }, new int[] { 0 });
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 1)));
+                } else {
+                    assertThat(ordsAndKeys.description(), equalTo("DoubleBlockHash{channel=0, entries=1, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 1 }, new int[] { 1 });
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 2)));
+                }
+                assertKeys(ordsAndKeys.keys(), 0.0);
+            }, builder);
+        }
+    }
+
     public void testDoubleHashWithNulls() {
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(4)) {
             builder.appendDouble(0);

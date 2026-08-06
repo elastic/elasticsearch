@@ -556,6 +556,10 @@ final class PackedValuesBlockHash extends BlockHash {
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
     private static final VarHandle DOUBLE_HANDLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
+    private static double canonicalizeDouble(double value) {
+        return value == 0.0d ? 0.0d : value;
+    }
+
     /**
      * Approximate shallow size of a {@link BytesRef} object: object header + {@code byte[]} reference + 2 ints.
      * Used only for breaker accounting; precision matches the rest of this class's manual byte counting.
@@ -695,7 +699,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     case DOUBLE -> {
                         DoubleVector doubleVector = (DoubleVector) vector;
                         for (int i = 0; i < batchSize; i++) {
-                            DOUBLE_HANDLE.set(keys, i * keyLength + offset, doubleVector.getDouble(positionOffset + i));
+                            DOUBLE_HANDLE.set(keys, i * keyLength + offset, canonicalizeDouble(doubleVector.getDouble(positionOffset + i)));
                         }
                     }
                     case BOOLEAN -> {
@@ -1045,7 +1049,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     case DOUBLE -> {
                         DoubleVector dv = (DoubleVector) vector;
                         for (int i = 0; i < rows; i++) {
-                            DOUBLE_HANDLE.set(keyBuf, cursors[i], dv.getDouble(positionOffset + i));
+                            DOUBLE_HANDLE.set(keyBuf, cursors[i], canonicalizeDouble(dv.getDouble(positionOffset + i)));
                             cursors[i] += Double.BYTES;
                         }
                     }

@@ -474,7 +474,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
          */
         protected final void encode(double v) {
             addingValue();
-            doubleHandle.set(bytes.bytes(), bytes.length(), v);
+            doubleHandle.set(bytes.bytes(), bytes.length(), canonicalizeDouble(v));
             bytes.setLength(bytes.length() + Double.BYTES);
         }
     }
@@ -490,10 +490,14 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             int after = before + Double.BYTES;
             dst.grow(after);
             double v = ((DoubleBlock) block).getDouble(valueIndex);
-            doubleHandle.set(dst.bytes(), before, v);
+            doubleHandle.set(dst.bytes(), before, canonicalizeDouble(v));
             dst.setLength(after);
             return Double.BYTES;
         }
+    }
+
+    private static double canonicalizeDouble(double value) {
+        return value == 0.0d ? 0.0d : value;
     }
 
     private static class DoublesDecoder implements Decoder {

@@ -59,6 +59,14 @@ final class $Type$BlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+$if(double)$
+    /** Canonicalizes signed zero before building an ES|QL double hash key. */
+    private static long hashDouble(double value) {
+        return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
+    }
+
+$endif$
+
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -135,7 +143,7 @@ $endif$
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
 $if(double)$
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = hashDouble(vector.getDouble(i));
 $elseif(BytesRef)$
                 BytesRef v = vector.getBytesRef(i, scratch);
 $else$
@@ -292,7 +300,7 @@ $endif$
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
 $if(double)$
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = hashDouble(vector.getDouble(i));
 $elseif(BytesRef)$
                 BytesRef v = vector.getBytesRef(i, scratch);
 $else$

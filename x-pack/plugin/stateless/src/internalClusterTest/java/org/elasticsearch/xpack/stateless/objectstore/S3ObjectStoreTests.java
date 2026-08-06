@@ -16,6 +16,8 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -511,7 +513,22 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        // Use random but sufficiently large cache settings. The default random cache configuration can produce a cache smaller than the
+        // region size, resulting in zero usable regions and every read going through the mock HTTP handler which is too slow to complete
+        // within the ensureGreen timeout.
+        var regionPages = randomIntBetween(16, 64); // 64kb to 256kb regions
+        var cachePages = regionPages * randomIntBetween(64, 256); // 64 to 256 regions, giving at least 4mb of cache
+        final Settings nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE)
+            )
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) cachePages * SharedBytes.PAGE_SIZE)
+            )
+            .build();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
@@ -529,7 +546,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             flush(indexName);
 
             setReplicaCount(1, indexName);
-            ensureGreen(TimeValue.ONE_MINUTE, indexName);
+            ensureGreen(indexName);
             // we are setting size to 0 because we don't want to retrieve the documents (which are heavy in this test case) as it can cause
             // suite timeouts when the cache is very small
             assertHitCount(prepareSearch(indexName).setSize(0), numDocs);

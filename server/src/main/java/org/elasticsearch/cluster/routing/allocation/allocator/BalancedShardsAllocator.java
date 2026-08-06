@@ -1806,7 +1806,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private String getNodeDescription(DiscoveryNode node) {
             return node.getId() + "/" + node.getName();
         }
-
     }
 
     /**

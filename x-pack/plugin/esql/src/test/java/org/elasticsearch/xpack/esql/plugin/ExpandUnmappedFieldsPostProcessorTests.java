@@ -161,10 +161,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         Result expanded = expand(result, bf);
         try {
             assertThat(names(expanded), equalTo(List.of("a", "b")));
-            assertThat(
-                nonNullRows(expanded),
-                contains(matchesMap().entry("a", "x").entry("b", "y"), matchesMap().entry("a", "z"))
-            );
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry("a", "x").entry("b", "y"), matchesMap().entry("a", "z")));
         } finally {
             Releasables.close(expanded.pages());
         }

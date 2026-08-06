@@ -74,25 +74,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
-    public void testBinaryQuantizer() {
-        AshBinaryQuantizer bq = new AshBinaryQuantizer();
-        float[][] x = { { 1.0f, -2.0f, 0.5f, -0.1f }, { -1.0f, 3.0f, -0.5f, 0.1f } };
-        AshDimQuantizer.QuantizeResult result = bq.encode(x);
-
-        // Signs should be preserved
-        assertEquals(1.0f, result.centeredCodes()[0][0], 0);
-        assertEquals(-1.0f, result.centeredCodes()[0][1], 0);
-        assertEquals(1.0f, result.centeredCodes()[0][2], 0);
-        assertEquals(-1.0f, result.centeredCodes()[0][3], 0);
-
-        // Norm of {1,-1,1,-1} = 2
-        assertEquals(2.0f, result.codeNorms()[0], 1e-5f);
-    }
-
     public void testSphericalScalarQuantizer2Bit() {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
         float[][] x = { { 0.8f, -0.5f, 0.3f, -0.9f } };
-        AshDimQuantizer.QuantizeResult result = ssq.encode(x);
+        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(x);
 
         // Codes should be centered: sign * (0.5 + level)
         // With 2 bits, levels are 0 or 1, so magnitudes are 0.5 or 1.5
@@ -107,7 +92,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int nVectors = 100;
         int dim = 16;
         float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
-        int bitsPerDim = 1;
+        int bitsPerDim = 2;
         Random rng = new Random(123);
 
         float[][] vectors = new float[nVectors][dim];
@@ -157,7 +142,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int nVectors = 200;
         int dim = 32;
         float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
-        int bitsPerDim = 1;
+        int bitsPerDim = 2;
         Random rng = new Random(456);
 
         float[][] vectors = new float[nVectors][dim];
@@ -231,23 +216,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(0.5f, score, 1e-5f);
     }
 
-    public void testBinaryPackAndScore() {
-        // Test bit-packing roundtrip and binary scorer equivalence
-        float[] codes = { 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f };
-        byte[] packed = AsymmetricHashingScorer.packBinaryCodes(codes);
-        assertEquals(2, packed.length); // ceil(10/8) = 2
-
-        // Score with binary scorer should match float scorer
-        float[] qt = { 0.5f, 0.3f, -0.2f, 0.8f, 0.1f, -0.4f, 0.6f, -0.7f, 0.9f, -0.1f };
-        float scale = 1.5f;
-        float offset = 0.2f;
-        float qdc = 0.3f;
-
-        float floatScore = AsymmetricHashingScorer.scoreOneVector(qt, qdc, codes, scale, offset);
-        float binaryScore = AsymmetricHashingScorer.scoreOneVectorBinary(qt, qdc, packed, codes.length, scale, offset);
-        assertEquals(floatScore, binaryScore, 1e-5f);
-    }
-
     public void testFallbackToRandomWhenTooFewVectors() {
         // With only 2 vectors and nDims=4, learned method should fall back to random
         int dim = 16;
@@ -261,7 +229,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
-            1,
+            2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
             10,
@@ -431,9 +399,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (int i = 0; i < nVectors; i++) {
             float[] c = centroids[assignments[i]];
             AsymmetricHashingQuantizer.EncodedVector enc = ash.encodeOne(vectors[i], c, w);
-            byte[] packed = bitsPerDim == 1
-                ? AsymmetricHashingScorer.packBinaryCodes(enc.xEnc())
-                : AsymmetricHashingScorer.packMultiBitCodes(enc.xEnc(), bitsPerDim);
+            byte[] packed = AsymmetricHashingScorer.packMultiBitCodes(enc.xEnc(), bitsPerDim);
 
             for (int q = 0; q < nQueries; q++) {
                 double exactDot = 0;
@@ -446,17 +412,15 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     qDotC += (double) queries[q][d] * c[d];
                 }
 
-                float approxScore = bitsPerDim == 1
-                    ? AsymmetricHashingScorer.scoreOneVectorBinary(qt[q], (float) qDotC, packed, nDims, enc.scale(), enc.offset())
-                    : AsymmetricHashingScorer.scoreOneVectorMultiBit(
-                        qt[q],
-                        (float) qDotC,
-                        packed,
-                        nDims,
-                        bitsPerDim,
-                        enc.scale(),
-                        enc.offset()
-                    );
+                float approxScore = AsymmetricHashingScorer.scoreOneVectorMultiBit(
+                    qt[q],
+                    (float) qDotC,
+                    packed,
+                    nDims,
+                    bitsPerDim,
+                    enc.scale(),
+                    enc.offset()
+                );
 
                 exact[q][i] = exactDot;
                 approx[q][i] = approxScore;

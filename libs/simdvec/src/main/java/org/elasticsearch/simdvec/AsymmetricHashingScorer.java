@@ -120,79 +120,8 @@ public final class AsymmetricHashingScorer {
     }
 
     /**
-     * Scores a single binary (1-bit) encoded database vector from packed byte representation.
-     * Each bit in {@code packedCodes} represents a sign: 1 = +1, 0 = -1.
-     * Bits are packed MSB-first within each byte.
-     *
-     * @param queryTransformedForCluster precomputed (query - centroid) @ W for this cluster
-     * @param queryDotCentroid precomputed query . centroid for this cluster
-     * @param packedCodes bit-packed codes, length ceil(nDims/8)
-     * @param nDims number of projected dimensions
-     * @param scale the scale factor for this vector
-     * @param offset the offset correction for this vector
-     * @return approximate dot product
-     */
-    public static float scoreOneVectorBinary(
-        float[] queryTransformedForCluster,
-        float queryDotCentroid,
-        byte[] packedCodes,
-        int nDims,
-        float scale,
-        float offset
-    ) {
-        // dot = sum_j queryTransformed[j] * sign[j]
-        // where sign[j] = +1 if bit set, -1 if not
-        // = sum_j queryTransformed[j] * (2*bit[j] - 1)
-        // = 2 * sum_positive(queryTransformed[j]) - sum_all(queryTransformed[j])
-        double sumAll = 0;
-        double sumPositive = 0;
-        for (int j = 0; j < nDims; j++) {
-            float qt = queryTransformedForCluster[j];
-            sumAll += qt;
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7); // MSB-first
-            if ((packedCodes[byteIdx] & (1 << bitIdx)) != 0) {
-                sumPositive += qt;
-            }
-        }
-        double dot = 2.0 * sumPositive - sumAll;
-        return (float) dot * scale + queryDotCentroid + offset;
-    }
-
-    /**
-     * Packs binary (1-bit sign) codes into bytes, MSB-first.
-     * Input codes are expected to be +1 or -1.
-     *
-     * @param codes float array of {+1, -1} values, length nDims
-     * @return packed bytes, length ceil(nDims/8)
-     */
-    public static byte[] packBinaryCodes(float[] codes) {
-        int nDims = codes.length;
-        int nBytes = (nDims + 7) >>> 3;
-        byte[] packed = new byte[nBytes];
-        for (int j = 0; j < nDims; j++) {
-            if (codes[j] > 0) {
-                int byteIdx = j >>> 3;
-                int bitIdx = 7 - (j & 7);
-                packed[byteIdx] |= (byte) (1 << bitIdx);
-            }
-        }
-        return packed;
-    }
-
-    /**
-     * Returns the number of bytes needed to store nDims binary-quantized dimensions.
-     *
-     * @param nDims number of projected dimensions
-     * @return number of bytes needed
-     */
-    public static int packedByteLength(int nDims) {
-        return (nDims + 7) >>> 3;
-    }
-
-    /**
      * Returns the number of bytes needed to store nDims dimensions at the given bits per dimension.
-     * For bitsPerDim=1: ceil(nDims/8). For bitsPerDim=2: 2*ceil(nDims/8) (low + high bit planes).
+     * For bitsPerDim=2: 2*ceil(nDims/8) (low + high bit planes).
      *
      * @param nDims number of projected dimensions
      * @param bitsPerDim bits per dimension

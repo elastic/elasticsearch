@@ -9,41 +9,55 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
-import org.apache.lucene.util.IntroSorter;
-
 import java.util.Arrays;
 
 /**
- * Multi-bit spherical scalar quantizer for ASH. Quantizes each dimension of the
+ * Spherical scalar quantizer for ASH. Quantizes each dimension of the
  * projected (latent) vector into {@code bitsPerDim} bits using an optimal greedy
  * level selection that maximizes inner product preservation on the unit sphere.
  * <p>
- * This is a port of the Python reference implementation's {@code SphericalScalarQuantizer}.
+ * For 1-bit, this degenerates to sign quantization (each dimension becomes +/- 0.5).
+ * For 2-bit, a specialized sweep selects between magnitudes 0.5 and 1.5.
+ * For higher bit widths, a general event-based scan assigns optimal levels.
  */
-final class AshSphericalScalarQuantizer implements AshDimQuantizer {
+final class AshSphericalScalarQuantizer {
 
     private final int bitsPerDim;
 
     /**
+     * Result of quantization for a single vector.
+     *
+     * @param centeredCode code centered around zero, length nDims
+     * @param codeNorm L2 norm of the code vector
+     */
+    record SingleQuantizeResult(float[] centeredCode, float codeNorm) {}
+
+    /**
+     * Result of batch quantization.
+     *
+     * @param centeredCodes codes centered around zero, shape (n, nDims)
+     * @param codeNorms L2 norm of each code vector, length n
+     */
+    record QuantizeResult(float[][] centeredCodes, float[] codeNorms) {}
+
+    /**
      * Creates a spherical scalar quantizer with the given bit width.
      *
-     * @param bitsPerDim number of bits per projected dimension (must be >= 2)
-     * @throws IllegalArgumentException if bitsPerDim is less than 2
+     * @param bitsPerDim number of bits per projected dimension (must be >= 1)
+     * @throws IllegalArgumentException if bitsPerDim is less than 1
      */
-    public AshSphericalScalarQuantizer(int bitsPerDim) {
-        if (bitsPerDim < 2) {
-            throw new IllegalArgumentException("bitsPerDim must be >= 2 for spherical scalar quantizer; use BinaryQuantizer for 1-bit");
+    AshSphericalScalarQuantizer(int bitsPerDim) {
+        if (bitsPerDim < 1) {
+            throw new IllegalArgumentException("bitsPerDim must be >= 1");
         }
         this.bitsPerDim = bitsPerDim;
     }
 
-    @Override
-    public int bitsPerDimension() {
+    int bitsPerDimension() {
         return bitsPerDim;
     }
 
-    @Override
-    public QuantizeResult encode(float[][] x) {
+    QuantizeResult encode(float[][] x) {
         int n = x.length;
         if (n == 0) {
             return new QuantizeResult(new float[0][0], new float[0]);
@@ -59,8 +73,7 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
         return new QuantizeResult(centeredCodes, codeNorms);
     }
 
-    @Override
-    public SingleQuantizeResult encodeOne(float[] xLatent) {
+    SingleQuantizeResult encodeOne(float[] xLatent) {
         int nDims = xLatent.length;
         float[] out = new float[nDims];
         float norm = quantizeExact(xLatent, out, nDims);
@@ -75,10 +88,24 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
+        if (nSteps == 0) {
+            return quantizeExact1Bit(z, out, d);
+        }
         if (nSteps == 1) {
             return quantizeExact2Bit(z, out, d);
         }
         return quantizeExactGeneral(z, out, d, numAbsLevels, nSteps);
+    }
+
+    /**
+     * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
+     * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
+     */
+    private static float quantizeExact1Bit(float[] z, float[] out, int d) {
+        for (int j = 0; j < d; j++) {
+            out[j] = Math.copySign(0.5f, z[j]);
+        }
+        return (float) Math.sqrt(0.25 * d);
     }
 
     /**
@@ -87,38 +114,15 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
      * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts dimensions
      * by |z_j| descending and sweeps to find the cutoff that maximizes
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
-     * <p>
-     * This avoids allocating event arrays, level tracking, and tie-breaking logic --
-     * producing identical results to the general path but roughly 3x faster.
      */
     private static float quantizeExact2Bit(float[] z, float[] out, int d) {
-        // Sort dimension indices by |z| descending using IntroSorter for O(n log n) performance
         int[] order = new int[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
             order[j] = j;
             absZ[j] = Math.abs(z[j]);
         }
-        new IntroSorter() {
-            int pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = order[i];
-                order[i] = order[j];
-                order[j] = tmp;
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Float.compare(absZ[order[j]], absZ[pivot]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = order[i];
-            }
-        }.sort(0, d);
+        IndirectSorter.sortDescendingByFloat(order, absZ, d);
 
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
         double cumDot = 0;
@@ -151,18 +155,13 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
 
         // Write output: upgraded dims get magnitude 1.5, others stay at 0.5
         double normSq = 0;
-        // Start with all at 0.5
         for (int j = 0; j < d; j++) {
-            float sign = z[j] >= 0 ? 1.0f : -1.0f;
-            out[j] = sign * 0.5f;
+            out[j] = Math.copySign(0.5f, z[j]);
         }
-        // Upgrade the top bestK dimensions to 1.5
         for (int k = 0; k < bestK; k++) {
             int dim = order[k];
-            float sign = z[dim] >= 0 ? 1.0f : -1.0f;
-            out[dim] = sign * 1.5f;
+            out[dim] = Math.copySign(1.5f, z[dim]);
         }
-        // Compute norm
         for (int j = 0; j < d; j++) {
             normSq += (double) out[j] * out[j];
         }
@@ -178,7 +177,7 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
         float[] signs = new float[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
-            signs[j] = z[j] >= 0 ? 1.0f : -1.0f;
+            signs[j] = Math.copySign(1.0f, z[j]);
             absZ[j] = Math.abs(z[j]);
         }
 
@@ -214,7 +213,11 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
             }
 
             // Sort events by time
-            int[] order = argsort(eventTimes, eventCount);
+            int[] order = new int[eventCount];
+            for (int i = 0; i < eventCount; i++) {
+                order[i] = i;
+            }
+            IndirectSorter.sortAscendingByDouble(order, eventTimes, eventCount);
 
             // Sweep through events, tracking cumulative dot product and norm
             double cumDot = currentDot;
@@ -267,37 +270,5 @@ final class AshSphericalScalarQuantizer implements AshDimQuantizer {
             normSq += (double) out[j] * out[j];
         }
         return (float) Math.sqrt(normSq);
-    }
-
-    /**
-     * Returns indices that sort the first {@code count} elements of {@code values} in ascending order.
-     * Uses Lucene's IntroSorter for O(n log n) worst-case performance.
-     */
-    private static int[] argsort(double[] values, int count) {
-        int[] indices = new int[count];
-        for (int i = 0; i < count; i++) {
-            indices[i] = i;
-        }
-        new IntroSorter() {
-            int pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = indices[i];
-                indices[i] = indices[j];
-                indices[j] = tmp;
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Double.compare(values[indices[j]], values[pivot]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = indices[i];
-            }
-        }.sort(0, count);
-        return indices;
     }
 }

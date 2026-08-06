@@ -32,7 +32,7 @@ import java.nio.ByteOrder;
 public final class AshProjectionMatrix {
 
     private final float[][] w;
-    private final float[][] ashCentroids; // may be null for legacy
+    private final float[][] ashCentroids; // null when using IVF centroids (the common case); non-null for standalone ASH
     private final int originalDim;
     private final int nDims;
     private float[][] wT; // lazily computed transposed W (nDims x originalDim) for SIMD dot products

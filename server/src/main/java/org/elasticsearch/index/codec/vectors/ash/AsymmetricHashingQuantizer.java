@@ -46,7 +46,7 @@ public final class AsymmetricHashingQuantizer {
     private final int nTrainingIterations;
     private final int trainingFactor;
     private final long seed;
-    private final AshDimQuantizer quantizer;
+    private final AshSphericalScalarQuantizer quantizer;
 
     /**
      * Creates an ASH quantizer with the given configuration.
@@ -77,12 +77,7 @@ public final class AsymmetricHashingQuantizer {
         this.nTrainingIterations = nTrainingIterations;
         this.trainingFactor = trainingFactor;
         this.seed = seed;
-
-        if (bitsPerDim == 1) {
-            this.quantizer = new AshBinaryQuantizer();
-        } else {
-            this.quantizer = new AshSphericalScalarQuantizer(bitsPerDim);
-        }
+        this.quantizer = new AshSphericalScalarQuantizer(bitsPerDim);
     }
 
     /**
@@ -191,7 +186,7 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // Quantize
-        AshDimQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
+        AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
         float[] xEnc = qr.centeredCode();
         float codeNorm = qr.codeNorm();
 
@@ -280,7 +275,7 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // Quantize
-        AshDimQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
+        AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
         float[] xEnc = qr.centeredCode();
         float codeNorm = qr.codeNorm();
 
@@ -374,7 +369,7 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // Quantize in latent space
-        AshDimQuantizer.QuantizeResult qr = quantizer.encode(xLatent);
+        AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xLatent);
         float[][] xEnc = qr.centeredCodes();
         float[] codeNorms = qr.codeNorms();
 
@@ -444,7 +439,7 @@ public final class AsymmetricHashingQuantizer {
                 // X_transformed = X_ld @ R
                 float[][] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
                 // Quantize
-                AshDimQuantizer.QuantizeResult qr = quantizer.encode(xTransformed);
+                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed);
                 float[][] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]

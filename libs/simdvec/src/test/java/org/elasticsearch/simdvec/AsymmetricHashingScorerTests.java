@@ -31,30 +31,6 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         assertEquals(11.8f, score, 1e-5f);
     }
 
-    public void testScoreOneVectorBinaryEqualsFloat() {
-        // Randomized: binary scorer should produce same result as float scorer with {+1,-1} codes
-        for (int iter = 0; iter < 50; iter++) {
-            int nDims = randomIntBetween(1, 200);
-            float[] codes = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                codes[j] = randomBoolean() ? 1.0f : -1.0f;
-            }
-            byte[] packed = AsymmetricHashingScorer.packBinaryCodes(codes);
-
-            float[] qt = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                qt[j] = (float) random().nextGaussian();
-            }
-            float scale = randomFloat() * 3;
-            float offset = (float) (random().nextGaussian());
-            float qdc = (float) (random().nextGaussian());
-
-            float floatScore = AsymmetricHashingScorer.scoreOneVector(qt, qdc, codes, scale, offset);
-            float binaryScore = AsymmetricHashingScorer.scoreOneVectorBinary(qt, qdc, packed, nDims, scale, offset);
-            assertEquals("Mismatch at iter " + iter, floatScore, binaryScore, 1e-4f);
-        }
-    }
-
     public void testScoreOneVectorMultiBitEqualsFloat() {
         // Multi-bit scorer should produce same result as float scorer
         for (int bitsPerDim = 2; bitsPerDim <= 4; bitsPerDim++) {
@@ -82,25 +58,6 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 float multiBitScore = AsymmetricHashingScorer.scoreOneVectorMultiBit(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
                 assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, floatScore, multiBitScore, 1e-3f);
             }
-        }
-    }
-
-    public void testPackBinaryCodesRoundtrip() {
-        int nDims = 19; // non-byte-aligned
-        float[] codes = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            codes[j] = randomBoolean() ? 1.0f : -1.0f;
-        }
-        byte[] packed = AsymmetricHashingScorer.packBinaryCodes(codes);
-        assertEquals(3, packed.length); // ceil(19/8)
-
-        // Manually decode and verify
-        for (int j = 0; j < nDims; j++) {
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7);
-            boolean bitSet = (packed[byteIdx] & (1 << bitIdx)) != 0;
-            float expected = codes[j] > 0 ? 1.0f : -1.0f;
-            assertEquals("Mismatch at dim " + j, expected > 0, bitSet);
         }
     }
 
@@ -138,15 +95,10 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     }
 
     public void testPackedByteLength() {
-        assertEquals(1, AsymmetricHashingScorer.packedByteLength(1));
-        assertEquals(1, AsymmetricHashingScorer.packedByteLength(8));
-        assertEquals(2, AsymmetricHashingScorer.packedByteLength(9));
-        assertEquals(12, AsymmetricHashingScorer.packedByteLength(96));
-
-        // Multi-bit version
         assertEquals(2, AsymmetricHashingScorer.packedByteLength(8, 2));
         assertEquals(4, AsymmetricHashingScorer.packedByteLength(9, 2));
         assertEquals(36, AsymmetricHashingScorer.packedByteLength(96, 3));
+        assertEquals(12, AsymmetricHashingScorer.packedByteLength(96, 1));
     }
 
     public void testBatchScoreConsistency() {

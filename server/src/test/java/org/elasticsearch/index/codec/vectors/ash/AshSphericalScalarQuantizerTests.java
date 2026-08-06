@@ -20,10 +20,11 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
 
     public void testInvalidBitsPerDimThrows() {
         expectThrows(IllegalArgumentException.class, () -> new AshSphericalScalarQuantizer(0));
-        expectThrows(IllegalArgumentException.class, () -> new AshSphericalScalarQuantizer(1));
+        expectThrows(IllegalArgumentException.class, () -> new AshSphericalScalarQuantizer(-1));
     }
 
     public void testBitsPerDimension() {
+        assertEquals(1, new AshSphericalScalarQuantizer(1).bitsPerDimension());
         assertEquals(2, new AshSphericalScalarQuantizer(2).bitsPerDimension());
         assertEquals(3, new AshSphericalScalarQuantizer(3).bitsPerDimension());
         assertEquals(4, new AshSphericalScalarQuantizer(4).bitsPerDimension());
@@ -36,7 +37,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
-            AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertTrue("Expected 0.5 or 1.5 but got " + mag, validMags.contains(mag));
@@ -48,7 +49,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
         int d = 50;
         float[] input = randomGaussianVector(d);
-        AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+        AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
         for (int j = 0; j < d; j++) {
             if (input[j] >= 0) {
                 assertTrue("Expected positive code for positive input at dim " + j, result.centeredCode()[j] > 0);
@@ -65,7 +66,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 20; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
-            AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertTrue("Expected magnitude in " + validMags + " but got " + mag, validMags.contains(mag));
@@ -80,7 +81,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int iter = 0; iter < 10; iter++) {
             int d = randomIntBetween(4, 100);
             float[] input = randomGaussianVector(d);
-            AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             for (int j = 0; j < d; j++) {
                 float mag = Math.abs(result.centeredCode()[j]);
                 assertTrue("Expected magnitude in " + validMags + " but got " + mag, validMags.contains(mag));
@@ -93,7 +94,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
             AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(bits);
             int d = randomIntBetween(4, 200);
             float[] input = randomGaussianVector(d);
-            AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+            AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
             assertTrue("Norm should be positive, got " + result.codeNorm(), result.codeNorm() > 0);
         }
     }
@@ -103,8 +104,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         int d = 16;
         float[] input = randomGaussianVector(d);
 
-        AshDimQuantizer.SingleQuantizeResult single = ssq.encodeOne(input);
-        AshDimQuantizer.QuantizeResult batch = ssq.encode(new float[][] { input });
+        AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(input);
+        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(new float[][] { input });
 
         assertArrayEquals(single.centeredCode(), batch.centeredCodes()[0], 0f);
         assertEquals(single.codeNorm(), batch.codeNorms()[0], 0f);
@@ -112,7 +113,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        AshDimQuantizer.QuantizeResult result = ssq.encode(new float[0][0]);
+        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0][0]);
         assertEquals(0, result.centeredCodes().length);
         assertEquals(0, result.codeNorms().length);
     }
@@ -126,7 +127,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int j = 1; j < d; j++) {
             input[j] = 0.01f;
         }
-        AshDimQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
+        AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(input);
         // The large dimension should be at level 1.5
         assertEquals(1.5f, Math.abs(result.centeredCode()[0]), 0f);
     }
@@ -149,8 +150,8 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             double trueDot = 0;
             double quantDot = 0;
-            AshDimQuantizer.SingleQuantizeResult enc = ssq.encodeOne(vectors[i]);
-            AshDimQuantizer.SingleQuantizeResult qEnc = ssq.encodeOne(query);
+            AshSphericalScalarQuantizer.SingleQuantizeResult enc = ssq.encodeOne(vectors[i]);
+            AshSphericalScalarQuantizer.SingleQuantizeResult qEnc = ssq.encodeOne(query);
             for (int j = 0; j < d; j++) {
                 trueDot += (double) vectors[i][j] * query[j];
                 quantDot += (double) enc.centeredCode()[j] * qEnc.centeredCode()[j];

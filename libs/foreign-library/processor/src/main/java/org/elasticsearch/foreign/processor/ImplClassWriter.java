@@ -631,7 +631,7 @@ class ImplClassWriter {
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -667,7 +667,7 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentUtil.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {

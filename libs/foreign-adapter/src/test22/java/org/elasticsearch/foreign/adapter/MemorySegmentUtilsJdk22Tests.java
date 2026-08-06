@@ -12,7 +12,7 @@ package org.elasticsearch.foreign.adapter;
 import org.elasticsearch.test.ESTestCase;
 
 /**
- * Expectations specific to the JDK 22+ variant of {@link MemorySegmentUtil} in {@code src/main22}.
+ * Expectations specific to the JDK 22+ variant of {@link MemorySegmentUtils} in {@code src/main22}.
  */
 public class MemorySegmentUtilsJdk22Tests extends ESTestCase {
 

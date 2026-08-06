@@ -29,7 +29,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.workloadidentity.spi.DataSourceAuditListener;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,6 +50,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -155,6 +158,13 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
      */
     private final ConcurrentMap<IssueTokenRequest, SubscribableListener<IssueTokenResponse>> tokens = ConcurrentCollections
         .newConcurrentMap();
+
+    /**
+     * Decoded identifiers of the most recently cached token per audience, serving
+     * {@link #peekTokenInfo}. Populated on the cached-mint path only; removed by the same task
+     * that evicts the token, conditionally so eviction racing a re-mint keeps the newer entry.
+     */
+    private final ConcurrentMap<String, IssuedTokenInfo> tokenInfoByAudience = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Single-shot guard so that the WARN log in {@link #issueToken} fires at most once per
@@ -328,8 +338,12 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
 
     private void startFetch(IssueTokenRequest request, SubscribableListener<IssueTokenResponse> listener) {
         fetchToken(request, ActionListener.wrap(response -> {
+            final TokenClaims claims = TokenClaims.decode(response.token());
+            final IssuedTokenInfo info = new IssuedTokenInfo(claims.subject(), claims.sessionId(), response.expiresAt());
+            // publish before completing so an immediate peek sees this token
+            tokenInfoByAudience.put(request.audience(), info);
             listener.onResponse(response);
-            scheduleEviction(request, listener, response);
+            scheduleEviction(request, listener, response, info);
         }, failure -> {
             // Don't cache failures; let the next caller retry.
             tokens.remove(request, listener);
@@ -337,16 +351,30 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         }));
     }
 
-    private void scheduleEviction(IssueTokenRequest request, SubscribableListener<IssueTokenResponse> entry, IssueTokenResponse response) {
+    @Override
+    public IssuedTokenInfo peekTokenInfo(String audience) {
+        return tokenInfoByAudience.get(audience);
+    }
+
+    private void scheduleEviction(
+        IssueTokenRequest request,
+        SubscribableListener<IssueTokenResponse> entry,
+        IssueTokenResponse response,
+        IssuedTokenInfo info
+    ) {
         // toEpochMilli() is safe here by construction: every cached response has passed
         // validateExpiry, which caps expiresAt within MAX_TOKEN_LIFETIME_SECONDS of now.
         final long delayMillis = Math.max(0L, response.expiresAt().toEpochMilli() - System.currentTimeMillis() - refreshBeforeExpiryMillis);
         try {
-            threadPool.schedule(() -> tokens.remove(request, entry), TimeValue.timeValueMillis(delayMillis), threadPool.generic());
+            threadPool.schedule(() -> {
+                tokens.remove(request, entry);
+                tokenInfoByAudience.remove(request.audience(), info);
+            }, TimeValue.timeValueMillis(delayMillis), threadPool.generic());
         } catch (Exception e) {
             // If scheduling fails (e.g. shutting-down thread pool), evict immediately rather than
             // leaving a stale entry behind. The next caller will refetch.
             tokens.remove(request, entry);
+            tokenInfoByAudience.remove(request.audience(), info);
             logger.debug("failed to schedule workload-identity cache eviction; evicting immediately", e);
         }
     }
@@ -360,7 +388,48 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
      * cache's {@link SubscribableListener}.
      */
     private void fetchToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
-        new IssueTokenRetrier(request, listener).run();
+        new IssueTokenRetrier(request, withAuditNotification(request, listener)).run();
+    }
+
+    /**
+     * Publishes one audit event per completed fetch (after retries, not per attempt), covering
+     * both the cached-mint and cache-bypass paths; cache hits never reach here. Fail-open: a
+     * listener bug must not fail token issuance.
+     */
+    private ActionListener<IssueTokenResponse> withAuditNotification(
+        IssueTokenRequest request,
+        ActionListener<IssueTokenResponse> listener
+    ) {
+        return ActionListener.wrap(response -> {
+            notifyAuditListener(auditListener -> {
+                final TokenClaims claims = TokenClaims.decode(response.token());
+                auditListener.tokenIssued(
+                    new DataSourceAuditListener.TokenIssuance(
+                        request.audience(),
+                        tokenEndpoint.toString(),
+                        claims.subject(),
+                        claims.sessionId(),
+                        response.expiresAt()
+                    )
+                );
+            });
+            listener.onResponse(response);
+        }, failure -> {
+            notifyAuditListener(
+                auditListener -> auditListener.tokenIssuanceFailed(
+                    new DataSourceAuditListener.TokenIssuanceFailure(request.audience(), tokenEndpoint.toString(), failure)
+                )
+            );
+            listener.onFailure(failure);
+        });
+    }
+
+    private static void notifyAuditListener(Consumer<DataSourceAuditListener> event) {
+        try {
+            event.accept(WorkloadIdentityRegistry.getAuditListener());
+        } catch (Exception e) {
+            logger.warn("failed to publish workload-identity audit event", e);
+        }
     }
 
     /**

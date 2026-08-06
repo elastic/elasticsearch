@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -58,6 +59,12 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             // Range is half-open [from, to); date == to is NOT contained. Use 1501 so that 1500 is inside [500, 1501).
             suppliers.add(rangePoint("date just before range end", 500L, 1501L, 1500L, true));
         }
+        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+            suppliers.add(doubleRangeRange("double range contains range", 0.0, 2.0, 0.5, 1.5, true));
+            suppliers.add(doubleRangeRange("double range does not contain overlap", 0.0, 1.0, 0.5, 1.5, false));
+            suppliers.add(doubleRangePoint("double range contains point", 0.5, 1.5, 1.0, true));
+            suppliers.add(doubleRangePoint("double range excludes end", 0.5, 1.5, 1.5, false));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -93,6 +100,43 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
 
     private static TestCaseSupplier.TypedData typedDateRange(long from, long to) {
         return new TestCaseSupplier.TypedData(new LongRangeBlockBuilder.LongRange(from, to), DataType.DATE_RANGE, "range");
+    }
+
+    private static TestCaseSupplier doubleRangeRange(
+        String name,
+        double containerFrom,
+        double containerTo,
+        double valueFrom,
+        double valueTo,
+        boolean expected
+    ) {
+        return new TestCaseSupplier(
+            name,
+            List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(typedDoubleRange(containerFrom, containerTo), typedDoubleRange(valueFrom, valueTo)),
+                "RangeWithinDoubleRangeEvaluator[a=Attribute[channel=1], b=Attribute[channel=0]]",
+                DataType.BOOLEAN,
+                equalTo(expected)
+            )
+        );
+    }
+
+    private static TestCaseSupplier doubleRangePoint(String name, double from, double to, double point, boolean expected) {
+        return new TestCaseSupplier(
+            name,
+            List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(typedDoubleRange(from, to), new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point")),
+                "RangeWithinDoublePointEvaluator[point=Attribute[channel=1], range=Attribute[channel=0]]",
+                DataType.BOOLEAN,
+                equalTo(expected)
+            )
+        );
+    }
+
+    private static TestCaseSupplier.TypedData typedDoubleRange(double from, double to) {
+        return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range");
     }
 
     @Override

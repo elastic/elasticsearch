@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -19,6 +21,17 @@ import java.util.Map;
  * Captures the analyzed and logically-optimized plans for IN/NOT IN subquery scenarios.
  */
 public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
+
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public LogicalPlanOptimizerInSubqueryGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
@@ -92,26 +105,27 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either
     // DIMENSIONVALUES (when the negotiated cluster version supports `dimension_values`) or VALUES (when it does not).
-    // The default golden-test builder randomizes the minimum transport version, which would make the captured plan
-    // flap between the two forms. Pin a version that supports `dimension_values` so the snapshot stays deterministic.
+    // These tests characterize the DIMENSIONVALUES form, so their builder chains declare the corresponding lower bound.
+    // At `pack_dims_agg` the PackDims node folds into the TimeSeriesAggregate as PACKDIMSAGG, so that older shape lives in
+    // [before_pack_dims_agg].
     public void testTsRateWithInSubquery() {
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsRateWithNotInSubquery() {
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // The outer TS pipeline groups BY WITHOUT(...), so the WITHOUT-bearing TimeSeriesAggregate sits directly
@@ -119,32 +133,31 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // WITHOUT into a _timeseries metadata attribute by descending into every EsRelation under the aggregate's
     // child, without excluding the right-hand side of the SemiJoin, injecting the lowered _timeseries attribute
     // into the subquery (RHS) relation as well. After the fix only the main (left) relation carries _timeseries;
-    // the subquery relation keeps just its own _tsid. Pinned to TransportVersion.current() (rather than a random
-    // version supporting `dimension_values`) so that the version-gated SUM long-overflow mode stays deterministic.
+    // the subquery relation keeps just its own _tsid. The SUM overflow fix is this query's floor; `pack_dims_agg` is its newer boundary.
     public void testTsWithoutAndRateWithInSubquery() {
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testTsWithoutAndRateWithNotInSubquery() {
         assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster IN (FROM
                                    (TS k8s
@@ -158,11 +171,11 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
-        runGoldenTest("""
+        builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM
                                        (TS k8s
@@ -176,7 +189,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    )
             | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
             | SORT cluster
-            """, STAGES, TransportVersion.current());
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // -- PropagateEmptyRelation through SEMI / ANTI / MARK join tests --

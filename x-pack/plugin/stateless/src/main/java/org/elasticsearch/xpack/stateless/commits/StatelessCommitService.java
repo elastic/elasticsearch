@@ -334,7 +334,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// We also use an optimistic initial value of 1 GiB/sec to run unrestricted on a fresh node.
         /// An average node provides at least 15 Gigabit of network throughput (which is about ~1.7 GiB)
         /// so this is somewhat realistic and it saves us from trying to calculate this in some smart way.
-        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getBytes());
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getMb());
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();

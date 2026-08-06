@@ -373,10 +373,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
      * The requested suite paths to intersect an explicit-paths suite's declared paths with, or an empty
-     * array when no scoping applies (run the declared paths as-is). The per-task scoped
-     * {@code tests.rest.suite.<task>} is honored (returned, split on {@link #PATHS_SEPARATOR}); a bare,
-     * unscoped {@code tests.rest.suite} is rejected because an explicit-paths suite cannot honor it (the
-     * requested value would be silently dropped).
+     * array when no scoping applies (run the declared paths as-is).
+     *
+     * The per-task scoped {@code tests.rest.suite.<task>} is honored (returned, split on
+     * {@link #PATHS_SEPARATOR}): it is set by tooling that deliberately targets this one task.
+     *
+     * A bare, unscoped {@code tests.rest.suite} is instead rejected with an exception. This is a
+     * deliberate policy choice, not a technical limit - it could be intersected too. But the bare form is
+     * the JVM-wide / CLI knob, and an explicit-paths suite builds its list from code, not the property; so
+     * honoring it here would either be a silent no-op (the value is dropped) or silently narrow the suite
+     * to nothing. Failing loudly forces the caller to use the scoped form (or not set it) instead.
      */
     // pkg private for tests
     static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {

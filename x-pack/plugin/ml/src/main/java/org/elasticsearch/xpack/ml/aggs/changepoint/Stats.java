@@ -537,8 +537,8 @@ public class Stats {
 
     /**
      * A robust spread of {@code values} used as the soft linear/log crossover scale for {@link #asinhStabilize}:
-     * the inter-quartile range rescaled to a standard-deviation equivalent, falling back to the MAD and then to
-     * 1.0, so the returned scale is always strictly positive.
+     * the inter-quartile range rescaled to a standard-deviation equivalent, falling back to 1.0, so the returned
+     * scale is always strictly positive.
      */
     public static double asinhScale(double[] values) {
         int n = values.length;
@@ -548,15 +548,6 @@ public class Stats {
         double[] tmp = Arrays.copyOf(values, n);
         Arrays.sort(tmp);
         double iqr = quantile(tmp, 0.75) - quantile(tmp, 0.25);
-        if (iqr > 0.0) {
-            return iqr / 1.349;
-        }
-        double median = quantile(tmp, 0.5);
-        for (int i = 0; i < n; i++) {
-            tmp[i] = Math.abs(values[i] - median);
-        }
-        Arrays.sort(tmp);
-        double mad = quantile(tmp, 0.5);
-        return mad > 0.0 ? mad / 0.6745 : 1.0;
+        return iqr > 0.0 ? iqr / 1.349 : 1.0;
     }
 }

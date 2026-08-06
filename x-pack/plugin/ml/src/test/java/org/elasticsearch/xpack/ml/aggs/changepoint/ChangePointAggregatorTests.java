@@ -403,18 +403,21 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testGapPolicyKeepValuesIncludesEmptyBuckets() throws IOException {
-        // A sum over an empty bucket is a finite 0.0, which KEEP_VALUES preserves.
+        // A sum over an empty bucket is a finite 0.0, which KEEP_VALUES preserves. With the empty buckets kept
+        // the high plateau is a four-bucket excursion above an otherwise all-zero background: too short to be a
+        // regime (minSegmentLength), so it is reported as a spike peaking on its largest bucket (index 14).
         testGapPolicy(BucketHelpers.GapPolicy.KEEP_VALUES, changeType -> {
-            assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
-            assertThat(changeType.changePoint(), equalTo(16));
+            assertThat(changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(changeType.changePoint(), equalTo(14));
         });
     }
 
     public void testGapPolicyInsertZerosIncludesEmptyBuckets() throws IOException {
-        // INSERT_ZEROS is the only non-skippable policy, so this also covers that nothing throws.
+        // INSERT_ZEROS is the only non-skippable policy, so this also covers that nothing throws. It fills the
+        // empty buckets with 0.0, giving the same series as KEEP_VALUES here, hence the same spike at index 14.
         testGapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS, changeType -> {
-            assertThat(changeType, instanceOf(ChangeType.TrendChange.class));
-            assertThat(changeType.changePoint(), equalTo(16));
+            assertThat(changeType, instanceOf(ChangeType.Spike.class));
+            assertThat(changeType.changePoint(), equalTo(14));
         });
     }
 

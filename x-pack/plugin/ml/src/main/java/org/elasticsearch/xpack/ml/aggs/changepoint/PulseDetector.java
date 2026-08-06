@@ -74,9 +74,14 @@ public class PulseDetector {
             return new ArrayList<>();
         }
 
-        // Residual signal and its robust scale. The scale is the largest of three estimators:
-        // - the composite scale of the residuals (which inflates once a heteroscedastic high-variance regime
-        // appears, so that regime's ordinary fluctuations are not each treated as candidates),
+        // Residual signal and its robust scale. This scale is only the generous pre-filter for the candidate
+        // long list; the significance decision is the KDE gate below. It is the largest of three estimators:
+        // - the MAD of the residuals. We deliberately use the plain MAD, not the inter-decile composite scale:
+        // the MAD's 50%-breakdown ignores a localized cluster of same-sign excursions, whereas the inter-decile
+        // term (10%-per-tail) is pulled up the moment such a cluster exceeds ~10% of the points, so the cluster
+        // inflates the very scale used to detect it and slips under the candidate threshold. When the MAD
+        // collapses on a flat/quantized background it simply falls through to the tiny difference-based floor
+        // below, which is what we want -- the excursions then all become candidates and the KDE gate decides.
         // - the global first-difference noise from the median of |first differences| (meaningful on smooth data),
         // - a tie-robust movement scale from the IQR of first differences. The median estimator collapses to
         // zero on a quantized or stepped series with many repeated values (>50% tied differences) -- and then
@@ -84,7 +89,11 @@ public class PulseDetector {
         // the value gate trivially calls a tail event) is mis-proposed as a spurious spike/dip. The IQR
         // tolerates 25%-per-tail ties, recovering the characteristic step size; it is taken as a per-sample
         // equivalent (differences have sqrt(2) the per-sample spread) so it matches the median estimator on
-        // clean data and only ever raises the scale where the median has collapsed.
+        // clean data and only ever raises the scale where the median has collapsed. These two difference-based
+        // terms also carry the recurring-population guard: a frequent/periodic excursion population makes its
+        // rises and falls frequent large first differences, so they raise the scale and keep those points off
+        // the candidate list -- a localized cluster, whose few edges barely move the difference quantiles, does
+        // not, which is exactly the distinction the inter-decile term could not draw.
         double[] residuals = Stats.rollingMedianResiduals(values, WEIGHT_HALF_WINDOW);
         // The centred rolling-median window collapses at the ends (a point becomes its own median), leaving the
         // first/last WEIGHT_HALF_WINDOW residuals ~0 -- so a spike or dip sitting in those boundary regions was
@@ -98,7 +107,7 @@ public class PulseDetector {
         }
         double movementScale = Math.sqrt(Stats.interquartileNoiseVariance(values, 0, n) / 2.0);
         double scale = Math.max(
-            Stats.compositeScale(residuals, maxAbs),
+            Stats.localRobustScale(residuals, 0, n, maxAbs),
             Math.max(Math.sqrt(Stats.globalNoiseVariance(values)), movementScale)
         );
         logger.trace("Pulse detection on series of length [{}] has residual scale [{}]", n, scale);

@@ -14,4 +14,4 @@ These guides provide detailed information about more advanced workflows in {{esq
 * [Join data with `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md): Learn how to join data from different indices.
 * [Approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md): Learn how to obtain fast approximations of STATS queries.
 
-To combine or reuse query results using subqueries, views, or `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md).
+To combine or reuse query results using subqueries, views, or `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md).

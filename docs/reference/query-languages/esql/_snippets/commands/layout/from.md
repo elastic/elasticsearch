@@ -68,7 +68,7 @@ FROM
     (FROM sample_data | WHERE client_ip == "172.21.3.15")
 ```
 
-To learn about other ways to combine and reuse queries, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md).
+To learn about other ways to combine and reuse queries, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md).
 
 ## Examples
 

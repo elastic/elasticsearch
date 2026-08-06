@@ -408,7 +408,7 @@ toc:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
           - file: esql/esql-cross-serverless-projects.md
-      - file: esql/esql-compose.md
+      - file: esql/esql-combine-reuse-queries.md
         children:
           - file: esql/esql-subquery.md
           - file: esql/esql-in-subquery.md

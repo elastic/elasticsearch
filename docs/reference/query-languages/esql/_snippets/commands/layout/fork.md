@@ -54,7 +54,7 @@ interleaved. Use `SORT _fork` to group results by branch.
 
 ## Comparing FORK with views and subqueries
 
-`FORK` is one of several ways to branch or combine data in ES|QL. For a detailed comparison with `FROM` subqueries and views, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md#comparing-views-subqueries-and-fork).
+`FORK` is one of several ways to branch or combine data in ES|QL. For a detailed comparison with `FROM` subqueries and views, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
 
 ## Limitations
 

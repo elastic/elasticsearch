@@ -272,11 +272,11 @@ If you only have the directive within the subquery, null values will be returned
 
 ## Comparing views, subqueries, and FORK
 
-For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md#comparing-views-subqueries-and-fork).
+For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
 
 ## Related pages
 
-* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md): overview of subqueries, views, and `FORK`.
+* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md): overview of subqueries, views, and `FORK`.
 * [Query multiple sources](/reference/query-languages/esql/esql-multi.md): query across multiple indices, clusters, and projects.
 * [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to `FROM` subqueries, with a persisted, named definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where `FROM` subqueries are used.

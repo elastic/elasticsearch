@@ -160,7 +160,7 @@ at which point `METADATA _index` will contain the name of the view.
 
 ## Comparing views, subqueries, and FORK
 
-For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md#comparing-views-subqueries-and-fork).
+For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
 
 ## Query compaction
 
@@ -229,7 +229,7 @@ Compaction does **not** apply if the view definition contains any commands after
 
 ## Related pages
 
-* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-compose.md): overview of subqueries, views, and `FORK`.
+* [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md): overview of subqueries, views, and `FORK`.
 * [Combine result sets with FROM subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the branching limits described above.

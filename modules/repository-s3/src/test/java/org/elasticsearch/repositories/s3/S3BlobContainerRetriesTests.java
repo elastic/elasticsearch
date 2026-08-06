@@ -194,6 +194,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     protected BlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
+        final @Nullable TimeValue requestTimeout,
         final @Nullable Boolean disableChunkedEncoding,
         final @Nullable Integer maxConnections,
         final @Nullable ByteSizeValue bufferSize,
@@ -600,7 +601,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final CountDownLatch requestReceived = new CountDownLatch(1);
         final CountDownLatch releaseRequest = new CountDownLatch(1);
         int maxConnections = 1;
-        final BlobContainer blobContainer = createBlobContainer(null, null, null, maxConnections, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(null, null, null, null, maxConnections, null, null, null);
 
         // Setting up a simple request handler that returns NOT_FOUND, so as to avoid setting up a response.
         @SuppressForbidden(reason = "use a http server")
@@ -1268,7 +1269,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var denyAccessAfterAttempt = between(1, 5);
         logger.info("--> maxRetries = {}, denyAccessAfterAttempt = {}", maxRetries, denyAccessAfterAttempt);
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, null, blobContainerPath);
         final var requestCount = new AtomicInteger();
         final var invalidAccessKeyIdResponseCount = new AtomicInteger();
         final var accessDeniedResponseCount = new AtomicInteger();
@@ -1331,7 +1332,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         );
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
-        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, blobContainerPath);
+        final var statelessBlobContainer = createBlobContainer(maxRetries, null, null, null, null, null, null, blobContainerPath);
 
         assertThat(
             ExceptionsHelper.unwrap(
@@ -1350,7 +1351,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testUploadNotFoundInCompareAndExchange() {
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, null, blobContainerPath);
 
         @SuppressForbidden(reason = "use a http server")
         class RejectsUploadPartRequests extends S3HttpHandler {
@@ -1387,7 +1388,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testCompareAndExchangeWithConcurrentPutObject() throws Exception {
         final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
-        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, null, blobContainerPath);
 
         final var objectContentsRequestedLatch = new CountDownLatch(1);
 
@@ -1461,7 +1462,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         // The blob needs to be large enough that it won't be entirely buffered on the first request
         final int enoughBytesToNotBeEntirelyBuffered = Math.toIntExact(ByteSizeValue.ofMb(30).getBytes());
 
-        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null);
+        final BlobContainer container = createBlobContainer(1, null, null, null, null, null, null, null);
 
         final String key = randomIdentifier();
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);

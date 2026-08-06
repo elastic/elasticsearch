@@ -429,3 +429,92 @@ CASE(y==2, 10, 1) * MIN(x):integer | y:integer
 10                                 | 2
 1                                  | 3
 ;
+
+casePartialFoldTrueToTextKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM employees_gender_text
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(true, gender)
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | M
+10002          | F
+10003          | M
+;
+
+casePartialFoldTrailingTextArmKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM employees_gender_text
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(false, "never", gender)
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | M
+10002          | F
+10003          | M
+;
+
+casePartialFoldKeywordIsGroupable
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM employees_gender_text
+| WHERE emp_no >= 10001 AND emp_no <= 10005
+| EVAL g = CASE(true, gender)
+| STATS c = COUNT(*) BY g
+| SORT g
+;
+
+c:long | g:keyword
+1      | F
+4      | M
+;
+
+casePartialFoldMixedConditionsKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM employees_gender_text
+| WHERE emp_no >= 10001 AND emp_no <= 10003
+| EVAL x = CASE(false, "x", emp_no == 10002, gender, "other")
+| KEEP emp_no, x
+| SORT emp_no
+;
+
+emp_no:integer | x:keyword
+10001          | other
+10002          | F
+10003          | other
+;
+
+casePartialFoldMultivalueTextKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM mv_text
+| WHERE @timestamp == "2023-10-23T13:55:01.543Z"
+| EVAL x = CASE(true, message)
+| KEEP x
+;
+
+x:keyword
+[Banana, Connected to 10.1.0.1]
+;
+
+casePartialFoldTextArmNullElseKeepsKeyword
+required_capability: fix_case_partial_fold_keyword_type
+
+FROM employees_gender_text
+| WHERE emp_no == 10001
+| EVAL x = CASE(false, gender, null)
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:keyword
+10001          | null
+;

@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -164,7 +163,6 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkUnsupportedAttributeRenaming(p, failures);
-            checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
         });
@@ -203,9 +201,9 @@ public class Verifier {
                 }
 
                 e.forEachUp(ae -> {
-                    // UnsupportedAttribute can pass through Project/Insist unchanged.
+                    // UnsupportedAttribute can pass through a Project unchanged.
                     // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
-                    if ((p instanceof Project || p instanceof Insist) && ae instanceof UnsupportedAttribute) {
+                    if (p instanceof Project && ae instanceof UnsupportedAttribute) {
                         return;
                     }
 
@@ -320,23 +318,14 @@ public class Verifier {
         });
     }
 
-    private static void checkInsist(LogicalPlan p, Failures failures) {
-        if (p instanceof Insist i) {
-            LogicalPlan child = i.child();
-            if ((child instanceof EsRelation || child instanceof Insist) == false) {
-                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
-            }
-        }
-    }
-
     /**
-     * Check that UnsupportedAttribute is not renamed via Alias in Project or Insist.
-     * UnsupportedAttribute can pass through these plans unchanged, but renaming is not allowed.
+     * Check that UnsupportedAttribute is not renamed via Alias in a Project.
+     * UnsupportedAttribute can pass through a Project unchanged, but renaming is not allowed.
      * This check runs unconditionally (not gated by {@link LogicalPlan#resolved()}) because
      * {@link Project#expressionsResolved()} treats UnsupportedAttribute as resolved to allow pass-through.
      */
     private static void checkUnsupportedAttributeRenaming(LogicalPlan p, Failures failures) {
-        if (p instanceof Project || p instanceof Insist) {
+        if (p instanceof Project) {
             p.forEachExpression(Alias.class, alias -> {
                 if (alias.child() instanceof UnsupportedAttribute ua) {
                     failures.add(fail(alias, ua.unresolvedMessage()));

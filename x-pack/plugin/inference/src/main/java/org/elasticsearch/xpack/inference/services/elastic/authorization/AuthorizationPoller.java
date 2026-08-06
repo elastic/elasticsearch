@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.InternalDeleteInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -307,7 +308,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             listener.onResponse(SkipAndLogAction.REGISTRY_NOT_READY_ACTION);
             return;
         }
-        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
             listener.onResponse(SkipAndLogAction.MISSING_REQUIRED_FEATURES);
             return;
         }
@@ -350,10 +352,15 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
 
         logger.info("Deleting removed EIS inference endpoints: {}", toDelete);
-        modelRegistry.deleteModels(toDelete, ActionListener.wrap(success -> listener.onResponse(authModel), e -> {
-            logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
-            listener.onResponse(authModel);
-        }));
+        var deleteRequest = new InternalDeleteInferenceEndpointsAction.Request(toDelete, TimeValue.THIRTY_SECONDS);
+        client.execute(
+            InternalDeleteInferenceEndpointsAction.INSTANCE,
+            deleteRequest,
+            ActionListener.wrap(response -> listener.onResponse(authModel), e -> {
+                logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+                listener.onResponse(authModel);
+            })
+        );
     }
 
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {

@@ -318,6 +318,41 @@ wkt:keyword                               |pt:geo_shape
 "POINT(111)"                              |null
 ;
 
+convertFromStringInvertedBBoxRuntime
+required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
+
+// An inverted BBOX (maxY < minY) computed per-row from a field is a runtime failure: it fails to
+// parse, and to_geoshape returns null for that row (with a warning), while other rows are unaffected.
+row wkt = ["BBOX(0.0, 12.0, 60.0, 30.0)", "BBOX(0.0, 12.0, 30.0, 60.0)"]
+| mv_expand wkt
+| eval shape = to_geoshape(wkt)
+;
+
+warningRegex:evaluation of \[to_geoshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+wkt:keyword                     |shape:geo_shape
+"BBOX(0.0, 12.0, 60.0, 30.0)"   |BBOX(0.0, 12.0, 60.0, 30.0)
+"BBOX(0.0, 12.0, 30.0, 60.0)"   |null
+;
+
+convertFromStringInvertedBBoxLiteralFold
+required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
+
+// The same invalid envelope, but as a pure literal: this is folded at plan time rather than evaluated
+// per row, and must behave identically -- null result plus a registered warning, not a query failure.
+row shape = to_geoshape("BBOX(0.0, 12.0, 30.0, 60.0)")
+;
+
+warningRegex:evaluation of \[to_geoshape.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max y cannot be less than min y.*
+
+shape:geo_shape
+null
+;
+
 ###############################################
 # Tests for GEO_SHAPE type with ST_ENVELOPE, ST_XMIN, etc.
 #
@@ -609,6 +644,42 @@ ROW wkt = "POINT (3010 -1010)"
 
 wkt:keyword          | point:cartesian_point | shape:cartesian_shape
 "POINT (3010 -1010)" | POINT (3010 -1010)    | POINT (3010 -1010)
+;
+
+convertCartesianFromStringInvertedXBBoxRuntime
+required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
+
+// A BBOX with maxX < minX has no antimeridian-crossing meaning for cartesian coordinates and is invalid.
+// Computed per-row from a field, this is a runtime failure: it fails to parse, and to_cartesianshape
+// returns null for that row (with a warning), while other rows are unaffected.
+row wkt = ["BBOX(0.0, 12.0, 60.0, 30.0)", "BBOX(12.0, 0.0, 60.0, 30.0)"]
+| mv_expand wkt
+| eval shape = to_cartesianshape(wkt)
+;
+
+warningRegex:evaluation of \[to_cartesianshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max x cannot be less than min x.*
+
+wkt:keyword                   |shape:cartesian_shape
+"BBOX(0.0, 12.0, 60.0, 30.0)" |BBOX(0.0, 12.0, 60.0, 30.0)
+"BBOX(12.0, 0.0, 60.0, 30.0)" |null
+;
+
+convertCartesianFromStringInvertedXBBoxLiteralFold
+required_capability: spatial_shapes
+required_capability: spatial_bbox_validation_fix
+
+// The same invalid envelope, but as a pure literal: this is folded at plan time rather than evaluated
+// per row, and must behave identically -- null result plus a registered warning, not a query failure.
+row shape = to_cartesianshape("BBOX(12.0, 0.0, 60.0, 30.0)")
+;
+
+warningRegex:evaluation of \[to_cartesianshape.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:.*max x cannot be less than min x.*
+
+shape:cartesian_shape
+null
 ;
 
 # need to work out how to upload WKT

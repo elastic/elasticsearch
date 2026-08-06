@@ -21,7 +21,8 @@ class DocsTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-        configurationCacheCompatible = false
+        configureBwcVersions()
+
         buildFile << """
 tasks.named('listSnippets') {
    docs = fileTree('doc')

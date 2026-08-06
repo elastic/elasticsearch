@@ -1,0 +1,6 @@
+pr: 154795
+summary: Validate the inference ingest processor `target_field`
+area: Machine Learning
+type: bug
+issues:
+ - 88059

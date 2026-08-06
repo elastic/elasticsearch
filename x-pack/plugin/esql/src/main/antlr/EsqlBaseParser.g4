@@ -77,7 +77,6 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? insistCommand
     ;
 
 whereCommand
@@ -375,10 +374,6 @@ tsInfoCommand
 //
 lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
     ;
 
 uriPartsCommand

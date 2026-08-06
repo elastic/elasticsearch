@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -3142,15 +3142,6 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | where " + functionInvocation);
     }
 
-    public void testInsistNotOnTopOfFrom() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-
-        defaultAnalyzer().error(
-            "FROM test | EVAL foo = 42 | INSIST_🐔 bar",
-            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
-        );
-    }
-
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");
@@ -4201,7 +4192,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES).stripErrorPrefix(true);
     }
 
     private static TestAnalyzer k8s() {

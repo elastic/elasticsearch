@@ -1,0 +1,6 @@
+pr: 153213
+summary: Use model's deployment_id when waiting for model allocation
+area: Machine Learning
+type: bug
+issues:
+ - 146835

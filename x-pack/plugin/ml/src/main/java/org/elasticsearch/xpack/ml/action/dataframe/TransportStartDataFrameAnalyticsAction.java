@@ -718,7 +718,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 params.getId(),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 memoryTracker,
-                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes,
+                JobNodeSelector.effectiveMaxLazyNodes(maxLazyMLNodes, params.isAllowLazyStart()),
                 node -> nodeFilter(node, params)
             );
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
@@ -832,7 +832,12 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
         @Override
         protected String[] indicesOfInterest(TaskParams params) {
-            return new String[] { MlConfigIndex.indexName(), MlStatsIndex.indexPattern(), AnomalyDetectorsIndex.jobStateIndexPattern() };
+            String[] statePatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
+            String[] indices = new String[statePatterns.length + 2];
+            System.arraycopy(statePatterns, 0, indices, 0, statePatterns.length);
+            indices[statePatterns.length] = MlStatsIndex.indexPattern();
+            indices[statePatterns.length + 1] = MlConfigIndex.indexName();
+            return indices;
         }
 
         @Override

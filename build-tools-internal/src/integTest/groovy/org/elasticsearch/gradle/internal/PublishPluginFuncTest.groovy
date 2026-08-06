@@ -24,8 +24,6 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         // required for JarHell to work
         subProject(":libs:core") << "apply plugin:'java'"
-
-        configurationCacheCompatible = false
     }
 
     def "project with plugin applied is considered for maven central publication"() {

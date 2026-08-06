@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -117,21 +119,22 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // It's not the conditions or even the rollover itself we are testing but the state of the indices and aliases afterwards.
         maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
 
-        Map<String, Consumer<ActionListener<AcknowledgedResponse>>> params = Map.of(
-            AnomalyDetectorsIndex.jobResultsIndexPattern(),
-            (listener) -> maintenanceService.triggerRollResultsIndicesIfNecessaryTask(listener),
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            (listener) -> maintenanceService.triggerRollStateIndicesIfNecessaryTask(listener)
+        List<Map.Entry<String[], Consumer<ActionListener<AcknowledgedResponse>>>> params = List.of(
+            Map.entry(
+                new String[] { AnomalyDetectorsIndex.jobResultsIndexPattern() },
+                maintenanceService::triggerRollResultsIndicesIfNecessaryTask
+            ),
+            Map.entry(AnomalyDetectorsIndex.jobStateIndexPatterns(), maintenanceService::triggerRollStateIndicesIfNecessaryTask)
         );
 
-        for (Map.Entry<String, Consumer<ActionListener<AcknowledgedResponse>>> param : params.entrySet()) {
-            String indexPattern = param.getKey();
+        for (Map.Entry<String[], Consumer<ActionListener<AcknowledgedResponse>>> param : params) {
+            String[] indexPatterns = param.getKey();
             Consumer<ActionListener<AcknowledgedResponse>> function = param.getValue();
             {
                 GetIndexResponse getIndexResponse = client().admin()
                     .indices()
                     .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(indexPattern)
+                    .setIndices(indexPatterns)
                     .get();
                 assertThat(getIndexResponse.toString(), getIndexResponse.getIndices().length, is(0));
                 var aliases = getIndexResponse.getAliases();
@@ -144,7 +147,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
                 GetIndexResponse getIndexResponse = client().admin()
                     .indices()
                     .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                    .setIndices(indexPattern)
+                    .setIndices(indexPatterns)
                     .get();
                 assertThat(getIndexResponse.toString(), getIndexResponse.getIndices().length, is(0));
                 var aliases = getIndexResponse.getAliases();
@@ -439,7 +442,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 2. Check the state index exists and has the expected write alias
         assertIndicesAndAliases(
             "Before rollover (state)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001", List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()))
         );
 
@@ -449,7 +452,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 4. Verify state index was rolled over correctly
         assertIndicesAndAliases(
             "After rollover (state)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                 List.of(),
@@ -464,7 +467,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 6. Verify state index was rolled over correctly
         assertIndicesAndAliases(
             "After rollover (state)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                 List.of(),
@@ -473,6 +476,44 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000003",
                 List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
             )
+        );
+    }
+
+    public void testTriggerRollReindexedV8StateIndicesIfNecessaryTask() throws Exception {
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        String reindexedIndex = AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "-000001";
+        String rolledIndex = AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "-000002";
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .delete(new DeleteIndexRequest(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001"))
+                .actionGet()
+        );
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .create(
+                    new CreateIndexRequest(reindexedIndex).settings(Settings.builder().put("index.hidden", true).build())
+                        .alias(new Alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).writeIndex(true).isHidden(true))
+                )
+                .actionGet()
+        );
+
+        assertIndicesAndAliases(
+            "Before rollover (reindexed-v8 state)",
+            new String[] { AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "*" },
+            Map.of(reindexedIndex, List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()))
+        );
+
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        assertIndicesAndAliases(
+            "After rollover (reindexed-v8 state)",
+            new String[] { AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "*" },
+            Map.of(reindexedIndex, List.of(), rolledIndex, List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()))
         );
     }
 
@@ -485,12 +526,12 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             GetIndexResponse getIndexResponse = client().admin()
                 .indices()
                 .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .setIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
+                .setIndices(AnomalyDetectorsIndex.jobStateIndexPatterns())
                 .get();
             logger.warn("get_index_response: {}", getIndexResponse.toString());
             assertIndicesAndAliases(
                 "Before rollover (state)",
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
                 Map.of(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001", List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()))
             );
         }
@@ -500,7 +541,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         {
             assertIndicesAndAliases(
                 "After rollover (state)",
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
                 Map.of(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001", List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()))
             );
         }
@@ -519,7 +560,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
 
         assertIndicesAndAliases(
             "Before rollover (state, missing alias)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001", List.of())
         );
 
@@ -529,7 +570,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 4. Verify the index rolled over correctly and the write alias was added
         assertIndicesAndAliases(
             "After rollover (state, missing alias)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                 List.of(),
@@ -549,7 +590,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 3. Verify the initial state (write alias is on the older index)
         assertIndicesAndAliases(
             "Before rollover (state, alias on wrong index)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                 List.of(AnomalyDetectorsIndex.jobStateIndexWriteAlias()),
@@ -565,7 +606,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 5. Verify the index rolled over correctly and the write alias was moved to the latest index
         assertIndicesAndAliases(
             "After rollover (state, alias on wrong index)",
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns(),
             Map.of(
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
                 List.of(),
@@ -822,11 +863,16 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         );
     }
 
-    private void assertIndicesAndAliases(String context, String indexWildcard, Map<String, List<String>> expectedAliases) {
+    private void assertIndicesAndAliases(String context, String indexPattern, Map<String, List<String>> expectedAliases) {
+        assertIndicesAndAliases(context, new String[] { indexPattern }, expectedAliases);
+    }
+
+    private void assertIndicesAndAliases(String context, String[] indexPatterns, Map<String, List<String>> expectedAliases) {
         GetIndexResponse getIndexResponse = client().admin()
             .indices()
             .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-            .setIndices(indexWildcard)
+            .setIndices(indexPatterns)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
             .get();
 
         var indices = Arrays.asList(getIndexResponse.getIndices());

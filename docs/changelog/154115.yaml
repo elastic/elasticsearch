@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 154115
+summary: Upgrade the version of log4j to 2.26.1
+type: upgrade

@@ -132,7 +132,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -384,9 +383,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int i = 0; i < attributes.size(); i++) {
                 if (attributes.get(i) instanceof FieldAttribute fa && isPartiallyUnmappedRegularField(fa, esIndex)) {
                     if (fa.dataType() == KEYWORD) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
+                        attributes.set(i, ResolveRefs.unmappedKeyword(fa));
                     } else {
-                        attributes.set(i, ResolveRefs.invalidInsistAttribute(fa, esIndex));
+                        attributes.set(i, ResolveRefs.invalidUnmappedAttribute(fa, esIndex));
                     }
                 }
             }
@@ -700,7 +699,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -1233,46 +1231,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
-            List<Attribute> list = new ArrayList<>();
-            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
-            for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
-            }
-            return insist.withAttributes(list);
-        }
-
-        private static List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
-            List<IndexResolution> resolutions = new ArrayList<>();
-            plan.forEachDown(EsRelation.class, e -> {
-                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
-                if (resolution != null) {
-                    resolutions.add(resolution);
-                }
-            });
-            return resolutions;
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
-            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
-            // Field isn't mapped anywhere.
-            if (resolvedCol instanceof UnresolvedAttribute) {
-                return insistKeyword(attribute);
-            }
-
-            // Field is partially unmapped.
-            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
-            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
-            }
-
-            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
-            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
-            return resolvedCol;
-        }
-
-        static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
+        static FieldAttribute invalidUnmappedAttribute(FieldAttribute fa, EsIndex esIndex) {
             InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.field().getName(), getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), fa.parentName(), fa.qualifier(), fa.name(), field);
         }
@@ -1287,7 +1246,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
-        public static FieldAttribute insistKeyword(Attribute attribute) {
+        public static FieldAttribute unmappedKeyword(Attribute attribute) {
             return new FieldAttribute(
                 attribute.source(),
                 null,

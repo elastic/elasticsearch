@@ -499,8 +499,7 @@ public class Driver implements Releasable, Describable {
         ActionListener<Void> listener,
         LongSupplier currentTimeNanosSupplier
     ) {
-        final var task = new AbstractRunnable() {
-
+        AbstractRunnable task = new AbstractRunnable() {
             @Override
             protected void doRun() {
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier);
@@ -530,6 +529,7 @@ public class Driver implements Releasable, Describable {
                 driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         };
+        task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
         driver.scheduler.scheduleOrRunTask(executor, task);
     }
 

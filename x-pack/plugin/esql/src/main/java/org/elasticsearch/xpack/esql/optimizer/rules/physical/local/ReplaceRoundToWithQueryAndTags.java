@@ -307,6 +307,9 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                if (roundTo.field() instanceof FieldAttribute == false) {
+                    return evalExec;
+                }
                 int count = roundTo.points().size();
                 int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
                     ctx.searchStats(),

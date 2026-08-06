@@ -341,7 +341,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         // Verify .ml-state doesn't contain unused state documents
         assertResponse(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse -> {
                 assertThat(stateDocsResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(5L));
 

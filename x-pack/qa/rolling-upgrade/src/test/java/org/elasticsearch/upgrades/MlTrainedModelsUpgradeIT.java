@@ -67,10 +67,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 testInfer(oldModels);
             }
             case MIXED, UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 List<String> modelIds = getTrainedModels();
                 // Test that stats are serializable and can be gathered
                 getTrainedModelStats();

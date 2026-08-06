@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -115,6 +117,29 @@ public final class AnonymizationContext {
      */
     public NodeStringMapper mapper() {
         return mapper;
+    }
+
+    /**
+     * Replaces identifiers already interned during a plan traversal with their anonymized tokens.
+     * Longest keys are substituted first so a short name cannot leave a suffix of a longer field
+     * path un-tokenized. Fragments that never appeared in the plan tree are left unchanged.
+     */
+    public String anonymizeKnownIdentifiers(String text) {
+        if (text == null || text.isEmpty()) {
+            return text == null ? "" : text;
+        }
+        if (columnTokens.isEmpty() && indexTokens.isEmpty()) {
+            return text;
+        }
+        List<Map.Entry<String, String>> replacements = new ArrayList<>(columnTokens.size() + indexTokens.size());
+        columnTokens.forEach((k, v) -> replacements.add(Map.entry(k, v)));
+        indexTokens.forEach((k, v) -> replacements.add(Map.entry(k, v)));
+        replacements.sort(Comparator.comparingInt((Map.Entry<String, String> e) -> e.getKey().length()).reversed());
+        String result = text;
+        for (var entry : replacements) {
+            result = result.replace(entry.getKey(), entry.getValue());
+        }
+        return result;
     }
 
     private String token(String value) {

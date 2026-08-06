@@ -40,6 +40,8 @@ public final class PlanAnonymizer {
 
     public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
 
+    public record LocalComputePlans(String physical, String executionPlan) {}
+
     private final AnonymizationContext ctx;
     private final NodeStringMapper mapper;
 
@@ -71,6 +73,17 @@ public final class PlanAnonymizer {
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);
 
         return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText);
+    }
+
+    /**
+     * Anonymizes the local physical plan and a {@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan#describe()}
+     * string produced from that plan. Traversing the physical plan first populates the per-submission
+     * token maps; known field and index names in the execution-plan text are then substituted.
+     */
+    public LocalComputePlans anonymizeLocalCompute(PhysicalPlan localPlan, String executionPlanDescribe) {
+        var plans = anonymize(null, null, null, localPlan);
+        String executionPlan = executionPlanDescribe == null ? "" : ctx.anonymizeKnownIdentifiers(executionPlanDescribe);
+        return new LocalComputePlans(plans.physical(), executionPlan);
     }
 
     /**

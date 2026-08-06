@@ -39,6 +39,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -59,6 +60,7 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.anonymizer.EsqlFailureLogger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -1398,6 +1400,8 @@ public class ComputeService {
             singleValueQueryWarnings
         );
 
+        PhysicalPlan localPlan = null;
+        String localExecutionPlanDescribe = null;
         try {
             var workerThreadPool = transportService.getThreadPool();
             var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
@@ -1431,7 +1435,6 @@ public class ComputeService {
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
             );
-            PhysicalPlan localPlan;
             final String logicalPlanString;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
@@ -1484,8 +1487,9 @@ public class ComputeService {
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
             var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            localExecutionPlanDescribe = localExecutionPlan.describe();
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlanDescribe);
             }
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
@@ -1534,8 +1538,14 @@ public class ComputeService {
             }
             long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
+            final PhysicalPlan localPlanForLogging = localPlan;
+            final String localExecutionPlanDescribeForLogging = localExecutionPlanDescribe;
+            ActionListener<DriverCompletionInfo> failureLoggingListener = listener.delegateResponse((l, e) -> {
+                maybeLogLocalComputeFailure(context, localPlanForLogging, localExecutionPlanDescribeForLogging, e);
+                l.onFailure(e);
+            });
             ActionListener<Void> driverListener = addCompletionInfo(
-                listener,
+                failureLoggingListener,
                 drivers,
                 context,
                 localPlan,
@@ -1560,9 +1570,36 @@ public class ComputeService {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
             }
+            maybeLogLocalComputeFailure(context, localPlan, localExecutionPlanDescribe, e);
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
+    }
+
+    private void maybeLogLocalComputeFailure(
+        ComputeContext context,
+        PhysicalPlan localPlan,
+        String localExecutionPlanDescribe,
+        Exception err
+    ) {
+        if (context.description().equals(DATA_DESCRIPTION) == false) {
+            return;
+        }
+        List<ShardId> shardIds = new ArrayList<>();
+        for (ComputeSearchContext searchContext : context.searchContexts().iterable()) {
+            shardIds.add(searchContext.searchContext().shardTarget().getShardId());
+        }
+        EsqlFailureLogger.logLocalComputeFailure(
+            new EsqlFailureLogger.LocalComputeFailureContext(
+                context.sessionId(),
+                clusterService.state().metadata().clusterUUID(),
+                context.clusterAlias(),
+                shardIds,
+                localPlan,
+                localExecutionPlanDescribe
+            ),
+            err
+        );
     }
 
     ActionListener<Void> addCompletionInfo(
